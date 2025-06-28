@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+*.sqlite3
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
+
+# Docker volumes
+postgres_data/
+pgdata/
+
+# Env files
+.env
+
+# Node
+node_modules/
+dist/
+build/
+
+# Logs
+*.log
+
