@@ -3,8 +3,8 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
-# Esquema base con todos los campos CFDI 4.0 y básicos
 class ClienteBase(BaseModel):
+    nombre_comercial: str
     nombre_razon_social: str
     tipo_identificacion: str
     numero_identificacion: str
@@ -13,17 +13,13 @@ class ClienteBase(BaseModel):
     email: Optional[EmailStr]
     rfc: str
     regimen_fiscal: str
-    uso_cfdi: str
-    residencia_fiscal: Optional[str]
-    num_reg_id_trib: Optional[str]
     codigo_postal_domicilio: Optional[str]
 
-# Esquema para creación
 class ClienteCreate(ClienteBase):
     pass
 
-# Esquema para actualización (todos los campos opcionales)
 class ClienteUpdate(BaseModel):
+    nombre_comercial: Optional[str]
     nombre_razon_social: Optional[str]
     tipo_identificacion: Optional[str]
     numero_identificacion: Optional[str]
@@ -31,13 +27,9 @@ class ClienteUpdate(BaseModel):
     telefono: Optional[str]
     email: Optional[EmailStr]
     rfc: Optional[str]
-    regimen_fiscal_receptor: Optional[str]
-    uso_cfdi: Optional[str]
-    residencia_fiscal: Optional[str]
-    num_reg_id_trib: Optional[str]
+    regimen_fiscal: Optional[str]
     codigo_postal_domicilio: Optional[str]
 
-# Esquema de salida al frontend
 class EmpresaOut(BaseModel):
     id: UUID
     nombre: str

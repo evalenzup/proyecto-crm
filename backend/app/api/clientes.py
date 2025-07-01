@@ -5,7 +5,8 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 from app.database import get_db
-from app.models.models import Cliente, Empresa
+from app.models.cliente import Cliente
+from app.models.empresa import Empresa
 from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate
 from app.auth.security import get_current_user, User
 
