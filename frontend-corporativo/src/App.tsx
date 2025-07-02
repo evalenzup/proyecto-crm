@@ -20,6 +20,7 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
 
 import ClientesPage from "./pages/ClientesPage"
+import EmpresasPage from "./pages/EmpresasPage";
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
             {/* Others Page */}
             <Route path="/profile" element={<UserProfiles />} />
             <Route path="/calendar" element={<Calendar />} />
+            <Route path="/empresas" element={<EmpresasPage />} />
             <Route path="/clientes" element={<ClientesPage />} />
             <Route path="/blank" element={<Blank />} />
 

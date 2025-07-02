@@ -38,6 +38,11 @@ const navItems: NavItem[] = [
   },
   {
     icon: <UserCircleIcon />,
+    name: "Empresas",
+    path: "/empresas",
+  },
+  {
+    icon: <UserCircleIcon />,
     name: "Clientes",
     path: "/clientes",
   },
