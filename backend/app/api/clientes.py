@@ -12,13 +12,16 @@ from app.auth.security import get_current_user, User
 
 router = APIRouter()
 
-#Funcion para listar clientes de una empresa
+# Función para listar clientes de una empresa
 @router.get("/", response_model=List[ClienteOut])
 def listar_clientes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     empresa = db.query(Empresa).filter(Empresa.id == current_user.empresa_id).first()
     if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        return []
+    if not empresa.clientes:
+        return []
     return empresa.clientes
+
 
 # Endpoints para manejar clientes asociados a una empresa
 @router.get("/{id}", response_model=ClienteOut)

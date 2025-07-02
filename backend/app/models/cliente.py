@@ -1,18 +1,10 @@
-from sqlalchemy import Column, String, Text, ForeignKey, TIMESTAMP, Table
+from sqlalchemy import Column, String, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
-
-# Tabla intermedia para relación muchos a muchos
-cliente_empresa = Table(
-    'cliente_empresa', Base.metadata,
-    Column('cliente_id', UUID(as_uuid=True), ForeignKey('clientes.id'), primary_key=True),
-    Column('empresa_id', UUID(as_uuid=True), ForeignKey('empresas.id'), primary_key=True)
-)
+from app.models.associations import cliente_empresa
+from app.models.base import Base
 
 class Cliente(Base):
     __tablename__ = 'clientes'

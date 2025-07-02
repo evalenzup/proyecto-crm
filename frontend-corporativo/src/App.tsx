@@ -21,6 +21,8 @@ import Home from "./pages/Dashboard/Home";
 
 import ClientesPage from "./pages/ClientesPage"
 import EmpresasPage from "./pages/EmpresasPage";
+import EmpresaFormPage from "./pages/EmpresaFormPage";
+
 
 export default function App() {
   return (
@@ -36,6 +38,8 @@ export default function App() {
             <Route path="/profile" element={<UserProfiles />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/empresas" element={<EmpresasPage />} />
+              <Route path="/empresas/nueva" element={<EmpresaFormPage />} />
+              <Route path="/empresas/editar/:id" element={<EmpresaFormPage />} />
             <Route path="/clientes" element={<ClientesPage />} />
             <Route path="/blank" element={<Blank />} />
 
