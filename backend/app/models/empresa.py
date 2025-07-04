@@ -18,6 +18,7 @@ class Empresa(Base):
     rfc = Column(String(13), nullable=False)
     regimen_fiscal = Column(String(100), nullable=False)
     codigo_postal = Column(String(10), nullable=False)
+    contrasena = Column(String(50), nullable=False)
     archivo_cer = Column(String(255))  
     archivo_key = Column(String(255)) 
     creado_en = Column(TIMESTAMP, server_default=func.now())

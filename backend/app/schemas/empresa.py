@@ -13,6 +13,7 @@ class EmpresaBase(BaseModel):
     rfc: str
     regimen_fiscal: str
     codigo_postal: str
+    contrasena: str
     archivo_cer: Optional[str] = None            # ✅ NUEVO
     archivo_key: Optional[str] = None            # ✅ NUEVO
 
@@ -29,6 +30,7 @@ class EmpresaUpdate(BaseModel):
     rfc: Optional[str] = None
     regimen_fiscal: Optional[str] = None
     codigo_postal: Optional[str] = None
+    contrasena: Optional[str] = None
     archivo_cer: Optional[str] = None            # ✅ NUEVO
     archivo_key: Optional[str] = None            # ✅ NUEVO
 
