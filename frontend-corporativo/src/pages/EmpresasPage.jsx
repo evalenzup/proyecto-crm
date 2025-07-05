@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -14,12 +14,7 @@ export default function EmpresasPage() {
   const obtenerEmpresas = async () => {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/empresas/`);
-      if (Array.isArray(res.data)) {
-        setEmpresas(res.data);
-      } else {
-        console.warn("La respuesta no es un array:", res.data);
-        setEmpresas([]);
-      }
+      setEmpresas(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error("Error al obtener empresas:", error);
       setEmpresas([]);
@@ -40,7 +35,7 @@ export default function EmpresasPage() {
     }
   };
 
-  const empresasFiltradas = (empresas || []).filter((empresa) =>
+  const empresasFiltradas = empresas.filter((empresa) =>
     empresa.nombre?.toLowerCase().includes(busqueda.toLowerCase())
   );
 
@@ -51,61 +46,69 @@ export default function EmpresasPage() {
         description="Gestión de empresas para el CRM de facturación."
       />
       <PageBreadcrumb pageTitle="Empresas" />
+
       <ComponentCard title="Listado de Empresas">
-        <div className="flex justify-between mb-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2">
           <input
             type="text"
             placeholder="Buscar empresa..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-2 text-sm w-full max-w-xs"
+            className="w-full md:w-1/3 rounded-lg border border-stroke bg-transparent py-2 px-4 text-black dark:text-white dark:border-strokedark dark:bg-boxdark focus:border-primary focus:outline-none"
           />
           <button
             onClick={() => navigate("/empresas/nueva")}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            + Nueva Empresa
+            class="inline-flex items-center justify-center gap-2 rounded-lg transition  px-4 py-3 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300 ">
+            Nueva Empresa
+            <Plus size={18} />
           </button>
+          
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 text-sm">
-            <thead className="bg-gray-100 text-left">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-boxdark text-sm rounded-lg">
+            <thead className="bg-gray-100 dark:bg-gray-800">
               <tr>
-                <th className="p-3 font-medium">Nombre</th>
-                <th className="p-3 font-medium">RFC</th>
-                <th className="p-3 font-medium">Régimen Fiscal</th>
-                <th className="p-3 font-medium">Código Postal</th>
-                <th className="p-3 font-medium">Teléfono</th>
-                <th className="p-3 font-medium">Email</th>
-                <th className="p-3 font-medium">Acciones</th>
+                {["Nombre", "RFC", "Régimen Fiscal", "Código Postal", "Teléfono", "Email", "Acciones"].map((header) => (
+                  <th key={header} className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">
+                    {header}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {empresasFiltradas.map((empresa) => (
-                <tr key={empresa.id} className="border-t hover:bg-gray-50">
-                  <td className="p-3">{empresa.nombre}</td>
-                  <td className="p-3">{empresa.rfc}</td>
-                  <td className="p-3">{empresa.regimen_fiscal}</td>
-                  <td className="p-3">{empresa.codigo_postal}</td>
-                  <td className="p-3">{empresa.telefono}</td>
-                  <td className="p-3">{empresa.email}</td>
-                  <td className="p-3 flex gap-2">
-                    <button
-                      onClick={() => navigate(`/empresas/editar/${empresa.id}`)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(empresa.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+              {empresasFiltradas.length > 0 ? (
+                empresasFiltradas.map((empresa) => (
+                  <tr key={empresa.id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-4 py-2">{empresa.nombre}</td>
+                    <td className="px-4 py-2">{empresa.rfc}</td>
+                    <td className="px-4 py-2">{empresa.regimen_fiscal}</td>
+                    <td className="px-4 py-2">{empresa.codigo_postal}</td>
+                    <td className="px-4 py-2">{empresa.telefono}</td>
+                    <td className="px-4 py-2">{empresa.email}</td>
+                    <td className="px-4 py-2 flex gap-2">
+                      <button
+                        onClick={() => navigate(`/empresas/editar/${empresa.id}`)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(empresa.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-4 py-4 text-center text-gray-500 dark:text-gray-400">
+                    No se encontraron empresas.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

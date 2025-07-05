@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -8,86 +9,40 @@ import ComponentCard from "../components/common/ComponentCard";
 export default function ClientesPage() {
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState("");
-  const [open, setOpen] = useState(false);
-  const [editando, setEditando] = useState(false);
-  const [clienteId, setClienteId] = useState(null);
-  const [form, setForm] = useState({
-    nombre_razon_social: "",
-    tipo_identificacion: "",
-    numero_identificacion: "",
-    direccion: "",
-    telefono: "",
-    email: "",
-  });
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchClientes();
-  }, []);
-
-const fetchClientes = () => {
-  axios
-    .get(`${import.meta.env.VITE_API_URL}/clientes/`)
-    .then((res) => {
-      console.log("Respuesta backend:", res.data);
+  const obtenerClientes = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/clientes/`);
       if (Array.isArray(res.data)) {
         setClientes(res.data);
       } else {
         console.warn("La respuesta no es un array:", res.data);
-        setClientes([]); // fallback para evitar el error
+        setClientes([]);
       }
-    })
-    .catch((err) => {
-      console.error("Error al obtener clientes:", err);
-      setClientes([]); // fallback en caso de error
-    });
-};
-
-  const handleGuardar = () => {
-    const method = editando ? "put" : "post";
-    const url = editando
-      ? `${import.meta.env.VITE_API_URL}/clientes/${clienteId}`
-      : `${import.meta.env.VITE_API_URL}/clientes/`;
-    axios[method](url, form)
-      .then(() => {
-        setOpen(false);
-        resetForm();
-        fetchClientes();
-      })
-      .catch((err) => console.error(err));
-  };
-
-  const handleEditar = (cliente) => {
-    setForm({ ...cliente });
-    setClienteId(cliente.id);
-    setEditando(true);
-    setOpen(true);
-  };
-
-  const handleEliminar = (id) => {
-    if (confirm("¿Deseas eliminar este cliente?")) {
-      axios
-        .delete(`${import.meta.env.VITE_API_URL}/clientes/${id}`)
-        .then(() => fetchClientes())
-        .catch((err) => console.error(err));
+    } catch (error) {
+      console.error("Error al obtener clientes:", error);
+      setClientes([]);
     }
   };
 
-  const resetForm = () => {
-    setForm({
-      nombre_razon_social: "",
-      tipo_identificacion: "",
-      numero_identificacion: "",
-      direccion: "",
-      telefono: "",
-      email: "",
-    });
-    setEditando(false);
-    setClienteId(null);
+  useEffect(() => {
+    obtenerClientes();
+  }, []);
+
+  const handleDelete = async (id) => {
+    if (!confirm("¿Seguro que deseas eliminar este cliente?")) return;
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/clientes/${id}`);
+      obtenerClientes();
+    } catch (error) {
+      console.error("Error al eliminar cliente:", error);
+    }
   };
 
-const clientesFiltrados = (clientes || []).filter(
-  (c) => c.nombre_razon_social?.toLowerCase().includes(busqueda.toLowerCase())
-);
+  const clientesFiltrados = (clientes || []).filter((cliente) =>
+    cliente.nombre_razon_social?.toLowerCase().includes(busqueda.toLowerCase())
+  );
 
   return (
     <>
@@ -101,108 +56,73 @@ const clientesFiltrados = (clientes || []).filter(
           <input
             type="text"
             placeholder="Buscar cliente..."
-            className="border border-gray-300 rounded px-3 py-2 text-sm"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full max-w-xs rounded-lg border border-stroke bg-transparent px-4 py-3 text-sm text-black placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-0"
           />
           <button
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            onClick={() => {
-              resetForm();
-              setOpen(true);
-            }}
+            onClick={() => navigate("/clientes/nuevo")}
+            className="inline-flex items-center justify-center gap-2 rounded-lg transition px-4 py-3 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300"
           >
-            + Nuevo Cliente
+            Nuevo Cliente
+            <Plus size={18} />
           </button>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 text-sm">
-            <thead className="bg-gray-100 text-left">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-boxdark text-sm rounded-lg">
+            <thead className="bg-gray-100 dark:bg-gray-800">
               <tr>
-                <th className="p-3 font-medium">Razón Social</th>
-                <th className="p-3 font-medium">Identificación</th>
-                <th className="p-3 font-medium">Email</th>
-                <th className="p-3 font-medium">Teléfono</th>
-                <th className="p-3 font-medium">Acciones</th>
+                {["Razón Social", "Identificación", "Email", "Teléfono", "Acciones"].map((header) => (
+                  <th key={header} className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">
+                    {header}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody>
-              {clientesFiltrados.map((cliente) => (
-                <tr key={cliente.id} className="border-t hover:bg-gray-50">
-                  <td className="p-3">{cliente.nombre_razon_social}</td>
-                  <td className="p-3">
-                    {cliente.tipo_identificacion} {cliente.numero_identificacion}
-                  </td>
-                  <td className="p-3">{cliente.email}</td>
-                  <td className="p-3">{cliente.telefono}</td>
-                  <td className="p-3 flex gap-2">
-                    <button
-                      onClick={() => handleEditar(cliente)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleEliminar(cliente.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <Trash size={16} />
-                    </button>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {clientesFiltrados.length > 0 ? (
+                clientesFiltrados.map((cliente) => (
+                  <tr key={cliente.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <td className="px-4 py-2 text-gray-800 dark:text-gray-200">
+                      {cliente.nombre_razon_social}
+                    </td>
+                    <td className="px-4 py-2 text-gray-800 dark:text-gray-200">
+                      {cliente.tipo_identificacion} {cliente.numero_identificacion}
+                    </td>
+                    <td className="px-4 py-2 text-gray-800 dark:text-gray-200">
+                      {cliente.email}
+                    </td>
+                    <td className="px-4 py-2 text-gray-800 dark:text-gray-200">
+                      {cliente.telefono}
+                    </td>
+                    <td className="px-4 py-2 flex gap-2">
+                      <button
+                        onClick={() => navigate(`/clientes/editar/${cliente.id}`)}
+                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(cliente.id)}
+                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-4 py-4 text-center text-gray-500 dark:text-gray-400">
+                    No se encontraron clientes.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </ComponentCard>
-
-      {open && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-md w-full max-w-lg shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">
-              {editando ? "Editar Cliente" : "Nuevo Cliente"}
-            </h2>
-            <form className="space-y-4">
-              {[
-                ["nombre_razon_social", "Razón Social"],
-                ["tipo_identificacion", "Tipo Identificación"],
-                ["numero_identificacion", "Número Identificación"],
-                ["direccion", "Dirección"],
-                ["telefono", "Teléfono"],
-                ["email", "Email"],
-              ].map(([campo, label]) => (
-                <div key={campo}>
-                  <label className="block text-sm font-medium mb-1">{label}</label>
-                  <input
-                    value={form[campo]}
-                    onChange={(e) =>
-                      setForm({ ...form, [campo]: e.target.value })
-                    }
-                    className="w-full border border-gray-300 px-3 py-2 rounded text-sm"
-                  />
-                </div>
-              ))}
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGuardar}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                >
-                  Guardar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </>
   );
 }

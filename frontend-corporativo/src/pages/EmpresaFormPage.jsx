@@ -8,6 +8,7 @@ import ComponentCard from "../components/common/ComponentCard";
 export default function EmpresaFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+
   const [formData, setFormData] = useState({
     nombre: "",
     nombre_comercial: "",
@@ -18,9 +19,9 @@ export default function EmpresaFormPage() {
     rfc: "",
     regimen_fiscal: "",
     codigo_postal: "",
+    contrasena: "",
     archivo_cer: null,
     archivo_key: null,
-    contrasena: "",
   });
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function EmpresaFormPage() {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
+
       navigate("/empresas");
     } catch (error) {
       console.error("Error al guardar empresa:", error);
@@ -57,7 +59,10 @@ export default function EmpresaFormPage() {
 
   return (
     <>
-      <PageMeta title={id ? "Editar Empresa" : "Nueva Empresa"} description="Formulario de empresa para CRM de facturación" />
+      <PageMeta
+        title={id ? "Editar Empresa" : "Nueva Empresa"}
+        description="Formulario de empresa para CRM de facturación"
+      />
       <PageBreadcrumb pageTitle={id ? "Editar Empresa" : "Nueva Empresa"} />
       <ComponentCard title={id ? "Editar Empresa" : "Nueva Empresa"}>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -71,21 +76,29 @@ export default function EmpresaFormPage() {
             { name: "rfc", label: "RFC" },
             { name: "regimen_fiscal", label: "Régimen Fiscal" },
             { name: "codigo_postal", label: "Código Postal" },
-            { name: "contrasena", label: "Contraseña" },
+            { name: "contrasena", label: "Contraseña de Certificados" },
           ].map((field) => (
             <div key={field.name}>
-              <label className="block text-sm font-medium mb-1">{field.label}</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
+                {field.label}
+              </label>
               <input
                 type="text"
                 value={formData[field.name] || ""}
-                onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-                className="w-full border border-gray-300 px-3 py-2 rounded text-sm"
+                onChange={(e) =>
+                  setFormData({ ...formData, [field.name]: e.target.value })
+                }
+                className="w-full border border-gray-300 px-3 py-2 rounded text-sm 
+                  focus:outline-none focus:ring focus:border-blue-300
+                  dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
               />
             </div>
           ))}
 
           <div>
-            <label className="block text-sm font-medium mb-1">Archivo CER</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
+              Archivo CER
+            </label>
             <input
               type="file"
               accept=".cer"
@@ -98,12 +111,16 @@ export default function EmpresaFormPage() {
                   e.target.value = "";
                 }
               }}
-              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer
+                file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
+                dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Archivo KEY</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
+              Archivo KEY
+            </label>
             <input
               type="file"
               accept=".key"
@@ -116,7 +133,9 @@ export default function EmpresaFormPage() {
                   e.target.value = "";
                 }
               }}
-              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer
+                file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
+                dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             />
           </div>
 
@@ -124,13 +143,13 @@ export default function EmpresaFormPage() {
             <button
               type="button"
               onClick={() => navigate("/empresas")}
-              className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100"
+              className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             >
               {id ? "Actualizar" : "Guardar"}
             </button>
