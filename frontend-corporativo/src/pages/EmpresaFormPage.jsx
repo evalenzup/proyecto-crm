@@ -23,12 +23,46 @@ export default function EmpresaFormPage() {
     archivo_cer: null,
     archivo_key: null,
   });
+  const [regimenesFiscales, setRegimenesFiscales] = useState([]);
 
+  console.log(`${import.meta.env.VITE_API_URL}/catalogos/regimen-fiscal`);
+  // Cargar catálogo de régimen fiscal
+  useEffect(() => {
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/catalogos/regimen-fiscal`)
+      .then(({ data }) => {
+        //console.log("data: " + data);
+        if (Array.isArray(data)) {
+          setRegimenesFiscales(data);
+        } else {
+          console.error("Respuesta inesperada de catálogo:", data);
+          setRegimenesFiscales([]);
+        }
+      })
+      .catch((err) => console.error("Error al cargar catálogo SAT:", err));
+  }, []);
+
+  // Cargar datos de la empresa si es edición
   useEffect(() => {
     if (id) {
       axios
         .get(`${import.meta.env.VITE_API_URL}/empresas/${id}`)
-        .then((res) => setFormData(res.data))
+        .then(({ data }) => {
+          setFormData({
+            nombre: data.nombre || "",
+            nombre_comercial: data.nombre_comercial || "",
+            ruc: data.ruc || "",
+            direccion: data.direccion || "",
+            telefono: data.telefono || "",
+            email: data.email || "",
+            rfc: data.rfc || "",
+            regimen_fiscal: data.regimen_fiscal || "",
+            codigo_postal: data.codigo_postal || "",
+            contrasena: data.contrasena || "",
+            archivo_cer: null,
+            archivo_key: null,
+          });
+        })
         .catch((err) => console.error(err));
     }
   }, [id]);
@@ -38,22 +72,27 @@ export default function EmpresaFormPage() {
     try {
       const data = new FormData();
       Object.entries(formData).forEach(([key, value]) => {
-        data.append(key, value);
+        if (value !== null && value !== "") {
+          data.append(key, value);
+        }
       });
 
       if (id) {
-        await axios.put(`${import.meta.env.VITE_API_URL}/empresas/${id}`, data, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        await axios.put(
+          `${import.meta.env.VITE_API_URL}/empresas/${id}`,
+          data
+        );
       } else {
-        await axios.post(`${import.meta.env.VITE_API_URL}/empresas/`, data, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        await axios.post(
+          `${import.meta.env.VITE_API_URL}/empresas/`,
+          data
+        );
       }
 
       navigate("/empresas");
     } catch (error) {
       console.error("Error al guardar empresa:", error);
+      alert("Ocurrió un error al guardar la empresa. Revisa la consola para más detalles.");
     }
   };
 
@@ -74,7 +113,6 @@ export default function EmpresaFormPage() {
             { name: "telefono", label: "Teléfono" },
             { name: "email", label: "Email" },
             { name: "rfc", label: "RFC" },
-            { name: "regimen_fiscal", label: "Régimen Fiscal" },
             { name: "codigo_postal", label: "Código Postal" },
             { name: "contrasena", label: "Contraseña de Certificados" },
           ].map((field) => (
@@ -88,13 +126,33 @@ export default function EmpresaFormPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, [field.name]: e.target.value })
                 }
-                className="w-full border border-gray-300 px-3 py-2 rounded text-sm 
-                  focus:outline-none focus:ring focus:border-blue-300
-                  dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                className="w-full border border-gray-300 px-3 py-2 rounded text-sm focus:outline-none focus:ring focus:border-blue-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
               />
             </div>
           ))}
 
+          {/* Dropdown de Régimen Fiscal */}
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
+              Régimen Fiscal
+            </label>
+            <select
+              value={formData.regimen_fiscal}
+              onChange={(e) =>
+                setFormData({ ...formData, regimen_fiscal: e.target.value })
+              }
+              className="w-full border border-gray-300 px-3 py-2 rounded text-sm focus:outline-none focus:ring focus:border-blue-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+            >
+              <option value="">Selecciona un régimen fiscal</option>
+              {regimenesFiscales.map((rf) => (
+                <option key={rf.clave} value={rf.clave}>
+                  {rf.clave} - {rf.descripcion}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subida de archivo CER */}
           <div>
             <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
               Archivo CER
@@ -111,12 +169,11 @@ export default function EmpresaFormPage() {
                   e.target.value = "";
                 }
               }}
-              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer
-                file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
-                dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             />
           </div>
 
+          {/* Subida de archivo KEY */}
           <div>
             <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
               Archivo KEY
@@ -133,9 +190,7 @@ export default function EmpresaFormPage() {
                   e.target.value = "";
                 }
               }}
-              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer
-                file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
-                dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             />
           </div>
 

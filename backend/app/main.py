@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,6 +10,8 @@ from app.database import engine
 from app.models import cliente, empresa  
 
 from app.models.base import Base
+
+from app.api import catalogos
 
 app = FastAPI()
 
@@ -22,7 +26,11 @@ app.add_middleware(
 
 # Routers
 app.include_router(clientes.router, prefix="/api/clientes", tags=["clientes"])
-app.include_router(empresa_router, prefix="/api/empresas", tags=["empresas"])  # ✅ Correcto
+app.include_router(empresa_router, prefix="/api/empresas", tags=["empresas"]) 
+
+# Incluir los catalogos SAT
+app.include_router(catalogos.router)
+
 
 # Crear tablas
 Base.metadata.create_all(bind=engine)

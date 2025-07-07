@@ -26,14 +26,14 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  {
+  /*{
     icon: <GridIcon />,
     name: "Dashboard",
     subItems: [{ name: "Ecommerce", path: "/", pro: false }],
-  },
+  },*/
   {
     icon: <CalenderIcon />,
-    name: "Calendar",
+    name: "Calendario",
     path: "/calendar",
   },
   {
@@ -378,7 +378,7 @@ const AppSidebar: React.FC = () => {
             </div>
           </div>
         </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
+       
       </div>
     </aside>
   );
