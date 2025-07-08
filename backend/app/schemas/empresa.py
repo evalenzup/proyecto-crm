@@ -5,7 +5,7 @@ from datetime import datetime
 
 class EmpresaBase(BaseModel):
     nombre: str
-    nombre_comercial: Optional[str] = None       # ✅ NUEVO
+    nombre_comercial: str
     ruc: str
     direccion: Optional[str] = None
     telefono: Optional[str] = None
@@ -14,15 +14,15 @@ class EmpresaBase(BaseModel):
     regimen_fiscal: str
     codigo_postal: str
     contrasena: str
-    archivo_cer: Optional[str] = None            # ✅ NUEVO
-    archivo_key: Optional[str] = None            # ✅ NUEVO
+    archivo_cer: str          
+    archivo_key: str           
 
 class EmpresaCreate(EmpresaBase):
     pass
 
 class EmpresaUpdate(BaseModel):
     nombre: Optional[str] = None
-    nombre_comercial: Optional[str] = None       # ✅ NUEVO
+    nombre_comercial: Optional[str] = None       
     ruc: Optional[str] = None
     direccion: Optional[str] = None
     telefono: Optional[str] = None
@@ -31,8 +31,8 @@ class EmpresaUpdate(BaseModel):
     regimen_fiscal: Optional[str] = None
     codigo_postal: Optional[str] = None
     contrasena: Optional[str] = None
-    archivo_cer: Optional[str] = None            # ✅ NUEVO
-    archivo_key: Optional[str] = None            # ✅ NUEVO
+    archivo_cer: Optional[str] = None            
+    archivo_key: Optional[str] = None            
 
 class EmpresaOut(EmpresaBase):
     id: UUID

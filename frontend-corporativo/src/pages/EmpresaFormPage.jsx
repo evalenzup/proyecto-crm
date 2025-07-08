@@ -4,95 +4,90 @@ import axios from "axios";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import Label from "../components/form/Label";
+import Select from "../components/form/Select";
+import Alert from "../components/ui/alert/Alert";
 
 export default function EmpresaFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const [formData, setFormData] = useState({
-    nombre: "",
-    nombre_comercial: "",
-    ruc: "",
-    direccion: "",
-    telefono: "",
-    email: "",
-    rfc: "",
-    regimen_fiscal: "",
-    codigo_postal: "",
-    contrasena: "",
-    archivo_cer: null,
-    archivo_key: null,
-  });
-  const [regimenesFiscales, setRegimenesFiscales] = useState([]);
+  const [formData, setFormData] = useState({});
+  const [errors, setErrors] = useState({});
+  const [errorAlert, setErrorAlert] = useState("");
+  const [schema, setSchema] = useState({ properties: {}, required: [] });
 
-  console.log(`${import.meta.env.VITE_API_URL}/catalogos/regimen-fiscal`);
-  // Cargar catálogo de régimen fiscal
+  // Cargar esquema dinámico
   useEffect(() => {
     axios
-      .get(`${import.meta.env.VITE_API_URL}/catalogos/regimen-fiscal`)
-      .then(({ data }) => {
-        //console.log("data: " + data);
-        if (Array.isArray(data)) {
-          setRegimenesFiscales(data);
-        } else {
-          console.error("Respuesta inesperada de catálogo:", data);
-          setRegimenesFiscales([]);
-        }
-      })
-      .catch((err) => console.error("Error al cargar catálogo SAT:", err));
+      .get(`${import.meta.env.VITE_API_URL}/empresas/schema`)
+      .then(({ data }) => setSchema(data))
+      .catch((err) => console.error("Error cargando esquema:", err));
   }, []);
 
-  // Cargar datos de la empresa si es edición
+  // Cargar datos si es edición
   useEffect(() => {
-    if (id) {
-      axios
-        .get(`${import.meta.env.VITE_API_URL}/empresas/${id}`)
-        .then(({ data }) => {
-          setFormData({
-            nombre: data.nombre || "",
-            nombre_comercial: data.nombre_comercial || "",
-            ruc: data.ruc || "",
-            direccion: data.direccion || "",
-            telefono: data.telefono || "",
-            email: data.email || "",
-            rfc: data.rfc || "",
-            regimen_fiscal: data.regimen_fiscal || "",
-            codigo_postal: data.codigo_postal || "",
-            contrasena: data.contrasena || "",
-            archivo_cer: null,
-            archivo_key: null,
-          });
-        })
-        .catch((err) => console.error(err));
-    }
+    if (!id) return;
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/empresas/${id}`)
+      .then(({ data }) => setFormData(data))
+      .catch((err) => console.error(err));
   }, [id]);
+
+  // Validación genérica
+  const validate = () => {
+    const newErr = {};
+    schema.required.forEach((f) => {
+      const v = formData[f];
+      if (v == null || String(v).trim() === "") {
+        newErr[f] = (schema.properties[f].title || f) + " es obligatorio.";
+      }
+    });
+    setErrors(newErr);
+    if (Object.keys(newErr).length) {
+      setErrorAlert("Por favor completa los campos obligatorios.");
+      return false;
+    }
+    setErrorAlert("");
+    return true;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const data = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        if (value !== null && value !== "") {
-          data.append(key, value);
-        }
-      });
+    if (!validate()) return;
 
+    const fd = new FormData();
+    Object.entries(formData).forEach(([k, v]) => {
+      if (v != null && v !== "") fd.append(k, v);
+    });
+
+    try {
       if (id) {
         await axios.put(
           `${import.meta.env.VITE_API_URL}/empresas/${id}`,
-          data
+          fd,
+          { headers: { "Content-Type": "multipart/form-data" }, transformRequest: [(d) => d] }
         );
       } else {
         await axios.post(
           `${import.meta.env.VITE_API_URL}/empresas/`,
-          data
+          fd,
+          { headers: { "Content-Type": "multipart/form-data" }, transformRequest: [(d) => d] }
         );
       }
-
       navigate("/empresas");
-    } catch (error) {
-      console.error("Error al guardar empresa:", error);
-      alert("Ocurrió un error al guardar la empresa. Revisa la consola para más detalles.");
+    } catch (err) {
+      const det = err.response?.data?.detail;
+      let msg = "Error al guardar. Por favor intenta nuevamente.";
+      if (Array.isArray(det)) {
+        const apiErr = {};
+        det.forEach((x) => { if (x.loc[1]) apiErr[x.loc[1]] = x.msg; });
+        setErrors(apiErr);
+        msg = det.map((x) => x.msg).join(", ");
+      } else if (typeof det === "string") {
+        msg = det;
+      }
+      setErrorAlert(msg);
     }
   };
 
@@ -100,105 +95,97 @@ export default function EmpresaFormPage() {
     <>
       <PageMeta
         title={id ? "Editar Empresa" : "Nueva Empresa"}
-        description="Formulario de empresa para CRM de facturación"
+        description="Formulario dinámico para CRM"
       />
-      <PageBreadcrumb pageTitle={id ? "Editar Empresa" : "Nueva Empresa"} />
+      {/* <PageBreadcrumb pageTitle={id ? "Editar Empresa" : "Nueva Empresa"} /> */}
+      <PageBreadcrumb pageTitle="Empresa"  />
       <ComponentCard title={id ? "Editar Empresa" : "Nueva Empresa"}>
+        {errorAlert && <Alert variant="error" title="Error" message={errorAlert} />}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {[
-            { name: "nombre", label: "Nombre" },
-            { name: "nombre_comercial", label: "Nombre Comercial" },
-            { name: "ruc", label: "RUC" },
-            { name: "direccion", label: "Dirección" },
-            { name: "telefono", label: "Teléfono" },
-            { name: "email", label: "Email" },
-            { name: "rfc", label: "RFC" },
-            { name: "codigo_postal", label: "Código Postal" },
-            { name: "contrasena", label: "Contraseña de Certificados" },
-          ].map((field) => (
-            <div key={field.name}>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
-                {field.label}
-              </label>
-              <input
-                type="text"
-                value={formData[field.name] || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, [field.name]: e.target.value })
-                }
-                className="w-full border border-gray-300 px-3 py-2 rounded text-sm focus:outline-none focus:ring focus:border-blue-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-              />
-            </div>
-          ))}
+          {Object.entries(schema.properties).map(([key, prop]) => {
+            const isRequired = schema.required.includes(key);
 
-          {/* Dropdown de Régimen Fiscal */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
-              Régimen Fiscal
-            </label>
-            <select
-              value={formData.regimen_fiscal}
-              onChange={(e) =>
-                setFormData({ ...formData, regimen_fiscal: e.target.value })
+              // Carga de archivos (.cer / .key)
+              if (prop.format === "binary") {
+                // Definimos el accept según el nombre del campo
+                const accept =
+                  key === "archivo_cer" ? ".cer" :
+                  key === "archivo_key" ? ".key" :
+                  "";  // o "*/*" si quieres fallback
+            
+                return (
+                  <div key={key}>
+                    <Label htmlFor={key}>{prop.title}</Label>
+                    <input
+                      id={key}
+                      type="file"
+                      accept={accept}
+                      onChange={(e) => {
+                        const f = e.target.files[0];
+                        // validación extra por si acaso
+                        if (f && f.name.toLowerCase().endsWith(accept)) {
+                          setFormData({ ...formData, [key]: f });
+                          setErrors({ ...errors, [key]: null });
+                        } else {
+                          setErrors({ ...errors, [key]: `Solo archivos ${accept} permitidos.` });
+                          e.target.value = "";
+                        }
+                      }}
+                      className={`w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer
+                        file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
+                        dark:file:bg-gray-700 dark:file:text-gray-200`}
+                    />
+                    {errors[key] && <p className="text-red-500 text-xs mt-1">{errors[key]}</p>}
+                  </div>
+                );
               }
-              className="w-full border border-gray-300 px-3 py-2 rounded text-sm focus:outline-none focus:ring focus:border-blue-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-            >
-              <option value="">Selecciona un régimen fiscal</option>
-              {regimenesFiscales.map((rf) => (
-                <option key={rf.clave} value={rf.clave}>
-                  {rf.clave} - {rf.descripcion}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {/* Subida de archivo CER */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
-              Archivo CER
-            </label>
-            <input
-              type="file"
-              accept=".cer"
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (file && file.name.endsWith(".cer")) {
-                  setFormData((prev) => ({ ...prev, archivo_cer: file }));
-                } else {
-                  alert("Por favor selecciona un archivo .cer válido.");
-                  e.target.value = "";
-                }
-              }}
-              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-            />
-          </div>
 
-          {/* Subida de archivo KEY */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-400">
-              Archivo KEY
-            </label>
-            <input
-              type="file"
-              accept=".key"
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (file && file.name.endsWith(".key")) {
-                  setFormData((prev) => ({ ...prev, archivo_key: file }));
-                } else {
-                  alert("Por favor selecciona un archivo .key válido.");
-                  e.target.value = "";
-                }
-              }}
-              className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-            />
-          </div>
+            // Select inputs
+            if (prop["x-options"]) {
+              return (
+                <div key={key}>
+                  <Label htmlFor={key}>{prop.title}</Label>
+                  <Select
+                    id={key}
+                    name={key}
+                    value={formData[key] || ""}
+                    options={prop["x-options"]}
+                    onChange={(v) => setFormData({ ...formData, [key]: v })}
+                  />
+                  {errors[key] && (
+                    <p className="text-red-500 text-xs mt-1">{errors[key]}</p>
+                  )}
+                </div>
+              );
+            }
+            // Text/password inputs
+            return (
+              <div key={key}>
+                <Label htmlFor={key}>{prop.title}</Label>
+                <input
+                  id={key}
+                  type={prop.format === "password" ? "password" : "text"}
+                  value={formData[key] || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, [key]: e.target.value })
+                  }
+                  className="w-full border border-gray-300 px-3 py-2 rounded text-sm
+                    focus:outline-none focus:ring focus:border-blue-300
+                    dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                />
+                {errors[key] && (
+                  <p className="text-red-500 text-xs mt-1">{errors[key]}</p>
+                )}
+              </div>
+            );
+          })}
 
           <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={() => navigate("/empresas")}
-              className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               Cancelar
             </button>

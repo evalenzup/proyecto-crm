@@ -6,6 +6,8 @@
 # Clave = valor CFDI para XML
 # Descripción = visualización en PDF y en la interfaz para el usuario
 
+from typing import List, Dict
+
 REGIMENES_FISCALES_SAT = [
     {"clave": "601", "descripcion": "General de Ley Personas Morales"},
     {"clave": "603", "descripcion": "Personas Morales con Fines no Lucrativos"},
@@ -38,3 +40,9 @@ def obtener_descripcion_regimen(clave: str) -> str:
         if rf["clave"] == clave:
             return rf["descripcion"]
     return ""
+
+def obtener_todos_regimenes() -> List[Dict[str,str]]:
+    """
+    Devuelve la lista completa de regímenes fiscales
+    """
+    return REGIMENES_FISCALES_SAT
