@@ -1,43 +1,33 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, constr
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
 class EmpresaBase(BaseModel):
-    nombre: str
-    nombre_comercial: str
-    ruc: str
+    nombre: constr(max_length=255)
+    nombre_comercial: constr(max_length=255)
+    ruc: constr(max_length=20)
     direccion: Optional[str] = None
-    telefono: Optional[str] = None
+    telefono: Optional[constr(max_length=50)] = None
     email: Optional[EmailStr] = None
-    rfc: str
-    regimen_fiscal: str
-    codigo_postal: str
-    contrasena: str
-    archivo_cer: str          
-    archivo_key: str           
+    rfc: constr(max_length=13)
+    regimen_fiscal: constr(max_length=100)
+    codigo_postal: constr(max_length=10)
+    contrasena: constr(max_length=50)
+    # Sólo guardamos la ruta (o URL) al archivo
+    archivo_cer: Optional[str] = None
+    archivo_key: Optional[str] = None
 
 class EmpresaCreate(EmpresaBase):
+    # Para creación, los archivos vendrán como UploadFile en el endpoint
     pass
-
-class EmpresaUpdate(BaseModel):
-    nombre: Optional[str] = None
-    nombre_comercial: Optional[str] = None       
-    ruc: Optional[str] = None
-    direccion: Optional[str] = None
-    telefono: Optional[str] = None
-    email: Optional[EmailStr] = None
-    rfc: Optional[str] = None
-    regimen_fiscal: Optional[str] = None
-    codigo_postal: Optional[str] = None
-    contrasena: Optional[str] = None
-    archivo_cer: Optional[str] = None            
-    archivo_key: Optional[str] = None            
 
 class EmpresaOut(EmpresaBase):
     id: UUID
     creado_en: datetime
     actualizado_en: datetime
+    # Si quisieras exponer la relación:
+    clientes: Optional[List[UUID]] = None
 
     class Config:
         orm_mode = True

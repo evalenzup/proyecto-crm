@@ -16,6 +16,7 @@ export default function EmpresaFormPage() {
   const [errors, setErrors] = useState({});
   const [errorAlert, setErrorAlert] = useState("");
   const [schema, setSchema] = useState({ properties: {}, required: [] });
+  const [regimenesFiscales, setRegimenesFiscales] = useState([]);
 
   // Cargar esquema dinámico
   useEffect(() => {
@@ -23,6 +24,14 @@ export default function EmpresaFormPage() {
       .get(`${import.meta.env.VITE_API_URL}/empresas/schema`)
       .then(({ data }) => setSchema(data))
       .catch((err) => console.error("Error cargando esquema:", err));
+  }, []);
+
+  // Cargar catálogo de regímenes fiscales
+  useEffect(() => {
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/catalogos/regimen-fiscal`)
+      .then(({ data }) => setRegimenesFiscales(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Error al cargar catálogo SAT:", err));
   }, []);
 
   // Cargar datos si es edición
@@ -58,7 +67,11 @@ export default function EmpresaFormPage() {
 
     const fd = new FormData();
     Object.entries(formData).forEach(([k, v]) => {
-      if (v != null && v !== "") fd.append(k, v);
+      if ((k === "archivo_cer" || k === "archivo_key") && v instanceof File) {
+        fd.append(k, v);
+      } else if (k !== "archivo_cer" && k !== "archivo_key" && v != null && v !== "") {
+        fd.append(k, v);
+      }
     });
 
     try {
@@ -66,13 +79,19 @@ export default function EmpresaFormPage() {
         await axios.put(
           `${import.meta.env.VITE_API_URL}/empresas/${id}`,
           fd,
-          { headers: { "Content-Type": "multipart/form-data" }, transformRequest: [(d) => d] }
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+            transformRequest: [(d) => d],
+          }
         );
       } else {
         await axios.post(
           `${import.meta.env.VITE_API_URL}/empresas/`,
           fd,
-          { headers: { "Content-Type": "multipart/form-data" }, transformRequest: [(d) => d] }
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+            transformRequest: [(d) => d],
+          }
         );
       }
       navigate("/empresas");
@@ -81,7 +100,9 @@ export default function EmpresaFormPage() {
       let msg = "Error al guardar. Por favor intenta nuevamente.";
       if (Array.isArray(det)) {
         const apiErr = {};
-        det.forEach((x) => { if (x.loc[1]) apiErr[x.loc[1]] = x.msg; });
+        det.forEach((x) => {
+          if (x.loc[1]) apiErr[x.loc[1]] = x.msg;
+        });
         setErrors(apiErr);
         msg = det.map((x) => x.msg).join(", ");
       } else if (typeof det === "string") {
@@ -91,95 +112,147 @@ export default function EmpresaFormPage() {
     }
   };
 
+  // Preparar opciones y opción seleccionada para el Select
+  const regimenOptions = regimenesFiscales.map((rf) => ({
+    value: rf.clave,
+    label: `${rf.clave} – ${rf.descripcion}`,
+  }));
+  const selectedRegimen =
+    regimenOptions.find((opt) => opt.value === formData.regimen_fiscal) || null;
+
   return (
     <>
       <PageMeta
         title={id ? "Editar Empresa" : "Nueva Empresa"}
         description="Formulario dinámico para CRM"
       />
-      {/* <PageBreadcrumb pageTitle={id ? "Editar Empresa" : "Nueva Empresa"} /> */}
-      <PageBreadcrumb pageTitle="Empresa"  />
-      <ComponentCard title={id ? "Editar Empresa" : "Nueva Empresa"}>
-        {errorAlert && <Alert variant="error" title="Error" message={errorAlert} />}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {Object.entries(schema.properties).map(([key, prop]) => {
-            const isRequired = schema.required.includes(key);
-
-              // Carga de archivos (.cer / .key)
-              if (prop.format === "binary") {
-                // Definimos el accept según el nombre del campo
-                const accept =
-                  key === "archivo_cer" ? ".cer" :
-                  key === "archivo_key" ? ".key" :
-                  "";  // o "*/*" si quieres fallback
-            
+      <PageBreadcrumb
+        pageTitle={id ? "Editar Empresa" : "Nueva Empresa"}
+      />
+      <ComponentCard
+        title={id ? "Editar Empresa" : "Nueva Empresa"}
+      >
+        {errorAlert && (
+          <Alert
+            variant="error"
+            title="Error"
+            message={errorAlert}
+          />
+        )}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+        >
+          {Object.entries(schema.properties).map(
+            ([key, prop]) => {
+              // Dropdown Régimen Fiscal
+              if (key === "regimen_fiscal") {
                 return (
                   <div key={key}>
                     <Label htmlFor={key}>{prop.title}</Label>
+                    <Select
+                      id={key}
+                      name={key}
+                      options={regimenOptions}
+                      value={selectedRegimen}
+                      defaultValue={selectedRegimen}
+                      onChange={(opt) =>
+                        setFormData({
+                          ...formData,
+                          regimen_fiscal: opt.value,
+                        })
+                      }
+                    />
+                    {errors[key] && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors[key]}
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+
+              // Carga de archivos (.cer / .key)
+              if (prop.format === "binary") {
+                const accept =
+                  key === "archivo_cer" ? ".cer" : ".key";
+                return (
+                  <div key={key}>
+                    <Label htmlFor={key}>{prop.title}</Label>
+                    {formData[key] &&
+                      !(formData[key] instanceof File) && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                          Archivo actual: {formData[key].split("/").pop()}
+                        </p>
+                      )}
                     <input
                       id={key}
                       type="file"
                       accept={accept}
                       onChange={(e) => {
                         const f = e.target.files[0];
-                        // validación extra por si acaso
-                        if (f && f.name.toLowerCase().endsWith(accept)) {
-                          setFormData({ ...formData, [key]: f });
-                          setErrors({ ...errors, [key]: null });
+                        if (
+                          f &&
+                          f.name
+                            .toLowerCase()
+                            .endsWith(accept)
+                        ) {
+                          setFormData({
+                            ...formData,
+                            [key]: f,
+                          });
+                          setErrors({
+                            ...errors,
+                            [key]: null,
+                          });
                         } else {
-                          setErrors({ ...errors, [key]: `Solo archivos ${accept} permitidos.` });
+                          setErrors({
+                            ...errors,
+                            [key]: `Solo archivos ${accept} permitidos.`,
+                          });
                           e.target.value = "";
                         }
                       }}
-                      className={`w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer
-                        file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
-                        dark:file:bg-gray-700 dark:file:text-gray-200`}
+                      className="w-full border border-gray-300 px-3 py-2 rounded text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-gray-700 dark:file:text-gray-200"
                     />
-                    {errors[key] && <p className="text-red-500 text-xs mt-1">{errors[key]}</p>}
+                    {errors[key] && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors[key]}
+                      </p>
+                    )}
                   </div>
                 );
               }
 
-
-            // Select inputs
-            if (prop["x-options"]) {
+              // Inputs de texto / contraseña
               return (
                 <div key={key}>
                   <Label htmlFor={key}>{prop.title}</Label>
-                  <Select
+                  <input
                     id={key}
-                    name={key}
+                    type={
+                      prop.format === "password"
+                        ? "password"
+                        : "text"
+                    }
                     value={formData[key] || ""}
-                    options={prop["x-options"]}
-                    onChange={(v) => setFormData({ ...formData, [key]: v })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        [key]: e.target.value,
+                      })
+                    }
+                    className="w-full border border-gray-300 px-3 py-2 rounded text-sm focus:outline-none focus:ring focus:border-blue-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                   />
                   {errors[key] && (
-                    <p className="text-red-500 text-xs mt-1">{errors[key]}</p>
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors[key]}
+                    </p>
                   )}
                 </div>
               );
             }
-            // Text/password inputs
-            return (
-              <div key={key}>
-                <Label htmlFor={key}>{prop.title}</Label>
-                <input
-                  id={key}
-                  type={prop.format === "password" ? "password" : "text"}
-                  value={formData[key] || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, [key]: e.target.value })
-                  }
-                  className="w-full border border-gray-300 px-3 py-2 rounded text-sm
-                    focus:outline-none focus:ring focus:border-blue-300
-                    dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-                />
-                {errors[key] && (
-                  <p className="text-red-500 text-xs mt-1">{errors[key]}</p>
-                )}
-              </div>
-            );
-          })}
+          )}
 
           <div className="flex justify-end gap-2">
             <button
