@@ -1,9 +1,14 @@
 // src/pages/_app.tsx
+//import '@/styles/globals.css';
+import 'antd/dist/reset.css';
 import type { AppProps } from 'next/app';
-import 'antd/dist/reset.css';       // importa el reset de Ant Design
-//import '../styles/globals.css';     // si tienes estilos globales propios
+import { ConfigProvider } from 'antd';
+import esES from 'antd/locale/es_ES';
 
 export default function App({ Component, pageProps }: AppProps) {
-  return <Component {...pageProps} />;
+  return (
+    <ConfigProvider locale={esES}>
+      <Component {...pageProps} />
+    </ConfigProvider>
+  );
 }
-

@@ -23,16 +23,12 @@ def get_form_schema():
     schema = EmpresaCreate.schema()
     props = schema["properties"]
     required = schema.get("required", [])
-
-    # Inyectar opciones del catálogo SAT
     regimenes = obtener_todos_regimenes()
     props["regimen_fiscal"]["x-options"] = [
         {"value": r["clave"], "label": f"{r['clave']} – {r['descripcion']}"}
         for r in regimenes
     ]
     props["regimen_fiscal"]["enum"] = [r["clave"] for r in regimenes]
-
-    # Marcar campos de archivo como "binary"
     props["archivo_cer"] = {"type": "string", "format": "binary", "title": "Archivo CER"}
     props["archivo_key"] = {"type": "string", "format": "binary", "title": "Archivo KEY"}
 
