@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '@/lib/axios';
 import { useRouter } from 'next/router';
 import { Table, message, Button, Popconfirm, Space } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -7,7 +7,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { Layout } from '@/components/Layout';
 import { PageContainer } from '@ant-design/pro-layout';
 import type { Empresa } from '@/types/empresa';
-import { EmpresaBreadcrumb } from '@/components/EmpresaBreadcrumb';
+import { Breadcrumbs } from '@/components/Breadcrumb';
 
 
 const EmpresasPage: React.FC = () => {
@@ -18,7 +18,7 @@ const EmpresasPage: React.FC = () => {
   const fetchEmpresas = async () => {
     setLoading(true);
     try {
-      const { data } = await axios.get<Empresa[]>(
+      const { data } = await api.get<Empresa[]>(
         `${process.env.NEXT_PUBLIC_API_URL}/empresas/`
       );
       setEmpresas(data);
@@ -35,7 +35,7 @@ const EmpresasPage: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(
+      await api.delete(
         `${process.env.NEXT_PUBLIC_API_URL}/empresas/${id}`
       );
       message.success('Empresa eliminada');
@@ -80,7 +80,7 @@ const EmpresasPage: React.FC = () => {
 
   return (
     <Layout>
-      <PageContainer title="Lista de Empresas Registradas" subTitle="" extra={<EmpresaBreadcrumb />}>
+      <PageContainer title="Lista de Empresas Registradas" subTitle="" extra={<Breadcrumbs items={[{ path: '/empresas', label: 'Empresas' }]} />}>
         <Table<Empresa>
           rowKey="id"
           columns={columns}

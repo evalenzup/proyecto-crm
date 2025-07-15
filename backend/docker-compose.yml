@@ -10,7 +10,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"  # <-- Esta línea permite acceso externo
+      - "5432:5432"
+
   backend:
     build: .
     ports:
@@ -19,5 +20,8 @@ services:
       - .env
     depends_on:
       - db
+    volumes:
+      - ./data/cert:/data/cert
+
 volumes:
   pgdata:

@@ -52,11 +52,25 @@ def sync_table_columns(model, table_name):
             except Exception as e:
                 print(f"⚠️ Error al agregar columna {column.name}: {e}")
 
+def corregir_emails_invalidos():
+    print("🔍 Corrigiendo emails inválidos en la tabla empresas...")
+    update_stmt = text("""
+        UPDATE empresas
+        SET email = CONCAT(SPLIT_PART(email, '@', 1), '@example.com')
+        WHERE email IS NOT NULL AND email NOT LIKE '%@%.%';
+    """)
+    try:
+        result = connection.execute(update_stmt)
+        print(f"✅ Corrección completada. Filas afectadas: {result.rowcount}")
+    except Exception as e:
+        print(f"⚠️ Error al corregir emails inválidos: {e}")
+
+
 
 if __name__ == '__main__':
     sync_table_columns(Empresa, "empresas")
     sync_table_columns(Cliente, "clientes")
-
+    corregir_emails_invalidos()
     connection.commit()
     connection.close()
     print("✅ Sincronización finalizada correctamente.")
