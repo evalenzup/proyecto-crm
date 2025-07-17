@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 from app.models.associations import cliente_empresa
+from app.models.producto_servicio import ProductoServicio
 from app.models.base import Base
 
 class Empresa(Base):
@@ -25,3 +26,4 @@ class Empresa(Base):
     actualizado_en = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     clientes = relationship("Cliente", secondary=cliente_empresa, back_populates="empresas")
+    productos_servicios = relationship("ProductoServicio", back_populates="empresa", cascade="all, delete-orphan")

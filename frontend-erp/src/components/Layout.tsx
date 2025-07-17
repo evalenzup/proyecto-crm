@@ -29,7 +29,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const router = useRouter();
   return (
     <ProLayout
-      title="ERP Unificado POC"
+      title="CORPORATIVO NORTON"
       menuDataRender={() => menuData}
       location={{ pathname: router.pathname }}
       menuItemRender={(item, dom) => <Link href={item.path || '/'}>{dom}</Link>}

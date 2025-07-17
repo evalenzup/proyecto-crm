@@ -2,13 +2,12 @@ import React, { useEffect, useState } from 'react';
 import api from '@/lib/axios';
 import { useRouter } from 'next/router';
 import { Table, message, Button, Popconfirm, Space } from 'antd';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Layout } from '@/components/Layout';
 import { PageContainer } from '@ant-design/pro-layout';
 import type { Empresa } from '@/types/empresa';
 import { Breadcrumbs } from '@/components/Breadcrumb';
-
 
 const EmpresasPage: React.FC = () => {
   const router = useRouter();
@@ -54,10 +53,7 @@ const EmpresasPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      render: (_, record) => {
-        //console.log('DEBUG empresa record:', record);
-        //console.log('DEBUG record.id =', record.id);
-        return (
+      render: (_, record) => (
         <Space>
           <Button
             type="link"
@@ -73,14 +69,29 @@ const EmpresasPage: React.FC = () => {
             <Button type="link" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
-        )
-      },
+      ),
     },
   ];
 
   return (
     <Layout>
-      <PageContainer title="Lista de Empresas Registradas" subTitle="" extra={<Breadcrumbs items={[{ path: '/empresas', label: 'Empresas' }]} />}>
+      <PageContainer
+        title="Lista de Empresas Registradas"
+        subTitle=""
+        extra={
+          <>
+            <Breadcrumbs items={[{ path: '/empresas', label: 'Empresas' }]} />
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => router.push('/empresas/form')}
+              style={{ marginLeft: 12 }}
+            >
+              Agregar
+            </Button>
+          </>
+        }
+      >
         <Table<Empresa>
           rowKey="id"
           columns={columns}
