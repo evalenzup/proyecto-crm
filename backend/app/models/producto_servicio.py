@@ -1,7 +1,7 @@
 # app/models/producto_servicio.py
 
 from sqlalchemy import (
-    Column, String, Text, TIMESTAMP, Numeric, Boolean, ForeignKey
+    Column, String, Text, TIMESTAMP, Numeric, Boolean, ForeignKey, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -22,7 +22,7 @@ class ProductoServicio(Base):
     descripcion      = Column(Text,    nullable=False)
 
     # Cantidades y precios base
-    cantidad         = Column(Numeric(18, 2), nullable=False)
+    cantidad         = Column(Numeric(18, 2), nullable=True)
     valor_unitario   = Column(Numeric(18, 2), nullable=False)
 
     # Relación con Empresa
@@ -38,3 +38,7 @@ class ProductoServicio(Base):
 
     creado_en        = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     actualizado_en   = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('empresa_id', 'descripcion', name='uq_empresa_descripcion'),
+    )
