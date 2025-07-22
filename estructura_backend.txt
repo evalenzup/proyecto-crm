@@ -1,9 +1,19 @@
+alembic
+alembic.ini
 app
 data
 docker-compose.yml
 Dockerfile
 requirements.txt
 sync_db_columns.py
+
+backend/alembic:
+env.py
+README
+script.py.mako
+versions
+
+backend/alembic/versions:
 
 backend/app:
 api
@@ -14,12 +24,14 @@ database.py
 main.py
 models
 schemas
+services
 validadores.py
 
 backend/app/api:
 catalogos.py
 clientes.py
 empresa.py
+producto_servicio.py
 
 backend/app/auth:
 security.py
@@ -27,7 +39,39 @@ security.py
 backend/app/catalogos_sat:
 __init__.py
 codigos_postales.py
+datos
+productos.py
 regimenes_fiscales.py
+unidades.py
+
+backend/app/catalogos_sat/datos:
+c_aduana.py
+c_claveprodserv.py
+c_claveunidad.py
+c_codigopostal.py
+c_colonia_1.py
+c_colonia_2.py
+c_colonia_3.py
+c_estado.py
+c_exportacion.py
+c_formapago.py
+c_impuesto.py
+c_localidad.py
+c_meses.py
+c_metodopago.py
+c_moneda.py
+c_municipio.py
+c_numpedimentoaduana.py
+c_objetoimp.py
+c_pais.py
+c_patenteaduanal.py
+c_periodicidad.py
+c_regimenfiscal.py
+c_tasaocuota.py
+c_tipodecomprobante.py
+c_tipofactor.py
+c_tiporelacion.py
+c_usocfdi.py
 
 backend/app/models:
 __init__.py
@@ -35,11 +79,16 @@ associations.py
 base.py
 cliente.py
 empresa.py
+producto_servicio.py
 
 backend/app/schemas:
 associations.py
 cliente.py
 empresa.py
+producto_servicio.py
+
+backend/app/services:
+certificado.py
 
 backend/data:
 cert
@@ -47,3 +96,5 @@ cert
 backend/data/cert:
 27ae318d-1fa7-4310-957b-f07f32167fcc.cer
 27ae318d-1fa7-4310-957b-f07f32167fcc.key
+None.cer
+None.key

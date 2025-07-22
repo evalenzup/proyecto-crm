@@ -12,12 +12,23 @@ from app.models.empresa import Empresa
 from app.schemas.empresa import EmpresaOut, EmpresaCreate
 from app.catalogos_sat import validar_regimen_fiscal, obtener_todos_regimenes
 from app.catalogos_sat.codigos_postales import validar_codigo_postal, obtener_todos_codigos_postales
-from app.validadores import validar_rfc_por_regimen, validar_email, validar_telefono
+#from app.validadores import validar_rfc_por_regimen, validar_email, validar_telefono
 from app.services.certificado import CertificadoService
+from app.config import settings
+from app.validators.rfc import validar_rfc_por_regimen
+from app.validators.email import validar_email
+from app.validators.telefono import validar_telefono
 
-CERT_DIR = os.getenv("CERT_DIR", "/data/cert")
+
+#CERT_DIR = os.getenv("CERT_DIR", "/data/cert")
 # Asegurar directorio
-os.makedirs(CERT_DIR, exist_ok=True)
+#os.makedirs(CERT_DIR, exist_ok=True)
+CERT_DIR = settings.CERT_DIR
+# Intentamos crear carpeta, ignoramos errores de permisos
+try:
+    os.makedirs(CERT_DIR, exist_ok=True)
+except Exception:
+    pass
 
 router = APIRouter()
 
@@ -45,15 +56,25 @@ def validar_datos_empresa(
     if telefono and not validar_telefono(telefono):
         raise HTTPException(status_code=400, detail="Teléfono no válido.")
 
-@router.get("/certificados/{filename}")
+@router.get(
+    "/certificados/{filename}",
+    summary="Descargar certificado .cert o .key",)
 def descargar_certificado(filename: str = Path(..., regex=r"^[\w\-.]+$")):
+    """
+    Descarga los certificados .cert o .key
+    """
     path = os.path.join(CERT_DIR, filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     return FileResponse(path, filename=filename)
 
-@router.get("/schema")
+@router.get(
+    "/schema",
+    summary="Obtener el schema del modelo")
 def get_form_schema():
+    """
+    Devuelve el schema del modelo empresa
+    """
     schema = EmpresaCreate.schema()
     props = schema["properties"]
     required = schema.get("required", [])
@@ -66,33 +87,62 @@ def get_form_schema():
     props["archivo_key"] = {"type": "string", "format": "binary", "title": "Archivo KEY"}
     return {"properties": props, "required": required}
 
-@router.get("/", response_model=List[EmpresaOut])
+@router.get(
+    "/", 
+    response_model=List[EmpresaOut], 
+    summary="Listar empresas")
 def listar_empresas(db: Session = Depends(get_db)):
+    """
+    Devuelve todas las empresas registradas en el sistema.
+    """
     return db.query(Empresa).all()
 
-@router.get("/{id}", response_model=EmpresaOut)
-def obtener_empresa(id: UUID, db: Session = Depends(get_db)):
-    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+@router.get(
+    "/{id}",
+    response_model=EmpresaOut,
+    summary="Obtener empresa por ID"
+)
+def obtener_empresa(
+    id: UUID = Path(..., description="ID de la empresa a consultar"),
+    db=Depends(get_db)
+):
+    """
+    Obtiene la información de una empresa existente a partir de su UUID.
+    """
+    empresa = db.query(Empresa).get(id)
     if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        raise HTTPException(404, "Empresa no encontrada")
     return empresa
 
-@router.post("/", response_model=EmpresaOut, status_code=201)
-async def crear_empresa(
-    nombre: str = Form(...),
-    nombre_comercial: Optional[str] = Form(None),
-    ruc: str = Form(...),
-    direccion: Optional[str] = Form(None),
-    telefono: Optional[str] = Form(None),
-    email: Optional[str] = Form(None),
-    rfc: str = Form(...),
-    regimen_fiscal: str = Form(...),
-    codigo_postal: str = Form(...),
-    contrasena: str = Form(...),
-    archivo_cer: UploadFile = File(...),
-    archivo_key: UploadFile = File(...),
-    db: Session = Depends(get_db),
+
+@router.post(
+    "/",
+    status_code=201,
+    response_model=EmpresaOut,
+    summary="Crear nueva empresa"
+)
+def crear_empresa(
+    nombre: str = Form(..., example="ACME S.A."),
+    nombre_comercial: str = Form(..., example="ACME"),
+    ruc: str = Form(..., example="12345678901"),
+    direccion: str = Form(None, example="Av. Siempre Viva 123"),
+    telefono: str = Form(None, example="5551234567"),
+    email: str = Form(None, example="contacto@acme.com"),
+    rfc: str = Form(..., example="ABC123456H78"),
+    regimen_fiscal: str = Form(..., example="601"),
+    codigo_postal: str = Form(..., example="01234"),
+    contrasena: str = Form(..., example="pass1234"),
+    archivo_cer: UploadFile = File(..., description="Archivo CER en formato .cer"),
+    archivo_key: UploadFile = File(..., description="Archivo KEY en formato .key"),
+    db=Depends(get_db),
 ):
+    """
+    Crea una nueva empresa, sube los certificados (.cer/.key) y valida la contraseña
+    contra los archivos cargados. 
+    - **nombre**: razón social completa.  
+    - **rfc**: clave RFC válida para el régimen.  
+    - **contrasena**: contraseña de la llave privada.
+    """
     validar_datos_empresa(email, regimen_fiscal, codigo_postal, rfc, ruc, nombre_comercial, telefono, db)
 
     # Crear instancia para obtener ID
@@ -142,23 +192,22 @@ async def crear_empresa(
         raise HTTPException(status_code=400, detail="RUC duplicado o error de integridad.")
     return nueva
 
-@router.put("/{id}", response_model=EmpresaOut)
-async def actualizar_empresa(
-    id: UUID,
-    nombre: Optional[str] = Form(None),
-    nombre_comercial: Optional[str] = Form(None),
-    ruc: Optional[str] = Form(None),
-    direccion: Optional[str] = Form(None),
-    telefono: Optional[str] = Form(None),
-    email: Optional[str] = Form(None),
-    rfc: Optional[str] = Form(None),
-    regimen_fiscal: Optional[str] = Form(None),
-    codigo_postal: Optional[str] = Form(None),
-    contrasena: str = Form(...),
-    archivo_cer: Optional[UploadFile] = File(None),
-    archivo_key: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db),
+@router.put(
+    "/{id}",
+    response_model=EmpresaOut,
+    summary="Actualizar empresa existente"
+)
+def actualizar_empresa(
+    id: UUID = Path(..., description="ID de la empresa a actualizar"),
+    payload: EmpresaCreate = Depends(),
+    archivo_cer: UploadFile = File(None, description="Nuevo archivo CER (opcional)"),
+    archivo_key: UploadFile = File(None, description="Nuevo archivo KEY (opcional)"),
+    db=Depends(get_db),
 ):
+    """
+    Actualiza los datos de la empresa indicada y vuelve a validar los certificados.
+    Si se suben nuevos archivos, se reemplazarán los anteriores.
+    """
     empresa = db.query(Empresa).filter(Empresa.id == id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
@@ -210,8 +259,18 @@ async def actualizar_empresa(
         raise HTTPException(status_code=400, detail="RUC duplicado o error de integridad.")
     return empresa
 
-@router.delete("/{id}", status_code=204)
-def eliminar_empresa(id: UUID, db: Session = Depends(get_db)):
+@router.delete(
+    "/{id}",
+    status_code=204,
+    summary="Eliminar empresa"
+)
+def eliminar_empresa(
+    id: UUID = Path(..., description="ID de la empresa a eliminar"),
+    db=Depends(get_db)
+):
+    """
+    Elimina la empresa y borra sus archivos de certificado del servidor.
+    """
     empresa = db.query(Empresa).filter(Empresa.id == id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")

@@ -9,3 +9,7 @@ pydantic
 pydantic-settings
 pydantic[email]
 python-multipart
+alembic>=1.10
+pytest
+pytest-asyncio
+httpx

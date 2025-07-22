@@ -78,19 +78,46 @@ def get_form_schema(db: Session = Depends(get_db)):
 # ────────────────────────────────────────────────────────────────
 # CRUD
 
-@router.get("/", response_model=List[ProductoServicioOut])
-def listar_productos(db: Session = Depends(get_db)):
+@router.get(
+    "/",
+    response_model=List[ProductoServicioOut],
+    summary="Listar productos y servicios"
+)
+def listar_productos(db=Depends(get_db)):
+    """
+    Devuelve todos los productos y servicios registrados para todas las empresas.
+    """
     return db.query(ProductoServicio).all()
 
-@router.get("/{id}", response_model=ProductoServicioOut)
+@router.get(
+    "/{id}", 
+    response_model=ProductoServicioOut,
+    summary="Obtener Prodcuto o Servicio por id"
+)
 def obtener_producto(id: UUID, db: Session = Depends(get_db)):
+    """
+    Obtiene la información de un producto o servicio existente a partir de su UUID.
+    """
     prod = db.query(ProductoServicio).filter(ProductoServicio.id == id).first()
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
     return prod
 
-@router.post("/", response_model=ProductoServicioOut, status_code=201)
-def crear_producto(payload: ProductoServicioCreate, db: Session = Depends(get_db)):
+@router.post(
+    "/",
+    status_code=201,
+    response_model=ProductoServicioOut,
+    summary="Crear producto o servicio"
+)
+def crear_producto(
+    payload: ProductoServicioCreate,
+    db=Depends(get_db)
+):
+    """
+    Crea un nuevo producto o servicio asociado a una empresa.
+    - **tipo**: \"PRODUCTO\" o \"SERVICIO\".  
+    - **empresa_id**: UUID de la empresa propietaria.
+    """
     data = payload.dict()
 
     check_empresa_exists(db, data["empresa_id"])
@@ -115,8 +142,19 @@ def crear_producto(payload: ProductoServicioCreate, db: Session = Depends(get_db
     db.refresh(nuevo)
     return nuevo
 
-@router.put("/{id}", response_model=ProductoServicioOut)
-def actualizar_producto(id: UUID, payload: ProductoServicioCreate, db: Session = Depends(get_db)):
+@router.put(
+    "/{id}", 
+    response_model=ProductoServicioOut,
+    summary="Editar producto o servicio"
+)
+def actualizar_producto(
+    id: UUID, 
+    payload: ProductoServicioCreate, 
+    db: Session = Depends(get_db)):
+    """
+    Edita producto o servicio existente.
+    - **tipo**: \"PRODUCTO\" o \"SERVICIO\".  
+    """
     prod = db.query(ProductoServicio).filter(ProductoServicio.id == id).first()
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
@@ -144,8 +182,17 @@ def actualizar_producto(id: UUID, payload: ProductoServicioCreate, db: Session =
     db.refresh(prod)
     return prod
 
-@router.delete("/{id}", status_code=204)
+@router.delete(
+    "/{id}", 
+    status_code=204,
+    summary="Elimina un producto o servicio"
+)
 def eliminar_producto(id: UUID, db: Session = Depends(get_db)):
+    """
+    Elimina producto o servicio asociado a una empresa.
+    - **tipo**: \"PRODUCTO\" o \"SERVICIO\".  
+    - **empresa_id**: UUID de la empresa propietaria.
+    """
     prod = db.query(ProductoServicio).filter(ProductoServicio.id == id).first()
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")

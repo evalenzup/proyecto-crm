@@ -21,6 +21,9 @@ services:
     depends_on:
       - db
     volumes:
+      # Monta TODO el directorio backend en /app
+      - ./:/app
+      # Sigue montando solo tu carpeta de certificados
       - ./data/cert:/data/cert
 
 volumes:

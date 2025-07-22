@@ -6,30 +6,22 @@ from cryptography import x509
 from cryptography.hazmat.primitives.serialization import load_der_private_key
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
+from app.core.logger import logger
 
 CERT_DIR = os.getenv("CERT_DIR", "/data/cert")
 
 class CertificadoService:
     @staticmethod
     def guardar(upload_file, filename: str) -> str:
-        """
-        Guarda el upload_file en CERT_DIR/filename y devuelve la ruta absoluta.
-        """
         os.makedirs(CERT_DIR, exist_ok=True)
         path = os.path.join(CERT_DIR, filename)
         with open(path, "wb") as buf:
             shutil.copyfileobj(upload_file.file, buf)
+        logger.info("✅ Archivo guardado: %s", path)
         return path
 
     @staticmethod
     def validar(cer_path: str, key_path: str, password: str) -> Dict:
-        """
-        Valida la correspondencia y vigencia entre .cer y .key.
-        Acepta:
-          - nombres de archivo (p.ej. "1234.cer"), o
-          - rutas absolutas (/data/cert/1234.cer).
-        Siempre normaliza internamente a la ruta real.
-        """
         # 1) Si recibimos sólo un nombre, lo convertimos a absoluta
         if not os.path.isabs(cer_path):
             cer_path = os.path.join(CERT_DIR, os.path.basename(cer_path))
@@ -60,5 +52,5 @@ class CertificadoService:
                 return {"valido": False, "error": "Contraseña incorrecta"}
             return {"valido": False, "error": msg}
         except Exception as e:
-            print(f"Error al validar certificado: {e}")
+            logger.info(f"Error al validar certificado: {e}")
             return {"valido": False, "error": str(e)}
