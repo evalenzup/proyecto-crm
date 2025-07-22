@@ -3,33 +3,61 @@
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/axios';
 import { useRouter } from 'next/router';
-import { Table, message, Button, Popconfirm, Space } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Table, message, Button, Popconfirm, Space, Input, Select } from 'antd';
+import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Layout } from '@/components/Layout';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 
+const { Option } = Select;
+
 interface ProductoServicio {
   id: string;
   tipo: 'PRODUCTO' | 'SERVICIO';
   descripcion: string;
-  cantidad: number;
-  valor_unitario: number;
+  clave_producto: string;
+  clave_unidad: string;
 }
 
 const ProductosServiciosPage: React.FC = () => {
   const router = useRouter();
   const [items, setItems] = useState<ProductoServicio[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mapaClaves, setMapaClaves] = useState<Record<string, string>>({});
+  const [tipoFiltro, setTipoFiltro] = useState<string | undefined>();
+  const [descripcionFiltro, setDescripcionFiltro] = useState<string>("");
+
+  const fetchDescripciones = async (items: ProductoServicio[]) => {
+    const clavesProd = [...new Set(items.map(i => i.clave_producto))];
+    const clavesUni = [...new Set(items.map(i => i.clave_unidad))];
+    const mapa: Record<string, string> = {};
+
+    try {
+      const [prodData, uniData] = await Promise.all([
+        Promise.all(clavesProd.map(c => api.get(`/catalogos/descripcion/producto/${c}`))),
+        Promise.all(clavesUni.map(c => api.get(`/catalogos/descripcion/unidad/${c}`))),
+      ]);
+
+      for (const res of prodData) {
+        mapa[res.data.clave] = res.data.descripcion;
+      }
+      for (const res of uniData) {
+        mapa[res.data.clave] = res.data.descripcion;
+      }
+    } catch {
+      message.warning('No se pudo obtener descripción de claves');
+    }
+
+    setMapaClaves(mapa);
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get<ProductoServicio[]>(
-        `${process.env.NEXT_PUBLIC_API_URL}/productos-servicios/`
-      );
+      const { data } = await api.get<ProductoServicio[]>(`${process.env.NEXT_PUBLIC_API_URL}/productos-servicios/`);
       setItems(data);
+      await fetchDescripciones(data);
     } catch {
       message.error('Error al cargar productos y servicios');
     } finally {
@@ -51,11 +79,26 @@ const ProductosServiciosPage: React.FC = () => {
     }
   };
 
+  const filteredItems = items.filter(item =>
+    (!tipoFiltro || item.tipo === tipoFiltro) &&
+    item.descripcion.toLowerCase().includes(descripcionFiltro.toLowerCase())
+  );
+
   const columns: ColumnsType<ProductoServicio> = [
     { title: 'Tipo', dataIndex: 'tipo', key: 'tipo' },
     { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
-    { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad' },
-    { title: 'Valor Unitario', dataIndex: 'valor_unitario', key: 'valor_unitario' },
+    {
+      title: 'Clave Producto',
+      dataIndex: 'clave_producto',
+      key: 'clave_producto',
+      render: (clave: string) => `${clave} - ${mapaClaves[clave] || '...'}`
+    },
+    {
+      title: 'Unidad de Medida',
+      dataIndex: 'clave_unidad',
+      key: 'clave_unidad',
+      render: (clave: string) => `${clave} - ${mapaClaves[clave] || '...'}`
+    },
     {
       title: 'Acciones',
       key: 'acciones',
@@ -97,10 +140,28 @@ const ProductosServiciosPage: React.FC = () => {
           </>
         }
       >
+        <Space style={{ marginBottom: 16 }}>
+          <Select
+            placeholder="Filtrar por tipo"
+            style={{ width: 160 }}
+            allowClear
+            onChange={setTipoFiltro}
+          >
+            <Option value="PRODUCTO">PRODUCTO</Option>
+            <Option value="SERVICIO">SERVICIO</Option>
+          </Select>
+          <Input
+            placeholder="Buscar por descripción"
+            prefix={<SearchOutlined />}
+            onChange={e => setDescripcionFiltro(e.target.value)}
+            style={{ width: 240 }}
+          />
+        </Space>
+
         <Table<ProductoServicio>
           rowKey="id"
           columns={columns}
-          dataSource={items}
+          dataSource={filteredItems}
           loading={loading}
           pagination={{ pageSize: 10 }}
           locale={{ emptyText: 'No hay productos o servicios' }}

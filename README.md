@@ -1,95 +1,123 @@
-# 🚀 Proyecto CRM de Facturación
+Desarrollo NORTON — ERP/CRM Unificado
 
-Sistema integral para la **gestión de clientes, facturación electrónica CFDI 4.0, inventarios y control de servicios** para pequeñas y medianas empresas.
+📖 Descripción
 
-Desarrollado con:
-- **Backend:** FastAPI + PostgreSQL + Docker
-- **Frontend:** React + Tailwind (TailAdmin) + Vite
-- **Control de versiones:** Git + GitHub
+Desarrollo NORTON es un sistema ERP/CRM que unifica tres líneas de negocio —fumigaciones, jardinería y extintores— en una plataforma centralizada, ofreciendo módulos para:
+	•	Clientes y Empresas (multitenant con control de acceso por compañía)
+	•	Facturación Electrónica (CFDI 4.0)
+	•	Cotizaciones y Egresos
+	•	Inventarios (entradas/salidas y ajuste automático de stock)
+	•	Calendarización de Servicios (rutas, alertas y asignación de técnicos)
+	•	Roles y Privilegios (autenticación JWT, permisos por empresa)
 
----
+🚀 Tecnologías
 
-## 📂 Estructura del proyecto
+Capa	Tecnologías
+Backend	FastAPI, SQLAlchemy, Pydantic, PostgreSQL, Alembic, Docker, Docker Compose
+Frontend	Next.js, React, TypeScript, Ant Design Pro, JSON-Schema dinámico
+DevOps	GitHub (Git, CI/CD), Docker Compose
 
-proyecto-crm/
+📂 Estructura del Proyecto
+
 ├── backend/
-├── frontend-corporativo/
-└── README.md
+│   ├── alembic/                  # Migraciones de esquema
+│   ├── app/
+│   │   ├── api/                  # Routers REST (empresas, clientes, productos_servicios, inventario, calendarización, catálogos_sat, auth)
+│   │   ├── auth/                 # JWT y seguridad
+│   │   ├── catalogos_sat/        # Datos y endpoints SAT
+│   │   ├── config.py             # Settings con Pydantic
+│   │   ├── core/logger.py        # Logging centralizado
+│   │   ├── database.py           # Conexión y sesión
+│   │   ├── exception_handlers.py # Manejadores de errores
+│   │   ├── models/               # Modelos SQLAlchemy
+│   │   ├── schemas/              # Esquemas Pydantic
+│   │   ├── services/             # Lógica de negocio extra (CertificadoService, sync)
+│   │   └── validators/           # Validaciones (RFC, email, teléfono)
+│   ├── sync_db_columns.py        # Script auto-sync de columnas y constraints
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── requirements.txt
+│   └── tests/                    # Pruebas unitarias e integración
+└── frontend-erp/
+    ├── next.config.ts
+    ├── package.json
+    ├── public/
+    └── src/
+        ├── lib/axios.ts                    # Cliente HTTP central
+        ├── hooks/useDebouncedOptions.ts    # Autocompletado SAT
+        ├── components/                     # Layout, Breadcrumb, FormRenderer…
+        └── pages/
+            ├── empresas/
+            │   ├── index.tsx
+            │   └── form/[[...id]].tsx       # Crear/Editar empresas
+            └── productos-servicios/
+                ├── index.tsx
+                └── form/[[...id]].tsx     # Crear/Editar productos y servicios
 
+⚙️ Requisitos Previos
+	•	Docker y Docker Compose instalados.
+	•	Git.
+	•	Python 3.10+ y Node.js ≥ 16 con npm.
 
----
+🛠️ Instalación y Configuración
 
-## ⚙️ Requisitos previos
+1. Clonar el repositorio
 
-- Docker y Docker Compose instalados
-- Git instalado
-- Node.js (v18 o superior recomendado) y npm para el frontend
+git clone https://github.com/tu-org/desarrollo-norton.git
+cd desarrollo-norton
 
----
+2. Variables de entorno
 
-## 🛠️ Instalación del Backend
+Backend (backend/.env)
 
-1️⃣ Ve a la carpeta del backend:
-```bash
-cd backend
-2️⃣ Levanta el backend con PostgreSQL usando Docker:
-
-docker compose up --build
-3️⃣ Accede a la API en:
-
-http://localhost:8000/docs (Swagger)
-http://localhost:8000 (API base)
-Las tablas se crearán automáticamente al iniciar por primera vez.
-
-💻 Instalación del Frontend
-
-1️⃣ Ve a la carpeta del frontend:
-
-cd frontend-corporativo
-2️⃣ Instala dependencias:
-
-npm install
-3️⃣ Inicia el servidor de desarrollo:
-
-npm run dev
-4️⃣ Accede en:
-http://localhost:5173
-
-🗂️ Variables de entorno
-
-En backend/.env, configura:
-
-DATABASE_URL=postgresql://postgres:postgres@db:5432/app
-SECRET_KEY=supersecreto
+DATABASE_URL=postgresql://postgres:postgres@db:5432/norton_db
+SECRET_KEY=tu_super_secreto
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
-🧪 Flujo de desarrollo
+CERTS_PATH=./certificados
 
-Utiliza ramas dev y feature antes de subir cambios a main.
-Para nuevos módulos (clientes, facturación, reportes), usa commits claros.
-Puedes probar el backend con Postman o Swagger.
-El frontend consume los endpoints expuestos por FastAPI.
-🚀 Despliegue
+Frontend (frontend-erp/.env.local)
 
-Backend:
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
 
-Desplegable en un VPS con Docker.
-Frontend:
+3. Levantar con Docker Compose
 
-Desplegable en Vercel o Netlify, conectando este repositorio.
+# Desde la raíz del proyecto:
+docker-compose up --build
+
+	•	Backend en http://localhost:8000 (Swagger UI: /docs).
+	•	Frontend en http://localhost:3000.
+
+4. Instalar dependencias Frontend
+
+cd frontend-erp
+npm install
+npm run dev
+
+🧪 Pruebas
+
+Para ejecutar los tests del backend:
+
+cd backend
+pytest
+
+📈 Roadmap y Próximos Pasos
+	•	Inventario: endpoints de entradas/salidas y ajuste automático de stock.
+	•	Facturación CFDI 4.0: generación de comprobantes con productos e impuestos.
+	•	Calendarización: rutas, alertas y asignación de técnicos.
+	•	Seguridad Multitenant: perfiles, roles y permisos por empresa.
+
 🤝 Contribuciones
+	1.	Haz un fork del repositorio.
+	2.	Crea una rama feature/tu-funcionalidad.
+	3.	Desarrolla tu función con commits claros.
+	4.	Empuja tu rama y abre un Pull Request describiendo tu aporte.
 
-Haz un fork del repositorio.
-Crea una rama feature/mi-funcionalidad.
-Realiza tus cambios.
-Haz un Pull Request con una descripción clara.
 🛡️ Licencia
 
-Proyecto de uso interno para Alonso.
+Uso interno para Norton. No redistribuir sin autorización.
 
 📞 Contacto
 
 Para soporte o colaboración:
-
-Correo: evalenzup@cicese.edu.mx
-¡Gracias por utilizar y contribuir a este CRM de Facturación 🚀!
+Email: evalenzup@gmail.com

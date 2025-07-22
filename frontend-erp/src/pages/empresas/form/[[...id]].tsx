@@ -18,6 +18,7 @@ import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { Layout } from '@/components/Layout';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
+import { formatDate } from '@/utils/formatDate';
 
 const { Text } = Typography;
 
@@ -27,6 +28,7 @@ interface JSONSchema {
 }
 
 // Formatear fechas asumiendo UTC y mostrando en America/Tijuana
+/*
 const formatDate = (iso: string) => {
   const utc = iso.endsWith('Z') ? iso : `${iso}Z`;
   return new Date(utc).toLocaleString('es-MX', {
@@ -35,7 +37,7 @@ const formatDate = (iso: string) => {
     timeStyle: 'medium',
   });
 };
-
+*/
 const EmpresaFormPage: React.FC = () => {
   const router = useRouter();
   const rawId = router.query.id;

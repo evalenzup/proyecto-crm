@@ -18,6 +18,7 @@ import { Layout } from '@/components/Layout';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useDebouncedOptions } from '@/hooks/useDebouncedOptions';
+import { formatDate } from '@/utils/formatDate';
 
 const { Text } = Typography;
 
@@ -62,21 +63,30 @@ const FormularioProductoServicio: React.FC = () => {
     api
       .get(`/productos-servicios/${id}`)
       .then(async ({ data }) => {
-        form.setFieldsValue(data);
         setTipo(data.tipo);
         setMetadata({
           creado_en: data.creado_en,
           actualizado_en: data.actualizado_en,
         });
-
+  
         try {
           const [prod, unidad] = await Promise.all([
             api.get(`/catalogos/descripcion/producto/${data.clave_producto}`),
             api.get(`/catalogos/descripcion/unidad/${data.clave_unidad}`),
           ]);
-          form.setFieldValue('clave_producto', prod.data.clave);
-          form.setFieldValue('clave_unidad', unidad.data.clave);
+          form.setFieldsValue({
+            ...data,
+            clave_producto: {
+              value: prod.data.clave,
+              label: `${prod.data.clave} - ${prod.data.descripcion}`,
+            },
+            clave_unidad: {
+              value: unidad.data.clave,
+              label: `${unidad.data.clave} - ${unidad.data.descripcion}`,
+            },
+          });
         } catch {
+          form.setFieldsValue(data); // fallback
           message.warning('No se pudo precargar descripción de claves SAT');
         }
       })
@@ -147,8 +157,7 @@ const FormularioProductoServicio: React.FC = () => {
           {metadata && (
             <div style={{ marginBottom: 16 }}>
               <Text type="secondary" style={{ fontSize: '0.85em' }}>
-                Creado: {new Date(metadata.creado_en).toLocaleString()} &nbsp;|&nbsp;
-                Actualizado: {new Date(metadata.actualizado_en).toLocaleString()}
+                Creado: {formatDate(metadata.creado_en)} &nbsp;|&nbsp; Actualizado: {formatDate(metadata.actualizado_en)}
               </Text>
             </div>
           )}

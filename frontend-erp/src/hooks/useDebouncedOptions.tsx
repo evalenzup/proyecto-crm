@@ -12,7 +12,7 @@ export function useDebouncedOptions(endpoint: string, delay = 300) {
   const [loading, setLoading] = useState(false);
 
   const fetch = debounce(async (q: string) => {
-    if (!q || q.length < 2) return;
+    if (!q || q.length < 3) return;
     setLoading(true);
     try {
       const { data } = await api.get(endpoint, { params: { q } });
