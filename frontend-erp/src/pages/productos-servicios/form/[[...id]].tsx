@@ -100,12 +100,17 @@ const FormularioProductoServicio: React.FC = () => {
   const onFinish = async (values: any) => {
     values.valor_unitario = Number(values.valor_unitario);
     values.cantidad = values.cantidad !== undefined ? Number(values.cantidad) : undefined;  
+
+    values.clave_producto = values.clave_producto?.value || values.clave_producto;
+    values.clave_unidad = values.clave_unidad?.value || values.clave_unidad;
+  
+
     try {
       if (id) {
         await api.put(`/productos-servicios/${id}`, values);
         message.success('Actualizado correctamente');
       } else {
-        console.log("📦 Valores recibidos:", values);
+        //console.log("📦 Valores recibidos:", values);
         await api.post(`/productos-servicios/`, values);
         message.success('Creado correctamente');
       }
@@ -189,6 +194,7 @@ const FormularioProductoServicio: React.FC = () => {
                       options={opcionesProducto}
                       filterOption={false}
                       placeholder="Buscar clave o descripción SAT"
+                      labelInValue={true} 
                     />
                   </Form.Item>
                 );
@@ -203,6 +209,7 @@ const FormularioProductoServicio: React.FC = () => {
                       options={opcionesUnidad}
                       filterOption={false}
                       placeholder="Buscar clave o descripción SAT"
+                      labelInValue={true} 
                     />
                   </Form.Item>
                 );

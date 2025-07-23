@@ -53,7 +53,10 @@ def validar_datos_producto(data: dict):
 # ────────────────────────────────────────────────────────────────
 # SCHEMA DINÁMICO
 
-@router.get("/schema")
+@router.get(
+    "/schema",
+    summary="Obtiene schema de modelo producto-servicio"
+)
 def get_form_schema(db: Session = Depends(get_db)):
     schema = ProductoServicioCreate.schema()
     props = schema["properties"]
@@ -73,7 +76,13 @@ def get_form_schema(db: Session = Depends(get_db)):
         value_key="id",
         label_key="nombre_comercial"
     )
-
+    #Campo requiere lote
+    props["requiere_lote"]["x-options"] = [
+        {"value": True, "label": "Sí"},
+        {"value": False, "label": "No"},
+    ]
+    props["requiere_lote"]["enum"] = [True, False]
+    
     return {"properties": props, "required": required}
 # ────────────────────────────────────────────────────────────────
 # CRUD
