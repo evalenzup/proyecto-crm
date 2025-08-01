@@ -1,71 +1,70 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from uuid import UUID
-from typing import List, Optional
-from datetime import datetime
-from pydantic import BaseModel
+from typing import List
+
 from app.database import get_db
-from app.models.cliente import Cliente
-from app.models.empresa import Empresa
 from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate
+from app.services import cliente_service
 from app.auth.security import get_current_user, User
+from app.catalogos_sat import obtener_todos_regimenes
 
 router = APIRouter()
 
-# Función para listar clientes de una empresa
-@router.get("/", response_model=List[ClienteOut])
+@router.get(
+    "/schema",
+    summary="Obtener el schema del modelo")
+def get_form_schema():
+    """
+    Devuelve el schema del modelo cliente
+    """
+    schema = ClienteCreate.schema()
+    props = schema["properties"]
+    required = schema.get("required", [])
+    # Campo 'actividad'
+    props["actividad"]["x-options"] = [
+        {"value": "RESIDENCIAL", "label": "RESIDENCIAL"},
+        {"value": "COMERCIAL", "label": "COMERCIAL"},
+        {"value": "INDUSTRIAL", "label": "INDUSTRIAL"},
+    ]
+    # Campo 'tamano'
+    props["tamano"]["x-options"] = [
+        {"value": "CHICO", "label": "CHICO"},
+        {"value": "MEDIANO", "label": "MEDIANO"},
+        {"value": "GRANDE", "label": "GRANDE"},
+    ]
+    # Para los regimenes
+    regimenes = obtener_todos_regimenes()
+    props["regimen_fiscal"]["x-options"] = [
+        {"value": r["clave"], "label": f"{r['clave']} – {r['descripcion']}"} for r in regimenes
+    ]
+    props["regimen_fiscal"]["enum"] = [r["clave"] for r in regimenes]
+    return {"properties": props, "required": required}
+
+@router.get("/", response_model=List[ClienteOut], summary="Obtener los clientes de una empresa")
 def listar_clientes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    empresa = db.query(Empresa).filter(Empresa.id == current_user.empresa_id).first()
-    if not empresa:
-        return []
-    if not empresa.clientes:
-        return []
-    return empresa.clientes
+    return cliente_service.get_clientes_by_empresa(db, current_user.empresa_id)
 
-
-# Endpoints para manejar clientes asociados a una empresa
 @router.get("/{id}", response_model=ClienteOut)
 def obtener_cliente(id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    cliente = db.query(Cliente).filter(Cliente.id == id).first()
-    if not cliente or current_user.empresa_id not in [e.id for e in cliente.empresas]:
+    cliente = cliente_service.get_cliente(db, id, current_user.empresa_id)
+    if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     return cliente
 
-# Endpoint para crear un nuevo cliente asociado a la empresa del usuario actual
 @router.post("/", response_model=ClienteOut, status_code=201)
 def crear_cliente(cliente: ClienteCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    nueva_empresa = db.query(Empresa).filter(Empresa.id == current_user.empresa_id).first()
-    if not nueva_empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    nuevo_cliente = Cliente(**cliente.dict())
-    nuevo_cliente.empresas.append(nueva_empresa)
-    db.add(nuevo_cliente)
-    db.commit()
-    db.refresh(nuevo_cliente)
-    return nuevo_cliente
+    return cliente_service.create_cliente(db, cliente, current_user.empresa_id)
 
-# Endpoint para actualizar un cliente existente
 @router.put("/{id}", response_model=ClienteOut)
 def actualizar_cliente(id: UUID, cliente: ClienteUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_cliente = db.query(Cliente).filter(Cliente.id == id).first()
-    if not db_cliente or current_user.empresa_id not in [e.id for e in db_cliente.empresas]:
+    db_cliente = cliente_service.update_cliente(db, id, cliente, current_user.empresa_id)
+    if not db_cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    for campo, valor in cliente.dict(exclude_unset=True).items():
-        setattr(db_cliente, campo, valor)
-    db.commit()
-    db.refresh(db_cliente)
     return db_cliente
 
-# Endpoint para eliminar un cliente asociado a la empresa del usuario actual
 @router.delete("/{id}", status_code=204)
 def eliminar_cliente(id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    cliente = db.query(Cliente).filter(Cliente.id == id).first()
-    if not cliente or current_user.empresa_id not in [e.id for e in cliente.empresas]:
+    if not cliente_service.delete_cliente(db, id, current_user.empresa_id):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    empresa = db.query(Empresa).filter(Empresa.id == current_user.empresa_id).first()
-    if empresa:
-        cliente.empresas.remove(empresa)
-        if not cliente.empresas:
-            db.delete(cliente)
-    db.commit()
     return Response(status_code=204)

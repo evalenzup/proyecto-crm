@@ -1,28 +1,17 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Path, Body
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from uuid import UUID
-from typing import List, Optional
-from datetime import date, datetime
+from typing import List
 
 from app.database import get_db
 from app.models.empresa import Empresa
-from app.schemas.empresa import EmpresaOut, EmpresaCreate
-from app.catalogos_sat import validar_regimen_fiscal, obtener_todos_regimenes
-from app.catalogos_sat.codigos_postales import validar_codigo_postal, obtener_todos_codigos_postales
-#from app.validadores import validar_rfc_por_regimen, validar_email, validar_telefono
-from app.services.certificado import CertificadoService
+from app.schemas.empresa import EmpresaOut, EmpresaCreate, EmpresaUpdate
+from app.catalogos_sat import obtener_todos_regimenes
+from app.services import empresa_service
 from app.config import settings
-from app.validators.rfc import validar_rfc_por_regimen
-from app.validators.email import validar_email
-from app.validators.telefono import validar_telefono
 
-
-#CERT_DIR = os.getenv("CERT_DIR", "/data/cert")
-# Asegurar directorio
-#os.makedirs(CERT_DIR, exist_ok=True)
 CERT_DIR = settings.CERT_DIR
 # Intentamos crear carpeta, ignoramos errores de permisos
 try:
@@ -31,30 +20,6 @@ except Exception:
     pass
 
 router = APIRouter()
-
-def validar_datos_empresa(
-    email: Optional[str], regimen_fiscal: Optional[str], codigo_postal: Optional[str],
-    rfc: Optional[str], ruc: Optional[str], nombre_comercial: Optional[str], telefono: Optional[str],
-    db: Session, empresa_existente: Empresa = None
-):
-    if regimen_fiscal and not validar_regimen_fiscal(regimen_fiscal):
-        raise HTTPException(status_code=400, detail="Régimen fiscal inválido.")
-    if codigo_postal and not validar_codigo_postal(codigo_postal):
-        raise HTTPException(status_code=400, detail="Código postal inválido.")
-    if rfc:
-        regimen = regimen_fiscal or getattr(empresa_existente, 'regimen_fiscal', None)
-        if not validar_rfc_por_regimen(rfc, regimen):
-            raise HTTPException(status_code=400, detail="RFC inválido para el régimen fiscal.")
-    if ruc and (not empresa_existente or ruc != empresa_existente.ruc):
-        if db.query(Empresa).filter(Empresa.ruc == ruc).first():
-            raise HTTPException(status_code=400, detail="El RUC ya está registrado.")
-    if nombre_comercial and (not empresa_existente or nombre_comercial != empresa_existente.nombre_comercial):
-        if db.query(Empresa).filter(Empresa.nombre_comercial == nombre_comercial).first():
-            raise HTTPException(status_code=400, detail="El nombre comercial ya está registrado.")
-    if email and not validar_email(email):
-        raise HTTPException(status_code=400, detail="Email no válido.")
-    if telefono and not validar_telefono(telefono):
-        raise HTTPException(status_code=400, detail="Teléfono no válido.")
 
 @router.get(
     "/certificados/{filename}",
@@ -122,19 +87,10 @@ def obtener_empresa(
     summary="Crear nueva empresa"
 )
 def crear_empresa(
-    nombre: str = Form(..., example="ACME S.A."),
-    nombre_comercial: str = Form(..., example="ACME"),
-    ruc: str = Form(..., example="12345678901"),
-    direccion: str = Form(None, example="Av. Siempre Viva 123"),
-    telefono: str = Form(None, example="5551234567"),
-    email: str = Form(None, example="contacto@acme.com"),
-    rfc: str = Form(..., example="ABC123456H78"),
-    regimen_fiscal: str = Form(..., example="601"),
-    codigo_postal: str = Form(..., example="01234"),
-    contrasena: str = Form(..., example="pass1234"),
+    empresa_data: EmpresaCreate = Body(...),
     archivo_cer: UploadFile = File(..., description="Archivo CER en formato .cer"),
     archivo_key: UploadFile = File(..., description="Archivo KEY en formato .key"),
-    db=Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """
     Crea una nueva empresa, sube los certificados (.cer/.key) y valida la contraseña
@@ -143,54 +99,7 @@ def crear_empresa(
     - **rfc**: clave RFC válida para el régimen.  
     - **contrasena**: contraseña de la llave privada.
     """
-    validar_datos_empresa(email, regimen_fiscal, codigo_postal, rfc, ruc, nombre_comercial, telefono, db)
-
-    # Crear instancia para obtener ID
-    nueva = Empresa(
-        nombre=nombre,
-        nombre_comercial=nombre_comercial,
-        ruc=ruc,
-        direccion=direccion,
-        telefono=telefono,
-        email=email,
-        rfc=rfc,
-        regimen_fiscal=regimen_fiscal,
-        codigo_postal=codigo_postal,
-        contrasena=contrasena,
-    )
-    db.add(nueva)
-    db.flush()  # asigna nueva.id
-
-    # Guardar archivos con nombre por ID
-    filename_cer = f"{nueva.id}.cer"
-    filename_key = f"{nueva.id}.key"
-    path_cer = CertificadoService.guardar(archivo_cer, filename_cer)
-    path_key = CertificadoService.guardar(archivo_key, filename_key)
-
-    # Validar certificados
-    resultado = CertificadoService.validar(filename_cer, filename_key, contrasena)
-    if not resultado["valido"]:
-        for p in (path_cer, path_key):
-            try: os.remove(p)
-            except: pass
-        raise HTTPException(status_code=400, detail=resultado["error"])
-    if resultado.get("valido_hasta") and datetime.fromisoformat(resultado["valido_hasta"]).date() < date.today():
-        for p in (path_cer, path_key):
-            try: os.remove(p)
-            except: pass
-        raise HTTPException(status_code=400, detail="El certificado está vencido.")
-
-    # Guardar nombres en DB
-    nueva.archivo_cer = filename_cer
-    nueva.archivo_key = filename_key
-
-    try:
-        db.commit()
-        db.refresh(nueva)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="RUC duplicado o error de integridad.")
-    return nueva
+    return empresa_service.create_empresa(db, empresa_data, archivo_cer, archivo_key)
 
 @router.put(
     "/{id}",
@@ -199,64 +108,18 @@ def crear_empresa(
 )
 def actualizar_empresa(
     id: UUID = Path(..., description="ID de la empresa a actualizar"),
-    payload: EmpresaCreate = Depends(),
+    empresa_data: EmpresaUpdate = Body(...),
     archivo_cer: UploadFile = File(None, description="Nuevo archivo CER (opcional)"),
     archivo_key: UploadFile = File(None, description="Nuevo archivo KEY (opcional)"),
-    db=Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """
     Actualiza los datos de la empresa indicada y vuelve a validar los certificados.
     Si se suben nuevos archivos, se reemplazarán los anteriores.
     """
-    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+    empresa = empresa_service.update_empresa(db, id, empresa_data, archivo_cer, archivo_key)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    validar_datos_empresa(email, regimen_fiscal, codigo_postal, rfc, ruc, nombre_comercial, telefono, db, empresa)
-
-    # actualizar campos básicos
-    for attr, val in {
-        "nombre": nombre,
-        "nombre_comercial": nombre_comercial,
-        "ruc": ruc,
-        "direccion": direccion,
-        "telefono": telefono,
-        "email": email,
-        "rfc": rfc,
-        "regimen_fiscal": regimen_fiscal,
-        "codigo_postal": codigo_postal,
-        "contrasena": contrasena,
-    }.items():
-        if val is not None:
-            setattr(empresa, attr, val)
-
-
-    filename_cer = f"{empresa.id}.cer"
-    filename_key = f"{empresa.id}.key"
-
-    if archivo_cer:
-        filename_cer = f"{empresa.id}.cer"
-        CertificadoService.guardar(archivo_cer, filename_cer)
-       
-    if archivo_key:
-        filename_key = f"{empresa.id}.key"
-        CertificadoService.guardar(archivo_key, filename_key)
-        
-     
-    empresa.archivo_cer = filename_cer
-    empresa.archivo_key = filename_key
-    # validar siempre certificados
-    resultado = CertificadoService.validar(empresa.archivo_cer, empresa.archivo_key, contrasena)
-    if not resultado["valido"]:
-        raise HTTPException(status_code=400, detail=resultado["error"])
-    if resultado.get("valido_hasta") and datetime.fromisoformat(resultado["valido_hasta"]).date() < date.today():
-        raise HTTPException(status_code=400, detail="El certificado está vencido.")
-
-    try:
-        db.commit()
-        db.refresh(empresa)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="RUC duplicado o error de integridad.")
     return empresa
 
 @router.delete(

@@ -7,8 +7,9 @@ from cryptography.hazmat.primitives.serialization import load_der_private_key
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from app.core.logger import logger
+from app.config import settings
 
-CERT_DIR = os.getenv("CERT_DIR", "/data/cert")
+CERT_DIR = settings.CERT_DIR
 
 class CertificadoService:
     @staticmethod
