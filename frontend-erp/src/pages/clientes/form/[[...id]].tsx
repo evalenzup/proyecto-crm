@@ -1,3 +1,4 @@
+// pages/clientes/form/[[...id]].tsx
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '@/lib/axios';
@@ -5,7 +6,7 @@ import {
   Form,
   Input,
   Select,
-  Upload,
+  InputNumber,
   Button,
   Spin,
   Card,
@@ -13,8 +14,6 @@ import {
   Space,
   Typography,
 } from 'antd';
-import type { UploadFile } from 'antd';
-import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { Layout } from '@/components/Layout';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
@@ -27,18 +26,7 @@ interface JSONSchema {
   required?: string[];
 }
 
-// Formatear fechas asumiendo UTC y mostrando en America/Tijuana
-/*
-const formatDate = (iso: string) => {
-  const utc = iso.endsWith('Z') ? iso : `${iso}Z`;
-  return new Date(utc).toLocaleString('es-MX', {
-    timeZone: 'America/Tijuana',
-    dateStyle: 'short',
-    timeStyle: 'medium',
-  });
-};
-*/
-const EmpresaFormPage: React.FC = () => {
+const ClienteFormPage: React.FC = () => {
   const router = useRouter();
   const rawId = router.query.id;
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -50,12 +38,23 @@ const EmpresaFormPage: React.FC = () => {
   const [metadata, setMetadata] = useState<{ creado_en: string; actualizado_en: string } | null>(null);
 
   // Campos que deben forzar mayúsculas
-  const uppercaseFields = ['nombre', 'nombre_comercial', 'rfc', 'ruc', 'direccion'];
+  const uppercaseFields = [
+    'nombre_comercial',
+    'nombre_razon_social',
+    'rfc',
+    'calle',
+    'colonia',
+    'numero_exterior',
+    'numero_interior',
+  ];
+
+  // Campos numéricos
+  const numberFields = ['dias_credito', 'dias_recepcion', 'dias_pago'];
 
   // Cargar esquema
   useEffect(() => {
     api
-      .get<JSONSchema>('/empresas/schema')
+      .get<JSONSchema>('/clientes/schema')
       .then(({ data }) => setSchema(data))
       .catch(() => message.error('Error al cargar esquema'))
       .finally(() => setLoadingSchema(false));
@@ -66,17 +65,9 @@ const EmpresaFormPage: React.FC = () => {
     if (!id) return;
     setLoadingRecord(true);
     api
-      .get(`/empresas/${id}`)
+      .get(`/clientes/${id}`)
       .then(({ data }) => {
-        const initial: any = { ...data };
-        ['archivo_cer', 'archivo_key'].forEach((key) => {
-          if (data[key]) {
-            initial[`${key}_file`] = [
-              { uid: '-1', name: data[key].split('/').pop(), url: data[key] },
-            ];
-          }
-        });
-        form.setFieldsValue(initial);
+        form.setFieldsValue(data);
         setMetadata({
           creado_en: data.creado_en,
           actualizado_en: data.actualizado_en,
@@ -84,41 +75,39 @@ const EmpresaFormPage: React.FC = () => {
       })
       .catch(() => {
         message.error('Registro no encontrado');
-        router.replace('/empresas');
+        router.replace('/clientes');
       })
       .finally(() => setLoadingRecord(false));
-  }, [id, schema, form, router]);
+  }, [id, form, router]);
 
-  // Envío del formulario
   const onFinish = async (values: any) => {
-    const payload = new FormData();
+    // Limpieza de valores vacíos
+    const payload: any = {};
     Object.entries(values).forEach(([k, v]) => {
-      if (k.endsWith('_file')) return;
-      if (v !== undefined && v !== '') payload.append(k, v as any);
-    });
-    ['archivo_cer_file', 'archivo_key_file'].forEach((key) => {
-      const files: UploadFile[] = values[key] || [];
-      if (files[0]?.originFileObj) {
-        payload.append(key.replace('_file', ''), files[0].originFileObj as Blob);
+      if (v !== undefined && v !== '') {
+        payload[k] = v;
       }
     });
-
+    // Asegurar array de emails
+    if (payload.email && typeof payload.email === 'string') {
+      payload.email = payload.email.split(/[\s,;]+/).filter(Boolean);
+    }
     try {
       if (id) {
-        await api.put(`/empresas/${id}`, payload, { headers: { 'Content-Type': 'multipart/form-data' } });
-        message.success('Empresa actualizada');
+        await api.put(`/clientes/${id}`, payload);
+        message.success('Cliente actualizado');
       } else {
-        await api.post(`/empresas/`, payload, { headers: { 'Content-Type': 'multipart/form-data' } });
-        message.success('Empresa creada');
+        await api.post('/clientes/', payload);
+        message.success('Cliente creado');
       }
-      router.push('/empresas');
+      router.push('/clientes');
     } catch (err: any) {
       const detail = err.response?.data?.detail;
       message.error(
         typeof detail === 'string'
           ? detail
           : Array.isArray(detail)
-          ? detail.map((e: any) => e.msg).join(', ')
+          ? detail.map((e: any) => `${e.loc[1]}: ${e.msg}`).join(', ')
           : 'Error inesperado'
       );
     }
@@ -137,13 +126,15 @@ const EmpresaFormPage: React.FC = () => {
   }
 
   const crumbs = [
-    { path: '/empresas', label: 'Empresas' },
-    id ? { path: `/empresas/form/${id}`, label: 'Editar' } : { path: '/empresas/form', label: 'Nueva' },
+    { path: '/clientes', label: 'Clientes' },
+    id
+      ? { path: `/clientes/form/${id}`, label: 'Editar' }
+      : { path: '/clientes/form', label: 'Nuevo' },
   ];
 
   return (
     <Layout>
-      <PageContainer title={id ? 'Editar Empresa' : 'Nueva Empresa'} extra={<Breadcrumbs items={crumbs} />}>  
+      <PageContainer title={id ? 'Editar Cliente' : 'Nuevo Cliente'} extra={<Breadcrumbs items={crumbs} />}>
         <Card>
           {metadata && (
             <div style={{ marginBottom: 16 }}>
@@ -155,43 +146,78 @@ const EmpresaFormPage: React.FC = () => {
           <Form form={form} layout="vertical" onFinish={onFinish}>
             {Object.entries(schema.properties).map(([key, prop]) => {
               const required = schema.required?.includes(key);
-              // Archivos (.cer/.key)
-              if (prop.format === 'binary') {
-                const ext = key === 'archivo_cer' ? 'cer' : 'key';
+
+              // Select para empresa_id
+              if (key === 'empresa_id') {
                 return (
                   <Form.Item
                     key={key}
-                    label={prop.title}
-                    name={`${key}_file`}
-                    valuePropName="fileList"
-                    getValueFromEvent={(e) => e.fileList}
-                    rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
+                    label="Empresa"
+                    name="empresa_id"
+                    rules={[{ required: true, message: 'Se requiere Empresa' }]}
                   >
-                    <>
-                      <Upload beforeUpload={() => false} maxCount={1} accept={ext === 'cer' ? '.cer' : '.key'}>
-                        <Button icon={<UploadOutlined />}>Subir {prop.title}</Button>
-                      </Upload>
-                      {id && (
-                        <a href={`${process.env.NEXT_PUBLIC_API_URL}/empresas/certificados/${id}.${ext}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 8 }}>
-                          <Button icon={<DownloadOutlined />} type="link">Descargar {prop.title}</Button>
-                        </a>
-                      )}
-                    </>
-                  </Form.Item>
-                );
-              }
-              // Select
-              if (prop.enum || prop['x-options']) {
-                return (
-                  <Form.Item key={key} label={prop.title} name={key} rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}>
-                    <Select>
-                      {prop['x-options']?.map((opt: any) => <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>)}
+                    <Select placeholder="Selecciona una empresa">
+                      {prop['x-options']?.map((opt: any) => (
+                        <Select.Option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </Select.Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 );
               }
-               
-              // Input de texto/password
+
+              // Campos numéricos
+              if (numberFields.includes(key)) {
+                return (
+                  <Form.Item
+                    key={key}
+                    label={prop.title}
+                    name={key}
+                    rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
+                  >
+                    <InputNumber style={{ width: '100%' }} min={0} />
+                  </Form.Item>
+                );
+              }
+
+              // Campo email como tags
+              if (key === 'email') {
+                return (
+                  <Form.Item
+                    key={key}
+                    label={prop.title}
+                    name="email"
+                    rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
+                  >
+                    <Select mode="tags" placeholder="Ingresa correos separados por comas">
+                      {/* las opciones vacías, el usuario las escribe */}
+                    </Select>
+                  </Form.Item>
+                );
+              }
+
+              // Enum / x-options → Select
+              if (prop.enum || prop['x-options']) {
+                return (
+                  <Form.Item
+                    key={key}
+                    label={prop.title}
+                    name={key}
+                    rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
+                  >
+                    <Select>
+                      {prop['x-options']?.map((opt: any) => (
+                        <Select.Option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                );
+              }
+
+              // Input de texto / password
               return (
                 <Form.Item
                   key={key}
@@ -211,10 +237,13 @@ const EmpresaFormPage: React.FC = () => {
                 </Form.Item>
               );
             })}
+
             <Form.Item>
               <Space>
-                <Button onClick={() => router.push('/empresas')}>Cancelar</Button>
-                <Button type="primary" htmlType="submit">{id ? 'Actualizar' : 'Guardar'}</Button>
+                <Button onClick={() => router.push('/clientes')}>Cancelar</Button>
+                <Button type="primary" htmlType="submit">
+                  {id ? 'Actualizar' : 'Guardar'}
+                </Button>
               </Space>
             </Form.Item>
           </Form>
@@ -224,4 +253,4 @@ const EmpresaFormPage: React.FC = () => {
   );
 };
 
-export default EmpresaFormPage;
+export default ClienteFormPage;

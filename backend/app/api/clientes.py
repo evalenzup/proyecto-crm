@@ -1,3 +1,4 @@
+# app/api/cliente.py
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -9,18 +10,32 @@ from app.services import cliente_service
 from app.auth.security import get_current_user, User
 from app.catalogos_sat import obtener_todos_regimenes
 
+from app.models.empresa import Empresa
+
 router = APIRouter()
+
+def x_options(items: list[dict], value_key="clave", label_key="descripcion"):
+    return [{"value": str(i[value_key]), "label": f"{i[value_key]} — {i[label_key]}"} for i in items]
 
 @router.get(
     "/schema",
     summary="Obtener el schema del modelo")
-def get_form_schema():
+def get_form_schema(db: Session = Depends(get_db)):
     """
     Devuelve el schema del modelo cliente
     """
     schema = ClienteCreate.schema()
     props = schema["properties"]
     required = schema.get("required", [])
+
+    # Campo 'empresa_id'
+    empresas = db.query(Empresa.id, Empresa.nombre_comercial).all()
+    props["empresa_id"]["x-options"] = x_options(
+        [{"id": str(e.id), "nombre_comercial": e.nombre_comercial} for e in empresas],
+        value_key="id",
+        label_key="nombre_comercial"
+    )
+
     # Campo 'actividad'
     props["actividad"]["x-options"] = [
         {"value": "RESIDENCIAL", "label": "RESIDENCIAL"},
@@ -41,6 +56,12 @@ def get_form_schema():
     props["regimen_fiscal"]["enum"] = [r["clave"] for r in regimenes]
     return {"properties": props, "required": required}
 
+@router.get("/all", response_model=List[ClienteOut], summary="Obtener todos los clientes de todas las empresas")
+def listar_todos_los_clientes(db: Session = Depends(get_db)):
+    # ADVERTENCIA: Este endpoint devuelve todos los clientes de todas las empresas.
+    # En un entorno de producción, se debería proteger con un sistema de roles y permisos.
+    return cliente_service.get_all_clientes(db)
+
 @router.get("/", response_model=List[ClienteOut], summary="Obtener los clientes de una empresa")
 def listar_clientes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return cliente_service.get_clientes_by_empresa(db, current_user.empresa_id)
@@ -53,8 +74,8 @@ def obtener_cliente(id: UUID, db: Session = Depends(get_db), current_user: User 
     return cliente
 
 @router.post("/", response_model=ClienteOut, status_code=201)
-def crear_cliente(cliente: ClienteCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return cliente_service.create_cliente(db, cliente, current_user.empresa_id)
+def crear_cliente(cliente: ClienteCreate, db: Session = Depends(get_db)):
+    return cliente_service.create_cliente(db, cliente)
 
 @router.put("/{id}", response_model=ClienteOut)
 def actualizar_cliente(id: UUID, cliente: ClienteUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

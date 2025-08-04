@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     CERT_DIR: str = "/data/cert"
 
     # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173", "http://158.97.12.153:3000", "http://158.97.12.153:5173"]
 
     # Configuración de Pydantic Settings
     model_config = SettingsConfigDict(

@@ -10,6 +10,7 @@ import {
   SmileOutlined,
   BankOutlined,
   ProductOutlined,
+  ContactsOutlined,
 } from '@ant-design/icons';
 
 // carga ProLayout solo en cliente
@@ -21,6 +22,7 @@ const ProLayout = dynamic(
 const menuData = [
   { path: '/', name: 'Dashboard', icon: <PieChartOutlined /> },
   { path: '/empresas', name: 'Empresas', icon: <BankOutlined /> },
+  { path: '/clientes', name: 'Clientes', icon: <ContactsOutlined /> },
   { path: '/productos-servicios', name: 'Productos', icon: <ProductOutlined /> },  
   { path: '/facturas', name: 'Facturación', icon: <TableOutlined /> },
   { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
