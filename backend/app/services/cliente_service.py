@@ -28,10 +28,8 @@ def _validar_datos_cliente(
             raise HTTPException(status_code=400, detail="RFC inválido para el régimen fiscal.")
 
 
-def get_cliente(db: Session, cliente_id: UUID, empresa_id: UUID) -> Optional[Cliente]:
+def get_cliente(db: Session, cliente_id: UUID) -> Optional[Cliente]:
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
-    if not cliente or empresa_id not in [e.id for e in cliente.empresas]:
-        return None
     return cliente
 
 def get_clientes_by_empresa(db: Session, empresa_id: UUID) -> List[Cliente]:
@@ -69,8 +67,8 @@ def create_cliente(db: Session, cliente_data: ClienteCreate) -> Cliente:
         db.refresh(nuevo_cliente)
         return nuevo_cliente
 
-def update_cliente(db: Session, cliente_id: UUID, cliente_data: ClienteUpdate, empresa_id: UUID) -> Optional[Cliente]:
-    db_cliente = get_cliente(db, cliente_id, empresa_id)
+def update_cliente(db: Session, cliente_id: UUID, cliente_data: ClienteUpdate) -> Optional[Cliente]:
+    db_cliente = get_cliente(db, cliente_id)
     if not db_cliente:
         return None
 

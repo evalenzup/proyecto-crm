@@ -1,4 +1,5 @@
-// pages/clientes/form/[[...id]].tsx
+// src/pages/clientes/form/[[...id]].tsx
+
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '@/lib/axios';
@@ -6,7 +7,6 @@ import {
   Form,
   Input,
   Select,
-  InputNumber,
   Button,
   Spin,
   Card,
@@ -44,14 +44,9 @@ const ClienteFormPage: React.FC = () => {
     'rfc',
     'calle',
     'colonia',
-    'numero_exterior',
-    'numero_interior',
   ];
 
-  // Campos numéricos
-  const numberFields = ['dias_credito', 'dias_recepcion', 'dias_pago'];
-
-  // Cargar esquema
+  // 1) Carga el JSON-Schema
   useEffect(() => {
     api
       .get<JSONSchema>('/clientes/schema')
@@ -60,14 +55,21 @@ const ClienteFormPage: React.FC = () => {
       .finally(() => setLoadingSchema(false));
   }, []);
 
-  // Cargar datos para editar
+  // 2) Si hay `id`, carga los datos para editar
   useEffect(() => {
     if (!id) return;
     setLoadingRecord(true);
+
     api
       .get(`/clientes/${id}`)
       .then(({ data }) => {
-        form.setFieldsValue(data);
+        // Prepara el formulario
+        const initial: any = { ...data };
+        // empresa_id → array de UUIDs
+        if (Array.isArray(data.empresas)) {
+          initial.empresa_id = data.empresas.map((e: any) => e.id);
+        }
+        form.setFieldsValue(initial);
         setMetadata({
           creado_en: data.creado_en,
           actualizado_en: data.actualizado_en,
@@ -80,18 +82,15 @@ const ClienteFormPage: React.FC = () => {
       .finally(() => setLoadingRecord(false));
   }, [id, form, router]);
 
+  // 3) Submit: POST si no hay id, PUT si hay id
   const onFinish = async (values: any) => {
-    // Limpieza de valores vacíos
-    const payload: any = {};
-    Object.entries(values).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') {
-        payload[k] = v;
+    // Clona y limpia valores vacíos
+    const payload: any = { ...values };
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] === undefined || payload[k] === '') {
+        delete payload[k];
       }
     });
-    // Asegurar array de emails
-    if (payload.email && typeof payload.email === 'string') {
-      payload.email = payload.email.split(/[\s,;]+/).filter(Boolean);
-    }
     try {
       if (id) {
         await api.put(`/clientes/${id}`, payload);
@@ -134,29 +133,38 @@ const ClienteFormPage: React.FC = () => {
 
   return (
     <Layout>
-      <PageContainer title={id ? 'Editar Cliente' : 'Nuevo Cliente'} extra={<Breadcrumbs items={crumbs} />}>
+      <PageContainer
+        title={id ? 'Editar Cliente' : 'Nuevo Cliente'}
+        extra={<Breadcrumbs items={crumbs} />}
+      >
         <Card>
           {metadata && (
             <div style={{ marginBottom: 16 }}>
               <Text type="secondary" style={{ fontSize: '0.85em' }}>
-                Creado: {formatDate(metadata.creado_en)} &nbsp;|&nbsp; Actualizado: {formatDate(metadata.actualizado_en)}
+                Creado: {formatDate(metadata.creado_en)} &nbsp;|&nbsp; Actualizado:{' '}
+                {formatDate(metadata.actualizado_en)}
               </Text>
             </div>
           )}
+
           <Form form={form} layout="vertical" onFinish={onFinish}>
             {Object.entries(schema.properties).map(([key, prop]) => {
               const required = schema.required?.includes(key);
 
-              // Select para empresa_id
+              // --- MULTI-SELECT DE EMPRESAS ---
               if (key === 'empresa_id') {
                 return (
                   <Form.Item
                     key={key}
-                    label="Empresa"
-                    name="empresa_id"
-                    rules={[{ required: true, message: 'Se requiere Empresa' }]}
+                    label={prop.title}
+                    name={key}
+                    rules={
+                      required
+                        ? [{ required: true, message: `Se requiere ${prop.title}` }]
+                        : []
+                    }
                   >
-                    <Select placeholder="Selecciona una empresa">
+                    <Select mode="multiple" placeholder="Selecciona una o más empresas">
                       {prop['x-options']?.map((opt: any) => (
                         <Select.Option key={opt.value} value={opt.value}>
                           {opt.label}
@@ -167,44 +175,40 @@ const ClienteFormPage: React.FC = () => {
                 );
               }
 
-              // Campos numéricos
-              if (numberFields.includes(key)) {
+              // --- EMAIL / TELÉFONO COMO TEXTO LIBRE ---
+              if (key === 'email' || key === 'telefono') {
+                const placeholder =
+                  key === 'email'
+                    ? 'correo1@dominio.com, correo2@dominio.com'
+                    : '+521234567890, +529876543210';
                 return (
                   <Form.Item
                     key={key}
                     label={prop.title}
                     name={key}
-                    rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
+                    rules={
+                      required
+                        ? [{ required: true, message: `Se requiere ${prop.title}` }]
+                        : []
+                    }
                   >
-                    <InputNumber style={{ width: '100%' }} min={0} />
+                    <Input placeholder={placeholder} />
                   </Form.Item>
                 );
               }
 
-              // Campo email como tags
-              if (key === 'email') {
-                return (
-                  <Form.Item
-                    key={key}
-                    label={prop.title}
-                    name="email"
-                    rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
-                  >
-                    <Select mode="tags" placeholder="Ingresa correos separados por comas">
-                      {/* las opciones vacías, el usuario las escribe */}
-                    </Select>
-                  </Form.Item>
-                );
-              }
-
-              // Enum / x-options → Select
+              // --- SELECT / ENUMERADOS ---
               if (prop.enum || prop['x-options']) {
                 return (
                   <Form.Item
                     key={key}
                     label={prop.title}
                     name={key}
-                    rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
+                    rules={
+                      required
+                        ? [{ required: true, message: `Se requiere ${prop.title}` }]
+                        : []
+                    }
                   >
                     <Select>
                       {prop['x-options']?.map((opt: any) => (
@@ -217,13 +221,17 @@ const ClienteFormPage: React.FC = () => {
                 );
               }
 
-              // Input de texto / password
+              // --- INPUT DE TEXTO / PASSWORD ---
               return (
                 <Form.Item
                   key={key}
                   label={prop.title}
                   name={key}
-                  rules={required ? [{ required: true, message: `Se requiere ${prop.title}` }] : []}
+                  rules={
+                    required
+                      ? [{ required: true, message: `Se requiere ${prop.title}` }]
+                      : []
+                  }
                   getValueFromEvent={(e) => {
                     const val = e.target.value;
                     return uppercaseFields.includes(key) ? val.toUpperCase() : val;
@@ -232,7 +240,11 @@ const ClienteFormPage: React.FC = () => {
                   <Input
                     maxLength={prop.maxLength}
                     type={prop.format === 'password' ? 'password' : 'text'}
-                    style={uppercaseFields.includes(key) ? { textTransform: 'uppercase' } : undefined}
+                    style={
+                      uppercaseFields.includes(key)
+                        ? { textTransform: 'uppercase' }
+                        : undefined
+                    }
                   />
                 </Form.Item>
               );

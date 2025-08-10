@@ -13,6 +13,7 @@ from app.exception_handlers import (
 from app.api import clientes
 from app.api.empresa import router as empresa_router
 from app.api.producto_servicio import router as producto_servicio_router
+from app.api.factura import router as factura_router
 from app.api import catalogos
 
 from fastapi.exceptions import RequestValidationError
@@ -52,6 +53,12 @@ app.include_router(
     producto_servicio_router,
     prefix="/api/productos-servicios",
     tags=["productos-servicios"],
+    responses={404: {"description": "No encontrado"}},
+)
+app.include_router(
+    factura_router,
+    prefix="/api/factura",
+    tags=["facturas"],
     responses={404: {"description": "No encontrado"}},
 )
 app.include_router(

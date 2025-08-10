@@ -1,91 +1,84 @@
-# app/api/cliente.py
-from fastapi import APIRouter, Depends, HTTPException, Response
+# app/api/clientes.py
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
-from uuid import UUID
 from typing import List
+from uuid import UUID
 
 from app.database import get_db
-from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate
-from app.services import cliente_service
-from app.auth.security import get_current_user, User
-from app.catalogos_sat import obtener_todos_regimenes
-
+from app.models.cliente import Cliente
 from app.models.empresa import Empresa
+from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate
 
 router = APIRouter()
 
-def x_options(items: list[dict], value_key="clave", label_key="descripcion"):
-    return [{"value": str(i[value_key]), "label": f"{i[value_key]} — {i[label_key]}"} for i in items]
-
-@router.get(
-    "/schema",
-    summary="Obtener el schema del modelo")
+@router.get("/schema")
 def get_form_schema(db: Session = Depends(get_db)):
-    """
-    Devuelve el schema del modelo cliente
-    """
     schema = ClienteCreate.schema()
     props = schema["properties"]
-    required = schema.get("required", [])
-
-    # Campo 'empresa_id'
-    empresas = db.query(Empresa.id, Empresa.nombre_comercial).all()
-    props["empresa_id"]["x-options"] = x_options(
-        [{"id": str(e.id), "nombre_comercial": e.nombre_comercial} for e in empresas],
-        value_key="id",
-        label_key="nombre_comercial"
-    )
-
-    # Campo 'actividad'
-    props["actividad"]["x-options"] = [
-        {"value": "RESIDENCIAL", "label": "RESIDENCIAL"},
-        {"value": "COMERCIAL", "label": "COMERCIAL"},
-        {"value": "INDUSTRIAL", "label": "INDUSTRIAL"},
+    # empresa_id como array de UUIDs con opciones
+    props["empresa_id"]["type"] = "array"
+    props["empresa_id"]["items"] = {"type": "string", "format": "uuid"}
+    empresas = db.query(Empresa).all()
+    props["empresa_id"]["x-options"] = [
+        {"value": str(e.id), "label": e.nombre_comercial} for e in empresas
     ]
-    # Campo 'tamano'
-    props["tamano"]["x-options"] = [
-        {"value": "CHICO", "label": "CHICO"},
-        {"value": "MEDIANO", "label": "MEDIANO"},
-        {"value": "GRANDE", "label": "GRANDE"},
-    ]
-    # Para los regimenes
-    regimenes = obtener_todos_regimenes()
-    props["regimen_fiscal"]["x-options"] = [
-        {"value": r["clave"], "label": f"{r['clave']} – {r['descripcion']}"} for r in regimenes
-    ]
-    props["regimen_fiscal"]["enum"] = [r["clave"] for r in regimenes]
-    return {"properties": props, "required": required}
+    # teléfono y email siguen siendo list<string>
+    props["telefono"]["type"] = "array"
+    props["telefono"]["items"] = {"type": "string"}
+    props["email"]["type"] = "array"
+    props["email"]["items"] = {"type": "string", "format": "email"}
+    return {"properties": props, "required": schema.get("required", [])}
 
-@router.get("/all", response_model=List[ClienteOut], summary="Obtener todos los clientes de todas las empresas")
-def listar_todos_los_clientes(db: Session = Depends(get_db)):
-    # ADVERTENCIA: Este endpoint devuelve todos los clientes de todas las empresas.
-    # En un entorno de producción, se debería proteger con un sistema de roles y permisos.
-    return cliente_service.get_all_clientes(db)
-
-@router.get("/", response_model=List[ClienteOut], summary="Obtener los clientes de una empresa")
-def listar_clientes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return cliente_service.get_clientes_by_empresa(db, current_user.empresa_id)
+@router.get("/", response_model=List[ClienteOut])
+def listar_clientes(db: Session = Depends(get_db)):
+    return db.query(Cliente).all()
 
 @router.get("/{id}", response_model=ClienteOut)
-def obtener_cliente(id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    cliente = cliente_service.get_cliente(db, id, current_user.empresa_id)
+def obtener_cliente(id: UUID = Path(...), db: Session = Depends(get_db)):
+    cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+        raise HTTPException(404, "Cliente no encontrado")
     return cliente
 
 @router.post("/", response_model=ClienteOut, status_code=201)
-def crear_cliente(cliente: ClienteCreate, db: Session = Depends(get_db)):
-    return cliente_service.create_cliente(db, cliente)
+def crear_cliente(payload: ClienteCreate, db: Session = Depends(get_db)):
+    empresas = db.query(Empresa).filter(Empresa.id.in_(payload.empresa_id)).all()
+    if len(empresas) != len(payload.empresa_id):
+        raise HTTPException(404, "Alguna empresa no existe")
+    datos = payload.model_dump(exclude={"empresa_id"})
+    nuevo = Cliente(**datos)
+    nuevo.empresas = empresas
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo
 
 @router.put("/{id}", response_model=ClienteOut)
-def actualizar_cliente(id: UUID, cliente: ClienteUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_cliente = cliente_service.update_cliente(db, id, cliente, current_user.empresa_id)
-    if not db_cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    return db_cliente
+def actualizar_cliente(
+    id: UUID,
+    payload: ClienteUpdate,
+    db: Session = Depends(get_db)
+):
+    cliente = db.query(Cliente).filter(Cliente.id == id).first()
+    if not cliente:
+        raise HTTPException(404, "Cliente no encontrado")
+    datos = payload.model_dump(exclude_none=True, exclude={"empresa_id"})
+    for attr, val in datos.items():
+        setattr(cliente, attr, val)
+    if payload.empresa_id is not None:
+        empresas = db.query(Empresa).filter(Empresa.id.in_(payload.empresa_id)).all()
+        if len(empresas) != len(payload.empresa_id):
+            raise HTTPException(404, "Alguna empresa no existe")
+        cliente.empresas = empresas
+    db.commit()
+    db.refresh(cliente)
+    return cliente
 
 @router.delete("/{id}", status_code=204)
-def eliminar_cliente(id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if not cliente_service.delete_cliente(db, id, current_user.empresa_id):
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    return Response(status_code=204)
+def eliminar_cliente(id: UUID, db: Session = Depends(get_db)):
+    cliente = db.query(Cliente).filter(Cliente.id == id).first()
+    if not cliente:
+        raise HTTPException(404, "Cliente no encontrado")
+    db.delete(cliente)
+    db.commit()

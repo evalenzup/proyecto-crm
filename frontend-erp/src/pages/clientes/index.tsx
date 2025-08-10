@@ -1,3 +1,5 @@
+// src/pages/clientes/index.tsx
+
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/axios';
 import { useRouter } from 'next/router';
@@ -6,7 +8,6 @@ import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant
 import type { ColumnsType } from 'antd/es/table';
 import { Layout } from '@/components/Layout';
 import { PageContainer } from '@ant-design/pro-layout';
-import type { Cliente } from '@/types/clientes';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 
 const { Option } = Select;
@@ -16,6 +17,16 @@ interface Empresa {
   nombre_comercial: string;
 }
 
+interface Cliente {
+  id: string;
+  nombre_comercial: string;
+  nombre_razon_social: string;
+  rfc: string;
+  telefono?: string[];        // o string[], según tu schema
+  actividad?: string;
+  empresas: Empresa[];        // ahora sabemos que vienen como objetos
+}
+
 const ClientesPage: React.FC = () => {
   const router = useRouter();
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -23,12 +34,12 @@ const ClientesPage: React.FC = () => {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [empresaFiltro, setEmpresaFiltro] = useState<string | null>(null);
   const [rfcFiltro, setRfcFiltro] = useState<string>('');
-  const [nombreComercialFiltro, setNombreComercialFiltro] = useState<string>('');
+  const [nombreFiltro, setNombreFiltro] = useState<string>('');
 
   const fetchAllClientes = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get<Cliente[]>('/clientes/all');
+      const { data } = await api.get<Cliente[]>('/clientes/');
       setClientes(data);
     } catch {
       message.error('Error al cargar clientes');
@@ -39,7 +50,7 @@ const ClientesPage: React.FC = () => {
 
   const fetchEmpresas = async () => {
     try {
-      const { data } = await api.get<Empresa[]>('/empresas');
+      const { data } = await api.get<Empresa[]>('/empresas/');
       setEmpresas(data);
     } catch {
       message.error('Error al cargar empresas');
@@ -51,14 +62,21 @@ const ClientesPage: React.FC = () => {
     fetchEmpresas();
   }, []);
 
-  const filteredClientes = clientes.filter(cliente => {
-    if (empresaFiltro && !cliente.empresas.includes(empresaFiltro)) {
-      return false;
+  const filteredClientes = clientes.filter((cliente) => {
+    // Filtrar por empresa seleccionada
+    if (empresaFiltro) {
+      const pertenece = cliente.empresas.some((e) => e.id === empresaFiltro);
+      if (!pertenece) return false;
     }
+    // Filtrar por RFC
     if (rfcFiltro && !cliente.rfc.toLowerCase().includes(rfcFiltro.toLowerCase())) {
       return false;
     }
-    if (nombreComercialFiltro && !cliente.nombre_comercial.toLowerCase().includes(nombreComercialFiltro.toLowerCase())) {
+    // Filtrar por nombre comercial
+    if (
+      nombreFiltro &&
+      !cliente.nombre_comercial.toLowerCase().includes(nombreFiltro.toLowerCase())
+    ) {
       return false;
     }
     return true;
@@ -78,7 +96,12 @@ const ClientesPage: React.FC = () => {
     { title: 'Nombre Comercial', dataIndex: 'nombre_comercial', key: 'nombre_comercial' },
     { title: 'Nombre Fiscal', dataIndex: 'nombre_razon_social', key: 'nombre_razon_social' },
     { title: 'RFC', dataIndex: 'rfc', key: 'rfc' },
-    { title: 'Teléfono', dataIndex: 'telefono', key: 'telefono' },
+    {
+      title: 'Teléfono',
+      dataIndex: 'telefono',
+      key: 'telefono',
+      render: (t) => (t ? t.join(', ') : ''),
+    },
     { title: 'Actividad', dataIndex: 'actividad', key: 'actividad' },
     {
       title: 'Acciones',
@@ -106,8 +129,7 @@ const ClientesPage: React.FC = () => {
   return (
     <Layout>
       <PageContainer
-        title="Lista de Clientes Registrados"
-        subTitle=""
+        title="Clientes"
         extra={
           <>
             <Breadcrumbs items={[{ path: '/clientes', label: 'Clientes' }]} />
@@ -125,14 +147,14 @@ const ClientesPage: React.FC = () => {
         <Space style={{ marginBottom: 16 }}>
           <Select
             placeholder="Filtrar por Empresa"
-            style={{ width: 200 }}
+            style={{ width: 220 }}
             allowClear
             onChange={setEmpresaFiltro}
             value={empresaFiltro}
           >
-            {empresas.map(empresa => (
-              <Option key={empresa.id} value={empresa.id}>
-                {empresa.nombre_comercial}
+            {empresas.map((emp) => (
+              <Option key={emp.id} value={emp.id}>
+                {emp.nombre_comercial}
               </Option>
             ))}
           </Select>
@@ -140,24 +162,27 @@ const ClientesPage: React.FC = () => {
             placeholder="Buscar por RFC"
             prefix={<SearchOutlined />}
             value={rfcFiltro}
-            onChange={e => setRfcFiltro(e.target.value)}
+            onChange={(e) => setRfcFiltro(e.target.value)}
             style={{ width: 200 }}
           />
           <Input
             placeholder="Buscar por Nombre Comercial"
             prefix={<SearchOutlined />}
-            value={nombreComercialFiltro}
-            onChange={e => setNombreComercialFiltro(e.target.value)}
+            value={nombreFiltro}
+            onChange={(e) => setNombreFiltro(e.target.value)}
             style={{ width: 200 }}
           />
-           <Button onClick={() => {
-            setEmpresaFiltro(null);
-            setRfcFiltro('');
-            setNombreComercialFiltro('');
-          }}>
+          <Button
+            onClick={() => {
+              setEmpresaFiltro(null);
+              setRfcFiltro('');
+              setNombreFiltro('');
+            }}
+          >
             Limpiar
           </Button>
         </Space>
+
         <Table<Cliente>
           rowKey="id"
           columns={columns}
