@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
+from sqlalchemy import or_, func
 
 from app.models.empresa import Empresa
 from app.models.producto_servicio import ProductoServicio
@@ -113,3 +114,25 @@ def delete_producto(db: Session, producto_id: UUID) -> bool:
     db.delete(producto)
     db.commit()
     return True
+
+def search_productos_by_term(db: Session, q: str, empresa_id: Optional[UUID] = None, limit: int = 20) -> List[ProductoServicio]:
+    """
+    Busca productos/servicios por un término `q` en la clave o descripción.
+    Puede filtrar por empresa.
+    """
+    query = db.query(ProductoServicio)
+    
+    if empresa_id:
+        query = query.filter(ProductoServicio.empresa_id == empresa_id)
+
+    if q:
+        search_term = f"%{q.lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(ProductoServicio.clave_producto).like(search_term),
+                func.lower(ProductoServicio.descripcion).like(search_term)
+            )
+        )
+        
+    return query.limit(limit).all()
+

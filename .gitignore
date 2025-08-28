@@ -29,3 +29,9 @@ build/
 *.log
 
 .venv/
+
+# Datos de la aplicación y certificados
+backend/data/
+*.cer
+*.key
+*.bak

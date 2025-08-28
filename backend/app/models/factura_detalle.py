@@ -1,6 +1,6 @@
 # app/models/factura_detalle.py
 
-from sqlalchemy import Column, String, Text, TIMESTAMP, Numeric, ForeignKey, Index
+from sqlalchemy import Column, String, Text, TIMESTAMP, Numeric, ForeignKey, Index, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -20,6 +20,9 @@ class FacturaDetalle(Base):
 
     # (Opcional) relación con tu catálogo de productos/servicios
     producto_servicio_id = Column(UUID(as_uuid=True), ForeignKey("productos_servicios.id"), nullable=True, index=True)
+    tipo                 = Column(String(50), nullable=True)
+    requiere_lote        = Column(Boolean, default=False)
+    lote                 = Column(String(50), nullable=True)
 
     # Identificación de línea (útil en PDF/UX)
     no_identificacion    = Column(String(50),  nullable=True)   # SKU / código interno

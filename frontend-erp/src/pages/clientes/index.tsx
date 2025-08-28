@@ -6,8 +6,6 @@ import { useRouter } from 'next/router';
 import { Table, message, Button, Popconfirm, Space, Select, Input } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Layout } from '@/components/Layout';
-import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 
 const { Option } = Select;
@@ -127,23 +125,23 @@ const ClientesPage: React.FC = () => {
   ];
 
   return (
-    <Layout>
-      <PageContainer
-        title="Clientes"
-        extra={
-          <>
-            <Breadcrumbs items={[{ path: '/clientes', label: 'Clientes' }]} />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => router.push('/clientes/form')}
-              style={{ marginLeft: 12 }}
-            >
-              Agregar
-            </Button>
-          </>
-        }
-      >
+    <>
+      <div className="app-page-header">
+        <div className="app-page-header__left">
+          <Breadcrumbs />
+          <h1 className="app-title">Clientes</h1>
+        </div>
+        <div className="app-page-header__right">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => router.push('/clientes/form')}
+          >
+            Agregar
+          </Button>
+        </div>
+      </div>
+      <div className="app-content">
         <Space style={{ marginBottom: 16 }}>
           <Select
             placeholder="Filtrar por Empresa"
@@ -191,8 +189,8 @@ const ClientesPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
           locale={{ emptyText: 'No hay clientes' }}
         />
-      </PageContainer>
-    </Layout>
+      </div>
+    </>
   );
 };
 

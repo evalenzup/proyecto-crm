@@ -1,147 +1,159 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Path, Body
-from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+import json
+from typing import List, Optional
 from uuid import UUID
-from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Path, Form
+from fastapi.responses import FileResponse
+from pydantic import ValidationError
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.empresa import Empresa
-from app.schemas.empresa import EmpresaOut, EmpresaCreate, EmpresaUpdate
+from app.schemas.empresa import EmpresaOut, EmpresaCreate, EmpresaUpdate, CertInfoOut
 from app.catalogos_sat import obtener_todos_regimenes
 from app.services import empresa_service
+from app.services.certificado import CertificadoService
 from app.config import settings
+from app.core.logger import logger
 
 CERT_DIR = settings.CERT_DIR
-# Intentamos crear carpeta, ignoramos errores de permisos
-try:
-    os.makedirs(CERT_DIR, exist_ok=True)
-except Exception:
-    pass
+LOGO_DIR = os.path.join(settings.DATA_DIR, "logos")
+os.makedirs(CERT_DIR, exist_ok=True)
+os.makedirs(LOGO_DIR, exist_ok=True)
 
 router = APIRouter()
 
-@router.get(
-    "/certificados/{filename}",
-    summary="Descargar certificado .cert o .key",)
-def descargar_certificado(filename: str = Path(..., regex=r"^[\w\-.]+$")):
-    """
-    Descarga los certificados .cert o .key
-    """
-    path = os.path.join(CERT_DIR, filename)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
-    return FileResponse(path, filename=filename)
+def _parse_json_form(data_str: Optional[str], model_cls):
+    if data_str is None or data_str == "":
+        try:
+            return model_cls()
+        except TypeError:
+            raise HTTPException(status_code=422, detail="empresa_data es requerido")
+    try:
+        raw = json.loads(data_str)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="empresa_data no es JSON válido")
+    try:
+        return model_cls(**raw)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors())
 
-@router.get(
-    "/schema",
-    summary="Obtener el schema del modelo")
+@router.get("/form-schema", summary="Schema del formulario de empresa")
 def get_form_schema():
-    """
-    Devuelve el schema del modelo empresa
-    """
-    schema = EmpresaCreate.schema()
-    props = schema["properties"]
+    try:
+        schema = EmpresaCreate.model_json_schema()
+    except Exception:
+        schema = EmpresaCreate.schema()
+
+    props = schema.get("properties", {})
     required = schema.get("required", [])
+
     regimenes = obtener_todos_regimenes()
+    props.setdefault("regimen_fiscal", {})
     props["regimen_fiscal"]["x-options"] = [
-        {"value": r["clave"], "label": f"{r['clave']} – {r['descripcion']}"} for r in regimenes
+        {"value": r["clave"], "label": f"{r['clave']} – {r['descripcion']}"}
+        for r in regimenes
     ]
     props["regimen_fiscal"]["enum"] = [r["clave"] for r in regimenes]
+
     props["archivo_cer"] = {"type": "string", "format": "binary", "title": "Archivo CER"}
     props["archivo_key"] = {"type": "string", "format": "binary", "title": "Archivo KEY"}
+    props["logo"] = {"type": "string", "format": "binary", "title": "Logo"}
+
     return {"properties": props, "required": required}
 
-@router.get(
-    "/", 
-    response_model=List[EmpresaOut], 
-    summary="Listar empresas")
-def listar_empresas(db: Session = Depends(get_db)):
-    """
-    Devuelve todas las empresas registradas en el sistema.
-    """
-    return db.query(Empresa).all()
+@router.get("/logos/{empresa_id}.png", summary="Descargar logo de la empresa")
+def descargar_logo(empresa_id: UUID):
+    filename = f"{empresa_id}.png"
+    path = os.path.join(LOGO_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Logo no encontrado")
+    headers = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", "Pragma": "no-cache", "Expires": "0"}
+    return FileResponse(path, filename=filename, headers=headers)
 
-@router.get(
-    "/{id}",
-    response_model=EmpresaOut,
-    summary="Obtener empresa por ID"
-)
-def obtener_empresa(
-    id: UUID = Path(..., description="ID de la empresa a consultar"),
-    db=Depends(get_db)
-):
-    """
-    Obtiene la información de una empresa existente a partir de su UUID.
-    """
-    empresa = db.query(Empresa).get(id)
-    if not empresa:
-        raise HTTPException(404, "Empresa no encontrada")
-    return empresa
+@router.get("/certificados/{filename}", summary="Descargar .cer/.key")
+def descargar_certificado(filename: str = Path(..., regex=r"^[\w.\-]+$")):
+    path = os.path.join(CERT_DIR, filename)
+    if not os.path.exists(path):
+        logger.warning("GET cert: no existe %s", path)
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    headers = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", "Pragma": "no-cache", "Expires": "0"}
+    return FileResponse(path, filename=filename, headers=headers)
 
-
-@router.post(
-    "/",
-    status_code=201,
-    response_model=EmpresaOut,
-    summary="Crear nueva empresa"
-)
-def crear_empresa(
-    empresa_data: EmpresaCreate = Body(...),
-    archivo_cer: UploadFile = File(..., description="Archivo CER en formato .cer"),
-    archivo_key: UploadFile = File(..., description="Archivo KEY en formato .key"),
-    db: Session = Depends(get_db),
-):
-    """
-    Crea una nueva empresa, sube los certificados (.cer/.key) y valida la contraseña
-    contra los archivos cargados. 
-    - **nombre**: razón social completa.  
-    - **rfc**: clave RFC válida para el régimen.  
-    - **contrasena**: contraseña de la llave privada.
-    """
-    return empresa_service.create_empresa(db, empresa_data, archivo_cer, archivo_key)
-
-@router.put(
-    "/{id}",
-    response_model=EmpresaOut,
-    summary="Actualizar empresa existente"
-)
-def actualizar_empresa(
-    id: UUID = Path(..., description="ID de la empresa a actualizar"),
-    empresa_data: EmpresaUpdate = Body(...),
-    archivo_cer: UploadFile = File(None, description="Nuevo archivo CER (opcional)"),
-    archivo_key: UploadFile = File(None, description="Nuevo archivo KEY (opcional)"),
-    db: Session = Depends(get_db),
-):
-    """
-    Actualiza los datos de la empresa indicada y vuelve a validar los certificados.
-    Si se suben nuevos archivos, se reemplazarán los anteriores.
-    """
-    empresa = empresa_service.update_empresa(db, id, empresa_data, archivo_cer, archivo_key)
-    if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    return empresa
-
-@router.delete(
-    "/{id}",
-    status_code=204,
-    summary="Eliminar empresa"
-)
-def eliminar_empresa(
-    id: UUID = Path(..., description="ID de la empresa a eliminar"),
-    db=Depends(get_db)
-):
-    """
-    Elimina la empresa y borra sus archivos de certificado del servidor.
-    """
+@router.get("/{id}/cert-info", response_model=CertInfoOut, summary="Info del certificado de la empresa")
+def obtener_cert_info(id: UUID, db: Session = Depends(get_db)):
     empresa = db.query(Empresa).filter(Empresa.id == id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    for filename in (empresa.archivo_cer, empresa.archivo_key):
-        if filename:
-            path = os.path.join(CERT_DIR, filename)
-            if os.path.exists(path):
-                os.remove(path)
+    if not empresa.archivo_cer:
+        raise HTTPException(status_code=404, detail="La empresa no tiene .cer registrado")
+
+    info = CertificadoService.extraer_info(empresa.archivo_cer)
+    return CertInfoOut(
+        nombre_cn=info.get("nombre_cn"),
+        rfc=info.get("rfc"),
+        curp=info.get("curp"),
+        numero_serie=info.get("numero_serie"),
+        valido_desde=info.get("valido_desde"),
+        valido_hasta=info.get("valido_hasta"),
+        issuer_cn=info.get("issuer_cn"),
+        key_usage=info.get("key_usage"),
+        extended_key_usage=info.get("extended_key_usage"),
+        tipo_cert=info.get("tipo_cert"),
+    )
+
+@router.get("/", response_model=List[EmpresaOut], summary="Listar empresas")
+def listar_empresas(db: Session = Depends(get_db)):
+    return db.query(Empresa).all()
+
+@router.get("/{id}", response_model=EmpresaOut, summary="Obtener empresa por ID")
+def obtener_empresa(id: UUID, db: Session = Depends(get_db)):
+    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    return empresa
+
+@router.post("/", status_code=201, response_model=EmpresaOut, summary="Crear empresa")
+def crear_empresa(
+    empresa_data: str = Form(..., description="JSON de EmpresaCreate"),
+    archivo_cer: UploadFile = File(...),
+    archivo_key: UploadFile = File(...),
+    logo: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+):
+    data = _parse_json_form(empresa_data, EmpresaCreate)
+    return empresa_service.create_empresa(db, data, archivo_cer, archivo_key, logo)
+
+@router.put("/{id}", response_model=EmpresaOut, summary="Actualizar empresa")
+def actualizar_empresa(
+    id: UUID,
+    empresa_data: str | None = Form(None, description="JSON de EmpresaUpdate"),
+    archivo_cer: UploadFile | None = File(None),
+    archivo_key: UploadFile | None = File(None),
+    logo: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+):
+    data = _parse_json_form(empresa_data, EmpresaUpdate)
+    empresa = empresa_service.update_empresa(db, id, data, archivo_cer, archivo_key, logo)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    return empresa
+
+@router.delete("/{id}", status_code=204, summary="Eliminar empresa")
+def eliminar_empresa(id: UUID, db: Session = Depends(get_db)):
+    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    for fname in (empresa.archivo_cer, empresa.archivo_key):
+        if fname:
+            path = os.path.join(CERT_DIR, fname)
+            try:
+                if os.path.exists(path): os.remove(path)
+            except Exception:
+                pass
+
     db.delete(empresa)
     db.commit()
     return Response(status_code=204)

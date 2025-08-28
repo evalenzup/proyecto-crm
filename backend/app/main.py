@@ -57,7 +57,7 @@ app.include_router(
 )
 app.include_router(
     factura_router,
-    prefix="/api/factura",
+    prefix="/api/facturas",
     tags=["facturas"],
     responses={404: {"description": "No encontrado"}},
 )

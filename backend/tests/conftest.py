@@ -2,65 +2,70 @@ import os
 import sys
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
 
-# Añadimos la carpeta raíz del backend al PYTHONPATH
+# ── PYTHONPATH al root del backend ─────────────────────────────
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-# Generar ficheros dummy si faltan
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
-os.makedirs(FIXTURES_DIR, exist_ok=True)
-for fname in ('demo.cer', 'demo.key'):
-    fpath = os.path.join(FIXTURES_DIR, fname)
-    if not os.path.exists(fpath):
-        with open(fpath, 'wb') as f:
-            f.write(b'-----BEGIN DUMMY-----\n')
+# Config env mínimos para Settings() si tu app los usa
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("SECRET_KEY", "test-secret")
+os.environ.setdefault("ALGORITHM", "HS256")
+os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.main import app
+from app.main import app as fastapi_app
 from app.database import get_db
 from app.models.base import Base
-# Importar modelos para que metadata cree las tablas
-import app.models.cliente  # noqa: F401
-import app.models.empresa  # noqa: F401
-import app.models.producto_servicio  # noqa: F401
 
-# Configurar SQLite en memoria para tests
-TEST_SQLALCHEMY_DATABASE_URL = 'sqlite:///:memory:'
+TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(
     TEST_SQLALCHEMY_DATABASE_URL,
-    connect_args={'check_same_thread': False}
+    connect_args={"check_same_thread": False}
 )
-TestingSessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-# Crear todas las tablas en memoria
-Base.metadata.create_all(bind=engine)
 
-@pytest.fixture(scope='function')
-def db_session():
-    """Sesión de base de datos en memoria por test."""
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
+# FIX: Forzar FKs en SQLite, que no las impone por defecto
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
-@pytest.fixture(scope='function')
+
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@pytest.fixture(scope="session")
+def db_engine():
+    # Importar TODOS los modelos para que metadata conozca tablas
+    import app.models.empresa
+    import app.models.cliente
+    import app.models.producto_servicio
+    import app.models.associations
+    import app.models.factura
+    import app.models.factura_detalle
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture(scope="function")
+def db_session(db_engine):
+    connection = db_engine.connect()
+    transaction = connection.begin()
+    session = TestingSessionLocal(bind=connection)
+    yield session
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+@pytest.fixture(scope="function")
 def client(db_session):
-    """TestClient con override global de la dependencia get_db."""
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
-
-    # Sobrescribir la dependencia get_db de FastAPI
-    app.dependency_overrides[get_db] = override_get_db
-
-    return TestClient(app)
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+    return TestClient(fastapi_app)

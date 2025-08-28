@@ -14,8 +14,6 @@ import {
   Space,
   Typography,
 } from 'antd';
-import { Layout } from '@/components/Layout';
-import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useDebouncedOptions } from '@/hooks/useDebouncedOptions';
 import { formatDate } from '@/utils/formatDate';
@@ -135,29 +133,21 @@ const FormularioProductoServicio: React.FC = () => {
 
   if (loadingSchema || loadingRecord) {
     return (
-      <Layout>
-        <PageContainer>
-          <Spin spinning tip="Cargando...">
-            <div style={{ minHeight: 200 }} />
-          </Spin>
-        </PageContainer>
-      </Layout>
+        <Spin spinning tip="Cargando...">
+          <div style={{ minHeight: 200 }} />
+        </Spin>
     );
   }
 
-  const crumbs = [
-    { path: '/productos-servicios', label: 'Productos y Servicios' },
-    id
-      ? { path: `/productos-servicios/form/${id}`, label: 'Editar' }
-      : { path: '/productos-servicios/form', label: 'Nuevo' },
-  ];
-
   return (
-    <Layout>
-      <PageContainer
-        title={id ? 'Editar Producto/Servicio' : 'Nuevo Producto/Servicio'}
-        extra={<Breadcrumbs items={crumbs} />}
-      >
+    <>
+      <div className="app-page-header">
+        <div className="app-page-header__left">
+          <Breadcrumbs />
+          <h1 className="app-title">{id ? 'Editar Producto/Servicio' : 'Nuevo Producto/Servicio'}</h1>
+        </div>
+      </div>
+      <div className="app-content">
         <Card>
           {metadata && (
             <div style={{ marginBottom: 16 }}>
@@ -264,8 +254,8 @@ const FormularioProductoServicio: React.FC = () => {
             </Form.Item>
           </Form>
         </Card>
-      </PageContainer>
-    </Layout>
+      </div>
+    </>
   );
 };
 

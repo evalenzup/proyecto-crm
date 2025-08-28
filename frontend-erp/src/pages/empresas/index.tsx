@@ -4,8 +4,6 @@ import { useRouter } from 'next/router';
 import { Table, message, Button, Popconfirm, Space } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Layout } from '@/components/Layout';
-import { PageContainer } from '@ant-design/pro-layout';
 import type { Empresa } from '@/types/empresa';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 
@@ -74,24 +72,23 @@ const EmpresasPage: React.FC = () => {
   ];
 
   return (
-    <Layout>
-      <PageContainer
-        title="Lista de Empresas Registradas"
-        subTitle=""
-        extra={
-          <>
-            <Breadcrumbs items={[{ path: '/empresas', label: 'Empresas' }]} />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => router.push('/empresas/form')}
-              style={{ marginLeft: 12 }}
-            >
-              Agregar
-            </Button>
-          </>
-        }
-      >
+    <>
+      <div className="app-page-header">
+        <div className="app-page-header__left">
+          <Breadcrumbs />
+          <h1 className="app-title">Empresas</h1>
+        </div>
+        <div className="app-page-header__right">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => router.push('/empresas/form')}
+          >
+            Agregar
+          </Button>
+        </div>
+      </div>
+      <div className="app-content">
         <Table<Empresa>
           rowKey="id"
           columns={columns}
@@ -100,8 +97,8 @@ const EmpresasPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
           locale={{ emptyText: 'No hay empresas' }}
         />
-      </PageContainer>
-    </Layout>
+      </div>
+    </>
   );
 };
 

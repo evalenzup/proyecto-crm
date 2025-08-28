@@ -6,8 +6,6 @@ import { useRouter } from 'next/router';
 import { Table, message, Button, Popconfirm, Space, Input, Select } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Layout } from '@/components/Layout';
-import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 
 const { Option } = Select;
@@ -123,23 +121,23 @@ const ProductosServiciosPage: React.FC = () => {
   ];
 
   return (
-    <Layout>
-      <PageContainer
-        title="Productos y Servicios"
-        extra={
-          <>
-            <Breadcrumbs items={[{ path: '/productos-servicios', label: 'Productos y Servicios' }]} />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => router.push('/productos-servicios/form')}
-              style={{ marginLeft: 12 }}
-            >
-              Agregar
-            </Button>
-          </>
-        }
-      >
+    <>
+      <div className="app-page-header">
+        <div className="app-page-header__left">
+          <Breadcrumbs />
+          <h1 className="app-title">Productos y Servicios</h1>
+        </div>
+        <div className="app-page-header__right">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => router.push('/productos-servicios/form')}
+          >
+            Agregar
+          </Button>
+        </div>
+      </div>
+      <div className="app-content">
         <Space style={{ marginBottom: 16 }}>
           <Select
             placeholder="Filtrar por tipo"
@@ -166,8 +164,8 @@ const ProductosServiciosPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
           locale={{ emptyText: 'No hay productos o servicios' }}
         />
-      </PageContainer>
-    </Layout>
+      </div>
+    </>
   );
 };
 

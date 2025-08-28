@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { PageContainer } from '@ant-design/pro-layout';
 import {
   PieChartOutlined,
   TableOutlined,
@@ -17,10 +16,11 @@ import {
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip } from 'antd';
 import esES from 'antd/locale/es_ES';
+import { Breadcrumbs } from './Breadcrumb';
 
 // Carga ProLayout solo en cliente
 const ProLayout = dynamic(
-  () => import('@ant-design/pro-layout').then((mod) => mod.default),
+  () => import('@ant-design/pro-layout').then((m) => m.default),
   { ssr: false }
 );
 
@@ -33,7 +33,7 @@ const menuData = [
   { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
 ];
 
-const STORAGE_KEY = 'ui.theme.mode'; // 'light' | 'dark'
+const STORAGE_KEY = 'ui.theme.mode';
 
 const ThemeSwitch: React.FC<{
   mode: 'light' | 'dark';
@@ -49,10 +49,17 @@ const ThemeSwitch: React.FC<{
   </Tooltip>
 );
 
-export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+type Crumb = { path: string; label: string };
+
+export const Layout: React.FC<{
+  children: React.ReactNode;
+  title?: string;
+  breadcrumbs?: Crumb[];
+  extra?: React.ReactNode;
+}> = ({ children, title, breadcrumbs, extra }) => {
   const router = useRouter();
 
-  // Inicialización sin "flash" claro
+  // Tema con persistencia
   const [mode, setMode] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY) as 'light' | 'dark' | null;
@@ -63,7 +70,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     return 'light';
   });
 
-  // Persistir y exponer data-theme (opcional para estilos globales)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, mode);
@@ -80,9 +86,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     () => ({
       algorithm,
       token: {
-        // Personaliza tokens si quieres:
-        // colorPrimary: '#1677ff',
-        // borderRadius: 8,
+        // compactar un poco
+        padding: 12,
+        paddingLG: 16,
+        paddingSM: 8,
+        borderRadius: 8,
       },
     }),
     [algorithm]
@@ -95,25 +103,46 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         menuDataRender={() => menuData}
         location={{ pathname: router.pathname }}
         menuItemRender={(item, dom) => <Link href={item.path || '/'}>{dom}</Link>}
-        fixSiderbar
-        siderWidth={200}
-        // Toggle en el header superior (top bar)
+        layout="side"
+        fixedHeader={false}
+        fixSiderbar={false}
+        siderWidth={180}
+        contentWidth="Fluid"
+        contentStyle={{ margin: 0, padding: 0, maxWidth: '100%' }}
         rightContentRender={() => (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 12 }}>
             <ThemeSwitch mode={mode} onToggle={(c) => setMode(c ? 'dark' : 'light')} />
           </div>
         )}
+        // No usamos PageContainer interno de ProLayout
+        pageTitleRender={false}
+        breadcrumbRender={(routers = []) => {
+          // if breadcrumbs are provided, use them
+          if (breadcrumbs) {
+            return breadcrumbs;
+          }
+          // otherwise, generate them from the router
+          return [
+            { path: '/', breadcrumbName: 'Inicio' },
+            ...routers.map((router) => ({
+              path: router.path,
+              breadcrumbName: router.breadcrumbName,
+            })),
+          ];
+        }}
       >
-        {/* Fallback: por si tu top bar no se ve, también mostramos el switch aquí */}
-        <PageContainer
-          header={{
-            extra: (
-              <ThemeSwitch mode={mode} onToggle={(c) => setMode(c ? 'dark' : 'light')} />
-            ),
-          }}
-        >
-          {children}
-        </PageContainer>
+        {/* Header de página propio, sin max-width */}
+        {(title || extra) && (
+          <div className="app-page-header">
+            <div className="app-page-header__left">
+              {title && <h1 className="app-title">{title}</h1>}
+            </div>
+            <div className="app-page-header__right">{extra}</div>
+          </div>
+        )}
+
+        {/* Contenido a ancho completo */}
+        <main className="app-content">{children}</main>
       </ProLayout>
     </ConfigProvider>
   );

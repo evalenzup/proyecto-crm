@@ -14,8 +14,6 @@ import {
   Space,
   Typography,
 } from 'antd';
-import { Layout } from '@/components/Layout';
-import { PageContainer } from '@ant-design/pro-layout';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 
@@ -37,6 +35,19 @@ const ClienteFormPage: React.FC = () => {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [metadata, setMetadata] = useState<{ creado_en: string; actualizado_en: string } | null>(null);
 
+  // NUEVO: opciones para selects específicos
+  const [regimenOptions, setRegimenOptions] = useState<{ value: string; label: string }[]>([]);
+  const tamanoOptions = [
+    { value: 'CHICO', label: 'CHICO' },
+    { value: 'MEDIANO', label: 'MEDIANO' },
+    { value: 'GRANDE', label: 'GRANDE' },
+  ];
+  const actividadOptions = [
+    { value: 'RESIDENCIAL', label: 'RESIDENCIAL' },
+    { value: 'COMERCIAL', label: 'COMERCIAL' },
+    { value: 'INDUSTRIAL', label: 'INDUSTRIAL' },
+  ];
+
   // Campos que deben forzar mayúsculas
   const uppercaseFields = [
     'nombre_comercial',
@@ -53,6 +64,24 @@ const ClienteFormPage: React.FC = () => {
       .then(({ data }) => setSchema(data))
       .catch(() => message.error('Error al cargar esquema'))
       .finally(() => setLoadingSchema(false));
+  }, []);
+
+  // NUEVO: Cargar catálogo de régimen fiscal (clave — descripción)
+  useEffect(() => {
+    const loadRegimen = async () => {
+      try {
+        const { data } = await api.get('/catalogos/regimen-fiscal');
+        setRegimenOptions(
+          (data || []).map((x: any) => ({
+            value: x.clave,
+            label: `${x.clave} — ${x.descripcion}`,
+          }))
+        );
+      } catch {
+        message.error('No se pudo cargar el catálogo de Régimen Fiscal');
+      }
+    };
+    loadRegimen();
   }, []);
 
   // 2) Si hay `id`, carga los datos para editar
@@ -114,29 +143,21 @@ const ClienteFormPage: React.FC = () => {
 
   if (loadingSchema || loadingRecord) {
     return (
-      <Layout>
-        <PageContainer>
-          <Spin spinning tip="Cargando...">
-            <div style={{ minHeight: 200 }} />
-          </Spin>
-        </PageContainer>
-      </Layout>
+      <Spin spinning tip="Cargando...">
+        <div style={{ minHeight: 200 }} />
+      </Spin>
     );
   }
 
-  const crumbs = [
-    { path: '/clientes', label: 'Clientes' },
-    id
-      ? { path: `/clientes/form/${id}`, label: 'Editar' }
-      : { path: '/clientes/form', label: 'Nuevo' },
-  ];
-
   return (
-    <Layout>
-      <PageContainer
-        title={id ? 'Editar Cliente' : 'Nuevo Cliente'}
-        extra={<Breadcrumbs items={crumbs} />}
-      >
+    <>
+      <div className="app-page-header">
+        <div className="app-page-header__left">
+          <Breadcrumbs />
+          <h1 className="app-title">{id ? 'Editar Cliente' : 'Nuevo Cliente'}</h1>
+        </div>
+      </div>
+      <div className="app-content">
         <Card>
           {metadata && (
             <div style={{ marginBottom: 16 }}>
@@ -175,6 +196,71 @@ const ClienteFormPage: React.FC = () => {
                 );
               }
 
+              // --- REGÍMEN FISCAL (catálogo SAT: clave — descripción) ---
+              if (key === 'regimen_fiscal') {
+                return (
+                  <Form.Item
+                    key={key}
+                    label={prop.title}
+                    name={key}
+                    rules={
+                      required
+                        ? [{ required: true, message: `Se requiere ${prop.title}` }]
+                        : []
+                    }
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Selecciona un régimen fiscal"
+                      options={regimenOptions}
+                    />
+                  </Form.Item>
+                );
+              }
+
+              // --- TAMAÑO (opciones fijas) ---
+              if (key === 'tamano') {
+                return (
+                  <Form.Item
+                    key={key}
+                    label={prop.title}
+                    name={key}
+                    rules={
+                      required
+                        ? [{ required: true, message: `Se requiere ${prop.title}` }]
+                        : []
+                    }
+                  >
+                    <Select
+                      placeholder="Selecciona tamaño"
+                      options={tamanoOptions}
+                    />
+                  </Form.Item>
+                );
+              }
+
+              // --- ACTIVIDAD (opciones fijas) ---
+              if (key === 'actividad') {
+                return (
+                  <Form.Item
+                    key={key}
+                    label={prop.title}
+                    name={key}
+                    rules={
+                      required
+                        ? [{ required: true, message: `Se requiere ${prop.title}` }]
+                        : []
+                    }
+                  >
+                    <Select
+                      placeholder="Selecciona actividad"
+                      options={actividadOptions}
+                    />
+                  </Form.Item>
+                );
+              }
+
               // --- EMAIL / TELÉFONO COMO TEXTO LIBRE ---
               if (key === 'email' || key === 'telefono') {
                 const placeholder =
@@ -197,7 +283,7 @@ const ClienteFormPage: React.FC = () => {
                 );
               }
 
-              // --- SELECT / ENUMERADOS ---
+              // --- SELECT / ENUMERADOS (los que sí traigan x-options del schema) ---
               if (prop.enum || prop['x-options']) {
                 return (
                   <Form.Item
@@ -260,8 +346,8 @@ const ClienteFormPage: React.FC = () => {
             </Form.Item>
           </Form>
         </Card>
-      </PageContainer>
-    </Layout>
+      </div>
+    </>
   );
 };
 

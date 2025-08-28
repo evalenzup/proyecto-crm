@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
+# app/api/producto_servicio.py
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from app.database import get_db
@@ -13,42 +14,61 @@ from app.services import producto_servicio_service
 router = APIRouter()
 
 def x_options(items: list[dict], value_key="clave", label_key="descripcion"):
-    return [{"value": str(i[value_key]), "label": f"{i[value_key]} — {i[label_key]}"} for i in items]
+    # Genera [{ value, label }] sin repetir la clave en el label
+    return [{"value": str(i[value_key]), "label": str(i[label_key])} for i in items]
 
-@router.get(
-    "/schema",
-    summary="Obtiene schema de modelo producto-servicio"
-)
+@router.get("/schema", summary="Obtiene schema de modelo producto-servicio")
 def get_form_schema(db: Session = Depends(get_db)):
     schema = ProductoServicioCreate.schema()
     props = schema["properties"]
     required = schema.get("required", [])
 
+    # Campo 'tipo'
     props["tipo"]["x-options"] = [
         {"value": "PRODUCTO", "label": "PRODUCTO"},
         {"value": "SERVICIO", "label": "SERVICIO"},
     ]
     props["tipo"]["enum"] = ["PRODUCTO", "SERVICIO"]
 
+    # Campo 'empresa_id' (x-options con empresas existentes)
     empresas = db.query(Empresa.id, Empresa.nombre_comercial).all()
     props["empresa_id"]["x-options"] = x_options(
         [{"id": str(e.id), "nombre_comercial": e.nombre_comercial} for e in empresas],
         value_key="id",
-        label_key="nombre_comercial"
+        label_key="nombre_comercial",
     )
+
+    # Campo 'requiere_lote'
     props["requiere_lote"]["x-options"] = [
         {"value": True, "label": "Sí"},
         {"value": False, "label": "No"},
     ]
     props["requiere_lote"]["enum"] = [True, False]
-    
+
     return {"properties": props, "required": required}
+
+# ─────────────────────────────────────────────────────────────
+# CRUD por ID (sin búsquedas por clave SAT)
 
 @router.get("/", response_model=List[ProductoServicioOut], summary="Listar productos y servicios")
 def listar_productos(db: Session = Depends(get_db)):
     return producto_servicio_service.get_all_productos(db)
 
-@router.get("/{id}", response_model=ProductoServicioOut, summary="Obtener Prodcuto o Servicio por id")
+@router.get("/busqueda", response_model=List[ProductoServicioOut], summary="Buscar productos o servicios")
+def buscar_productos(
+    q: str = Query(..., min_length=2, description="Término de búsqueda"),
+    empresa_id: Optional[UUID] = Query(None, description="Filtrar por ID de empresa"),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca productos o servicios que coincidan con el término `q` en su clave o descripción.
+    Se puede filtrar opcionalmente por `empresa_id`.
+    """
+    productos = producto_servicio_service.search_productos_by_term(db, q=q, empresa_id=empresa_id)
+    return productos
+
+
+@router.get("/{id}", response_model=ProductoServicioOut, summary="Obtener producto/servicio por ID")
 def obtener_producto(id: UUID, db: Session = Depends(get_db)):
     prod = producto_servicio_service.get_producto_by_id(db, id)
     if not prod:
@@ -66,7 +86,8 @@ def actualizar_producto(id: UUID, payload: ProductoServicioUpdate, db: Session =
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
     return prod
 
-@router.delete("/{id}", status_code=204, summary="Elimina un producto o servicio")
+@router.delete("/{id}", status_code=204, summary="Eliminar producto o servicio")
 def eliminar_producto(id: UUID, db: Session = Depends(get_db)):
-    if not producto_servicio_service.delete_producto(db, id):
+    ok = producto_servicio_service.delete_producto(db, id)
+    if not ok:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")

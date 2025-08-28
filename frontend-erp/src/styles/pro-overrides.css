@@ -1,0 +1,42 @@
+/* src/styles/pro-overrides.css */
+
+/* 1) Asegura ancho fluido y sin márgenes de contenedor */
+:where(.ant-pro) .ant-layout .ant-layout-content,
+:where(.ant-pro-layout) .ant-layout-content,
+:where(.ant-pro) .ant-pro-layout-content {
+  max-width: none !important;
+  margin-inline: 0 !important;
+  padding-inline: 0 !important;
+}
+
+/* 2) Header de página propio (opcional y compacto) */
+.app-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px 0 16px; /* casi sin top padding */
+}
+
+.app-page-header__left { display: flex; flex-direction: column; gap: 4px; }
+.app-title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.app-breadcrumbs { font-size: 12px; opacity: 0.8; }
+.app-breadcrumbs .sep { opacity: 0.5; padding: 0 6px; }
+
+.app-content {
+  padding: 12px 16px 16px 16px;  /* compacto y consistente */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 3) Ajuste fino del body de ProLayout: quita paddings exteriores extra */
+:where(.ant-pro) .ant-pro-layout .ant-pro-layout-container {
+  padding-inline: 0 !important;
+}
+
+.ant-pro-layout-content > .css-dev-only-do-not-override-xxxxxx {
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}

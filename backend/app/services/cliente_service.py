@@ -46,22 +46,40 @@ def create_cliente(db: Session, cliente_data: ClienteCreate) -> Cliente:
         codigo_postal=cliente_data.codigo_postal
     )
 
-    empresa = db.query(Empresa).filter(Empresa.id == cliente_data.empresa_id).first()
-    if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    # 1. Validar que las empresas existan
+    empresas_a_asociar = db.query(Empresa).filter(Empresa.id.in_(cliente_data.empresa_id)).all()
+    if len(empresas_a_asociar) != len(cliente_data.empresa_id):
+        raise HTTPException(status_code=404, detail="Una o más empresas no existen")
 
-    cliente_existente = db.query(Cliente).filter(Cliente.nombre_comercial == cliente_data.nombre_comercial).first()
+    # 2. Buscar cliente por NOMBRE COMERCIAL
+    cliente_existente = db.query(Cliente).filter(
+        Cliente.nombre_comercial == cliente_data.nombre_comercial
+    ).first()
 
     if cliente_existente:
-        if empresa in cliente_existente.empresas:
-            raise HTTPException(status_code=400, detail="El cliente ya está asociado a esta empresa")
-        cliente_existente.empresas.append(empresa)
+        # 3a. Si existe, añadir las nuevas empresas a la relación
+        ids_empresas_actuales = {empresa.id for empresa in cliente_existente.empresas}
+        
+        for empresa in empresas_a_asociar:
+            if empresa.id not in ids_empresas_actuales:
+                cliente_existente.empresas.append(empresa)
+        
         db.commit()
         db.refresh(cliente_existente)
         return cliente_existente
     else:
-        nuevo_cliente = Cliente(**cliente_data.dict(exclude={"empresa_id"}))
-        nuevo_cliente.empresas.append(empresa)
+        # 3b. Si no existe, crear un nuevo cliente
+        datos_cliente = cliente_data.model_dump(exclude={"empresa_id"})
+        
+        # Convertir listas a strings separados por comas
+        if isinstance(datos_cliente.get('email'), list):
+            datos_cliente['email'] = ','.join(datos_cliente['email'])
+        if isinstance(datos_cliente.get('telefono'), list):
+            datos_cliente['telefono'] = ','.join(datos_cliente['telefono'])
+            
+        nuevo_cliente = Cliente(**datos_cliente)
+        nuevo_cliente.empresas = empresas_a_asociar
+        
         db.add(nuevo_cliente)
         db.commit()
         db.refresh(nuevo_cliente)
@@ -72,7 +90,7 @@ def update_cliente(db: Session, cliente_id: UUID, cliente_data: ClienteUpdate) -
     if not db_cliente:
         return None
 
-    update_data = cliente_data.dict(exclude_unset=True)
+    update_data = cliente_data.model_dump(exclude_unset=True)
     _validar_datos_cliente(
         db=db,
         rfc=update_data.get("rfc"),
@@ -81,6 +99,12 @@ def update_cliente(db: Session, cliente_id: UUID, cliente_data: ClienteUpdate) -
         cliente_existente=db_cliente
     )
     
+    # Convertir listas a strings separados por comas
+    if 'email' in update_data and isinstance(update_data['email'], list):
+        update_data['email'] = ','.join(update_data['email'])
+    if 'telefono' in update_data and isinstance(update_data['telefono'], list):
+        update_data['telefono'] = ','.join(update_data['telefono'])
+
     for field, value in update_data.items():
         setattr(db_cliente, field, value)
     
@@ -104,3 +128,6 @@ def delete_cliente(db: Session, cliente_id: UUID, empresa_id: UUID) -> bool:
 
 def get_all_clientes(db: Session) -> List[Cliente]:
     return db.query(Cliente).all()
+
+def get_cliente_by_id(db: Session, cliente_id: UUID) -> Optional[Cliente]:
+    return db.query(Cliente).filter(Cliente.id == cliente_id).first()
