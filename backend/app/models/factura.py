@@ -26,6 +26,7 @@ class Factura(Base):
     cliente_id       = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False, index=True)
 
     # Datos CFDI
+    fecha_emision    = Column(DateTime, nullable=True)  # fecha y hora de emisión del CFDI
     tipo_comprobante = Column(String(1),  nullable=False, default="I")  # I, E, P, N
     forma_pago       = Column(String(3),  nullable=True)                # c_FormaPago
     metodo_pago      = Column(String(3),  nullable=True)                # PUE/PPD
@@ -48,17 +49,21 @@ class Factura(Base):
 
     # Timbrado / estados CFDI
     estatus           = Column(String(15),   nullable=False, default="BORRADOR")  # BORRADOR, TIMBRADA, CANCELADA
+    motivo_cancelacion = Column(String(2), nullable=True)
+    folio_fiscal_sustituto = Column(String(36), nullable=True)
     cfdi_uuid         = Column(String(36),   nullable=True)
     fecha_timbrado    = Column(DateTime,     nullable=True)
     no_certificado    = Column(String(20),   nullable=True)
     no_certificado_sat= Column(String(20),   nullable=True)
     sello_cfdi        = Column(Text,         nullable=True)
     sello_sat         = Column(Text,         nullable=True)
+    rfc_proveedor_sat = Column(String(13),   nullable=True)
 
     # Pago / cobranza
     fecha_pago        = Column(DateTime,     nullable=True)  # programada / vencimiento
     fecha_cobro       = Column(DateTime,     nullable=True)  # real cobrada
     status_pago       = Column(String(10),   nullable=False, default="NO_PAGADA")  # PAGADA | NO_PAGADA
+    observaciones     = Column(Text, nullable=True)
 
     # Archivos (opcional)
     xml_path          = Column(String(255),  nullable=True)
