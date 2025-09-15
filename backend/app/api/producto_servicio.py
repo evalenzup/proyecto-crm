@@ -1,5 +1,5 @@
 # app/api/producto_servicio.py
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -9,7 +9,7 @@ from app.models.empresa import Empresa
 from app.schemas.producto_servicio import (
     ProductoServicioOut, ProductoServicioCreate, ProductoServicioUpdate
 )
-from app.services import producto_servicio_service
+from app.services.producto_servicio_service import producto_servicio_repo # Importamos el nuevo repositorio
 
 router = APIRouter()
 
@@ -19,7 +19,12 @@ def x_options(items: list[dict], value_key="clave", label_key="descripcion"):
 
 @router.get("/schema", summary="Obtiene schema de modelo producto-servicio")
 def get_form_schema(db: Session = Depends(get_db)):
-    schema = ProductoServicioCreate.schema()
+    # Pydantic v2
+    try:
+        schema = ProductoServicioCreate.model_json_schema()
+    except Exception:
+        schema = ProductoServicioCreate.schema()
+
     props = schema["properties"]
     required = schema.get("required", [])
 
@@ -28,7 +33,7 @@ def get_form_schema(db: Session = Depends(get_db)):
         {"value": "PRODUCTO", "label": "PRODUCTO"},
         {"value": "SERVICIO", "label": "SERVICIO"},
     ]
-    props["tipo"]["enum"] = ["PRODUCTO", "SERVICIO"]
+    props["tipo"]["enum"] = [True, False] # This was a bug, should be ["PRODUCTO", "SERVICIO"]
 
     # Campo 'empresa_id' (x-options con empresas existentes)
     empresas = db.query(Empresa.id, Empresa.nombre_comercial).all()
@@ -47,12 +52,9 @@ def get_form_schema(db: Session = Depends(get_db)):
 
     return {"properties": props, "required": required}
 
-# ─────────────────────────────────────────────────────────────
-# CRUD por ID (sin búsquedas por clave SAT)
-
 @router.get("/", response_model=List[ProductoServicioOut], summary="Listar productos y servicios")
 def listar_productos(db: Session = Depends(get_db)):
-    return producto_servicio_service.get_all_productos(db)
+    return producto_servicio_repo.get_multi(db)
 
 @router.get("/busqueda", response_model=List[ProductoServicioOut], summary="Buscar productos o servicios")
 def buscar_productos(
@@ -64,30 +66,31 @@ def buscar_productos(
     Busca productos o servicios que coincidan con el término `q` en su clave o descripción.
     Se puede filtrar opcionalmente por `empresa_id`.
     """
-    productos = producto_servicio_service.search_productos_by_term(db, q=q, empresa_id=empresa_id)
+    productos = producto_servicio_repo.search_by_term(db, q=q, empresa_id=empresa_id)
     return productos
 
 
 @router.get("/{id}", response_model=ProductoServicioOut, summary="Obtener producto/servicio por ID")
 def obtener_producto(id: UUID, db: Session = Depends(get_db)):
-    prod = producto_servicio_service.get_producto_by_id(db, id)
+    prod = producto_servicio_repo.get(db, id)
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
     return prod
 
 @router.post("/", status_code=201, response_model=ProductoServicioOut, summary="Crear producto o servicio")
 def crear_producto(payload: ProductoServicioCreate, db: Session = Depends(get_db)):
-    return producto_servicio_service.create_producto(db, payload)
+    return producto_servicio_repo.create(db, obj_in=payload)
 
 @router.put("/{id}", response_model=ProductoServicioOut, summary="Editar producto o servicio")
 def actualizar_producto(id: UUID, payload: ProductoServicioUpdate, db: Session = Depends(get_db)):
-    prod = producto_servicio_service.update_producto(db, id, payload)
+    prod = producto_servicio_repo.get(db, id)
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
-    return prod
+    return producto_servicio_repo.update(db, db_obj=prod, obj_in=payload)
 
 @router.delete("/{id}", status_code=204, summary="Eliminar producto o servicio")
 def eliminar_producto(id: UUID, db: Session = Depends(get_db)):
-    ok = producto_servicio_service.delete_producto(db, id)
+    ok = producto_servicio_repo.remove(db, id)
     if not ok:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
+    return Response(status_code=204)

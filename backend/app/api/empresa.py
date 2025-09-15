@@ -9,14 +9,14 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.empresa import Empresa
 from app.schemas.empresa import EmpresaOut, EmpresaCreate, EmpresaUpdate, CertInfoOut
 from app.catalogos_sat import obtener_todos_regimenes
-from app.services import empresa_service
+from app.services.empresa_service import empresa_repo # Importamos el nuevo repositorio
 from app.services.certificado import CertificadoService
 from app.config import settings
 from app.core.logger import logger
 
+# Estas variables y la creación de directorios se mantienen aquí, ya que son configuraciones de la API
 CERT_DIR = settings.CERT_DIR
 LOGO_DIR = os.path.join(settings.DATA_DIR, "logos")
 os.makedirs(CERT_DIR, exist_ok=True)
@@ -24,6 +24,7 @@ os.makedirs(LOGO_DIR, exist_ok=True)
 
 router = APIRouter()
 
+# Esta función se mantiene, ya que es una utilidad para parsear el JSON de los formularios multipart
 def _parse_json_form(data_str: Optional[str], model_cls):
     if data_str is None or data_str == "":
         try:
@@ -83,7 +84,8 @@ def descargar_certificado(filename: str = Path(..., regex=r"^[\w.\-]+$")):
 
 @router.get("/{id}/cert-info", response_model=CertInfoOut, summary="Info del certificado de la empresa")
 def obtener_cert_info(id: UUID, db: Session = Depends(get_db)):
-    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+    # Se obtiene la empresa a través del repo
+    empresa = empresa_repo.get(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     if not empresa.archivo_cer:
@@ -105,11 +107,11 @@ def obtener_cert_info(id: UUID, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[EmpresaOut], summary="Listar empresas")
 def listar_empresas(db: Session = Depends(get_db)):
-    return db.query(Empresa).all()
+    return empresa_repo.get_multi(db)
 
 @router.get("/{id}", response_model=EmpresaOut, summary="Obtener empresa por ID")
 def obtener_empresa(id: UUID, db: Session = Depends(get_db)):
-    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+    empresa = empresa_repo.get(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     return empresa
@@ -123,7 +125,7 @@ def crear_empresa(
     db: Session = Depends(get_db),
 ):
     data = _parse_json_form(empresa_data, EmpresaCreate)
-    return empresa_service.create_empresa(db, data, archivo_cer, archivo_key, logo)
+    return empresa_repo.create(db, obj_in=data, archivo_cer=archivo_cer, archivo_key=archivo_key, logo=logo)
 
 @router.put("/{id}", response_model=EmpresaOut, summary="Actualizar empresa")
 def actualizar_empresa(
@@ -135,25 +137,14 @@ def actualizar_empresa(
     db: Session = Depends(get_db),
 ):
     data = _parse_json_form(empresa_data, EmpresaUpdate)
-    empresa = empresa_service.update_empresa(db, id, data, archivo_cer, archivo_key, logo)
+    empresa = empresa_repo.get(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    return empresa
+    return empresa_repo.update(db, db_obj=empresa, obj_in=data, archivo_cer=archivo_cer, archivo_key=archivo_key, logo=logo)
 
 @router.delete("/{id}", status_code=204, summary="Eliminar empresa")
 def eliminar_empresa(id: UUID, db: Session = Depends(get_db)):
-    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+    empresa = empresa_repo.remove(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-
-    for fname in (empresa.archivo_cer, empresa.archivo_key):
-        if fname:
-            path = os.path.join(CERT_DIR, fname)
-            try:
-                if os.path.exists(path): os.remove(path)
-            except Exception:
-                pass
-
-    db.delete(empresa)
-    db.commit()
     return Response(status_code=204)

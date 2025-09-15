@@ -1,7 +1,6 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/router';
-import api from '@/lib/axios';
 import {
   Form,
   Input,
@@ -15,129 +14,120 @@ import {
   Typography,
 } from 'antd';
 import { Breadcrumbs } from '@/components/Breadcrumb';
-import { useDebouncedOptions } from '@/hooks/useDebouncedOptions';
 import { formatDate } from '@/utils/formatDate';
+import { useProductoServicioForm } from '@/hooks/useProductoServicioForm'; // Importamos el hook
 
 const { Text } = Typography;
-
-interface JSONSchema {
-  properties: Record<string, any>;
-  required?: string[];
-}
 
 const FormularioProductoServicio: React.FC = () => {
   const router = useRouter();
   const rawId = router.query.id;
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  const [form] = Form.useForm();
-  const [schema, setSchema] = useState<JSONSchema>({ properties: {}, required: [] });
-  const [loadingSchema, setLoadingSchema] = useState(true);
-  const [loadingRecord, setLoadingRecord] = useState(false);
-  const [tipo, setTipo] = useState<string | null>(null);
-  const [metadata, setMetadata] = useState<{ creado_en: string; actualizado_en: string } | null>(null);
-
+  // Usamos el hook personalizado para toda la lógica del formulario
   const {
-    options: opcionesProducto,
-    fetch: buscarClaveProducto,
-  } = useDebouncedOptions('/catalogos/busqueda/productos');
+    form,
+    loading,
+    metadata,
+    empresasOptions, // Opciones para el select de empresas
+    onFinish,
+    schema, // Obtenemos el schema del hook
+    mapaClavesSat, // Obtenemos el mapa de claves SAT del hook
+    loadingSatCatalogs,
+  } = useProductoServicioForm(id);
 
-  const {
-    options: opcionesUnidad,
-    fetch: buscarClaveUnidad,
-  } = useDebouncedOptions('/catalogos/busqueda/unidades');
+  // Observar el campo 'tipo' para renderizado condicional
+  const tipo = Form.useWatch('tipo', form);
 
-  useEffect(() => {
-    api
-      .get<JSONSchema>('/productos-servicios/schema')
-      .then(({ data }) => setSchema(data))
-      .catch(() => message.error('Error al cargar esquema'))
-      .finally(() => setLoadingSchema(false));
-  }, []);
-
-  useEffect(() => {
-    if (!id) return;
-    setLoadingRecord(true);
-    api
-      .get(`/productos-servicios/${id}`)
-      .then(async ({ data }) => {
-        setTipo(data.tipo);
-        setMetadata({
-          creado_en: data.creado_en,
-          actualizado_en: data.actualizado_en,
-        });
-  
-        try {
-          const [prod, unidad] = await Promise.all([
-            api.get(`/catalogos/descripcion/producto/${data.clave_producto}`),
-            api.get(`/catalogos/descripcion/unidad/${data.clave_unidad}`),
-          ]);
-          form.setFieldsValue({
-            ...data,
-            clave_producto: {
-              value: prod.data.clave,
-              label: `${prod.data.clave} - ${prod.data.descripcion}`,
-            },
-            clave_unidad: {
-              value: unidad.data.clave,
-              label: `${unidad.data.clave} - ${unidad.data.descripcion}`,
-            },
-          });
-        } catch {
-          form.setFieldsValue(data); // fallback
-          message.warning('No se pudo precargar descripción de claves SAT');
-        }
-      })
-      .catch(() => {
-        message.error('Registro no encontrado');
-        router.replace('/productos-servicios');
-      })
-      .finally(() => setLoadingRecord(false));
-  }, [id, form, router]);
-
-  const onFinish = async (values: any) => {
-    values.valor_unitario = Number(values.valor_unitario);
-    values.cantidad = values.cantidad !== undefined ? Number(values.cantidad) : undefined;  
-
-    values.clave_producto = values.clave_producto?.value || values.clave_producto;
-    values.clave_unidad = values.clave_unidad?.value || values.clave_unidad;
-  
-
-    try {
-      if (id) {
-        await api.put(`/productos-servicios/${id}`, values);
-        message.success('Actualizado correctamente');
-      } else {
-        //console.log("📦 Valores recibidos:", values);
-        await api.post(`/productos-servicios/`, values);
-        message.success('Creado correctamente');
-      }
-      router.push('/productos-servicios');
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        // Error tipo 422: lista de validaciones
-        const mensajes = detail.map((e: any) => {
-          const campo = e?.loc?.[1];  // ej: "cantidad"
-          return `${campo ? campo + ": " : ""}${e.msg}`;
-        });
-        message.error(mensajes.join("\n"));
-      } else if (typeof detail === "string") {
-        // Error manual del backend
-        message.error(detail);
-      } else {
-        message.error("Error inesperado al guardar");
-      }
-    }
-  };
-
-  if (loadingSchema || loadingRecord) {
+  if (loading || loadingSatCatalogs) {
     return (
         <Spin spinning tip="Cargando...">
           <div style={{ minHeight: 200 }} />
         </Spin>
     );
   }
+
+  const renderField = (key: string, prop: any) => {
+    const isRequired = schema.required?.includes(key);
+    const isInventario = [
+      'stock_actual',
+      'stock_minimo',
+      'unidad_inventario',
+      'ubicacion',
+      'requiere_lote',
+      'cantidad',
+    ].includes(key);
+
+    // Ocultar campos de inventario si el tipo no es PRODUCTO
+    if (isInventario && tipo !== 'PRODUCTO') return null;
+
+    const rules = isRequired || (tipo === 'PRODUCTO' && isInventario)
+      ? [{ required: true, message: `Se requiere ${prop.title || key}` }]
+      : [];
+
+    // Campo empresa_id (select con opciones de empresas)
+    if (key === 'empresa_id') {
+      return (
+        <Form.Item key={key} label={prop.title} name={key} rules={rules}>
+          <Select placeholder="Selecciona una empresa">
+            {empresasOptions.map((opt: any) => (
+              <Select.Option key={opt.value} value={opt.value}>
+                {opt.label}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
+      );
+    }
+
+    // Claves SAT (producto y unidad)
+    if (key === 'clave_producto' || key === 'clave_unidad') {
+      return (
+        <Form.Item key={key} label={prop.title} name={key} rules={rules}>
+          <Select
+            showSearch
+            filterOption={(input, option) =>
+              (option?.value?.toLowerCase().indexOf(input.toLowerCase()) >= 0) ||
+              (option?.label?.toLowerCase().indexOf(input.toLowerCase()) >= 0)
+            }
+            placeholder="Buscar clave o descripción SAT"
+            options={prop['x-options']?.map((opt: any) => ({ value: opt.value, label: opt.label })) || []}
+          />
+        </Form.Item>
+      );
+    }
+
+    // Selects con opciones fijas o de schema (tipo, requiere_lote)
+    if (prop.enum || prop['x-options']) {
+      return (
+        <Form.Item key={key} label={prop.title} name={key} rules={rules}>
+          <Select>
+            {prop['x-options']?.map((opt: any) => (
+              <Select.Option key={opt.value} value={opt.value}>
+                {opt.label}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
+      );
+    }
+
+    // InputNumber para campos numéricos
+    if (prop.type === 'number' || prop.type === 'integer') {
+      return (
+        <Form.Item key={key} label={prop.title} name={key} rules={rules}>
+          <InputNumber min={0} style={{ width: '100%' }} />
+        </Form.Item>
+      );
+    }
+
+    // Input de texto por defecto
+    return (
+      <Form.Item key={key} label={prop.title} name={key} rules={rules}>
+        <Input maxLength={prop.maxLength || 255} />
+      </Form.Item>
+    );
+  };
 
   return (
     <>
@@ -157,93 +147,9 @@ const FormularioProductoServicio: React.FC = () => {
             </div>
           )}
           <Form form={form} layout="vertical" onFinish={onFinish}>
-            {Object.entries(schema.properties).map(([key, prop]) => {
-              const isRequired = schema.required?.includes(key);
-              const isInventario = [
-                'stock_actual',
-                'stock_minimo',
-                'unidad_inventario',
-                'ubicacion',
-                'requiere_lote',
-                'cantidad',
-              ].includes(key);
-
-              if (isInventario && tipo !== 'PRODUCTO') return null;
-
-              const rules =
-                isRequired || (tipo === 'PRODUCTO' && isInventario)
-                  ? [{ required: true, message: `Se requiere ${prop.title || key}` }]
-                  : [];
-
-              if (key === 'clave_producto') {
-                return (
-                  <Form.Item key={key} label={prop.title} name={key} rules={rules}>
-                    <Select
-                      showSearch
-                      onSearch={buscarClaveProducto}
-                      options={opcionesProducto}
-                      filterOption={false}
-                      placeholder="Buscar clave o descripción SAT"
-                      labelInValue={true} 
-                    />
-                  </Form.Item>
-                );
-              }
-
-              if (key === 'clave_unidad') {
-                return (
-                  <Form.Item key={key} label={prop.title} name={key} rules={rules}>
-                    <Select
-                      showSearch
-                      onSearch={buscarClaveUnidad}
-                      options={opcionesUnidad}
-                      filterOption={false}
-                      placeholder="Buscar clave o descripción SAT"
-                      labelInValue={true} 
-                    />
-                  </Form.Item>
-                );
-              }
-
-              if (prop.enum || prop['x-options']) {
-                return (
-                  <Form.Item key={key} label={prop.title} name={key} rules={rules}>
-                    <Select onChange={key === 'tipo' ? setTipo : undefined}>
-                      {prop['x-options']?.map((opt: any) => (
-                        <Select.Option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                );
-              }
-
-              if (prop.type === 'number' || prop.type === 'integer') {
-                return (
-                  <Form.Item key={key} label={prop.title} name={key} rules={rules}>
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                );
-              }
-
-              if (prop.type === 'boolean') {
-                return (
-                  <Form.Item key={key} label={prop.title} name={key} valuePropName="checked">
-                    <Select>
-                      <Select.Option value={true}>Sí</Select.Option>
-                      <Select.Option value={false}>No</Select.Option>
-                    </Select>
-                  </Form.Item>
-                );
-              }
-
-              return (
-                <Form.Item key={key} label={prop.title} name={key} rules={rules}>
-                  <Input maxLength={prop.maxLength || 255} />
-                </Form.Item>
-              );
-            })}
+            {Object.entries(schema.properties || {}).map(([key, prop]) =>
+              renderField(key, { ...prop, required: schema.required?.includes(key) })
+            )}
             <Form.Item>
               <Space>
                 <Button onClick={() => router.push('/productos-servicios')}>Cancelar</Button>

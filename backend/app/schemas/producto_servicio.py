@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, condecimal, constr
 from typing import Optional, Literal
 from uuid import UUID
 from datetime import datetime
+from app.schemas.utils import make_optional # Importamos la utilidad
 
 Numeric = condecimal(max_digits=18, decimal_places=2)
 
@@ -26,24 +27,13 @@ class ProductoServicioBase(BaseModel):
 class ProductoServicioCreate(ProductoServicioBase):
     pass
 
+# Generamos ProductoServicioUpdate automáticamente
+ProductoServicioUpdate = make_optional(ProductoServicioCreate)
+
 class ProductoServicioOut(ProductoServicioBase):
     id             : UUID     = Field(..., title="ID")
     creado_en      : datetime = Field(..., title="Creado en")
     actualizado_en : datetime = Field(..., title="Actualizado en")
 
     class Config:
-        orm_mode = True
-
-class ProductoServicioUpdate(BaseModel):
-    tipo              : Optional[Literal['PRODUCTO', 'SERVICIO']] = Field(None, title="Tipo")
-    clave_producto    : Optional[constr(max_length=8)]            = Field(None, title="Clave de Producto/Servicio")
-    clave_unidad      : Optional[constr(max_length=8)]            = Field(None, title="Clave de Unidad")
-    descripcion       : Optional[constr(max_length=1000)]         = Field(None, title="Descripción")
-    valor_unitario    : Optional[Numeric]                         = Field(None, title="Valor Unitario", ge=0)  # type: ignore
-    empresa_id        : Optional[UUID]                            = Field(None, title="Empresa")
-    cantidad          : Optional[Numeric]                         = Field(None, title="Cantidad", ge=0) # type: ignore
-    stock_actual      : Optional[Numeric]                         = Field(None, title="Stock Actual", ge=0) # type: ignore
-    stock_minimo      : Optional[Numeric]                         = Field(None, title="Stock Mínimo", ge=0) # type: ignore
-    unidad_inventario : Optional[constr(max_length=8)]            = Field(None, title="Unidad de Inventario")
-    ubicacion         : Optional[constr(max_length=255)]          = Field(None, title="Ubicación")
-    requiere_lote     : Optional[bool]                            = Field(None, title="Requiere Lote")
+        from_attributes = True

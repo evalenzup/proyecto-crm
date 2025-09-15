@@ -1,48 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import api from '@/lib/axios';
+import React from 'react';
 import { useRouter } from 'next/router';
 import { Table, message, Button, Popconfirm, Space } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import type { Empresa } from '@/types/empresa';
+import type { EmpresaOut } from '@/services/empresaService'; // Usamos la interfaz del servicio
 import { Breadcrumbs } from '@/components/Breadcrumb';
+import { useEmpresasList } from '@/hooks/useEmpresasList'; // Importamos el hook
 
 const EmpresasPage: React.FC = () => {
   const router = useRouter();
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { empresas, loading, handleDelete } = useEmpresasList(); // Usamos el hook
 
-  const fetchEmpresas = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get<Empresa[]>(
-        `${process.env.NEXT_PUBLIC_API_URL}/empresas/`
-      );
-      setEmpresas(data);
-    } catch {
-      message.error('Error al cargar empresas');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchEmpresas();
-  }, []);
-
-  const handleDelete = async (id: string) => {
-    try {
-      await api.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/empresas/${id}`
-      );
-      message.success('Empresa eliminada');
-      fetchEmpresas();
-    } catch {
-      message.error('Error al eliminar empresa');
-    }
-  };
-
-  const columns: ColumnsType<Empresa> = [
+  const columns: ColumnsType<EmpresaOut> = [
     { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
     { title: 'Nombre Comercial', dataIndex: 'nombre_comercial', key: 'nombre_comercial' },
     { title: 'RFC', dataIndex: 'rfc', key: 'rfc' },
@@ -89,7 +58,7 @@ const EmpresasPage: React.FC = () => {
         </div>
       </div>
       <div className="app-content">
-        <Table<Empresa>
+        <Table<EmpresaOut> // Usamos EmpresaOut
           rowKey="id"
           columns={columns}
           dataSource={empresas}

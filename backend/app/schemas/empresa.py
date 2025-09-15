@@ -4,6 +4,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 from app.schemas.common import ClienteSimpleOut
+from app.schemas.utils import make_optional # Importamos la utilidad
 
 class EmpresaBase(BaseModel):
     nombre            : constr(max_length=255) = Field(..., title="Nombre")
@@ -22,17 +23,8 @@ class EmpresaBase(BaseModel):
 class EmpresaCreate(EmpresaBase):
     contrasena        : constr(max_length=255) = Field(..., title="Contraseña del CSD (.key)")
 
-class EmpresaUpdate(BaseModel):
-    nombre            : Optional[constr(max_length=255)] = Field(None, title="Nombre")
-    nombre_comercial  : Optional[constr(max_length=255)] = Field(None, title="Nombre Comercial")
-    rfc               : Optional[constr(max_length=13)]  = Field(None, title="RFC")
-    ruc               : Optional[constr(max_length=20)]  = Field(None, title="RUC")
-    direccion         : Optional[str]          = Field(None, title="Dirección")
-    telefono          : Optional[constr(max_length=50)] = Field(None, title="Teléfono")
-    email             : Optional[EmailStr]     = Field(None, title="Correo electrónico")
-    regimen_fiscal    : Optional[constr(max_length=100)] = Field(None, title="Régimen Fiscal")
-    codigo_postal     : Optional[constr(max_length=10)]  = Field(None, title="Código Postal")
-    contrasena        : Optional[constr(max_length=255)] = Field(None, title="Contraseña del CSD (.key)")
+# Generamos EmpresaUpdate automáticamente
+EmpresaUpdate = make_optional(EmpresaCreate)
 
 class EmpresaOut(EmpresaBase):
     id               : UUID              = Field(..., title="ID")

@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import datetime
 import re
 from app.schemas.common import EmpresaSimpleOut
+from app.schemas.utils import make_optional # Importamos la utilidad
 
 class ClienteBase(BaseModel):
     # Nombres
@@ -40,7 +41,7 @@ class ClienteBase(BaseModel):
             parts = re.split(r'[,;\s]+', v)
             cleaned = []
             for e in parts:
-                e2 = e.strip().strip('{}"\'')
+                e2 = e.strip().strip('{\"}\"\'')
                 if e2:
                     cleaned.append(e2)
             return cleaned
@@ -55,7 +56,7 @@ class ClienteBase(BaseModel):
             return None
         if isinstance(v, str):
             parts = re.split(r'[,;\s]+', v)
-            cleaned = [p.strip().strip('{}"\'') for p in parts if p.strip()]
+            cleaned = [p.strip().strip('{\"}\"\'') for p in parts if p.strip()]
             return cleaned
         if isinstance(v, list):
             return v
@@ -68,53 +69,8 @@ class ClienteCreate(ClienteBase):
         description="Lista de IDs de empresas a las que pertenece el cliente"
     )
 
-
-class ClienteUpdate(BaseModel):
-    nombre_comercial    : Optional[constr(max_length=255)] = Field(None, title="Nombre Comercial") # type: ignore
-    nombre_razon_social : Optional[constr(max_length=255)] = Field(None, title="Nombre o Razón Social") # type: ignore
-    rfc                : Optional[constr(max_length=13)]  = Field(None, title="RFC") # type: ignore
-    regimen_fiscal     : Optional[constr(max_length=100)] = Field(None, title="Régimen Fiscal") # type: ignore
-    calle              : Optional[constr(max_length=100)] = Field(None, title="Calle") # type: ignore
-    numero_exterior    : Optional[constr(max_length=50)]  = Field(None, title="Número Exterior") # type: ignore
-    numero_interior    : Optional[constr(max_length=50)]  = Field(None, title="Número Interior") # type: ignore
-    colonia            : Optional[constr(max_length=100)] = Field(None, title="Colonia") # type: ignore
-    codigo_postal      : Optional[constr(max_length=10)]  = Field(None, title="Código Postal") # type: ignore
-    telefono           : Optional[List[constr(max_length=50)]] = Field(None, title="Teléfono") # type: ignore
-    email              : Optional[List[EmailStr]]               = Field(None, title="Correo Electrónico")
-    dias_credito       : Optional[conint(ge=0)] = Field(None, title="Días de Crédito") # type: ignore
-    dias_recepcion     : Optional[conint(ge=0)] = Field(None, title="Días de Recepción") # type: ignore
-    dias_pago          : Optional[conint(ge=0)] = Field(None, title="Días de Pago") # type: ignore
-    tamano             : Optional[Literal['CHICO', 'MEDIANO', 'GRANDE']] = Field(None, title="Tamaño")
-    actividad          : Optional[Literal['RESIDENCIAL', 'COMERCIAL', 'INDUSTRIAL']] = Field(None, title="Actividad")
-    empresa_id         : Optional[List[UUID]] = Field(
-        None, title="Empresas",
-        description="Lista de IDs de empresas a las que pertenece el cliente"
-    )
-
-    @field_validator('email', mode='before')
-    @classmethod
-    def split_email(cls, v):
-        # mismo validador que en ClienteBase
-        if v is None:
-            return None
-        if isinstance(v, str):
-            parts = re.split(r'[,;\s]+', v)
-            return [e.strip().strip('{}"\'') for e in parts if e.strip()]
-        if isinstance(v, list):
-            return v
-        raise ValueError('email debe ser cadena separada por comas o lista')
-
-    @field_validator('telefono', mode='before')
-    @classmethod
-    def split_telefono(cls, v):
-        if v is None:
-            return None
-        if isinstance(v, str):
-            parts = re.split(r'[,;\s]+', v)
-            return [p.strip().strip('{}"\'') for p in parts if p.strip()]
-        if isinstance(v, list):
-            return v
-        raise ValueError('telefono debe ser cadena separada por comas o lista')
+# Generamos ClienteUpdate automáticamente
+ClienteUpdate = make_optional(ClienteCreate)
 
 
 class ClienteOut(ClienteBase):

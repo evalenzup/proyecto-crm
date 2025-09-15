@@ -1,0 +1,94 @@
+
+**Informe Detallado de Avances y Arquitectura – Proyecto CRM/ERP**
+
+**Fecha:** 30 de agosto de 2025
+
+**Propósito:** Ofrecer una visión exhaustiva del progreso, las decisiones técnicas y el valor generado en el desarrollo del sistema CRM/ERP, justificando la inversión realizada y detallando el estado actual de las funcionalidades de cara al usuario.
+
+---
+
+### **Parte 1: Excelencia Técnica y Arquitectura de Futuro**
+
+Más allá de crear funcionalidades, hemos construido una base tecnológica sólida que garantiza que el sistema no solo funcione hoy, sino que sea seguro, eficiente y capaz de crecer junto con el negocio en el futuro.
+
+**1. Arquitectura Robusta y Escalable (Backend)**
+*   **Núcleo de Alto Rendimiento:** Utilizamos **FastAPI**, un framework de Python moderno reconocido por su altísima velocidad de respuesta. Esto se traduce en una experiencia de usuario fluida y rápida, incluso con un gran volumen de datos.
+*   **Separación de Responsabilidades:** Hemos implementado una arquitectura limpia y profesional que divide el sistema en capas:
+    *   **Capa de API:** Expone los puntos de acceso a la aplicación (ej. `/api/clientes`, `/api/facturas`).
+    *   **Capa de Servicios:** Contiene la lógica de negocio (ej. cómo se calcula el total de una factura, qué validaciones hacer antes de timbrar).
+    *   **Capa de Repositorio:** Se encarga exclusivamente de la comunicación con la base de datos.
+    *   **Ventaja:** Esta separación hace que el sistema sea mucho más fácil de mantener, depurar y expandir. Agregar una nueva funcionalidad no pone en riesgo las existentes.
+
+**2. Calidad y Confiabilidad del Código**
+*   **Pruebas Automatizadas:** Hemos desarrollado un conjunto de **pruebas automáticas** (usando `pytest`). Antes de integrar cualquier cambio, estas pruebas verifican que las funcionalidades clave (como crear un cliente o validar una factura) sigan operando perfectamente.
+    *   **Ventaja:** Esto reduce drásticamente la posibilidad de errores (bugs) en el futuro y nos permite desarrollar nuevas características con la confianza de no "romper" lo que ya funciona.
+*   **Manejo Centralizado de Errores:** El sistema cuenta con manejadores de excepciones globales. Si ocurre un error inesperado, el sistema lo captura de forma controlada y devuelve una respuesta clara, en lugar de simplemente "caerse".
+
+**3. Gestión Profesional de la Base de Datos**
+*   **Migraciones con Alembic:** Toda la estructura de la base de datos (tablas, columnas, etc.) se gestiona a través de **migraciones de código**. Cada cambio queda registrado y versionado.
+    *   **Ventaja:** Esto elimina los riesgos de modificar la base de datos manualmente. Permite actualizar la estructura de forma segura, reversible y coordinada, lo cual es crucial en un entorno de producción.
+
+**4. Preparado para el Despliegue Moderno (Docker)**
+*   **Contenerización con Docker:** El backend está "empaquetado" en un contenedor de Docker. Esto significa que la aplicación se ejecuta en un entorno aislado y consistente, con todas sus dependencias incluidas.
+    *   **Ventaja:** Simplifica enormemente el despliegue en cualquier servidor (en la nube o local) y garantiza que funcionará de la misma manera en desarrollo y en producción, eliminando el clásico "en mi máquina sí funcionaba".
+
+**5. Código Limpio y Mantenible (Frontend)**
+*   **Lógica Reutilizable (Hooks):** Hemos extraído la lógica compleja de los componentes visuales y la hemos encapsulado en "Hooks" de React (ej. `useFacturaForm`, `useClienteList`). El hook `useFacturaForm` por sí solo maneja la carga de catálogos, la validación de campos dependientes (como PUE/PPD), el cálculo de totales y la comunicación con el backend.
+    *   **Ventaja:** Esto hace que el código de la interfaz sea increíblemente limpio y fácil de leer. Además, si necesitamos la misma lógica en otro lugar, simplemente reutilizamos el hook.
+
+---
+
+### **Parte 2: Funcionalidades y Módulos de la Interfaz de Usuario**
+
+A continuación, se detalla el funcionamiento de las interfaces desarrolladas, desde la perspectiva del usuario final.
+
+**1. Módulo de Empresas**
+*   **Pantalla Principal (Listado):**
+    *   **Función:** Muestra una tabla con todas las empresas (emisores de facturas) registradas en el sistema.
+    *   **Columnas:** Nombre Fiscal, Nombre Comercial, RFC, Teléfono, Email.
+    *   **Acciones:** Cada fila tiene botones para **Editar** la información de la empresa y **Eliminarla** (con confirmación). En la parte superior de la pantalla hay un botón para **"Agregar"** una nueva empresa.
+    *   *[SUGERENCIA DE IMAGEN: Tabla mostrando 2-3 empresas con sus datos y los botones de acciones visibles.]*
+*   **Formulario (Creación y Edición):**
+    *   **Función:** Un formulario completo para registrar o modificar los datos de una empresa.
+    *   **Campos:** Nombre Fiscal, Nombre Comercial, RFC, Régimen Fiscal (lista desplegable del catálogo del SAT), Código Postal, Dirección, Teléfono, Email y un campo para subir el **logo** de la empresa, que aparecerá en los PDFs de las facturas.
+
+**2. Módulo de Clientes**
+*   **Pantalla Principal (Listado):**
+    *   **Función:** Presenta un listado completo de los clientes de la empresa.
+    *   **Filtros y Búsqueda:** Incluye potentes filtros en la parte superior para encontrar clientes rápidamente por **Nombre Comercial** o **RFC**.
+    *   **Columnas:** Nombre Comercial, Nombre Fiscal, RFC, Teléfono, Actividad.
+    *   **Acciones:** Botones para **Editar** y **Eliminar** en cada fila, y un botón principal para **"Agregar"** nuevo cliente.
+    *   *[SUGERENCIA DE IMAGEN: La tabla de clientes con los campos de filtro de RFC y Nombre llenos, mostrando un resultado filtrado.]*
+*   **Formulario (Creación y Edición):**
+    *   **Función:** Formulario para gestionar la información detallada de cada cliente.
+    *   **Campos:** Datos fiscales completos (Nombre/Razón Social, RFC, Régimen Fiscal, Código Postal, Uso de CFDI preferido), datos de contacto (múltiples emails y teléfonos), y campos internos como "Actividad" y "Tamaño".
+
+**3. Módulo de Productos y Servicios**
+*   **Pantalla Principal (Listado):**
+    *   **Función:** Un catálogo central de todos los productos y servicios que la empresa puede facturar.
+    *   **Filtros y Búsqueda:** Permite buscar por **descripción** o **clave** y filtrar por la **empresa** a la que pertenece el producto/servicio.
+    *   **Columnas:** Tipo (Producto/Servicio), Descripción, Clave de Producto (del SAT), Clave de Unidad (del SAT). Las descripciones de las claves del SAT se muestran junto a la clave para mayor claridad.
+    *   **Acciones:** Botones para **Editar** y **Eliminar** en cada fila, y un botón para **"Agregar"** nuevo ítem.
+    *   *[SUGERENCIA DE IMAGEN: Tabla de productos/servicios mostrando una mezcla de ambos tipos, con sus claves SAT correspondientes.]*
+*   **Formulario (Creación y Edición):**
+    *   **Función:** Formulario para definir un producto o servicio.
+    *   **Campos:** Tipo (selector Producto/Servicio), Descripción interna, **Clave Producto/Servicio** (campo con búsqueda inteligente contra el catálogo del SAT), **Clave de Unidad** (también con búsqueda al SAT), y Valor Unitario (precio).
+
+**4. Módulo de Facturación (CFDI 4.0)**
+*   **Pantalla Principal (Listado):**
+    *   **Función:** El centro de operaciones de facturación. Muestra un historial completo de todas las facturas.
+    *   **Filtros Avanzados:** Una sección completa de filtros permite acotar la búsqueda por **Empresa**, **Cliente** (con autocompletar), **Rango de Fechas**, **Estatus del CFDI** (Borrador, Timbrada, Cancelada) y **Estatus de Pago** (Pagada, No Pagada).
+    *   **Columnas:** Folio (Serie-Folio), Fecha, Cliente, Estatus CFDI, Estatus Pago, y Total.
+    *   **Acciones:** Botón para **"Nueva Factura"** y un botón para **Editar/Ver** cada factura existente.
+    *   *[SUGERENCIA DE IMAGEN: La pantalla de facturas con varios filtros aplicados (un cliente, un rango de fechas y estatus "Timbrada"), mostrando los resultados y un resumen de totales en el pie de la tabla.]*
+*   **Formulario (Creación y Edición):**
+    *   **Función:** La interfaz más compleja y potente del sistema. Permite construir, modificar, timbrar y gestionar una factura de principio a fin.
+    *   **Secciones:**
+        1.  **Encabezado:** Se selecciona la **Empresa** emisora (lo que carga automáticamente sus datos fiscales). Se busca y selecciona el **Cliente** (cargando sus datos fiscales). Se definen los datos generales como Moneda, Método de Pago (PUE/PPD), Forma de Pago y Uso de CFDI. La lógica aquí es inteligente: si se elige "PPD", la forma de pago se bloquea a "99 - Por definir".
+        2.  **Conceptos:** Una sección interactiva para agregar los productos/servicios. Al agregar un concepto, se puede buscar en el catálogo de Productos/Servicios pre-cargados para rellenar los datos automáticamente. Se especifican cantidad y precio, y el sistema calcula los importes, IVA, y retenciones (si aplican).
+        3.  **Totales:** Un resumen siempre visible en la parte inferior que muestra Subtotal, Traslados (IVA), Retenciones y el **Total** de la factura, recalculándose en tiempo real a medida que se modifican los conceptos.
+        4.  **Acciones:** Un panel de botones que cambia según el estado de la factura:
+            *   Si es **Borrador**: "Guardar Cambios", **"Timbrar"**, "Ver PDF Borrador".
+            *   Si está **Timbrada**: "Descargar PDF", "Descargar XML", **"Solicitar Cancelación"**.
+            *   Si está **Cancelada**: "Ver PDF Cancelado", "Ver Acuse de Cancelación".
+    *   *[SUGERENCIA DE IMAGEN: El formulario de factura a medio llenar. Un cliente ya seleccionado, dos conceptos en la tabla de detalle, y el resumen de totales claramente visible. El cursor está sobre el botón "Timbrar".]*

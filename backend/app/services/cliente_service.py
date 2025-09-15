@@ -1,133 +1,133 @@
 # app/services/cliente_service.py
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from uuid import UUID
 from typing import List, Optional
 
 from app.models.cliente import Cliente
 from app.models.empresa import Empresa
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
+from app.repository.base import BaseRepository
 from app.catalogos_sat import validar_regimen_fiscal
 from app.catalogos_sat.codigos_postales import validar_codigo_postal
 from app.validators.rfc import validar_rfc_por_regimen
 
-def _validar_datos_cliente(
-    db: Session,
-    rfc: Optional[str] = None,
-    regimen_fiscal: Optional[str] = None,
-    codigo_postal: Optional[str] = None,
-    cliente_existente: Optional[Cliente] = None
-):
-    if regimen_fiscal and not validar_regimen_fiscal(regimen_fiscal):
-        raise HTTPException(status_code=400, detail="Régimen fiscal inválido.")
-    if codigo_postal and not validar_codigo_postal(codigo_postal):
-        raise HTTPException(status_code=400, detail="Código postal inválido.")
-    if rfc:
-        regimen = regimen_fiscal or getattr(cliente_existente, 'regimen_fiscal', None)
-        if not validar_rfc_por_regimen(rfc, regimen):
-            raise HTTPException(status_code=400, detail="RFC inválido para el régimen fiscal.")
+class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
+    
+    def _validar_datos(
+        self,
+        db: Session,
+        rfc: Optional[str] = None,
+        regimen_fiscal: Optional[str] = None,
+        codigo_postal: Optional[str] = None,
+        cliente_existente: Optional[Cliente] = None
+    ):
+        """Validaciones de negocio específicas para Cliente."""
+        if regimen_fiscal and not validar_regimen_fiscal(regimen_fiscal):
+            raise HTTPException(status_code=400, detail="Régimen fiscal inválido.")
+        if codigo_postal and not validar_codigo_postal(codigo_postal):
+            raise HTTPException(status_code=400, detail="Código postal inválido.")
+        if rfc:
+            regimen = regimen_fiscal or getattr(cliente_existente, 'regimen_fiscal', None)
+            if not validar_rfc_por_regimen(rfc, regimen):
+                raise HTTPException(status_code=400, detail="RFC inválido para el régimen fiscal.")
 
+    def create(self, db: Session, *, obj_in: ClienteCreate) -> Cliente:
+        """
+        Crea un nuevo cliente o asocia empresas a uno existente.
+        - Valida los datos fiscales.
+        - Si un cliente con el mismo nombre comercial ya existe, solo le asocia las nuevas empresas.
+        - Convierte listas de email/teléfono a texto.
+        """
+        self._validar_datos(
+            db=db,
+            rfc=obj_in.rfc,
+            regimen_fiscal=obj_in.regimen_fiscal,
+            codigo_postal=obj_in.codigo_postal
+        )
 
-def get_cliente(db: Session, cliente_id: UUID) -> Optional[Cliente]:
-    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
-    return cliente
+        empresas_a_asociar = db.query(Empresa).filter(Empresa.id.in_(obj_in.empresa_id)).all()
+        if len(empresas_a_asociar) != len(obj_in.empresa_id):
+            raise HTTPException(status_code=404, detail="Una o más empresas no existen")
 
-def get_clientes_by_empresa(db: Session, empresa_id: UUID) -> List[Cliente]:
-    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
-    if not empresa:
-        return []
-    return empresa.clientes
+        cliente_existente = db.query(Cliente).filter(
+            Cliente.nombre_comercial == obj_in.nombre_comercial
+        ).first()
 
-def create_cliente(db: Session, cliente_data: ClienteCreate) -> Cliente:
-    _validar_datos_cliente(
-        db=db,
-        rfc=cliente_data.rfc,
-        regimen_fiscal=cliente_data.regimen_fiscal,
-        codigo_postal=cliente_data.codigo_postal
-    )
-
-    # 1. Validar que las empresas existan
-    empresas_a_asociar = db.query(Empresa).filter(Empresa.id.in_(cliente_data.empresa_id)).all()
-    if len(empresas_a_asociar) != len(cliente_data.empresa_id):
-        raise HTTPException(status_code=404, detail="Una o más empresas no existen")
-
-    # 2. Buscar cliente por NOMBRE COMERCIAL
-    cliente_existente = db.query(Cliente).filter(
-        Cliente.nombre_comercial == cliente_data.nombre_comercial
-    ).first()
-
-    if cliente_existente:
-        # 3a. Si existe, añadir las nuevas empresas a la relación
-        ids_empresas_actuales = {empresa.id for empresa in cliente_existente.empresas}
+        if cliente_existente:
+            ids_empresas_actuales = {empresa.id for empresa in cliente_existente.empresas}
+            for empresa in empresas_a_asociar:
+                if empresa.id not in ids_empresas_actuales:
+                    cliente_existente.empresas.append(empresa)
+            db.commit()
+            db.refresh(cliente_existente)
+            return cliente_existente
         
-        for empresa in empresas_a_asociar:
-            if empresa.id not in ids_empresas_actuales:
-                cliente_existente.empresas.append(empresa)
-        
-        db.commit()
-        db.refresh(cliente_existente)
-        return cliente_existente
-    else:
-        # 3b. Si no existe, crear un nuevo cliente
-        datos_cliente = cliente_data.model_dump(exclude={"empresa_id"})
-        
-        # Convertir listas a strings separados por comas
+        # Llama al método `create` de la clase base, pero con los datos procesados
+        datos_cliente = obj_in.model_dump(exclude={"empresa_id"})
         if isinstance(datos_cliente.get('email'), list):
             datos_cliente['email'] = ','.join(datos_cliente['email'])
         if isinstance(datos_cliente.get('telefono'), list):
             datos_cliente['telefono'] = ','.join(datos_cliente['telefono'])
-            
-        nuevo_cliente = Cliente(**datos_cliente)
-        nuevo_cliente.empresas = empresas_a_asociar
         
-        db.add(nuevo_cliente)
+        # Creamos un nuevo modelo Pydantic para asegurar el tipado
+        cliente_a_crear = ClienteCreate(**datos_cliente, empresa_id=obj_in.empresa_id)
+        
+        # Aquí usamos el método `create` del padre, pero necesitamos pasarle un obj_in sin el campo `empresas`
+        # para que el modelo SQLAlchemy lo acepte.
+        db_obj = self.model(**datos_cliente)
+        db_obj.empresas = empresas_a_asociar
+        
+        db.add(db_obj)
         db.commit()
-        db.refresh(nuevo_cliente)
-        return nuevo_cliente
+        db.refresh(db_obj)
+        return db_obj
 
-def update_cliente(db: Session, cliente_id: UUID, cliente_data: ClienteUpdate) -> Optional[Cliente]:
-    db_cliente = get_cliente(db, cliente_id)
-    if not db_cliente:
-        return None
+    def update(self, db: Session, *, db_obj: Cliente, obj_in: ClienteUpdate) -> Cliente:
+        """
+        Actualiza un cliente.
+        - Valida los datos fiscales.
+        - Maneja la actualización de la relación con empresas.
+        - Convierte listas de email/teléfono a texto.
+        """
+        update_data = obj_in.model_dump(exclude_unset=True)
+        
+        self._validar_datos(
+            db=db,
+            rfc=update_data.get("rfc"),
+            regimen_fiscal=update_data.get("regimen_fiscal"),
+            codigo_postal=update_data.get("codigo_postal"),
+            cliente_existente=db_obj
+        )
 
-    update_data = cliente_data.model_dump(exclude_unset=True)
-    _validar_datos_cliente(
-        db=db,
-        rfc=update_data.get("rfc"),
-        regimen_fiscal=update_data.get("regimen_fiscal"),
-        codigo_postal=update_data.get("codigo_postal"),
-        cliente_existente=db_cliente
-    )
-    
-    # Convertir listas a strings separados por comas
-    if 'email' in update_data and isinstance(update_data['email'], list):
-        update_data['email'] = ','.join(update_data['email'])
-    if 'telefono' in update_data and isinstance(update_data['telefono'], list):
-        update_data['telefono'] = ','.join(update_data['telefono'])
+        # Si se provee `empresa_id`, se actualiza la relación
+        if "empresa_id" in update_data and update_data["empresa_id"] is not None:
+            empresas = db.query(Empresa).filter(Empresa.id.in_(update_data["empresa_id"])).all()
+            if len(empresas) != len(update_data["empresa_id"]):
+                raise HTTPException(404, "Alguna empresa no existe")
+            db_obj.empresas = empresas
+            del update_data["empresa_id"] # No es un campo directo del modelo
 
-    for field, value in update_data.items():
-        setattr(db_cliente, field, value)
-    
-    db.commit()
-    db.refresh(db_cliente)
-    return db_cliente
+        # Convertir listas a strings
+        if 'email' in update_data and isinstance(update_data['email'], list):
+            update_data['email'] = ','.join(update_data['email'])
+        if 'telefono' in update_data and isinstance(update_data['telefono'], list):
+            update_data['telefono'] = ','.join(update_data['telefono'])
 
-def delete_cliente(db: Session, cliente_id: UUID, empresa_id: UUID) -> bool:
-    cliente = get_cliente(db, cliente_id, empresa_id)
-    if not cliente:
-        return False
-    
-    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
-    if empresa:
-        cliente.empresas.remove(empresa)
-        if not cliente.empresas:
-            db.delete(cliente)
-    
-    db.commit()
-    return True
+        # Llama al método `update` de la clase base para los campos simples
+        return super().update(db, db_obj=db_obj, obj_in=update_data)
 
-def get_all_clientes(db: Session) -> List[Cliente]:
-    return db.query(Cliente).all()
+    def search_by_name(self, db: Session, *, name_query: str, limit: int = 10) -> List[Cliente]:
+        """Busca clientes por nombre comercial."""
+        if not name_query or len(name_query.strip()) < 3:
+            return []
+        texto = f"%{name_query.strip()}%"
+        return (
+            db.query(self.model)
+            .filter(self.model.nombre_comercial.ilike(texto))
+            .order_by(self.model.nombre_comercial.asc())
+            .limit(limit)
+            .all()
+        )
 
-def get_cliente_by_id(db: Session, cliente_id: UUID) -> Optional[Cliente]:
-    return db.query(Cliente).filter(Cliente.id == cliente_id).first()
+# Se instancia el repositorio con el modelo SQLAlchemy correspondiente
+cliente_repo = ClienteRepository(Cliente)
