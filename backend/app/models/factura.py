@@ -82,6 +82,7 @@ class Factura(Base):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+    pagos_relacionados = relationship("PagoDocumentoRelacionado", back_populates="factura", lazy="selectin")
 
     __table_args__ = (
         UniqueConstraint("empresa_id", "serie", "folio", name="uq_fact_serie_folio_por_empresa"),

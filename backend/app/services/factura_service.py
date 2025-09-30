@@ -116,15 +116,10 @@ def actualizar_factura(db: Session, factura_id: UUID, payload: FacturaUpdate) ->
 
     if factura.estatus in ["TIMBRADA", "CANCELADA"]:
         campos_permitidos = {"status_pago", "fecha_pago", "fecha_cobro", "observaciones"}
-        campos_solicitados = set(update_data.keys())
-        if 'conceptos' in campos_solicitados:
-            raise HTTPException(status_code=400, detail=f"No se pueden modificar los conceptos de una factura en estado {factura.estatus}")
-        campos_no_permitidos = campos_solicitados - campos_permitidos
-        if campos_no_permitidos:
-            raise HTTPException(status_code=400, detail=f"La factura está {factura.estatus}. Solo se pueden modificar campos de pago/observaciones.")
         
         for key, value in update_data.items():
-            setattr(factura, key, value)
+            if key in campos_permitidos:
+                setattr(factura, key, value)
     else:
         if 'cliente_id' in update_data and payload.cliente_id and payload.cliente_id != factura.cliente_id:
             association_exists = db.query(cliente_empresa_association).filter_by(cliente_id=payload.cliente_id, empresa_id=factura.empresa_id).first()

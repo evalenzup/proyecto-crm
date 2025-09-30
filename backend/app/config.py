@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
+    ENCRYPTION_KEY: str
 
     # Certificados
     CERT_DIR: str = "/data/certificados"

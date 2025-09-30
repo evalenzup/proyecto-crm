@@ -17,6 +17,8 @@ from app.models import (
     factura,           # <-- nueva cabecera
     factura_detalle,   # <-- nuevo detalle
     associations,      # tabla puente cliente_empresa
+    pago,
+    egreso,
 )
 
 config = context.config

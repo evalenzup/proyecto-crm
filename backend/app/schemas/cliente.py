@@ -41,7 +41,7 @@ class ClienteBase(BaseModel):
             parts = re.split(r'[,;\s]+', v)
             cleaned = []
             for e in parts:
-                e2 = e.strip().strip('{\"}\"\'')
+                e2 = e.strip().strip('{}[]"\'')
                 if e2:
                     cleaned.append(e2)
             return cleaned
@@ -56,7 +56,7 @@ class ClienteBase(BaseModel):
             return None
         if isinstance(v, str):
             parts = re.split(r'[,;\s]+', v)
-            cleaned = [p.strip().strip('{\"}\"\'') for p in parts if p.strip()]
+            cleaned = [p.strip().strip('{}[]"\'') for p in parts if p.strip()]
             return cleaned
         if isinstance(v, list):
             return v
@@ -78,6 +78,13 @@ class ClienteOut(ClienteBase):
     creado_en      : datetime               = Field(..., title="Creado en")
     actualizado_en : datetime               = Field(..., title="Actualizado en")
     empresas       : Optional[List[EmpresaSimpleOut]] = Field(None, title="Empresas")
+
+    class Config:
+        from_attributes = True
+
+class ClienteSimpleOut(BaseModel):
+    id: UUID
+    nombre_comercial: str
 
     class Config:
         from_attributes = True

@@ -42,6 +42,9 @@ export const downloadPdf = (id: string) =>
 export const downloadXml = (id: string) =>
   getBlob(api.get(`/facturas/${id}/xml`, { responseType: 'blob' }));
 
+export const sendEmail = (id: string, recipientEmail: string) =>
+  getData(api.post(`/facturas/${id}/send-email`, { recipient_email: recipientEmail }));
+
 // ---------------------- Empresas / Clientes ----------------------
 export const getEmpresas = async () => (await api.get('/empresas/')).data;
 

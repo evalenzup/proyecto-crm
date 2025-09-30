@@ -27,11 +27,18 @@ from app.catalogos_sat.facturacion import (
 # Importaciones del nuevo servicio refactorizado
 from app.services import factura_service as srv
 
+# Importaciones para el envío de correo
+from app.services import email_sender
+from app.services.email_sender import EmailSendingError
+
 logger = logging.getLogger("app")
 router = APIRouter()
 
 # ────────────────────────────────────────────────────────────────
 # Modelos de Respuesta/Entrada específicos de la API
+
+class SendEmailIn(BaseModel):
+    recipient_emails: str
 
 class FacturasPageOut(BaseModel):
     items: List[FacturaOut]
@@ -70,7 +77,7 @@ def actualizar_factura_endpoint(id: UUID, payload: FacturaUpdate, db: Session = 
 
 @router.get("/{id}", response_model=FacturaOut)
 def obtener_factura(id: UUID, db: Session = Depends(get_db)) -> Factura:
-    factura = db.query(Factura).options(selectinload(Factura.conceptos)).filter(Factura.id == id).first()
+    factura = db.query(Factura).options(selectinload(Factura.conceptos), selectinload(Factura.cliente)).filter(Factura.id == id).first()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     return factura
@@ -142,3 +149,89 @@ def descargar_xml_timbrado(id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="El archivo XML no se encuentra en el servidor")
 
     return FileResponse(path=xml_path, media_type="application/xml", filename=filename)
+
+
+# --- Endpoint de Envío de Correo ---
+
+@router.post("/{id}/send-preview-email", status_code=status.HTTP_200_OK, summary="Enviar vista previa de factura por correo electrónico")
+def send_preview_factura_by_email(
+    id: UUID,
+    payload: SendEmailIn,
+    db: Session = Depends(get_db)
+):
+    """Envía la vista previa de la factura (PDF) a los correos especificados por el usuario."""
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    recipient_emails = [email.strip() for email in payload.recipient_emails.split(',') if email.strip()]
+    if not recipient_emails:
+        raise HTTPException(status_code=400, detail="No se encontraron correos electrónicos válidos para enviar.")
+
+    sent_to = []
+    failed_to_send = []
+
+    for email in recipient_emails:
+        try:
+            email_sender.send_preview_invoice_email(
+                db=db,
+                empresa_id=factura.empresa_id,
+                factura_id=id,
+                recipient_email=email
+            )
+            sent_to.append(email)
+        except EmailSendingError as e:
+            failed_to_send.append(f"{email}: {e}")
+        except Exception as e:
+            logger.error(f"Error inesperado al enviar correo de vista previa para factura {id} a {email}: {e}")
+            failed_to_send.append(f"{email}: Error inesperado en el servidor.")
+
+    if failed_to_send:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Errores al enviar a algunos destinatarios: {'; '.join(failed_to_send)}. Enviado a: {', '.join(sent_to) if sent_to else 'ninguno'}."
+        )
+
+    return {"message": f"Vista previa de factura enviada correctamente a: {', '.join(sent_to)}"}
+
+
+@router.post("/{id}/send-email", status_code=status.HTTP_200_OK, summary="Enviar factura por correo electrónico")
+def send_factura_by_email(
+    id: UUID,
+    payload: SendEmailIn,
+    db: Session = Depends(get_db)
+):
+    """Envía la factura (PDF y XML) a los correos especificados por el usuario."""
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    recipient_emails = [email.strip() for email in payload.recipient_emails.split(',') if email.strip()]
+    if not recipient_emails:
+        raise HTTPException(status_code=400, detail="No se encontraron correos electrónicos válidos para enviar.")
+
+    sent_to = []
+    failed_to_send = []
+
+    for email in recipient_emails:
+        try:
+            email_sender.send_invoice_email(
+                db=db,
+                empresa_id=factura.empresa_id,
+                factura_id=id,
+                recipient_email=email
+            )
+            sent_to.append(email)
+        except EmailSendingError as e:
+            failed_to_send.append(f"{email}: {e}")
+        except Exception as e:
+            logger.error(f"Error inesperado al enviar correo para factura {id} a {email}: {e}")
+            failed_to_send.append(f"{email}: Error inesperado en el servidor.")
+
+    if failed_to_send:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Errores al enviar a algunos destinatarios: {'; '.join(failed_to_send)}. Enviado a: {', '.join(sent_to) if sent_to else 'ninguno'}."
+        )
+
+    return {"message": f"Factura enviada correctamente a: {', '.join(sent_to)}"}

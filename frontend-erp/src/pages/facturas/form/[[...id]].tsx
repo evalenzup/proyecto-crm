@@ -32,14 +32,23 @@ import {
   PlusCircleOutlined,
   EditOutlined,
   FilePdfOutlined,
+  FileExcelOutlined,
+  FileOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
+import api from '@/lib/axios';
 
 const { Text } = Typography;
 
 const FacturaFormPage: React.FC = () => {
   const router = useRouter();
+
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false);
+  const [isSendingPreview, setIsSendingPreview] = React.useState(false); // New state
+  const [isEmailModalOpen, setIsEmailModalOpen] = React.useState(false);
+  const [emailForm] = Form.useForm();
 
   const {
     // estado
@@ -124,6 +133,51 @@ const FacturaFormPage: React.FC = () => {
     descargarPDF,
     descargarXML,
   } = useFacturaForm();
+
+  const handleSendEmail = async () => {
+    if (!id) return;
+    const clienteEmail = form.getFieldValue(['cliente', 'email']);
+    emailForm.setFieldsValue({ recipient_emails: clienteEmail });
+    setIsSendingPreview(false); // Ensure this is false for regular email
+    setIsEmailModalOpen(true);
+  };
+
+  const handleSendPreviewEmail = async () => {
+    if (!id) return;
+    const clienteEmail = form.getFieldValue(['cliente', 'email']);
+    emailForm.setFieldsValue({ recipient_emails: clienteEmail });
+    setIsSendingPreview(true); // Set to true for preview email
+    setIsEmailModalOpen(true);
+  };
+
+  const onEmailModalOk = async () => {
+    try {
+      const values = await emailForm.validateFields();
+      const recipientEmails = values.recipient_emails;
+      setIsSendingEmail(true);
+      const endpoint = isSendingPreview ? `/facturas/${id}/send-preview-email` : `/facturas/${id}/send-email`;
+      const successMessage = isSendingPreview ? `Vista previa de factura enviada correctamente a ${recipientEmails}.` : `Factura enviada correctamente a ${recipientEmails}.`;
+      await api.post(endpoint, { recipient_emails: recipientEmails });
+      message.success(successMessage);
+      setIsEmailModalOpen(false);
+      emailForm.resetFields();
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      message.error(typeof detail === 'string' ? detail : 'Error al enviar factura por correo.');
+    } finally {
+      setIsSendingEmail(false);
+      setIsSendingPreview(false); // Reset the state
+    }
+  };
+
+  // Effect to populate email form when modal opens and invoice data is ready
+  React.useEffect(() => {
+    if (isEmailModalOpen && id) {
+      const clienteEmail = form.getFieldValue(['cliente', 'email']);
+      console.log('Cliente Email from main form:', clienteEmail);
+      emailForm.setFieldsValue({ recipient_emails: clienteEmail });
+    }
+  }, [isEmailModalOpen, id, form, emailForm]);
 
   if (loading) return <Spin style={{ margin: 48 }} />;
 
@@ -266,19 +320,23 @@ const FacturaFormPage: React.FC = () => {
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={6}>
-                  <Form.Item
-                    label="Fecha cobro (real)"
-                    name="fecha_cobro"
-                    rules={
-                      form.getFieldValue('status_pago') === 'PAGADA'
-                        ? [{ required: true, message: 'Captura la fecha de cobro' }]
-                        : []
-                    }
-                  >
-                    <DatePicker
-                      style={{ width: '100%' }}
-                      disabled={fieldAlwaysEditable('fecha_cobro')}
-                    />
+                  <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.status_pago !== currentValues.status_pago}>
+                    {({ getFieldValue }) => (
+                      <Form.Item
+                        label="Fecha cobro (real)"
+                        name="fecha_cobro"
+                        rules={
+                          getFieldValue('status_pago') === 'PAGADA'
+                            ? [{ required: true, message: 'Captura la fecha de cobro' }]
+                            : []
+                        }
+                      >
+                        <DatePicker
+                          style={{ width: '100%' }}
+                          disabled={fieldAlwaysEditable('fecha_cobro')}
+                        />
+                      </Form.Item>
+                    )}
                   </Form.Item>
                 </Col>
               </Row>
@@ -368,24 +426,30 @@ const FacturaFormPage: React.FC = () => {
                     <Checkbox disabled={fieldDisabled(!empresaId)}>¿Tiene relación CFDI?</Checkbox>
                   </Form.Item>
                 </Col>
-                <Col xs={24} md={9}>
-                  <Form.Item label="Tipo relación" name="cfdi_relacionados_tipo">
-                    <Select
-                      allowClear
-                      options={tiposRelacion}
-                      disabled={fieldDisabled(!form.getFieldValue('tiene_relacion') || !empresaId)}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={9}>
-                  <Form.Item
-                    label="CFDIs relacionados"
-                    name="cfdi_relacionados"
-                    tooltip="Separados por coma o texto libre"
-                  >
-                    <Input disabled={fieldDisabled(!form.getFieldValue('tiene_relacion') || !empresaId)} />
-                  </Form.Item>
-                </Col>
+                <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.tiene_relacion !== currentValues.tiene_relacion}>
+                  {({ getFieldValue }) => (
+                    <>
+                      <Col xs={24} md={9}>
+                        <Form.Item label="Tipo relación" name="cfdi_relacionados_tipo">
+                          <Select
+                            allowClear
+                            options={tiposRelacion}
+                            disabled={fieldDisabled(!getFieldValue('tiene_relacion') || !empresaId)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={9}>
+                        <Form.Item
+                          label="CFDIs relacionados"
+                          name="cfdi_relacionados"
+                          tooltip="Separados por coma o texto libre"
+                        >
+                          <Input disabled={fieldDisabled(!getFieldValue('tiene_relacion') || !empresaId)} />
+                        </Form.Item>
+                      </Col>
+                    </>
+                  )}
+                </Form.Item>
               </Row>
 
               <Row gutter={16}>
@@ -558,10 +622,34 @@ const FacturaFormPage: React.FC = () => {
               <Button icon={<FilePdfOutlined />} onClick={verPDF} disabled={!id}>
                 Ver PDF
               </Button>
-              {estatusCFDI === 'TIMBRADA' && (
+
+              {/* Botón para enviar vista previa por correo (solo en borrador) */}
+              {estatusCFDI === 'BORRADOR' && (
+                <Button
+                  icon={<MailOutlined />}
+                  onClick={handleSendPreviewEmail}
+                  loading={isSendingEmail && isSendingPreview}
+                  disabled={!id}
+                >
+                  Enviar Vista Previa por Correo
+                </Button>
+              )}
+
+              {/* Botones para facturas timbradas o canceladas */}
+              {(estatusCFDI === 'TIMBRADA' || estatusCFDI === 'CANCELADA') && (
                 <>
-                  <Button onClick={descargarXML}>Descargar XML</Button>
-                  <Button onClick={descargarPDF}>Descargar PDF</Button>
+                  {estatusCFDI === 'TIMBRADA' && (
+                    <Button icon={<FileExcelOutlined />} onClick={descargarXML}>Descargar XML</Button>
+                  )}
+                  <Button icon={<FilePdfOutlined />} onClick={descargarPDF}>Descargar PDF</Button>
+                  <Button
+                    icon={<MailOutlined />}
+                    onClick={handleSendEmail}
+                    loading={isSendingEmail && !isSendingPreview}
+                    disabled={!id}
+                  >
+                    Enviar por Correo
+                  </Button>
                 </>
               )}
             </Space>
@@ -843,6 +931,211 @@ const FacturaFormPage: React.FC = () => {
                 </>
               ) : null
             }
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal: Crear Producto/Servicio */}
+      <Modal
+        title="Nuevo producto/servicio"
+        open={psModalOpen}
+        onCancel={() => setPsModalOpen(false)}
+        onOk={async () => {
+          try {
+            const vals = await psForm.validateFields();
+            const { createProductoServicio } = await import('@/services/facturaService');
+            await createProductoServicio({
+              tipo: vals.tipo,
+              clave_producto: vals.clave_producto?.value ?? vals.clave_producto,
+              clave_unidad: vals.clave_unidad?.value ?? vals.clave_unidad,
+              descripcion: vals.descripcion,
+              cantidad: vals.cantidad ?? null,
+              valor_unitario: Number(vals.valor_unitario),
+              empresa_id: form.getFieldValue('empresa_id'),
+              stock_actual: vals.tipo === 'PRODUCTO' ? Number(vals.stock_actual || 0) : 0,
+              stock_minimo: vals.tipo === 'PRODUCTO' ? Number(vals.stock_minimo || 0) : null,
+              unidad_inventario: vals.tipo === 'PRODUCTO' ? vals.unidad_inventario || null : null,
+              ubicacion: vals.tipo === 'PRODUCTO' ? vals.ubicacion || null : null,
+              requiere_lote: vals.tipo === 'PRODUCTO' ? Boolean(vals.requiere_lote) : false,
+            });
+            message.success('Producto/Servicio creado');
+            setPsModalOpen(false);
+            psForm.resetFields();
+          } catch {
+            // errores ya manejados
+          }
+        }}
+        okButtonProps={{ loading: psSaving, disabled: !empresaId || isFormDisabled }}
+        destroyOnClose
+      >
+        <Form form={psForm} layout="vertical">
+          <Form.Item label="Tipo" name="tipo" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: 'PRODUCTO', label: 'Producto' },
+                { value: 'SERVICIO', label: 'Servicio' },
+              ]}
+              disabled={isFormDisabled}
+            />
+          </Form.Item>
+
+          <Form.Item label="Clave producto (SAT)" name="clave_producto" rules={[{ required: true }]}>
+            <Select
+              labelInValue
+              showSearch
+              filterOption={false}
+              onSearch={buscarClavesProductoSAT}
+              options={claveSatOpts}
+              placeholder="Buscar en catálogo del SAT (mín. 3 caracteres)…"
+              disabled={isFormDisabled}
+            />
+          </Form.Item>
+
+          <Form.Item label="Unidad SAT" name="clave_unidad" rules={[{ required: true }]}>
+            <Select
+              labelInValue
+              showSearch
+              filterOption={false}
+              onSearch={buscarUnidadesSAT}
+              options={unidadOpts}
+              disabled={isFormDisabled}
+            />
+          </Form.Item>
+
+          <Form.Item label="Descripción" name="descripcion" rules={[{ required: true }]}>
+            <Input.TextArea rows={2} disabled={isFormDisabled} />
+          </Form.Item>
+
+          <Form.Item label="Valor unitario" name="valor_unitario" rules={[{ required: true }]}>
+            <InputNumber min={0} style={{ width: '100%' }} disabled={isFormDisabled} />
+          </Form.Item>
+
+          {/* Campos de inventario condicionales (PRODUCTO) */}
+          <Form.Item noStyle shouldUpdate={(p, c) => p.tipo !== c.tipo}>
+            {({ getFieldValue }) =>
+              getFieldValue('tipo') === 'PRODUCTO' ? (
+                <>
+                  <Form.Item label="Stock actual" name="stock_actual">
+                    <InputNumber min={0} style={{ width: '100%' }} disabled={isFormDisabled} />
+                  </Form.Item>
+                  <Form.Item label="Stock mínimo" name="stock_minimo">
+                    <InputNumber min={0} style={{ width: '100%' }} disabled={isFormDisabled} />
+                  </Form.Item>
+                  <Form.Item label="Unidad inventario" name="unidad_inventario">
+                    <Input maxLength={20} disabled={isFormDisabled} />
+                  </Form.Item>
+                  <Form.Item label="Ubicación" name="ubicacion">
+                    <Input maxLength={100} disabled={isFormDisabled} />
+                  </Form.Item>
+                  <Form.Item valuePropName="checked" name="requiere_lote" initialValue={false}>
+                    <Checkbox disabled={isFormDisabled}>¿Requiere lote?</Checkbox>
+                  </Form.Item>
+                </>
+              ) : null
+            }
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal: Cancelación CFDI */}
+      <Modal
+        title="Cancelar CFDI"
+        open={cancelModalOpen}
+        onCancel={() => setCancelModalOpen(false)}
+        onOk={submitCancel}
+        okText="Enviar cancelación"
+        confirmLoading={cancelSubmitting}
+        destroyOnClose
+      >
+        <Alert
+          style={{ marginBottom: 12 }}
+          type="info"
+          message="Se enviará la solicitud de cancelación al PAC. Si el motivo es '01', debes indicar el folio fiscal del CFDI sustituto."
+          showIcon
+        />
+        <Form form={cancelForm} layout="vertical">
+          <Form.Item
+            label="Motivo de cancelación"
+            name="motivo"
+            rules={[{ required: true, message: 'Selecciona un motivo' }]}
+            tooltip="Si eliges 01 debes indicar el folio fiscal (UUID) del CFDI sustituto."
+          >
+            <Select
+              options={motivosCancel}
+              showSearch
+              optionFilterProp="label"
+              placeholder="Selecciona el motivo…"
+            />
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(p, c) => p.motivo !== c.motivo}>
+            {({ getFieldValue }) => {
+              const motivo = String(getFieldValue('motivo') || '');
+              const necesitaSustituto = motivo === '01';
+              return (
+                <Form.Item
+                  label="Folio fiscal sustituto (UUID)"
+                  name="folio_sustitucion"
+                  rules={
+                    necesitaSustituto
+                      ? [
+                          { required: true, message: 'Requerido cuando el motivo es 01' },
+                          {
+                            validator: (_, v) => {
+                              if (!v) return Promise.resolve();
+                              const ok = /^[0-9A-Fa-f-]{36}$/.test(String(v).trim());
+                              return ok ? Promise.resolve() : Promise.reject(new Error('UUID inválido'));
+                            },
+                          },
+                        ]
+                      : []
+                  }
+                >
+                  <Input
+                    placeholder={
+                      necesitaSustituto
+                        ? 'Ej. ABC1147C-D41E-4596-9C3E-45629B090000'
+                        : 'Opcional'
+                    }
+                    disabled={!necesitaSustituto}
+                  />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal: Enviar Correo */}
+      <Modal
+        title="Enviar Factura por Correo"
+        open={isEmailModalOpen}
+        onCancel={() => setIsEmailModalOpen(false)}
+        onOk={onEmailModalOk}
+        okText="Enviar"
+        confirmLoading={isSendingEmail}
+        destroyOnClose
+      >
+        <Form form={emailForm} layout="vertical">
+          <Form.Item
+            label="Correos del Destinatario (separados por coma)"
+            name="recipient_emails"
+            rules={[
+              { required: true, message: 'Por favor ingresa al menos un correo del destinatario' },
+              {
+                validator: (_, value) => {
+                  if (!value) return Promise.resolve();
+                  const emails = value.split(',').map((email: string) => email.trim());
+                  const invalidEmails = emails.filter((email: string) => !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email));
+                  if (invalidEmails.length > 0) {
+                    return Promise.reject(new Error(`Los siguientes correos no son válidos: ${invalidEmails.join(',')}`));
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
+          >
+            <Input.TextArea rows={4} placeholder="correo1@dominio.com, correo2@dominio.com" />
           </Form.Item>
         </Form>
       </Modal>

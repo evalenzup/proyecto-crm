@@ -287,6 +287,7 @@ export const useFacturaForm = () => {
       rfc_receptor: data.rfc,
       regimen_fiscal_receptor: data.regimen_fiscal,
       cp_receptor: data.codigo_postal,
+      cliente: { email: data.email }, // Add this line
     });
     const dias = Number(data.dias_credito ?? 0);
     setDiasCreditoCliente(dias);

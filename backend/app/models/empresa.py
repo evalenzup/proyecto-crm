@@ -40,6 +40,7 @@ class Empresa(Base):
 
     clientes = relationship("Cliente", secondary=cliente_empresa, back_populates="empresas")
     productos_servicios = relationship("ProductoServicio", back_populates="empresa", cascade="all, delete-orphan")
+    email_config = relationship("EmailConfig", back_populates="empresa", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Empresa(nombre={self.nombre}, nombre_comercial={self.nombre_comercial}, ruc={self.ruc})>"

@@ -11,6 +11,7 @@ import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import LogoCropperModal from '@/components/LogoCropperModal';
+import EmailConfigModal from '@/components/EmailConfigModal';
 
 const { Text } = Typography;
 
@@ -53,7 +54,23 @@ const EmpresaFormPage: React.FC = () => {
 
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
 
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailConfig, setEmailConfig] = useState<any | null>(null);
+
   const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
+  useEffect(() => {
+    if (!id) return;
+    api.get(`/empresas/${id}/email-config`)
+      .then(({ data }) => setEmailConfig(data))
+      .catch((err) => {
+        if (err.response && err.response.status === 404) {
+          setEmailConfig(null);
+        } else if (err.response && err.response.status !== 404) {
+          message.error('Error al cargar configuración de correo.');
+        }
+      });
+  }, [id]);
 
   useEffect(() => {
     api.get<JSONSchema>('/empresas/form-schema')
@@ -393,6 +410,25 @@ const EmpresaFormPage: React.FC = () => {
               <CertInfoBlock />
             </Card>
 
+            {id && (
+              <Card size="small" style={{ marginTop: 16 }}>
+                <Text strong>Configuración de Correo</Text>
+                <div style={{ height: 8 }} />
+                <Button onClick={() => setIsEmailModalOpen(true)}>
+                  {emailConfig ? 'Editar Configuración de Correo' : 'Configurar Correo Electrónico'}
+                </Button>
+                {!emailConfig && (
+                  <Alert
+                    message="Configuración de correo requerida"
+                    description="Para poder enviar correos electrónicos (ej. facturas), debes configurar el servidor SMTP."
+                    type="warning"
+                    showIcon
+                    style={{ marginTop: 16 }}
+                  />
+                )}
+              </Card>
+            )}
+
             <Form.Item style={{ marginTop: 16 }}>
               <Space>
                 <Button onClick={() => router.push('/empresas')}>Cancelar</Button>
@@ -411,6 +447,19 @@ const EmpresaFormPage: React.FC = () => {
         empresaId={id || 'empresa'}
         initialImageUrl={id ? `${API_BASE}/empresas/logos/${id}.png` : undefined}
       />
+
+      {id && (
+        <EmailConfigModal
+          isOpen={isEmailModalOpen}
+          onClose={() => setIsEmailModalOpen(false)}
+          empresaId={id}
+          existingConfig={emailConfig}
+          onConfigSaved={(newConfig) => {
+            setEmailConfig(newConfig);
+            message.success('Configuración de correo guardada con éxito.');
+          }}
+        />
+      )}
     </>
   );
 };

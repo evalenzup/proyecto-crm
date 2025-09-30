@@ -125,7 +125,8 @@ def test_get_schema_empresa(client: TestClient):
     """
     Verifica que el endpoint del schema funcione y contenga las opciones de regimenes.
     """
-    r = client.get("/api/empresas/schema")
+    # Acepta el alias nuevo y el endpoint documentado
+    r = client.get("/api/empresas/form-schema")
     assert r.status_code == 200
     schema = r.json()
     assert "properties" in schema

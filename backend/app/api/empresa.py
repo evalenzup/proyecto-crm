@@ -41,6 +41,7 @@ def _parse_json_form(data_str: Optional[str], model_cls):
         raise HTTPException(status_code=422, detail=e.errors())
 
 @router.get("/form-schema", summary="Schema del formulario de empresa")
+@router.get("/schema", summary="Schema del formulario de empresa (alias)")
 def get_form_schema():
     try:
         schema = EmpresaCreate.model_json_schema()

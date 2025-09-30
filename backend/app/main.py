@@ -15,6 +15,9 @@ from app.api.empresa import router as empresa_router
 from app.api.producto_servicio import router as producto_servicio_router
 from app.api.factura import router as factura_router
 from app.api import catalogos
+from app.api import pagos
+from app.api import egresos
+from app.api.email_config import router as email_config_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -65,6 +68,27 @@ app.include_router(
     catalogos.router,
     prefix="/api/catalogos",
     tags=["catalogos"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    pagos.router,
+    prefix="/api/pagos",
+    tags=["pagos"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    egresos.router,
+    prefix="/api/egresos",
+    tags=["egresos"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    email_config_router,
+    prefix="/api/empresas/{empresa_id}/email-config",
+    tags=["email-config"],
     responses={404: {"description": "No encontrado"}},
 )
 

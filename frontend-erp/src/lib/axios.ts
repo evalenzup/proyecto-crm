@@ -9,11 +9,19 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const msg =
-      error?.response?.data?.detail ||
-      error?.response?.statusText ||
-      'Error en la comunicación con el servidor';
-    message.error(msg);
+    const isEmailConfigNotFound = (
+      error?.response?.status === 404 &&
+      error?.config?.url &&
+      error.config.url.includes('/email-config')
+    );
+
+    if (!isEmailConfigNotFound) {
+      const msg =
+        error?.response?.data?.detail ||
+        error?.response?.statusText ||
+        'Error en la comunicación con el servidor';
+      message.error(msg);
+    }
     return Promise.reject(error);
   }
 );

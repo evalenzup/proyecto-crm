@@ -98,17 +98,36 @@ cd proyecto-crm
 #### Backend (`backend/.env`)
 
 ```ini
+# Core
 DATABASE_URL=postgresql://postgres:postgres@db:5432/norton_db
 SECRET_KEY=tu_super_secreto
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
-CERTS_PATH=./certificados
+
+# Cifrado de datos sensibles (requerido por EmailConfig)
+# Genera con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY=coloca_aqui_tu_clave_fernet
+
+# Rutas de datos/archivos
+DATA_DIR=/data
+CERT_DIR=/data/certificados
+
+# (Opcional) Credenciales/endpoint del PAC (Facturación Moderna)
+# FM_USER_ID=
+# FM_USER_PASS=
+# FM_TIMBRADO_URL=http://t1.facturacionmoderna.com/timbrado/soap
 ```
 
-#### Frontend (`frontend-erp/.env.local`)
+#### Frontend ERP (`frontend-erp/.env.local`)
 
 ```ini
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+```
+
+#### Frontend corporativo (`frontend-corporativo/.env`)
+
+```ini
+VITE_API_URL=http://localhost:8000/api
 ```
 
 ### 3. Levantar servicios con Docker Compose

@@ -113,7 +113,21 @@ class FacturaCancel(BaseModel):
 class ClienteSimpleOut(BaseModel):
     id: UUID
     nombre_comercial: str
+    email: Optional[str] = None
 
+    class Config:
+        from_attributes = True
+
+
+class FacturaSimpleOut(BaseModel):
+    id: UUID
+    serie: Optional[constr(max_length=10)]  = None
+    folio: Optional[int]  = None
+    fecha_emision: Optional[datetime] = None
+    total: condecimal(ge=0, max_digits=18, decimal_places=6)
+    cfdi_uuid: Optional[str] = None
+    moneda: Literal["MXN", "USD"] = "MXN"
+    
     class Config:
         from_attributes = True
 
@@ -148,3 +162,9 @@ class FacturaOut(FacturaBase):
 
     class Config:
         from_attributes = True
+
+
+class SendEmailIn(BaseModel):
+    recipients: List[str] = Field(..., description="Lista de correos electrónicos de los destinatarios.")
+    subject: str = Field(..., description="Asunto del correo electrónico.")
+    body: Optional[str] = Field(None, description="Cuerpo del correo electrónico (puede ser HTML).")

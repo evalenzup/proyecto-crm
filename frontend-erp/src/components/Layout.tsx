@@ -1,4 +1,5 @@
-// src/components/Layout.tsx
+// frontend-erp/src/components/Layout.tsx
+
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -7,6 +8,7 @@ import { useRouter } from 'next/router';
 import {
   PieChartOutlined,
   TableOutlined,
+  ContainerOutlined,
   SmileOutlined,
   BankOutlined,
   ProductOutlined,
@@ -29,7 +31,9 @@ const menuData = [
   { path: '/empresas', name: 'Empresas', icon: <BankOutlined /> },
   { path: '/clientes', name: 'Clientes', icon: <ContactsOutlined /> },
   { path: '/productos-servicios', name: 'Productos', icon: <ProductOutlined /> },
-  { path: '/facturas', name: 'Facturación', icon: <TableOutlined /> },
+  { path: '/facturas', name: 'Facturación', icon: <ContainerOutlined />},
+  { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined />},
+  { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
   { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
 ];
 
