@@ -10,10 +10,7 @@ depends_on = None
 
 def upgrade():
     # 1) Agregar como NULLABLE para no romper filas existentes
-    op.add_column(
-        "facturas",
-        sa.Column("fecha_emision", sa.DateTime(), nullable=True)
-    )
+    op.add_column("facturas", sa.Column("fecha_emision", sa.DateTime(), nullable=True))
 
     # 2) Backfill: usar creado_en si existe; si no, NOW()
     op.execute(
@@ -26,10 +23,7 @@ def upgrade():
 
     # 3) Ahora sí, volverla NOT NULL
     op.alter_column(
-        "facturas",
-        "fecha_emision",
-        existing_type=sa.DateTime(),
-        nullable=False
+        "facturas", "fecha_emision", existing_type=sa.DateTime(), nullable=False
     )
 
 

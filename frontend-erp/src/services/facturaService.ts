@@ -42,11 +42,28 @@ export const downloadPdf = (id: string) =>
 export const downloadXml = (id: string) =>
   getBlob(api.get(`/facturas/${id}/xml`, { responseType: 'blob' }));
 
-export const sendEmail = (id: string, recipientEmail: string) =>
-  getData(api.post(`/facturas/${id}/send-email`, { recipient_email: recipientEmail }));
+// Enviar factura por email. Acepta uno o varios destinatarios.
+export const sendEmail = (id: string, recipients: string | string[]) => {
+  const payload = Array.isArray(recipients)
+    ? { recipients }
+    : { recipient_emails: String(recipients) };
+  return getData(api.post(`/facturas/${id}/send-email`, payload));
+};
 
 // ---------------------- Empresas / Clientes ----------------------
-export const getEmpresas = async () => (await api.get('/empresas/')).data;
+interface EmpresaPageOut {
+  items: any[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const getEmpresas = async () => {
+  const response = await api.get<EmpresaPageOut>("/empresas/", {
+    params: { limit: 1000, offset: 0 },
+  });
+  return response.data.items;
+};
 
 export const getEmpresaById = async (id: string) =>
   (await api.get(`/empresas/${id}`)).data;
@@ -54,8 +71,11 @@ export const getEmpresaById = async (id: string) =>
 export const getClientesByEmpresa = async (empresaId: string) =>
   (await api.get(`/clientes/?empresa_id=${empresaId}`)).data;
 
-export const searchClientes = async (query: string) =>
-  (await api.get(`/clientes/busqueda?q=${encodeURIComponent(query)}&limit=10`)).data;
+export const searchClientes = async (query: string, empresaId?: string) => {
+  const params: any = { q: query, limit: 10 };
+  if (empresaId) params.empresa_id = empresaId;
+  return (await api.get(`/clientes/busqueda`, { params })).data;
+};
 
 export const getClienteById = async (id: string) =>
   (await api.get(`/clientes/${id}`)).data;
@@ -125,4 +145,24 @@ export interface FacturaListParams {
   status_pago?: EstatusPago;
   fecha_desde?: string; // YYYY-MM-DD
   fecha_hasta?: string; // YYYY-MM-DD
+}
+
+// Detalle de factura usado en varios formularios
+export interface FacturaOut extends FacturaRow {
+  moneda?: string;
+  tipo_cambio?: number | null;
+  metodo_pago?: string | null;
+  forma_pago?: string | null;
+  uso_cfdi?: string | null;
+  lugar_expedicion?: string | null;
+  condiciones_pago?: string | null;
+  cfdi_relacionados_tipo?: string | null;
+  cfdi_relacionados?: string | null;
+  folio_fiscal?: string | null;
+  fecha_emision?: string | null;
+  fecha_timbrado?: string | null;
+  fecha_pago?: string | null;
+  fecha_cobro?: string | null;
+  observaciones?: string | null;
+  conceptos?: any[];
 }

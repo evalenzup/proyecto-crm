@@ -1,9 +1,6 @@
-// src/pages/egresos/index.tsx
-'use client';
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Row, Col, Card } from 'antd';
+import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Row, Col, Card, Pagination } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { getEgresos, deleteEgreso, Egreso, getEgresoEnums } from '@/services/egresoService';
@@ -15,6 +12,9 @@ const EgresosListPage: React.FC = () => {
   const router = useRouter();
   const [egresos, setEgresos] = useState<Egreso[]>([]);
   const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [filters, setFilters] = useState<any>({
     empresa_id: null,
     proveedor: null,
@@ -27,13 +27,18 @@ const EgresosListPage: React.FC = () => {
   // Data for filters
   const [empresas, setEmpresas] = useState<{ label: string, value: string }[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
-  const [estatus, setEstatus] = useState<string[]>([]);
+  const [estatusOptions, setEstatusOptions] = useState<string[]>([]);
 
   const fetchEgresos = async () => {
     setLoading(true);
     try {
-      const response = await getEgresos(filters);
-      setEgresos(response);
+      const response = await getEgresos({
+        skip: (currentPage - 1) * pageSize,
+        limit: pageSize,
+        ...filters,
+      });
+      setEgresos(response.items);
+      setTotal(response.total);
     } catch (error) {
       message.error('Error al cargar los egresos.');
     } finally {
@@ -55,7 +60,7 @@ const EgresosListPage: React.FC = () => {
             ]);
             setEmpresas((empresasData || []).map((e: any) => ({ label: e.nombre_comercial || e.nombre, value: e.id })));
             setCategorias(enumsData.categorias);
-            setEstatus(enumsData.estatus);
+            setEstatusOptions(enumsData.estatus);
         } catch (error) {
             message.error('Error al cargar datos para filtros.');
         }
@@ -65,7 +70,7 @@ const EgresosListPage: React.FC = () => {
 
   useEffect(() => {
     fetchEgresos();
-  }, [filters]);
+  }, [filters, currentPage, pageSize]);
 
   const handleFilterChange = (key: string, value: any) => {
     if (key === 'empresa_id') {
@@ -77,6 +82,7 @@ const EgresosListPage: React.FC = () => {
       }
     }
     setFilters((prev: any) => ({ ...prev, [key]: value }));
+    setCurrentPage(1); // Reset page when filters change
   };
 
   const handleDateChange = (dates: any) => {
@@ -85,6 +91,7 @@ const EgresosListPage: React.FC = () => {
         fecha_desde: dates ? dates[0].format('YYYY-MM-DD') : null,
         fecha_hasta: dates ? dates[1].format('YYYY-MM-DD') : null,
     }));
+    setCurrentPage(1); // Reset page when filters change
   };
 
   const handleDelete = async (id: string) => {
@@ -94,6 +101,13 @@ const EgresosListPage: React.FC = () => {
       fetchEgresos();
     } catch (error) {
       message.error('Error al eliminar el egreso.');
+    }
+  };
+
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== pageSize) {
+      setPageSize(size);
     }
   };
 
@@ -203,7 +217,7 @@ const EgresosListPage: React.FC = () => {
                 placeholder="Estatus"
                 style={{ width: 200 }}
                 allowClear
-                options={estatus.map(s => ({ label: s, value: s }))}
+                options={estatusOptions.map(s => ({ label: s, value: s }))}
                 onChange={(value) => handleFilterChange('estatus', value)}
               />
             </Col>
@@ -220,6 +234,13 @@ const EgresosListPage: React.FC = () => {
           dataSource={egresos}
           columns={columns}
           bordered
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
+            onChange: handlePageChange,
+            showSizeChanger: true,
+          }}
           summary={() => (
             <Table.Summary>
               <Table.Summary.Row>

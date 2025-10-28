@@ -1,9 +1,6 @@
-
 import os
 import sys
 import uuid
-import pytest
-from fastapi.testclient import TestClient
 from decimal import Decimal
 
 # ── PYTHONPATH al root del backend ─────────────────────────────
@@ -11,11 +8,12 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from app.models.empresa import Empresa
-from app.models.cliente import Cliente
+from app.models.empresa import Empresa  # noqa: E402
+from app.models.cliente import Cliente  # noqa: E402
 
 # ───────────────────────────────────────────────────────────────
 # Helpers
+
 
 def construir_factura_payload_base(empresa_id, cliente_id):
     """Payload base para una factura válida."""
@@ -37,8 +35,10 @@ def construir_factura_payload_base(empresa_id, cliente_id):
         ],
     }
 
+
 # ───────────────────────────────────────────────────────────────
 # Tests de Validación
+
 
 def test_crear_factura_cliente_inexistente(client, db_session):
     """
@@ -50,7 +50,15 @@ def test_crear_factura_cliente_inexistente(client, db_session):
     en la capa de servicio/API.
     """
     # 1) Crear una empresa válida
-    empresa = Empresa(nombre="EMPRESA VALIDA", nombre_comercial="EMPRESA VALIDA", ruc="RUC-VALIDA", rfc="AAA010101AAA", regimen_fiscal="601", codigo_postal="01000", contrasena="x")
+    empresa = Empresa(
+        nombre="EMPRESA VALIDA",
+        nombre_comercial="EMPRESA VALIDA",
+        ruc="RUC-VALIDA",
+        rfc="AAA010101AAA",
+        regimen_fiscal="601",
+        codigo_postal="01000",
+        contrasena="x",
+    )
     db_session.add(empresa)
     db_session.commit()
     db_session.refresh(empresa)
@@ -74,8 +82,22 @@ def test_crear_factura_sin_conceptos(client, db_session):
     El resultado debe ser una factura con subtotal y total en 0.
     """
     # 1) Crear empresa y cliente válidos
-    empresa = Empresa(nombre="EMPRESA CONCEPTOS", nombre_comercial="EMPRESA CONCEPTOS", ruc="RUC-CONCEPTOS", rfc="AAA010101AAA", regimen_fiscal="601", codigo_postal="01000", contrasena="x")
-    cliente = Cliente(nombre_comercial="CLIENTE CONCEPTOS", nombre_razon_social="CLIENTE CONCEPTOS SA DE CV", rfc="XAXX010101000", regimen_fiscal="612", codigo_postal="02020")
+    empresa = Empresa(
+        nombre="EMPRESA CONCEPTOS",
+        nombre_comercial="EMPRESA CONCEPTOS",
+        ruc="RUC-CONCEPTOS",
+        rfc="AAA010101AAA",
+        regimen_fiscal="601",
+        codigo_postal="01000",
+        contrasena="x",
+    )
+    cliente = Cliente(
+        nombre_comercial="CLIENTE CONCEPTOS",
+        nombre_razon_social="CLIENTE CONCEPTOS SA DE CV",
+        rfc="XAXX010101000",
+        regimen_fiscal="612",
+        codigo_postal="02020",
+    )
     cliente.empresas.append(empresa)
     db_session.add_all([empresa, cliente])
     db_session.commit()
@@ -106,10 +128,32 @@ def test_crear_factura_cliente_no_asociado_a_empresa(client, db_session):
     potencial falla de lógica de negocio o de seguridad.
     """
     # 1) Crear dos empresas y un cliente asociado solo a la segunda
-    empresa1 = Empresa(nombre="EMPRESA A", nombre_comercial="EMPRESA A", ruc="RUC-A", rfc="AAA010101AAA", regimen_fiscal="601", codigo_postal="01000", contrasena="x")
-    empresa2 = Empresa(nombre="EMPRESA B", nombre_comercial="EMPRESA B", ruc="RUC-B", rfc="AAA010101AAA", regimen_fiscal="601", codigo_postal="01000", contrasena="x")
-    cliente = Cliente(nombre_comercial="CLIENTE B", nombre_razon_social="CLIENTE B SA DE CV", rfc="XAXX010101000", regimen_fiscal="612", codigo_postal="02020")
-    cliente.empresas.append(empresa2) # Asociado solo a empresa2
+    empresa1 = Empresa(
+        nombre="EMPRESA A",
+        nombre_comercial="EMPRESA A",
+        ruc="RUC-A",
+        rfc="AAA010101AAA",
+        regimen_fiscal="601",
+        codigo_postal="01000",
+        contrasena="x",
+    )
+    empresa2 = Empresa(
+        nombre="EMPRESA B",
+        nombre_comercial="EMPRESA B",
+        ruc="RUC-B",
+        rfc="AAA010101AAA",
+        regimen_fiscal="601",
+        codigo_postal="01000",
+        contrasena="x",
+    )
+    cliente = Cliente(
+        nombre_comercial="CLIENTE B",
+        nombre_razon_social="CLIENTE B SA DE CV",
+        rfc="XAXX010101000",
+        regimen_fiscal="612",
+        codigo_postal="02020",
+    )
+    cliente.empresas.append(empresa2)  # Asociado solo a empresa2
     db_session.add_all([empresa1, empresa2, cliente])
     db_session.commit()
     db_session.refresh(empresa1)

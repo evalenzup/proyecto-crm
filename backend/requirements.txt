@@ -21,3 +21,4 @@ lxml>=5.0.0
 cryptography>=42.0.0
 saxonche>=12.3
 requests
+ruff

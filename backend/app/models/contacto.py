@@ -1,4 +1,3 @@
-
 import uuid
 import enum
 from sqlalchemy import Column, String, Enum, ForeignKey
@@ -7,6 +6,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+
 class TipoContacto(str, enum.Enum):
     ADMINISTRATIVO = "ADMINISTRATIVO"
     COBRANZA = "COBRANZA"
@@ -14,8 +14,9 @@ class TipoContacto(str, enum.Enum):
     PRINCIPAL = "PRINCIPAL"
     OTRO = "OTRO"
 
+
 class Contacto(Base):
-    __tablename__ = 'contactos'
+    __tablename__ = "contactos"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre = Column(String(255), nullable=False)
@@ -24,7 +25,7 @@ class Contacto(Base):
     telefono = Column(String(50), nullable=True)
     tipo = Column(Enum(TipoContacto), nullable=False, default=TipoContacto.PRINCIPAL)
 
-    cliente_id = Column(UUID(as_uuid=True), ForeignKey('clientes.id'), nullable=False)
+    cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False)
 
     cliente = relationship("Cliente", back_populates="contactos")
 

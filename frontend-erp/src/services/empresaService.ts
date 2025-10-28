@@ -6,7 +6,7 @@ interface EmpresaSchema {
   required?: string[];
 }
 
-interface EmpresaOut {
+export interface EmpresaOut {
   id: string;
   nombre: string;
   nombre_comercial: string;
@@ -26,7 +26,7 @@ interface EmpresaOut {
   contrasena?: string; // Solo para el output, no se envía en create/update
 }
 
-interface CertInfoOut {
+export interface CertInfoOut {
   nombre_cn?: string;
   rfc?: string;
   curp?: string;
@@ -37,6 +37,13 @@ interface CertInfoOut {
   key_usage?: string[];
   extended_key_usage?: string[];
   tipo_cert?: string;
+}
+
+export interface EmpresaPageOut {
+  items: EmpresaOut[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export const empresaService = {
@@ -59,8 +66,12 @@ export const empresaService = {
   },
 
   getEmpresas: async (): Promise<EmpresaOut[]> => {
-    const response = await api.get<EmpresaOut[]>('/empresas');
-    return response.data;
+    // Temporary fix: fetch a large number of items for dropdowns.
+    // A searchable endpoint would be a better long-term solution.
+    const response = await api.get<EmpresaPageOut>("/empresas", {
+      params: { limit: 1000, offset: 0 },
+    });
+    return response.data.items;
   },
 
   getEmpresa: async (id: string): Promise<EmpresaOut> => {

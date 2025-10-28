@@ -10,22 +10,14 @@ from app.config import Settings
 from app.models.base import Base
 
 # IMPORTANTE: importar módulos que definen tablas
-from app.models import (
-    empresa,
-    cliente,
-    producto_servicio,
-    factura,           # <-- nueva cabecera
-    factura_detalle,   # <-- nuevo detalle
-    associations,      # tabla puente cliente_empresa
-    pago,
-    egreso,
-)
 
 config = context.config
 
 # Lee la URL desde Settings (.env) o variable de entorno
 settings = Settings()
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", settings.DATABASE_URL))
+config.set_main_option(
+    "sqlalchemy.url", os.getenv("DATABASE_URL", settings.DATABASE_URL)
+)
 
 # Logging
 if config.config_file_name is not None:

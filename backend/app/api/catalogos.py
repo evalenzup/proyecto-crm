@@ -1,7 +1,6 @@
-# app/api/catalogos.py
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Path
 
 # Catálogos existentes
@@ -28,12 +27,38 @@ from app.catalogos_sat.facturacion import (
     obtener_todas_motivos_cancelacion,
 )
 
+from app.schemas.catalogos import CatalogoItem, CatalogoSearchItem
+
 router = APIRouter()
 
 # ────────────────────────────────────────────────────────────────
 # CATÁLOGOS GENERALES
 
-@router.get("/regimen-fiscal", summary="Listar regímenes fiscales")
+
+def _filtrar_catalogo(
+    data: list[dict], q: Optional[str], limit: Optional[int]
+) -> list[dict]:
+    """
+    Filtro simple por 'q' en clave/descripcion y recorte por 'limit'.
+    Cada elemento del catálogo debe tener llaves 'clave' y 'descripcion'.
+    """
+    items = data
+    if q:
+        s = q.strip().lower()
+        items = [
+            it
+            for it in items
+            if s in it.get("clave", "").lower()
+            or s in it.get("descripcion", "").lower()
+        ]
+    if limit and limit > 0:
+        items = items[:limit]
+    return items
+
+
+@router.get(
+    "/regimen-fiscal", response_model=List[CatalogoItem], summary="Listar regímenes fiscales"
+)
 def obtener_regimenes_fiscales():
     """
     Devuelve el catálogo completo de regímenes fiscales del SAT.
@@ -42,7 +67,9 @@ def obtener_regimenes_fiscales():
     return obtener_todos_regimenes()
 
 
-@router.get("/codigos-postales", summary="Listar códigos postales")
+@router.get(
+    "/codigos-postales", response_model=List[CatalogoItem], summary="Listar códigos postales"
+)
 def obtener_codigos_postales():
     """
     Devuelve todos los códigos postales válidos.
@@ -51,7 +78,9 @@ def obtener_codigos_postales():
     return obtener_todos_codigos_postales()
 
 
-@router.get("/productos", summary="Listar claves de productos")
+@router.get(
+    "/productos", response_model=List[CatalogoSearchItem], summary="Listar claves de productos"
+)
 def obtener_productos():
     """
     Obtiene todas las claves de productos del catálogo SAT.
@@ -60,7 +89,9 @@ def obtener_productos():
     return obtener_todos_productos()
 
 
-@router.get("/unidades", summary="Listar claves de unidades")
+@router.get(
+    "/unidades", response_model=List[CatalogoSearchItem], summary="Listar claves de unidades"
+)
 def obtener_unidades():
     """
     Obtiene todas las claves de unidades de medida del catálogo SAT.
@@ -72,7 +103,10 @@ def obtener_unidades():
 # ────────────────────────────────────────────────────────────────
 # BÚSQUEDAS CON FILTRO (productos / unidades)
 
-@router.get("/busqueda/productos", summary="Buscar claves de producto")
+
+@router.get(
+    "/busqueda/productos", response_model=List[CatalogoSearchItem], summary="Buscar claves de producto"
+)
 def endpoint_buscar_productos(
     q: str = Query(..., min_length=3, description="Texto para filtrar claves/descripcion"),
 ):
@@ -80,10 +114,14 @@ def endpoint_buscar_productos(
     Busca claves de producto que contengan la cadena `q`.
     Retorna: lista de { "value": str, "label": str }
     """
-    return buscar_claves_producto(q)
+    items = buscar_claves_producto(q)
+    # Normalizar a {value,label}
+    return [{"value": it.get("clave"), "label": it.get("descripcion")} for it in items]
 
 
-@router.get("/busqueda/unidades", summary="Buscar claves de unidad")
+@router.get(
+    "/busqueda/unidades", response_model=List[CatalogoSearchItem], summary="Buscar claves de unidad"
+)
 def endpoint_buscar_unidades(
     q: str = Query(..., min_length=2, description="Texto para filtrar claves/descripcion"),
 ):
@@ -91,13 +129,18 @@ def endpoint_buscar_unidades(
     Busca claves de unidad que contengan la cadena `q`.
     Retorna: lista de { "value": str, "label": str }
     """
-    return buscar_claves_unidad(q)
+    items = buscar_claves_unidad(q)
+    # Normalizar a {value,label}
+    return [{"value": it.get("clave"), "label": it.get("descripcion")} for it in items]
 
 
 # ────────────────────────────────────────────────────────────────
 # DESCRIPCIONES DE CLAVES (productos / unidades)
 
-@router.get("/descripcion/producto/{clave}", summary="Obtener descripción de un producto")
+
+@router.get(
+    "/descripcion/producto/{clave}", response_model=CatalogoItem, summary="Obtener descripción de un producto"
+)
 def endpoint_descripcion_producto(
     clave: str = Path(..., description="Clave de producto SAT"),
 ):
@@ -110,7 +153,9 @@ def endpoint_descripcion_producto(
     return result
 
 
-@router.get("/descripcion/unidad/{clave}", summary="Obtener descripción de una unidad")
+@router.get(
+    "/descripcion/unidad/{clave}", response_model=CatalogoItem, summary="Obtener descripción de una unidad"
+)
 def endpoint_descripcion_unidad(
     clave: str = Path(..., description="Clave de unidad SAT"),
 ):
@@ -126,29 +171,15 @@ def endpoint_descripcion_unidad(
 # ────────────────────────────────────────────────────────────────
 # CATÁLOGOS CFDI (facturación)
 
-def _filtrar_catalogo(
-    data: list[dict], q: Optional[str], limit: Optional[int]
-) -> list[dict]:
-    """
-    Filtro simple por 'q' en clave/descripcion y recorte por 'limit'.
-    Cada elemento del catálogo debe tener llaves 'clave' y 'descripcion'.
-    """
-    items = data
-    if q:
-        s = q.strip().lower()
-        items = [
-            it for it in items
-            if s in it.get("clave", "").lower() or s in it.get("descripcion", "").lower()
-        ]
-    if limit and limit > 0:
-        items = items[:limit]
-    return items
 
-
-@router.get("/cfdi/tipos-comprobante", summary="Tipos de comprobante (c_TipoDeComprobante)")
+@router.get(
+    "/cfdi/tipos-comprobante", response_model=List[CatalogoItem], summary="Tipos de comprobante (c_TipoDeComprobante)"
+)
 def catalogo_tipos_comprobante(
     q: Optional[str] = Query(None, description="Filtrar por clave/descripcion"),
-    limit: Optional[int] = Query(200, ge=1, le=2000, description="Máximo de elementos a devolver"),
+    limit: Optional[int] = Query(
+        200, ge=1, le=2000, description="Máximo de elementos a devolver"
+    ),
 ):
     """
     Cada elemento: { "clave": str, "descripcion": str }
@@ -157,7 +188,9 @@ def catalogo_tipos_comprobante(
     return _filtrar_catalogo(data, q, limit)
 
 
-@router.get("/cfdi/formas-pago", summary="Formas de pago (c_FormaPago)")
+@router.get(
+    "/cfdi/formas-pago", response_model=List[CatalogoItem], summary="Formas de pago (c_FormaPago)"
+)
 def catalogo_formas_pago(
     q: Optional[str] = Query(None, description="Filtrar por clave/descripcion"),
     limit: Optional[int] = Query(200, ge=1, le=2000),
@@ -166,7 +199,9 @@ def catalogo_formas_pago(
     return _filtrar_catalogo(data, q, limit)
 
 
-@router.get("/cfdi/metodos-pago", summary="Métodos de pago (c_MetodoPago)")
+@router.get(
+    "/cfdi/metodos-pago", response_model=List[CatalogoItem], summary="Métodos de pago (c_MetodoPago)"
+)
 def catalogo_metodos_pago(
     q: Optional[str] = Query(None, description="Filtrar por clave/descripcion"),
     limit: Optional[int] = Query(200, ge=1, le=2000),
@@ -175,7 +210,9 @@ def catalogo_metodos_pago(
     return _filtrar_catalogo(data, q, limit)
 
 
-@router.get("/cfdi/usos-cfdi", summary="Usos de CFDI (c_UsoCFDI)")
+@router.get(
+    "/cfdi/usos-cfdi", response_model=List[CatalogoItem], summary="Usos de CFDI (c_UsoCFDI)"
+)
 def catalogo_usos_cfdi(
     q: Optional[str] = Query(None, description="Filtrar por clave/descripcion"),
     limit: Optional[int] = Query(200, ge=1, le=2000),
@@ -184,7 +221,9 @@ def catalogo_usos_cfdi(
     return _filtrar_catalogo(data, q, limit)
 
 
-@router.get("/cfdi/tipos-relacion", summary="Tipos de relación (c_TipoRelacion)")
+@router.get(
+    "/cfdi/tipos-relacion", response_model=List[CatalogoItem], summary="Tipos de relación (c_TipoRelacion)"
+)
 def catalogo_tipos_relacion(
     q: Optional[str] = Query(None, description="Filtrar por clave/descripcion"),
     limit: Optional[int] = Query(200, ge=1, le=2000),
@@ -192,7 +231,10 @@ def catalogo_tipos_relacion(
     data = obtener_todas_tipos_relacion()
     return _filtrar_catalogo(data, q, limit)
 
-@router.get("/cfdi/motivos-cancelacion", summary="Motivos de cancelación (c_MotivoCancelacion)")
+
+@router.get(
+    "/cfdi/motivos-cancelacion", response_model=List[CatalogoItem], summary="Motivos de cancelación (c_MotivoCancelacion)"
+)
 def catalogo_motivos_cancelacion(
     q: Optional[str] = Query(None, description="Filtrar por clave/descripcion"),
     limit: Optional[int] = Query(200, ge=1, le=2000),

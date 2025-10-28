@@ -59,14 +59,26 @@ export interface ProductoServicioUpdate {
   requiere_lote?: boolean;
 }
 
+export interface ProductoServicioPageOut {
+  items: ProductoServicioOut[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export const productoServicioService = {
   getProductoServicioSchema: async (): Promise<ProductoServicioSchema> => {
     const response = await api.get<ProductoServicioSchema>('/productos-servicios/schema');
     return response.data;
   },
 
-  getProductoServicios: async (): Promise<ProductoServicioOut[]> => {
-    const response = await api.get<ProductoServicioOut[]>('/productos-servicios');
+  getProductoServicios: async (params: {
+    limit: number;
+    offset: number;
+  }): Promise<ProductoServicioPageOut> => {
+    const response = await api.get<ProductoServicioPageOut>("/productos-servicios", {
+      params,
+    });
     return response.data;
   },
 

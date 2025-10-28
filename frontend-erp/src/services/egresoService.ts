@@ -9,8 +9,17 @@ const getData = <T = any>(p: Promise<any>): Promise<T> => p.then((r) => r.data);
 export const getEgresoEnums = () =>
   getData<{ categorias: string[], estatus: string[] }>(api.get('/egresos/enums'));
 
-export const getEgresos = (params: any) =>
-  getData<Egreso[]>(api.get('/egresos/', { params }));
+export const getEgresos = (params: {
+  skip: number;
+  limit: number;
+  empresa_id?: string | null;
+  proveedor?: string | null;
+  categoria?: string | null;
+  estatus?: string | null;
+  fecha_desde?: string | null;
+  fecha_hasta?: string | null;
+}) =>
+  getData<EgresoPageOut>(api.get('/egresos/', { params }));
 
 export const getEgresoById = (id: string) =>
   getData<Egreso>(api.get(`/egresos/${id}`));
@@ -35,6 +44,13 @@ export interface Egreso {
   estatus: string;
   proveedor?: string;
   path_documento?: string;
+}
+
+export interface EgresoPageOut {
+  items: Egreso[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 

@@ -27,9 +27,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 app = FastAPI(
-     title="ERP/CRM Desarrollo NORTON",
-     description="Un ERP/CRM para fumigaciones, jardinería y extintores.",
-     version="1.0.0",
+    title="ERP/CRM Desarrollo NORTON",
+    description="Un ERP/CRM para fumigaciones, jardinería y extintores.",
+    version="1.0.0",
 )
 
 # Montar el directorio de datos como archivos estáticos

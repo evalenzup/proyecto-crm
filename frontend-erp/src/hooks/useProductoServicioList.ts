@@ -1,14 +1,16 @@
-// frontend-erp/src/hooks/useProductoServicioList.ts
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { message } from 'antd';
 import { productoServicioService, ProductoServicioOut } from '../services/productoServicioService';
 import { empresaService, EmpresaOut } from '../services/empresaService';
-import api from '../lib/axios'; // Necesario para las llamadas a /catalogos
+import api from '../lib/axios';
 
 interface UseProductoServicioListResult {
   productosServicios: ProductoServicioOut[];
   loading: boolean;
-  refresh: () => void;
+  total: number;
+  currentPage: number;
+  pageSize: number;
+  handlePageChange: (page: number, size?: number) => void;
   handleDelete: (id: string) => Promise<void>;
   empresasForFilter: EmpresaOut[];
   empresaFiltro: string | null;
@@ -16,20 +18,31 @@ interface UseProductoServicioListResult {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   clearFilters: () => void;
-  mapaClaves: Record<string, string>; // Añadido para las descripciones de catálogos
+  mapaClaves: Record<string, string>;
 }
 
 export const useProductoServicioList = (): UseProductoServicioListResult => {
-  const [allProductosServicios, setAllProductosServicios] = useState<ProductoServicioOut[]>([]);
+  const [productosServicios, setProductosServicios] = useState<ProductoServicioOut[]>([]);
   const [loading, setLoading] = useState(true);
-  const [empresasForFilter, setEmpresasForFilter] = useState<EmpresaOut[]>([]);
-  const [mapaClaves, setMapaClaves] = useState<Record<string, string>>({}); // Estado para las descripciones de catálogos
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  // Estados para los filtros
+  const [empresasForFilter, setEmpresasForFilter] = useState<EmpresaOut[]>([]);
+  const [mapaClaves, setMapaClaves] = useState<Record<string, string>>({});
+
+  // Filter states
   const [empresaFiltro, setEmpresaFiltro] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const fetchDescripciones = useCallback(async (items: ProductoServicioOut[]) => {
+    if (items.length === 0) return;
     const clavesProd = [...new Set(items.map(i => i.clave_producto))];
     const clavesUni = [...new Set(items.map(i => i.clave_unidad))];
     const mapa: Record<string, string> = {};
@@ -48,7 +61,6 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
       }
     } catch (error) {
       message.warning('No se pudo obtener descripción de claves SAT.');
-      console.error('Error fetching SAT descriptions:', error);
     }
     setMapaClaves(mapa);
   }, []);
@@ -56,21 +68,22 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
   const fetchProductosServicios = useCallback(async () => {
     setLoading(true);
     try {
-      let data: ProductoServicioOut[];
-      if (searchTerm || empresaFiltro) {
-        data = await productoServicioService.buscarProductoServicios(searchTerm, empresaFiltro);
-      } else {
-        data = await productoServicioService.getProductoServicios();
-      }
-      setAllProductosServicios(data);
-      await fetchDescripciones(data); // Cargar descripciones después de obtener los productos
+      const params = {
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize,
+        empresa_id: empresaFiltro,
+        q: debouncedSearchTerm,
+      };
+      const data = await productoServicioService.getProductoServicios(params);
+      setProductosServicios(data.items);
+      setTotal(data.total);
+      await fetchDescripciones(data.items);
     } catch (error) {
       message.error('Error al cargar productos y servicios.');
-      console.error('Error fetching productos/servicios:', error);
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, empresaFiltro, fetchDescripciones]);
+  }, [currentPage, pageSize, empresaFiltro, debouncedSearchTerm, fetchDescripciones]);
 
   const fetchEmpresasForFilter = useCallback(async () => {
     try {
@@ -78,29 +91,33 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
       setEmpresasForFilter(data);
     } catch (error) {
       message.error('Error al cargar empresas para el filtro.');
-      console.error('Error fetching empresas for filter:', error);
     }
   }, []);
 
   useEffect(() => {
     fetchProductosServicios();
-    fetchEmpresasForFilter();
-  }, [fetchProductosServicios, fetchEmpresasForFilter]);
-
-  const refresh = useCallback(() => {
-    fetchProductosServicios();
   }, [fetchProductosServicios]);
+
+  useEffect(() => {
+    fetchEmpresasForFilter();
+  }, [fetchEmpresasForFilter]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
       await productoServicioService.deleteProductoServicio(id);
       message.success('Producto/Servicio eliminado correctamente.');
-      refresh();
+      fetchProductosServicios();
     } catch (error) {
       message.error('Error al eliminar el producto/servicio.');
-      console.error('Error deleting producto/servicio:', error);
     }
-  }, [refresh]);
+  }, [fetchProductosServicios]);
+
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+  };
 
   const clearFilters = useCallback(() => {
     setEmpresaFiltro(null);
@@ -108,9 +125,12 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
   }, []);
 
   return {
-    productosServicios: allProductosServicios,
+    productosServicios,
     loading,
-    refresh,
+    total,
+    currentPage,
+    pageSize,
+    handlePageChange,
     handleDelete,
     empresasForFilter,
     empresaFiltro,

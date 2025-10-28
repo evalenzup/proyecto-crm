@@ -1,8 +1,9 @@
 // src/hooks/usePagoForm.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { Form, message } from 'antd';
 import dayjs from 'dayjs';
+import debounce from 'lodash/debounce';
 import * as pagoService from '@/services/pagoService';
 import * as facturaService from '@/services/facturaService';
 import type { Pago } from '@/services/pagoService';
@@ -71,25 +72,36 @@ export const usePagoForm = () => {
           const pagoData = await pagoService.getPagoById(id);
           setPago(pagoData);
 
+          // Setear campos del formulario
           form.setFieldsValue({
             ...pagoData,
             fecha_pago: pagoData?.fecha_pago ? dayjs(pagoData.fecha_pago) : null,
           });
 
+          // Poblar opción del cliente con el dato del pago
           if (pagoData.cliente_id) {
-            const clienteData = await facturaService.getClienteById(pagoData.cliente_id);
-            setClientes([
-              {
-                label:
-                  clienteData.nombre_comercial ||
-                  clienteData.razon_social ||
-                  clienteData.nombre ||
-                  'Cliente',
-                value: clienteData.id,
-              },
-            ]);
+            if (pagoData.cliente?.nombre_comercial) {
+              setClientes([
+                {
+                  label: pagoData.cliente.nombre_comercial || 'Cliente',
+                  value: pagoData.cliente.id,
+                },
+              ]);
+            } else {
+              const clienteData = await facturaService.getClienteById(pagoData.cliente_id);
+              setClientes([
+                {
+                  label:
+                    clienteData.nombre_comercial ||
+                    clienteData.razon_social ||
+                    clienteData.nombre ||
+                    'Cliente',
+                  value: clienteData.id,
+                },
+              ]);
+            }
           }
-          
+
           // Cargar asignaciones existentes del pago
           const allocation: Record<string, number | null> = {};
           (pagoData.documentos_relacionados || []).forEach((doc: any) => {
@@ -98,6 +110,14 @@ export const usePagoForm = () => {
             }
           });
           setPaymentAllocation(allocation);
+
+          // Mostrar inmediatamente las facturas del pago (sin esperar pendientes)
+          const facturasDelPago = (pagoData.documentos_relacionados || [])
+            .map((d: any) => d?.factura)
+            .filter(Boolean);
+          const map = new Map<string, any>();
+          facturasDelPago.forEach((f: any) => { if (f?.id) map.set(f.id, f); });
+          setFacturasPendientes(Array.from(map.values()));
 
         } else {
           // Valores por defecto para un nuevo pago
@@ -133,62 +153,74 @@ export const usePagoForm = () => {
     }
   }, [id, empresaId, form]);
 
-  // Cambio de empresa -> carga clientes
+  // Cambio de empresa -> para edición no limpiamos; para nuevo pago sí
   useEffect(() => {
     if (!empresaId) {
       setClientes([]);
       form.setFieldsValue({ cliente_id: null });
       return;
     }
-    facturaService
-      .getClientesByEmpresa(empresaId)
-      .then((data) =>
-        setClientes(
-          (data || []).map((c: any) => ({
-            value: c.id,
-            label: c.nombre_comercial ?? c.razon_social ?? c.nombre ?? 'Cliente',
-          })),
-        ),
-      )
-  .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar clientes.'));
-  }, [empresaId, form]);
+    // Si estamos editando, no tocar el cliente
+    if (id) return;
+    setClientes([]);
+    form.setFieldsValue({ cliente_id: null });
+  }, [empresaId, form, id]);
 
-  // Efecto para manejar la lógica de facturas pendientes y asignaciones cuando cambia el cliente
+  // Búsqueda de clientes por nombre (3+ letras) filtrando por empresa
+  const buscarClientes = useMemo(() =>
+    debounce(async (q: string) => {
+      const empId = form.getFieldValue('empresa_id');
+      if (!empId) return;
+      if (!q || q.trim().length < 3) {
+        setClientes([]);
+        return;
+      }
+      try {
+        const data = await facturaService.searchClientes(q, empId);
+        const arr = Array.isArray(data) ? data : (data?.items || []);
+        setClientes(arr.map((c: any) => ({
+          value: c.id,
+          label: c.nombre_comercial ?? c.razon_social ?? c.nombre ?? 'Cliente',
+        })));
+      } catch (e) {
+        setClientes([]);
+      }
+    }, 350)
+  , [form]);
+
+  // Efecto para manejar la lógica de facturas cuando cambia el cliente
   useEffect(() => {
+    const isEditing = !!id;
+
+    // Si no hay cliente seleccionado
     if (!clienteId) {
+      // En edición, mantenemos asignaciones; en nuevo, limpiamos
+      if (!isEditing) setPaymentAllocation({});
       setFacturasPendientes([]);
-      setPaymentAllocation({});
       return;
     }
 
-    const isEditing = !!id;
+    // Si estamos editando y el cliente es el mismo del pago: mostrar sólo las facturas del pago
+    if (isEditing && pago && clienteId === pago.cliente_id) {
+      const facturasDelPago = (pago.documentos_relacionados || [])
+        .map((doc: any) => doc.factura)
+        .filter(Boolean);
+      const map = new Map<string, any>();
+      facturasDelPago.forEach((f: any) => { if (f?.id) map.set(f.id, f); });
+      setFacturasPendientes(Array.from(map.values()));
+      return;
+    }
 
+    // Caso nuevo pago o el usuario cambió el cliente: consultar facturas pendientes
     pagoService
       .getFacturasPendientes(clienteId)
       .then((pendingInvoicesData) => {
-        let finalFacturas = pendingInvoicesData || [];
-        
-        // Si estamos editando y el cliente no ha cambiado, unimos las facturas del pago con las pendientes
-        if (isEditing && pago && pago.cliente_id === clienteId) {
-          const facturasDelPago = (pago.documentos_relacionados || [])
-            .map((doc: any) => doc.factura)
-            .filter(Boolean);
-
-          const map = new Map<string, any>();
-          [...facturasDelPago, ...finalFacturas].forEach((f: any) => {
-            if (f?.id) map.set(f.id, f);
-          });
-          finalFacturas = Array.from(map.values());
-        }
-        
+        const finalFacturas = pendingInvoicesData || [];
         setFacturasPendientes(finalFacturas);
-
-        // Limpiamos las asignaciones solo si es un pago nuevo o si el usuario cambió manualmente el cliente
-        if (!isEditing || (pago && clienteId !== pago.cliente_id)) {
-          setPaymentAllocation({});
-        }
+        // Si el usuario cambió el cliente (o es nuevo), limpiar asignaciones
+        setPaymentAllocation({});
       })
-  .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar facturas pendientes.'));
+      .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar facturas pendientes.'));
   }, [clienteId, id, pago]);
 
   const onFinish = async (values: any) => {
@@ -351,6 +383,7 @@ export const usePagoForm = () => {
     accionLoading,
     empresas,
     clientes,
+    buscarClientes,
     formasPago,
     facturasPendientes,
     paymentAllocation,

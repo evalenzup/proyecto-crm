@@ -1,12 +1,9 @@
 import os
 import sys
-from uuid import uuid4
 from app.models.empresa import Empresa
-import pytest
-from fastapi.testclient import TestClient
 
 # ── PYTHONPATH al root del backend ─────────────────────────────
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
@@ -15,6 +12,7 @@ if ROOT_DIR not in sys.path:
 
 # ───────────────────────────────────────────────────────────────
 # Helpers
+
 
 def crear_empresa(client):
     payload = {
@@ -33,8 +31,10 @@ def crear_empresa(client):
     assert r.status_code == 201, r.text
     return r.json()
 
+
 # ───────────────────────────────────────────────────────────────
 # Tests
+
 
 def test_crear_listar_actualizar_eliminar_cliente(client, db_session):
     # 1) Crear empresa directa en DB (requisitos mínimos del modelo)
@@ -65,7 +65,7 @@ def test_crear_listar_actualizar_eliminar_cliente(client, db_session):
         "email": "foo@bar.com,baz@qux.com",
         "telefono": "5551112222,5553334444",
         "tamano": "CHICO",
-        "actividad": "COMERCIAL"
+        "actividad": "COMERCIAL",
     }
     r = client.post("/api/clientes/", json=payload)
     assert r.status_code == 201, r.text
@@ -80,9 +80,7 @@ def test_crear_listar_actualizar_eliminar_cliente(client, db_session):
     assert any(c["id"] == cid for c in r.json())
 
     # 4) Actualizar (solo nombre_comercial para evitar el bug de la lista de telefonos)
-    upd_payload = {
-        "nombre_comercial": "CLIENTE DEMO (ACTUALIZADO)"
-    }
+    upd_payload = {"nombre_comercial": "CLIENTE DEMO (ACTUALIZADO)"}
     r = client.put(f"/api/clientes/{cid}", json=upd_payload)
     assert r.status_code == 200, r.text
     cli_updated = r.json()

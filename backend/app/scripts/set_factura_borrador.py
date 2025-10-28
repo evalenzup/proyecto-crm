@@ -10,14 +10,15 @@ from sqlalchemy.orm import Session
 # 🔧 IMPORTA los modelos que participan en relaciones
 # para que el registry conozca todas las clases.
 # (No borres estos imports aunque "no se usen" directamente)
-import app.models.empresa          # noqa: F401
-import app.models.cliente          # noqa: F401
+import app.models.empresa  # noqa: F401
+import app.models.cliente  # noqa: F401
 import app.models.factura_detalle  # noqa: F401
-import app.models.factura          # noqa: F401
+import app.models.factura  # noqa: F401
 
 # Fuerza a SQLAlchemy a configurar mapeos ahora (evita el error de 'FacturaDetalle' no encontrada)
 try:
     from sqlalchemy.orm import configure_mappers
+
     configure_mappers()
 except Exception:
     pass
@@ -25,12 +26,15 @@ except Exception:
 # Obtén la sesión (compat con tus proyectos)
 try:
     from app.database import SessionLocal  # type: ignore
+
     def _open_session() -> Session:
         return SessionLocal()
 except Exception:  # pragma: no cover
     from app.database import get_db  # type: ignore
+
     def _open_session() -> Session:
         return next(get_db())
+
 
 from app.models.factura import Factura
 
@@ -55,7 +59,9 @@ def main(argv: list[str]) -> int:
             return 2
 
         if getattr(f, "cfdi_uuid", None) and not force:
-            print("ERROR: La factura ya está timbrada (tiene UUID). Usa --force para forzar el cambio de estatus.")
+            print(
+                "ERROR: La factura ya está timbrada (tiene UUID). Usa --force para forzar el cambio de estatus."
+            )
             return 3
 
         prev = getattr(f, "estatus", None)

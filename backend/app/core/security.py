@@ -10,12 +10,14 @@ if not SECRET_KEY:
 
 fernet = Fernet(SECRET_KEY)
 
+
 def encrypt_data(data: str) -> str:
     """Cifra una cadena de texto y la devuelve como una cadena."""
     if not data:
         return data
     encrypted_data = fernet.encrypt(data.encode())
     return encrypted_data.decode()
+
 
 def decrypt_data(encrypted_data: str) -> str:
     """Descifra una cadena de texto."""

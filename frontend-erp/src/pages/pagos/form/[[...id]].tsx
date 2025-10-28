@@ -36,6 +36,7 @@ import {
   FileTextOutlined,
   DeleteOutlined,
 } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
 
 const { Text } = Typography;
 
@@ -50,6 +51,7 @@ const PagoFormPage: React.FC = () => {
     accionLoading,
     empresas,
     clientes,
+    buscarClientes,
     formasPago,
     facturasPendientes,
     paymentAllocation,
@@ -63,19 +65,20 @@ const PagoFormPage: React.FC = () => {
     descargarXml,
   } = usePagoForm();
 
-  const totalAllocated = React.useMemo(() => {
-    return Object.values(paymentAllocation).reduce((sum, amount) => sum + (amount || 0), 0);
+  const totalAllocated = React.useMemo<number>(() => {
+    return Object.values(paymentAllocation).reduce((sum: number, amount) => sum + Number(amount || 0), 0);
   }, [paymentAllocation]);
 
   useEffect(() => {
     form.setFieldsValue({ monto: totalAllocated });
   }, [totalAllocated, form]);
 
+  // Sincroniza campos informativos con los nombres reales del backend
   useEffect(() => {
     if (pago) {
       form.setFieldsValue({
-        uuid_cfdi: pago.uuid_cfdi,
-        timbrado_at: pago.timbrado_at ? new Date(pago.timbrado_at).toLocaleString('es-MX') : undefined,
+        uuid_cfdi: pago.uuid,
+        timbrado_at: pago.fecha_timbrado ? new Date(pago.fecha_timbrado).toLocaleString('es-MX') : undefined,
       });
     }
   }, [pago, form]);
@@ -88,7 +91,7 @@ const PagoFormPage: React.FC = () => {
 
   if (loading) return <Spin style={{ margin: 48 }} />;
 
-  const facturasColumns = [
+  const facturasColumns: ColumnsType<FacturaPendiente> = [
     { title: 'Folio', dataIndex: 'folio', render: (val: any, rec: any) => `${rec.serie}-${val}` },
     { title: 'Fecha Emisión', dataIndex: 'fecha_emision', render: (val: string) => new Date(val).toLocaleDateString() },
     { title: 'Total Factura', dataIndex: 'total', align: 'right', render: (val: number) => val.toLocaleString('es-MX', {style: 'currency', currency: 'MXN'}) },
@@ -112,8 +115,9 @@ const PagoFormPage: React.FC = () => {
     },
   ];
 
-  const isTimbrado = !!pago?.timbrado_at;
-  const isCancelado = !!pago?.cancelado_at;
+  // Estado calculado conforme al esquema del backend
+  const isTimbrado = pago?.estatus === 'TIMBRADO' || !!pago?.uuid || !!pago?.fecha_timbrado;
+  const isCancelado = pago?.estatus === 'CANCELADO';
 
   const getStatusTag = () => {
     if (isCancelado) {
@@ -150,8 +154,14 @@ const PagoFormPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item label="Cliente" name="cliente_id" rules={[{ required: true }]}>
-                  <Select options={clientes} showSearch filterOption={false} placeholder="Seleccione un cliente" />
+                <Form.Item label="Cliente" name="cliente_id" rules={[{ required: true }]}> 
+                  <Select 
+                    options={clientes}
+                    showSearch 
+                    filterOption={false}
+                    onSearch={buscarClientes}
+                    placeholder="Escribe al menos 3 letras para buscar"
+                  />
                 </Form.Item>
               </Col>
             </Row>

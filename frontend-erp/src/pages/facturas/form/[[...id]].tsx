@@ -154,11 +154,23 @@ const FacturaFormPage: React.FC = () => {
   const onEmailModalOk = async () => {
     try {
       const values = await emailForm.validateFields();
-      const recipientEmails = values.recipient_emails;
+      const raw: string = values.recipient_emails || '';
+      // Normaliza: admite comas, punto y coma y saltos de línea como separadores
+      const recipients: string[] = Array.from(
+        new Set(
+          String(raw)
+            .split(/[;,\n]+/)
+            .map((e) => e.trim())
+            .filter(Boolean)
+        )
+      );
       setIsSendingEmail(true);
       const endpoint = isSendingPreview ? `/facturas/${id}/send-preview-email` : `/facturas/${id}/send-email`;
-      const successMessage = isSendingPreview ? `Vista previa de factura enviada correctamente a ${recipientEmails}.` : `Factura enviada correctamente a ${recipientEmails}.`;
-      await api.post(endpoint, { recipient_emails: recipientEmails });
+      const successMessage = isSendingPreview
+        ? `Vista previa de factura enviada correctamente a ${recipients.join(', ')}.`
+        : `Factura enviada correctamente a ${recipients.join(', ')}.`;
+      // Enviamos usando el campo 'recipients' (lista), el backend también acepta 'recipient_emails' CSV.
+      await api.post(endpoint, { recipients });
       message.success(successMessage);
       setIsEmailModalOpen(false);
       emailForm.resetFields();
@@ -1126,8 +1138,14 @@ const FacturaFormPage: React.FC = () => {
               {
                 validator: (_, value) => {
                   if (!value) return Promise.resolve();
-                  const emails = value.split(',').map((email: string) => email.trim());
-                  const invalidEmails = emails.filter((email: string) => !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email));
+                  // Acepta comas, punto y coma y saltos de línea como separadores
+                  const emails: string[] = String(value)
+                    .split(/[;,\n]+/)
+                    .map((email: string) => email.trim())
+                    .filter(Boolean);
+                  // Regex más permisivo (permite +, TLD > 4, etc.)
+                  const simpleEmail = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+                  const invalidEmails = emails.filter((email: string) => !simpleEmail.test(email));
                   if (invalidEmails.length > 0) {
                     return Promise.reject(new Error(`Los siguientes correos no son válidos: ${invalidEmails.join(',')}`));
                   }
@@ -1136,7 +1154,7 @@ const FacturaFormPage: React.FC = () => {
               },
             ]}
           >
-            <Input.TextArea rows={4} placeholder="correo1@dominio.com, correo2@dominio.com" />
+            <Input.TextArea rows={4} placeholder="correo1@dominio.com, correo2@dominio.com (también puedes usar ; o saltos de línea)" />
           </Form.Item>
         </Form>
       </Modal>

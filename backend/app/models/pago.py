@@ -25,8 +25,12 @@ class Pago(Base):
     __tablename__ = "pagos"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False, index=True)
-    cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False, index=True)
+    empresa_id = Column(
+        UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False, index=True
+    )
+    cliente_id = Column(
+        UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False, index=True
+    )
 
     # --- Datos generales del complemento ---
     serie = Column(String, nullable=True)
@@ -36,8 +40,10 @@ class Pago(Base):
     moneda_p = Column(String(3), nullable=False)  # Catálogo SAT c_Moneda
     monto = Column(Numeric(18, 4), nullable=False)
     tipo_cambio_p = Column(Numeric(18, 6), nullable=True)
-    
-    estatus = Column(SQLAlchemyEnum(EstatusPago), nullable=False, default=EstatusPago.BORRADOR)
+
+    estatus = Column(
+        SQLAlchemyEnum(EstatusPago), nullable=False, default=EstatusPago.BORRADOR
+    )
 
     # --- Datos del timbrado (CFDI) ---
     uuid = Column(String, nullable=True, unique=True, index=True)
@@ -49,27 +55,35 @@ class Pago(Base):
 
     motivo_cancelacion = Column(String(2), nullable=True)
     folio_fiscal_sustituto = Column(String(36), nullable=True)
-    no_certificado    = Column(String(20),   nullable=True)
-    no_certificado_sat= Column(String(20),   nullable=True)
-    sello_cfdi        = Column(Text,         nullable=True)
-    sello_sat         = Column(Text,         nullable=True)
-    rfc_proveedor_sat = Column(String(13),   nullable=True)
+    no_certificado = Column(String(20), nullable=True)
+    no_certificado_sat = Column(String(20), nullable=True)
+    sello_cfdi = Column(Text, nullable=True)
+    sello_sat = Column(Text, nullable=True)
+    rfc_proveedor_sat = Column(String(13), nullable=True)
 
     creado_en = Column(DateTime, server_default=func.now(), nullable=False)
-    actualizado_en = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    actualizado_en = Column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     # --- Relaciones ---
     empresa = relationship("Empresa")
     cliente = relationship("Cliente")
-    documentos_relacionados = relationship("PagoDocumentoRelacionado", back_populates="pago", cascade="all, delete-orphan")
+    documentos_relacionados = relationship(
+        "PagoDocumentoRelacionado", back_populates="pago", cascade="all, delete-orphan"
+    )
 
 
 class PagoDocumentoRelacionado(Base):
     __tablename__ = "pago_documentos_relacionados"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pago_id = Column(UUID(as_uuid=True), ForeignKey("pagos.id"), nullable=False, index=True)
-    factura_id = Column(UUID(as_uuid=True), ForeignKey("facturas.id"), nullable=False, index=True)
+    pago_id = Column(
+        UUID(as_uuid=True), ForeignKey("pagos.id"), nullable=False, index=True
+    )
+    factura_id = Column(
+        UUID(as_uuid=True), ForeignKey("facturas.id"), nullable=False, index=True
+    )
 
     # --- Datos del documento relacionado (del complemento) ---
     id_documento = Column(String, nullable=False)  # UUID de la factura relacionada
@@ -81,7 +95,9 @@ class PagoDocumentoRelacionado(Base):
     imp_pagado = Column(Numeric(18, 4), nullable=False)
     imp_saldo_insoluto = Column(Numeric(18, 4), nullable=False)
     tipo_cambio_dr = Column(Numeric(18, 6), nullable=True)
-    impuestos_dr = Column(JSONB, nullable=True) # Almacena el desglose de impuestos del documento relacionado
+    impuestos_dr = Column(
+        JSONB, nullable=True
+    )  # Almacena el desglose de impuestos del documento relacionado
 
     # --- Relaciones ---
     pago = relationship("Pago", back_populates="documentos_relacionados")

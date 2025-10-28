@@ -18,6 +18,10 @@ const ClientesPage: React.FC = () => {
   const {
     clientes,
     loading,
+    total,
+    currentPage,
+    pageSize,
+    handlePageChange,
     handleDelete,
     empresasForFilter,
     empresaFiltro,
@@ -116,13 +120,19 @@ const ClientesPage: React.FC = () => {
           </Button>
         </Space>
 
-        <Table<ClienteOut> // Usamos ClienteOut
+        <Table<ClienteOut>
           rowKey="id"
           columns={columns}
-          dataSource={clientes} // Clientes ya filtrados por el hook
+          dataSource={clientes}
           loading={loading}
-          pagination={{ pageSize: 10 }}
-          locale={{ emptyText: 'No hay clientes' }}
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
+            onChange: handlePageChange,
+            showSizeChanger: true,
+          }}
+          locale={{ emptyText: "No hay clientes" }}
         />
       </div>
     </>

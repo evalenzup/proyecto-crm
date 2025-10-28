@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import date
 from app.models.egreso import CategoriaEgreso, EstatusEgreso
 
+
 class EgresoBase(BaseModel):
     descripcion: str
     monto: condecimal(gt=0, max_digits=18, decimal_places=2)
@@ -15,8 +16,10 @@ class EgresoBase(BaseModel):
     path_documento: Optional[str] = None
     metodo_pago: Optional[str] = None
 
+
 class EgresoCreate(EgresoBase):
     empresa_id: uuid.UUID
+
 
 class EgresoUpdate(BaseModel):
     descripcion: Optional[str] = None
@@ -28,6 +31,7 @@ class EgresoUpdate(BaseModel):
     proveedor: Optional[str] = None
     path_documento: Optional[str] = None
     metodo_pago: Optional[str] = None
+
 
 class Egreso(EgresoBase):
     id: uuid.UUID

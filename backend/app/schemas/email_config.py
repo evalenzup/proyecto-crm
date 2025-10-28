@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
 
+
 # Campos base compartidos
 class EmailConfigBase(BaseModel):
     smtp_server: str = Field(..., example="smtp.example.com")
@@ -11,14 +12,17 @@ class EmailConfigBase(BaseModel):
     from_name: Optional[str] = Field(None, example="My Company")
     use_tls: bool = True
 
+
 # Schema para probar la configuración (requiere contraseña)
 class EmailConfigTest(EmailConfigBase):
     # Opcional para permitir probar con la contraseña guardada si no se envía desde el cliente
     smtp_password: Optional[str] = Field(None, example="secretpassword")
 
+
 # Schema para crear una configuración (requiere contraseña)
 class EmailConfigCreate(EmailConfigBase):
     smtp_password: str = Field(..., example="secretpassword")
+
 
 # Schema para actualizar (todos los campos son opcionales)
 class EmailConfigUpdate(BaseModel):
@@ -29,6 +33,7 @@ class EmailConfigUpdate(BaseModel):
     from_address: Optional[str] = Field(None, example="noreply@example.com")
     from_name: Optional[str] = Field(None, example="My Company")
     use_tls: Optional[bool] = None
+
 
 # Schema para leer la configuración (NO incluye la contraseña)
 class EmailConfig(EmailConfigBase):

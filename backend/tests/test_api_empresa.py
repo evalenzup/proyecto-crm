@@ -1,17 +1,15 @@
 import os
 import sys
-from uuid import uuid4
-import pytest
 from fastapi.testclient import TestClient
-from io import BytesIO
 
 # ── PYTHONPATH al root del backend ─────────────────────────────
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 # ───────────────────────────────────────────────────────────────
 # Tests
+
 
 def test_empresa_crud_completo(client: TestClient):
     """
@@ -33,18 +31,18 @@ def test_empresa_crud_completo(client: TestClient):
         "direccion": "CALLE FALSA 123",
         "telefono": "5551234567",
         "email": "crud@test.com",
-        "contrasena": "12345678a", # Contraseña válida para .key de prueba
+        "contrasena": "12345678a",  # Contraseña válida para .key de prueba
     }
-    
+
     # Mock de archivos de certificado
     # Usamos los ficheros de /fixtures que son válidos
-    cer_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'demo.cer')
-    key_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'demo.key')
+    cer_path = os.path.join(os.path.dirname(__file__), "fixtures", "demo.cer")
+    key_path = os.path.join(os.path.dirname(__file__), "fixtures", "demo.key")
 
-    with open(cer_path, 'rb') as f_cer, open(key_path, 'rb') as f_key:
+    with open(cer_path, "rb") as f_cer, open(key_path, "rb") as f_key:
         files = {
-            'archivo_cer': ('test.cer', f_cer, 'application/x-x509-ca-cert'),
-            'archivo_key': ('test.key', f_key, 'application/octet-stream')
+            "archivo_cer": ("test.cer", f_cer, "application/x-x509-ca-cert"),
+            "archivo_key": ("test.key", f_key, "application/octet-stream"),
         }
         r = client.post("/api/empresas/", data=payload, files=files)
 
@@ -71,12 +69,14 @@ def test_empresa_crud_completo(client: TestClient):
         "telefono": "5557654321",
     }
     # Mock de nuevos archivos (pueden ser los mismos para la prueba)
-    with open(cer_path, 'rb') as f_cer, open(key_path, 'rb') as f_key:
+    with open(cer_path, "rb") as f_cer, open(key_path, "rb") as f_key:
         update_files = {
-            'archivo_cer': ('new.cer', f_cer, 'application/x-x509-ca-cert'),
-            'archivo_key': ('new.key', f_key, 'application/octet-stream')
+            "archivo_cer": ("new.cer", f_cer, "application/x-x509-ca-cert"),
+            "archivo_key": ("new.key", f_key, "application/octet-stream"),
         }
-        r = client.put(f"/api/empresas/{empresa_id}", data=update_payload, files=update_files)
+        r = client.put(
+            f"/api/empresas/{empresa_id}", data=update_payload, files=update_files
+        )
 
     assert r.status_code == 200, r.text
     empresa_updated = r.json()
@@ -95,9 +95,10 @@ def test_empresa_crud_completo(client: TestClient):
     assert r.status_code == 404
 
     # Verificar que los archivos fueron eliminados del servidor
-    cert_dir = os.path.join(ROOT_DIR, 'data', 'cert')
+    cert_dir = os.path.join(ROOT_DIR, "data", "cert")
     assert not os.path.exists(os.path.join(cert_dir, empresa_updated["archivo_cer"]))
     assert not os.path.exists(os.path.join(cert_dir, empresa_updated["archivo_key"]))
+
 
 def test_crear_empresa_rfc_invalido(client: TestClient):
     """
@@ -105,21 +106,27 @@ def test_crear_empresa_rfc_invalido(client: TestClient):
     """
     payload = {
         "nombre": "EMPRESA RFC INVÁLIDO",
-        "rfc": "PERSONAFISICA", # RFC de persona física
-        "regimen_fiscal": "601", # Régimen de persona moral
-        "nombre_comercial": "TEST", "ruc": "RUC", "codigo_postal": "01000",
-        "direccion": "C", "telefono": "1234567", "email": "a@b.com", "contrasena": "12345678a",
+        "rfc": "PERSONAFISICA",  # RFC de persona física
+        "regimen_fiscal": "601",  # Régimen de persona moral
+        "nombre_comercial": "TEST",
+        "ruc": "RUC",
+        "codigo_postal": "01000",
+        "direccion": "C",
+        "telefono": "1234567",
+        "email": "a@b.com",
+        "contrasena": "12345678a",
     }
-    
-    cer_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'demo.cer')
-    key_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'demo.key')
 
-    with open(cer_path, 'rb') as f_cer, open(key_path, 'rb') as f_key:
-        files = {'archivo_cer': ('c.cer', f_cer), 'archivo_key': ('k.key', f_key)}
+    cer_path = os.path.join(os.path.dirname(__file__), "fixtures", "demo.cer")
+    key_path = os.path.join(os.path.dirname(__file__), "fixtures", "demo.key")
+
+    with open(cer_path, "rb") as f_cer, open(key_path, "rb") as f_key:
+        files = {"archivo_cer": ("c.cer", f_cer), "archivo_key": ("k.key", f_key)}
         r = client.post("/api/empresas/", data=payload, files=files)
 
-    assert r.status_code == 422 # Unprocessable Entity
+    assert r.status_code == 422  # Unprocessable Entity
     assert "rfc" in r.json()["detail"].lower()
+
 
 def test_get_schema_empresa(client: TestClient):
     """

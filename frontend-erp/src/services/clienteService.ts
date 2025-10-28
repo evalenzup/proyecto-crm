@@ -26,7 +26,7 @@ export interface ClienteOut {
   empresas?: Array<{ id: string; nombre_comercial: string }>;
 }
 
-interface ClienteCreate {
+export interface ClienteCreate {
   nombre_comercial: string;
   nombre_razon_social: string;
   rfc: string;
@@ -42,7 +42,7 @@ interface ClienteCreate {
   empresa_id: string[];
 }
 
-interface ClienteUpdate {
+export interface ClienteUpdate {
   nombre_comercial?: string;
   nombre_razon_social?: string;
   rfc?: string;
@@ -59,6 +59,14 @@ interface ClienteUpdate {
 }
 
 
+export interface ClientePageOut {
+  items: ClienteOut[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+
 export const clienteService = {
   getClienteSchema: async (): Promise<ClienteSchema> => {
     const response = await api.get<ClienteSchema>('/clientes/schema');
@@ -70,8 +78,14 @@ export const clienteService = {
     return response.data;
   },
 
-  getClientes: async (): Promise<ClienteOut[]> => {
-    const response = await api.get<ClienteOut[]>('/clientes');
+  getClientes: async (params: {
+    limit: number;
+    offset: number;
+    empresa_id?: string | null;
+    rfc?: string | null;
+    nombre_comercial?: string | null;
+  }): Promise<ClientePageOut> => {
+    const response = await api.get<ClientePageOut>("/clientes", { params });
     return response.data;
   },
 

@@ -2,7 +2,7 @@
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from sqlalchemy import or_, func
 
@@ -14,11 +14,14 @@ from app.catalogos_sat.productos import validar_clave_producto
 from app.catalogos_sat.unidades import validar_clave_unidad
 
 
-class ProductoServicioRepository(BaseRepository[ProductoServicio, ProductoServicioCreate, ProductoServicioUpdate]):
-
+class ProductoServicioRepository(
+    BaseRepository[ProductoServicio, ProductoServicioCreate, ProductoServicioUpdate]
+):
     def _check_empresa_exists(self, db: Session, empresa_id: UUID):
         if not db.query(Empresa).filter(Empresa.id == empresa_id).first():
-            raise HTTPException(status_code=404, detail=f"Empresa {empresa_id} no encontrada")
+            raise HTTPException(
+                status_code=404, detail=f"Empresa {empresa_id} no encontrada"
+            )
 
     def _validar_campos_sat(self, clave_producto: str, clave_unidad: str):
         if not validar_clave_producto(clave_producto):
@@ -27,35 +30,55 @@ class ProductoServicioRepository(BaseRepository[ProductoServicio, ProductoServic
             raise HTTPException(status_code=400, detail="Clave de unidad no válida")
 
     def _limpiar_campos_inventario(self, data: dict):
-        data.update({
-            "cantidad": None,
-            "stock_actual": None,
-            "stock_minimo": None,
-            "unidad_inventario": None,
-            "ubicacion": None,
-            "requiere_lote": False,
-        })
+        data.update(
+            {
+                "cantidad": None,
+                "stock_actual": None,
+                "stock_minimo": None,
+                "unidad_inventario": None,
+                "ubicacion": None,
+                "requiere_lote": False,
+            }
+        )
 
     def _validar_datos_producto(self, data: dict):
         if data.get("stock_actual") is None or data["stock_actual"] < 0:
-            raise HTTPException(status_code=400, detail="Stock actual debe ser >= 0 para productos")
+            raise HTTPException(
+                status_code=400, detail="Stock actual debe ser >= 0 para productos"
+            )
         if not data.get("unidad_inventario"):
-            raise HTTPException(status_code=400, detail="Unidad de inventario requerida para productos")
+            raise HTTPException(
+                status_code=400, detail="Unidad de inventario requerida para productos"
+            )
         if data.get("cantidad") is None or data["cantidad"] <= 0:
-            raise HTTPException(status_code=400, detail="Cantidad requerida y debe ser mayor a 0 para productos")
+            raise HTTPException(
+                status_code=400,
+                detail="Cantidad requerida y debe ser mayor a 0 para productos",
+            )
 
-    def _validar_descripcion_unica(self, db: Session, descripcion: str, empresa_id: UUID, producto_id: Optional[UUID] = None):
+    def _validar_descripcion_unica(
+        self,
+        db: Session,
+        descripcion: str,
+        empresa_id: UUID,
+        producto_id: Optional[UUID] = None,
+    ):
         query = db.query(ProductoServicio).filter(
             ProductoServicio.descripcion == descripcion,
-            ProductoServicio.empresa_id == empresa_id
+            ProductoServicio.empresa_id == empresa_id,
         )
         if producto_id:
             query = query.filter(ProductoServicio.id != producto_id)
-        
-        if query.first():
-            raise HTTPException(status_code=400, detail="Ya existe un producto o servicio con esa descripción para esta empresa")
 
-    def create(self, db: Session, *, obj_in: ProductoServicioCreate) -> ProductoServicio:
+        if query.first():
+            raise HTTPException(
+                status_code=400,
+                detail="Ya existe un producto o servicio con esa descripción para esta empresa",
+            )
+
+    def create(
+        self, db: Session, *, obj_in: ProductoServicioCreate
+    ) -> ProductoServicio:
         data = obj_in.model_dump()
         self._check_empresa_exists(db, data["empresa_id"])
         self._validar_campos_sat(data["clave_producto"], data["clave_unidad"])
@@ -69,14 +92,21 @@ class ProductoServicioRepository(BaseRepository[ProductoServicio, ProductoServic
         # Usamos el método create de la clase base
         return super().create(db, obj_in=ProductoServicioCreate(**data))
 
-    def update(self, db: Session, *, db_obj: ProductoServicio, obj_in: ProductoServicioUpdate) -> Optional[ProductoServicio]:
+    def update(
+        self, db: Session, *, db_obj: ProductoServicio, obj_in: ProductoServicioUpdate
+    ) -> Optional[ProductoServicio]:
         update_data = obj_in.model_dump(exclude_unset=True)
 
         if "empresa_id" in update_data:
             self._check_empresa_exists(db, update_data["empresa_id"])
-        
+
         if "descripcion" in update_data:
-            self._validar_descripcion_unica(db, update_data["descripcion"], update_data.get("empresa_id", db_obj.empresa_id), db_obj.id)
+            self._validar_descripcion_unica(
+                db,
+                update_data["descripcion"],
+                update_data.get("empresa_id", db_obj.empresa_id),
+                db_obj.id,
+            )
 
         if "clave_producto" in update_data or "clave_unidad" in update_data:
             clave_prod = update_data.get("clave_producto", db_obj.clave_producto)
@@ -92,13 +122,17 @@ class ProductoServicioRepository(BaseRepository[ProductoServicio, ProductoServic
         # Usamos el método update de la clase base
         return super().update(db, db_obj=db_obj, obj_in=update_data)
 
-    def search_by_term(self, db: Session, q: str, empresa_id: Optional[UUID] = None, limit: int = 20) -> List[ProductoServicio]:
-        """
-        Busca productos/servicios por un término `q` en la clave o descripción.
-        Puede filtrar por empresa.
-        """
+    def get_multi(
+        self,
+        db: Session,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        empresa_id: Optional[UUID] = None,
+        q: Optional[str] = None,
+    ) -> Tuple[List[ProductoServicio], int]:
         query = db.query(self.model)
-        
+
         if empresa_id:
             query = query.filter(self.model.empresa_id == empresa_id)
 
@@ -107,11 +141,40 @@ class ProductoServicioRepository(BaseRepository[ProductoServicio, ProductoServic
             query = query.filter(
                 or_(
                     func.lower(self.model.clave_producto).like(search_term),
-                    func.lower(self.model.descripcion).like(search_term)
+                    func.lower(self.model.descripcion).like(search_term),
                 )
             )
-            
+
+        total = query.count()
+        items = (
+            query.order_by(self.model.descripcion.asc()).offset(skip).limit(limit).all()
+        )
+
+        return items, total
+
+    def search_by_term(
+        self, db: Session, q: str, empresa_id: Optional[UUID] = None, limit: int = 20
+    ) -> List[ProductoServicio]:
+        """
+        Busca productos/servicios por un término `q` en la clave o descripción.
+        Puede filtrar por empresa.
+        """
+        query = db.query(self.model)
+
+        if empresa_id:
+            query = query.filter(self.model.empresa_id == empresa_id)
+
+        if q:
+            search_term = f"%{q.lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(self.model.clave_producto).like(search_term),
+                    func.lower(self.model.descripcion).like(search_term),
+                )
+            )
+
         return query.limit(limit).all()
+
 
 # Se instancia el repositorio con el modelo SQLAlchemy correspondiente
 producto_servicio_repo = ProductoServicioRepository(ProductoServicio)

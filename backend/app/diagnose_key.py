@@ -1,27 +1,37 @@
 # /app/diagnose_key.py
-import os, sys
+import os
+import sys
 from cryptography import x509
-from cryptography.hazmat.primitives.serialization import load_der_private_key, load_pem_private_key
-from cryptography.hazmat.primitives.serialization.pkcs12 import load_key_and_certificates
+from cryptography.hazmat.primitives.serialization import (
+    load_der_private_key,
+    load_pem_private_key,
+)
+from cryptography.hazmat.primitives.serialization.pkcs12 import (
+    load_key_and_certificates,
+)
 
 CERT_DIR = os.environ.get("CERT_DIR", "/data/certificados")
+
 
 def readb(path):
     with open(path, "rb") as f:
         return f.read()
 
+
 def main(emp_id, cer_name=None, key_name=None, password=None):
     cer_path = os.path.join(CERT_DIR, cer_name or f"{emp_id}.cer")
     key_path = os.path.join(CERT_DIR, key_name or f"{emp_id}.key")
 
-    print(f"CER={cer_path}\nKEY={key_path}\nPASS={'<provista>' if password else '<vacía>'}")
+    print(
+        f"CER={cer_path}\nKEY={key_path}\nPASS={'<provista>' if password else '<vacía>'}"
+    )
 
     cer = readb(cer_path)
     try:
-        cert = x509.load_der_x509_certificate(cer)
+        x509.load_der_x509_certificate(cer)
         print("✓ .cer = DER")
     except Exception:
-        cert = x509.load_pem_x509_certificate(cer)
+        x509.load_pem_x509_certificate(cer)
         print("✓ .cer = PEM")
 
     key = readb(key_path)
@@ -51,19 +61,26 @@ def main(emp_id, cer_name=None, key_name=None, password=None):
     try:
         priv, _c, _chain = load_key_and_certificates(key, pwd)
         if priv:
-            print("✓ .key = PKCS#12 (.pfx/.p12) — contraseña correcta, se extrajo private key")
+            print(
+                "✓ .key = PKCS#12 (.pfx/.p12) — contraseña correcta, se extrajo private key"
+            )
             return 0
     except Exception as e_p12:
         print(f"→ PKCS#12 falló: {e_p12.__class__.__name__} {e_p12}")
 
-    print("❌ No se pudo abrir la .key con la contraseña dada (formato o password incorrectos)")
+    print(
+        "❌ No se pudo abrir la .key con la contraseña dada (formato o password incorrectos)"
+    )
     return 3
+
 
 if __name__ == "__main__":
     # Uso:
     # docker compose exec backend bash -lc "python /app/diagnose_key.py <empresa_uuid> <opcional:archivo.cer> <opcional:archivo.key> '<password>'"
     if len(sys.argv) < 3:
-        print("Uso: diagnose_key.py <empresa_uuid> <password> [archivo_cer] [archivo_key]")
+        print(
+            "Uso: diagnose_key.py <empresa_uuid> <password> [archivo_cer] [archivo_key]"
+        )
         sys.exit(1)
     emp_id = sys.argv[1]
     password = sys.argv[2]

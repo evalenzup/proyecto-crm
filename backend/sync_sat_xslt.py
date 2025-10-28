@@ -30,10 +30,10 @@ except Exception:
     sys.exit(1)
 
 SAT_HOST = "http://www.sat.gob.mx/"
-BASE_ENV  = os.environ.get("SAT_BASE", "data/sat")
-BASE_DIR  = Path(BASE_ENV).resolve()
+BASE_ENV = os.environ.get("SAT_BASE", "data/sat")
+BASE_DIR = Path(BASE_ENV).resolve()
 LONG_ROOT = BASE_DIR / "sitio_internet" / "cfd"  # raíz del mirror
-SHORT_DIR = BASE_DIR                               # copias “short”
+SHORT_DIR = BASE_DIR  # copias “short”
 
 # Manifest: { url_path_relativo: ruta_relativa_destino_bajo LONG_ROOT }
 # (todas estas rutas aparecen en los includes del XSLT 2.0 o son muy comunes)
@@ -41,12 +41,10 @@ MANIFEST: Dict[str, str] = {
     # Cadena Original
     "sitio_internet/cfd/4/cadenaoriginal_4_0.xslt": "4/cadenaoriginal_4_0.xslt",
     "sitio_internet/cfd/2/cadenaoriginal_2_0/utilerias.xslt": "2/cadenaoriginal_2_0/utilerias.xslt",
-
     # TFD 1.1 (cadena original del timbre)
     # Hay distintas ubicaciones publicadas históricamente; añadimos 2 opciones:
     "sitio_internet/cfd/tfd/1.1/cadenaoriginal_TFD_1_1.xslt": "tfd/1.1/cadenaoriginal_TFD_1_1.xslt",
     "sitio_internet/cfd/tfd/1_1/cadenaoriginal_TFD_1_1.xslt": "tfd/1_1/cadenaoriginal_TFD_1_1.xslt",
-
     # Complementos (los que te salieron en logs)
     "sitio_internet/cfd/donat/donat11.xslt": "donat/donat11.xslt",
     "sitio_internet/cfd/divisas/divisas.xslt": "divisas/divisas.xslt",
@@ -84,6 +82,7 @@ MANIFEST: Dict[str, str] = {
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "sat-xslt-sync/1.0"})
 
+
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -91,10 +90,14 @@ def sha256_of(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()[:16]
 
+
 def ensure_dir(path: Path):
     path.mkdir(parents=True, exist_ok=True)
 
-def download(url: str, dest: Path, retries: int = 2, timeout: int = 20) -> Tuple[bool, str]:
+
+def download(
+    url: str, dest: Path, retries: int = 2, timeout: int = 20
+) -> Tuple[bool, str]:
     tmp = dest.with_suffix(dest.suffix + ".part")
     for attempt in range(1, retries + 1):
         try:
@@ -114,6 +117,7 @@ def download(url: str, dest: Path, retries: int = 2, timeout: int = 20) -> Tuple
             time.sleep(1.0)
     return False, "unknown"
 
+
 def copy_short(dest_long: Path):
     """Copia también al SHORT_DIR con el puro nombre del archivo si no existe o cambió."""
     short = SHORT_DIR / dest_long.name
@@ -126,6 +130,7 @@ def copy_short(dest_long: Path):
     except Exception:
         pass
 
+
 def main() -> int:
     print(f"Mirror base: {BASE_DIR}")
     print(f"Long root  : {LONG_ROOT}")
@@ -137,7 +142,7 @@ def main() -> int:
     fail = 0
 
     for rel_url, rel_dest in MANIFEST.items():
-        url  = urljoin(SAT_HOST, rel_url)
+        url = urljoin(SAT_HOST, rel_url)
         dest = LONG_ROOT / rel_dest
         print(f"- {url} -> {dest}")
         success, msg = download(url, dest)
@@ -157,8 +162,9 @@ def main() -> int:
     print("\nResumen:")
     print(f"  OK   : {ok}")
     print(f"  ERROR: {fail}")
-    print(f"\nSugerencia: si falta algún archivo adicional, agrégalo al MANIFEST.")
+    print("\nSugerencia: si falta algún archivo adicional, agrégalo al MANIFEST.")
     return 0 if fail == 0 else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

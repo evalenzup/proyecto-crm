@@ -1,15 +1,17 @@
-// frontend-erp/src/hooks/useClienteList.ts
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { message } from 'antd';
 import { clienteService, ClienteOut } from '../services/clienteService';
-import { empresaService, EmpresaOut } from '../services/empresaService'; // Necesario para el filtro de empresas
+import { empresaService, EmpresaOut } from '../services/empresaService';
 
 interface UseClienteListResult {
   clientes: ClienteOut[];
   loading: boolean;
-  refresh: () => void;
+  total: number;
+  currentPage: number;
+  pageSize: number;
+  handlePageChange: (page: number, size?: number) => void;
   handleDelete: (id: string) => Promise<void>;
-  empresasForFilter: EmpresaOut[]; // Para el dropdown de filtro de empresas
+  empresasForFilter: EmpresaOut[];
   empresaFiltro: string | null;
   setEmpresaFiltro: (id: string | null) => void;
   rfcFiltro: string;
@@ -20,27 +22,51 @@ interface UseClienteListResult {
 }
 
 export const useClienteList = (): UseClienteListResult => {
-  const [allClientes, setAllClientes] = useState<ClienteOut[]>([]); // Almacena todos los clientes sin filtrar
+  const [clientes, setClientes] = useState<ClienteOut[]>([]);
   const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const [empresasForFilter, setEmpresasForFilter] = useState<EmpresaOut[]>([]);
 
-  // Estados para los filtros
+  // Filter states
   const [empresaFiltro, setEmpresaFiltro] = useState<string | null>(null);
   const [rfcFiltro, setRfcFiltro] = useState<string>('');
   const [nombreFiltro, setNombreFiltro] = useState<string>('');
 
-  const fetchAllClientes = useCallback(async () => {
+  // Debounced filter values
+  const [debouncedRfc, setDebouncedRfc] = useState('');
+  const [debouncedNombre, setDebouncedNombre] = useState('');
+
+  // This effect debounces the text inputs
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedRfc(rfcFiltro);
+      setDebouncedNombre(nombreFiltro);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [rfcFiltro, nombreFiltro]);
+
+  const fetchClientes = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await clienteService.getClientes();
-      setAllClientes(data);
+      const params = {
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize,
+        empresa_id: empresaFiltro,
+        rfc: debouncedRfc,
+        nombre_comercial: debouncedNombre,
+      };
+      const data = await clienteService.getClientes(params);
+      setClientes(data.items);
+      setTotal(data.total);
     } catch (error) {
       message.error('Error al cargar los clientes.');
-      console.error('Error fetching clientes:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage, pageSize, empresaFiltro, debouncedRfc, debouncedNombre]);
 
   const fetchEmpresasForFilter = useCallback(async () => {
     try {
@@ -48,52 +74,33 @@ export const useClienteList = (): UseClienteListResult => {
       setEmpresasForFilter(data);
     } catch (error) {
       message.error('Error al cargar empresas para el filtro.');
-      console.error('Error fetching empresas for filter:', error);
     }
   }, []);
 
   useEffect(() => {
-    fetchAllClientes();
-    fetchEmpresasForFilter();
-  }, [fetchAllClientes, fetchEmpresasForFilter]);
+    fetchClientes();
+  }, [fetchClientes]);
 
-  const refresh = useCallback(() => {
-    fetchAllClientes();
-  }, [fetchAllClientes]);
+  useEffect(() => {
+    fetchEmpresasForFilter();
+  }, [fetchEmpresasForFilter]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
       await clienteService.deleteCliente(id);
       message.success('Cliente eliminado correctamente.');
-      refresh(); // Recargar la lista después de eliminar
+      fetchClientes();
     } catch (error) {
       message.error('Error al eliminar el cliente.');
-      console.error('Error deleting cliente:', error);
     }
-  }, [refresh]);
+  }, [fetchClientes]);
 
-  // Lógica de filtrado (se ejecuta cada vez que cambian los clientes o los filtros)
-  const filteredClientes = useMemo(() => {
-    return allClientes.filter((cliente) => {
-      // Filtrar por empresa seleccionada
-      if (empresaFiltro) {
-        const pertenece = cliente.empresas?.some((e) => e.id === empresaFiltro);
-        if (!pertenece) return false;
-      }
-      // Filtrar por RFC
-      if (rfcFiltro && !cliente.rfc.toLowerCase().includes(rfcFiltro.toLowerCase())) {
-        return false;
-      }
-      // Filtrar por nombre comercial
-      if (
-        nombreFiltro &&
-        !cliente.nombre_comercial.toLowerCase().includes(nombreFiltro.toLowerCase())
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [allClientes, empresaFiltro, rfcFiltro, nombreFiltro]);
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+  };
 
   const clearFilters = useCallback(() => {
     setEmpresaFiltro(null);
@@ -102,9 +109,12 @@ export const useClienteList = (): UseClienteListResult => {
   }, []);
 
   return {
-    clientes: filteredClientes, // Devolvemos los clientes ya filtrados
+    clientes,
     loading,
-    refresh,
+    total,
+    currentPage,
+    pageSize,
+    handlePageChange,
     handleDelete,
     empresasForFilter,
     empresaFiltro,

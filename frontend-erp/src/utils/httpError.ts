@@ -63,6 +63,14 @@ export function normalizeHttpError(err: unknown): string {
   const status = error?.response?.status;
   const data = error?.response?.data;
 
+  // Si el backend devolvió un string (ej. XML SOAP), intentar extraer <faultstring>
+  if (typeof data === 'string') {
+    const m = data.match(/<faultstring>([\s\S]*?)<\/faultstring>/i);
+    if (m && m[1]) {
+      return m[1].trim();
+    }
+  }
+
   if (data?.detail) {
     const msg = formatDetail(data.detail);
     if (msg) return msg;

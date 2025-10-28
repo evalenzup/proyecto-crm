@@ -1,20 +1,28 @@
 # check_csd.py
 from __future__ import annotations
-import os, sys, base64
+import os
+import sys
 from pathlib import Path
 from cryptography import x509
-from cryptography.hazmat.primitives.serialization import load_der_private_key, load_pem_private_key
+from cryptography.hazmat.primitives.serialization import (
+    load_der_private_key,
+    load_pem_private_key,
+)
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
+
 
 def load_cert_bytes(p: Path) -> bytes:
     b = p.read_bytes()
     try:
-        return x509.load_der_x509_certificate(b, backend=default_backend()).public_bytes(x509.Encoding.DER)
+        return x509.load_der_x509_certificate(
+            b, backend=default_backend()
+        ).public_bytes(x509.Encoding.DER)
     except Exception:
         # si venía en PEM
         cer = x509.load_pem_x509_certificate(b, backend=default_backend())
         return cer.public_bytes(x509.Encoding.DER)
+
 
 def main():
     cert_dir = Path(os.environ.get("CERT_DIR", "/data/certificados"))
@@ -35,7 +43,9 @@ def main():
 
     print(f"CERT_DIR={cert_dir}")
     print(f"CER={cer_path}  KEY={key_path}")
-    print(f"PASS source={'CERT_PASSPHRASE' if os.environ.get('CERT_PASSPHRASE') else ('CSD_PASS_'+empresa_id if os.environ.get(f'CSD_PASS_{empresa_id}') else ('CSD_PASS' if os.environ.get('CSD_PASS') else '(ninguna)'))}")
+    print(
+        f"PASS source={'CERT_PASSPHRASE' if os.environ.get('CERT_PASSPHRASE') else ('CSD_PASS_' + empresa_id if os.environ.get(f'CSD_PASS_{empresa_id}') else ('CSD_PASS' if os.environ.get('CSD_PASS') else '(ninguna)'))}"
+    )
 
     if not cer_path.exists() or not key_path.exists():
         print("❌ Faltan archivos .cer o .key")
@@ -65,10 +75,14 @@ def main():
         sys.exit(3)
     try:
         try:
-            pkey = load_der_private_key(key_bytes, password=pwd.encode("utf-8"), backend=default_backend())
+            pkey = load_der_private_key(
+                key_bytes, password=pwd.encode("utf-8"), backend=default_backend()
+            )
         except ValueError:
             # intento PEM
-            pkey = load_pem_private_key(key_bytes, password=pwd.encode("utf-8"), backend=default_backend())
+            pkey = load_pem_private_key(
+                key_bytes, password=pwd.encode("utf-8"), backend=default_backend()
+            )
         print("✓ Llave privada descifrada con la contraseña")
     except Exception as e:
         print(f"❌ Error descifrando .key con la contraseña: {e}")
@@ -86,6 +100,7 @@ def main():
 
     print("✅ El .cer y la .key corresponden y la contraseña es correcta.")
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

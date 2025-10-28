@@ -65,22 +65,34 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
         // Inyectar opciones de catálogos SAT en el esquema
         const newSchema = { ...schemaData };
         if (newSchema.properties.clave_producto) {
-          newSchema.properties.clave_producto['x-options'] = productosSatData.data.map((item: any) => ({
-            value: item.clave,
-            label: `${item.clave} - ${item.descripcion}`,
-          }));
+          newSchema.properties.clave_producto['x-options'] = (productosSatData.data || []).map((item: any) => {
+            const value = item?.value ?? item?.clave;
+            const desc = item?.descripcion ?? item?.label;
+            const label = value && desc ? `${value} - ${desc}` : String(value ?? desc ?? '');
+            return { value, label };
+          });
         }
         if (newSchema.properties.clave_unidad) {
-          newSchema.properties.clave_unidad['x-options'] = unidadesSatData.data.map((item: any) => ({
-            value: item.clave,
-            label: `${item.clave} - ${item.descripcion}`,
-          }));
+          newSchema.properties.clave_unidad['x-options'] = (unidadesSatData.data || []).map((item: any) => {
+            const value = item?.value ?? item?.clave;
+            const desc = item?.descripcion ?? item?.label;
+            const label = value && desc ? `${value} - ${desc}` : String(value ?? desc ?? '');
+            return { value, label };
+          });
         }
         setSchema(newSchema);
 
         const newMapaClavesSat: Record<string, string> = {};
-        productosSatData.data.forEach((item: any) => { newMapaClavesSat[item.clave] = item.descripcion; });
-        unidadesSatData.data.forEach((item: any) => { newMapaClavesSat[item.clave] = item.descripcion; });
+        (productosSatData.data || []).forEach((item: any) => {
+          const key = item?.value ?? item?.clave;
+          const desc = item?.descripcion ?? item?.label ?? '';
+          if (key) newMapaClavesSat[key] = desc;
+        });
+        (unidadesSatData.data || []).forEach((item: any) => {
+          const key = item?.value ?? item?.clave;
+          const desc = item?.descripcion ?? item?.label ?? '';
+          if (key) newMapaClavesSat[key] = desc;
+        });
         setMapaClavesSat(newMapaClavesSat);
       })
       .catch((e) => message.error(normalizeHttpError(e)))

@@ -2,6 +2,7 @@
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     # Base de datos
     DATABASE_URL: str
@@ -21,13 +22,17 @@ class Settings(BaseSettings):
     FM_TIMBRADO_URL: str = "http://t1.facturacionmoderna.com/timbrado/soap"
 
     # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173", "http://158.97.12.153:3000", "http://158.97.12.153:5173"]
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://158.97.12.153:3000",
+        "http://158.97.12.153:5173",
+    ]
 
     # Configuración de Pydantic Settings
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
     )
+
 
 settings = Settings()

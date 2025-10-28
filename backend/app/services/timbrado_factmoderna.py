@@ -31,12 +31,16 @@ except Exception:
 def _fm_user_id() -> str:
     return getattr(settings, "FM_USER_ID", "") or os.getenv("FM_USER_ID", "")
 
+
 def _fm_user_pass() -> str:
     return getattr(settings, "FM_USER_PASS", "") or os.getenv("FM_USER_PASS", "")
 
+
 def _fm_url() -> str:
     # Usa el endpoint que corresponda a tu cuenta (t1/t2/prod)
-    return getattr(settings, "FM_TIMBRADO_URL", "http://t1.facturacionmoderna.com/timbrado/soap")
+    return getattr(
+        settings, "FM_TIMBRADO_URL", "http://t1.facturacionmoderna.com/timbrado/soap"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -58,14 +62,17 @@ def _soap_timbrar_envelope(
     XSI = "http://www.w3.org/2001/XMLSchema-instance"
     ENC = "http://schemas.xmlsoap.org/soap/encoding/"
 
-    envelope = Element("SOAP-ENV:Envelope", {
-        "xmlns:SOAP-ENV": ENV,
-        "xmlns:ns1": NS1,
-        "xmlns:xsd": XSD,
-        "xmlns:xsi": XSI,
-        "xmlns:SOAP-ENC": ENC,
-        "SOAP-ENV:encodingStyle": ENC,
-    })
+    envelope = Element(
+        "SOAP-ENV:Envelope",
+        {
+            "xmlns:SOAP-ENV": ENV,
+            "xmlns:ns1": NS1,
+            "xmlns:xsd": XSD,
+            "xmlns:xsi": XSI,
+            "xmlns:SOAP-ENC": ENC,
+            "SOAP-ENV:encodingStyle": ENC,
+        },
+    )
     body = SubElement(envelope, "SOAP-ENV:Body")
     op = SubElement(body, "ns1:requestTimbrarCFDI")
     req = SubElement(op, "request", {"xsi:type": "SOAP-ENC:Struct"})
@@ -83,6 +90,7 @@ def _soap_timbrar_envelope(
 
     return tostring(envelope, encoding="utf-8", xml_declaration=True)
 
+
 def _soap_timbrar_pago_envelope(
     *,
     user_id: str,
@@ -99,16 +107,21 @@ def _soap_timbrar_pago_envelope(
     XSI = "http://www.w3.org/2001/XMLSchema-instance"
     ENC = "http://schemas.xmlsoap.org/soap/encoding/"
 
-    envelope = Element("SOAP-ENV:Envelope", {
-        "xmlns:SOAP-ENV": ENV,
-        "xmlns:ns1": NS1,
-        "xmlns:xsd": XSD,
-        "xmlns:xsi": XSI,
-        "xmlns:SOAP-ENC": ENC,
-        "SOAP-ENV:encodingStyle": ENC,
-    })
+    envelope = Element(
+        "SOAP-ENV:Envelope",
+        {
+            "xmlns:SOAP-ENV": ENV,
+            "xmlns:ns1": NS1,
+            "xmlns:xsd": XSD,
+            "xmlns:xsi": XSI,
+            "xmlns:SOAP-ENC": ENC,
+            "SOAP-ENV:encodingStyle": ENC,
+        },
+    )
     body = SubElement(envelope, "SOAP-ENV:Body")
-    op = SubElement(body, "ns1:requestTimbrarCFDI") # The same endpoint is used for CFDI and Pago
+    op = SubElement(
+        body, "ns1:requestTimbrarCFDI"
+    )  # The same endpoint is used for CFDI and Pago
     req = SubElement(op, "request", {"xsi:type": "SOAP-ENC:Struct"})
 
     def add_str(name: str, value: str):
@@ -135,6 +148,7 @@ def _etree_strip_ns(tag: str) -> str:
         return tag.split(":", 1)[1]
     return tag
 
+
 def _find_first_text(root, local_names) -> Optional[str]:
     wanted = {n.lower() for n in local_names}
     for el in root.iter():
@@ -143,6 +157,7 @@ def _find_first_text(root, local_names) -> Optional[str]:
             if txt:
                 return txt
     return None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SOAP request builder: CANCELACIÓN
@@ -160,19 +175,24 @@ def _soap_cancelar_envelope(
     Crea el envelope SOAP 1.2 para requestCancelarCFDI (Facturación Moderna).
     """
     ENV = "http://schemas.xmlsoap.org/soap/envelope/"
-    NS1 = "https://t1demo.facturacionmoderna.com/timbrado/soap"  # usan este ns en la doc
+    NS1 = (
+        "https://t1demo.facturacionmoderna.com/timbrado/soap"  # usan este ns en la doc
+    )
     XSD = "http://www.w3.org/2001/XMLSchema"
     XSI = "http://www.w3.org/2001/XMLSchema-instance"
     ENC = "http://schemas.xmlsoap.org/soap/encoding/"
 
-    envelope = Element("SOAP-ENV:Envelope", {
-        "xmlns:SOAP-ENV": ENV,
-        "xmlns:ns1": NS1,
-        "xmlns:xsd": XSD,
-        "xmlns:xsi": XSI,
-        "xmlns:SOAP-ENC": ENC,
-        "SOAP-ENV:encodingStyle": ENC,
-    })
+    envelope = Element(
+        "SOAP-ENV:Envelope",
+        {
+            "xmlns:SOAP-ENV": ENV,
+            "xmlns:ns1": NS1,
+            "xmlns:xsd": XSD,
+            "xmlns:xsi": XSI,
+            "xmlns:SOAP-ENC": ENC,
+            "SOAP-ENV:encodingStyle": ENC,
+        },
+    )
     body = SubElement(envelope, "SOAP-ENV:Body")
     op = SubElement(body, "ns1:requestCancelarCFDI")
     req = SubElement(op, "request", {"xsi:type": "SOAP-ENC:Struct"})
@@ -204,9 +224,13 @@ def _parse_cancel_response(root) -> dict:
             msg = None
             for ch in el:
                 ln = _etree_strip_ns(ch.tag)
-                if ln == "faultcode":   code = (ch.text or "").strip()
-                if ln == "faultstring": msg  = (ch.text or "").strip()
-            raise RuntimeError(f"PAC cancelación Fault: {code or ''} {msg or ''}".strip())
+                if ln == "faultcode":
+                    code = (ch.text or "").strip()
+                if ln == "faultstring":
+                    msg = (ch.text or "").strip()
+            raise RuntimeError(
+                f"PAC cancelación Fault: {code or ''} {msg or ''}".strip()
+            )
 
     code = None
     message = None
@@ -233,9 +257,12 @@ def _parse_cancel_response(root) -> dict:
                     message = (ch.text or "").strip()
 
     if not (code or message):
-        raise RuntimeError("No se hallaron Code/Message en la respuesta SOAP de cancelación.")
+        raise RuntimeError(
+            "No se hallaron Code/Message en la respuesta SOAP de cancelación."
+        )
 
     return {"code": code, "message": message}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TFD extractors (XML + regex fallback)
@@ -262,19 +289,22 @@ def _parse_tfd_fields_xml(cfdi_bytes: bytes) -> Dict[str, Any]:
             }
     return {}
 
+
 # regex robustos (toleran espacios, orden y comillas simples/dobles)
-_RE_UUID             = re.compile(rb'UUID\s*=\s*["\']([0-9A-Fa-f-]{36})["\']')
-_RE_FECHA            = re.compile(rb'FechaTimbrado\s*=\s*["\']([^"\']+)["\']')
-_RE_RFC_PROV         = re.compile(rb'RfcProvCertif\s*=\s*["\']([^"\']+)["\']')
-_RE_SELLO_CFD        = re.compile(rb'SelloCFD\s*=\s*["\']([^"\']+)["\']')
-_RE_CERT_SAT         = re.compile(rb'NoCertificadoSAT\s*=\s*["\']([^"\']+)["\']')
-_RE_SELLO_SAT        = re.compile(rb'SelloSAT\s*=\s*["\']([^"\']+)["\']')
+_RE_UUID = re.compile(rb'UUID\s*=\s*["\']([0-9A-Fa-f-]{36})["\']')
+_RE_FECHA = re.compile(rb'FechaTimbrado\s*=\s*["\']([^"\']+)["\']')
+_RE_RFC_PROV = re.compile(rb'RfcProvCertif\s*=\s*["\']([^"\']+)["\']')
+_RE_SELLO_CFD = re.compile(rb'SelloCFD\s*=\s*["\']([^"\']+)["\']')
+_RE_CERT_SAT = re.compile(rb'NoCertificadoSAT\s*=\s*["\']([^"\']+)["\']')
+_RE_SELLO_SAT = re.compile(rb'SelloSAT\s*=\s*["\']([^"\']+)["\']')
+
 
 def _parse_tfd_fields_regex(cfdi_bytes: bytes) -> Dict[str, Any]:
     """
     Fallback por si el parser no encuentra el nodo (namespaces raros, minificado, etc.).
     """
-    def m(rx): 
+
+    def m(rx):
         mm = rx.search(cfdi_bytes)
         return mm.group(1).decode("utf-8", "ignore") if mm else None
 
@@ -286,6 +316,7 @@ def _parse_tfd_fields_regex(cfdi_bytes: bytes) -> Dict[str, Any]:
         "no_certificado_sat": m(_RE_CERT_SAT),
         "sello_sat": m(_RE_SELLO_SAT),
     }
+
 
 def _parse_tfd_fields(cfdi_bytes: bytes) -> Dict[str, Any]:
     """
@@ -312,16 +343,19 @@ def _ensure_cfdi_dir() -> str:
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
 
+
 def _build_base_filename(f: Factura, uuid: Optional[str]) -> str:
     rfc = (getattr(getattr(f, "empresa", None), "rfc", "") or "").upper()
     serie = (getattr(f, "serie", None) or "").strip() or "SN"
     folio = str(getattr(f, "folio", None) or "").strip() or "SN"
     return f"{rfc}-{serie}-{folio}-{uuid or f.id}"
 
+
 def _save_bytes(path: str, data: bytes) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
         f.write(data)
+
 
 def _save_b64(path: str, b64: Optional[str]) -> Optional[str]:
     if not b64:
@@ -357,16 +391,22 @@ class FacturacionModernaPAC:
         generar_pdf: bool = False,
     ) -> Dict[str, Any]:
         # 1) Cargar factura
-        f: Optional[Factura] = db.query(Factura).filter(Factura.id == factura_id).first()
+        f: Optional[Factura] = (
+            db.query(Factura).filter(Factura.id == factura_id).first()
+        )
         if not f:
             raise ValueError("Factura no encontrada")
         if f.estatus != "BORRADOR":
             raise ValueError("Solo se puede timbrar una factura en BORRADOR")
         if not f.empresa or not f.empresa.rfc:
-            raise ValueError("La factura no tiene empresa válida (RFC emisor requerido).")
+            raise ValueError(
+                "La factura no tiene empresa válida (RFC emisor requerido)."
+            )
 
         # 2) XML sin timbrar (sellado internamente en cfdi40_xml)
-        xml_sin_timbre: bytes = build_cfdi40_xml_sin_timbrar(db=db, factura_id=factura_id)
+        xml_sin_timbre: bytes = build_cfdi40_xml_sin_timbrar(
+            db=db, factura_id=factura_id
+        )
         xml_b64 = base64.b64encode(xml_sin_timbre).decode("utf-8")
 
         # 3) SOAP y POST
@@ -393,8 +433,14 @@ class FacturacionModernaPAC:
 
         # Log SOAP (truncado)
         soap_txt = resp.text
-        soap_log = soap_txt if len(soap_txt) <= 20000 else soap_txt[:20000] + "\n... [truncated]"
-        (logger.info if logger else print)(f"[PAC SOAP] HTTP {resp.status_code}\n{soap_log}")
+        soap_log = (
+            soap_txt
+            if len(soap_txt) <= 20000
+            else soap_txt[:20000] + "\n... [truncated]"
+        )
+        (logger.info if logger else print)(
+            f"[PAC SOAP] HTTP {resp.status_code}\n{soap_log}"
+        )
         if resp.status_code >= 400:
             raise RuntimeError(f"HTTP {resp.status_code} del PAC: {soap_txt}")
 
@@ -411,13 +457,22 @@ class FacturacionModernaPAC:
                 msg = None
                 for ch in el:
                     ln = _etree_strip_ns(ch.tag)
-                    if ln == "faultcode":   code = (ch.text or "").strip()
-                    if ln == "faultstring": msg  = (ch.text or "").strip()
-                raise RuntimeError(f"PAC devolvió Fault: {code or ''} {msg or ''}".strip())
+                    if ln == "faultcode":
+                        code = (ch.text or "").strip()
+                    if ln == "faultstring":
+                        msg = (ch.text or "").strip()
+                raise RuntimeError(
+                    f"PAC devolvió Fault: {code or ''} {msg or ''}".strip()
+                )
 
-        cfdi_b64 = _find_first_text(root, ["xml", "cfdi", "xmlTimbrado", "cfdiTimbrado", "response", "returnXml"])
+        cfdi_b64 = _find_first_text(
+            root,
+            ["xml", "cfdi", "xmlTimbrado", "cfdiTimbrado", "response", "returnXml"],
+        )
         if not cfdi_b64:
-            raise RuntimeError("No se encontró el nodo <xml> (CFDI timbrado en Base64) en la respuesta del PAC.")
+            raise RuntimeError(
+                "No se encontró el nodo <xml> (CFDI timbrado en Base64) en la respuesta del PAC."
+            )
 
         # Adjuntos opcionales
         pdf_b64 = _find_first_text(root, ["pdf", "PDF"]) if generar_pdf else None
@@ -439,10 +494,14 @@ class FacturacionModernaPAC:
         # 6) Extraer TFD (XML → regex fallback)
         tfd = _parse_tfd_fields(cfdi_bytes)
         if not tfd.get("uuid"):
-            (logger.warning if logger else print)("⚠️ TFD no detectado por parser/regex. Verifica respuesta del PAC.")
+            (logger.warning if logger else print)(
+                "⚠️ TFD no detectado por parser/regex. Verifica respuesta del PAC."
+            )
             # Aún así guardamos el XML y respondemos con detalle para inspección.
             out_dir = _ensure_cfdi_dir()
-            xml_only = os.path.join(out_dir, _build_base_filename(f, None) + "-SINUUID.xml")
+            xml_only = os.path.join(
+                out_dir, _build_base_filename(f, None) + "-SINUUID.xml"
+            )
             _save_bytes(xml_only, cfdi_bytes)
             raise RuntimeError("El PAC no devolvió UUID en el TFD.")
 
@@ -455,9 +514,12 @@ class FacturacionModernaPAC:
         pdf_path = os.path.join(out_dir, base_name + ".pdf") if pdf_b64 else None
         cbb_path = os.path.join(out_dir, base_name + ".png") if cbb_b64 else None
         txt_path = os.path.join(out_dir, base_name + ".txt") if txt_b64 else None
-        if pdf_b64: _save_b64(pdf_path, pdf_b64)
-        if cbb_b64: _save_b64(cbb_path, cbb_b64)
-        if txt_b64: _save_b64(txt_path, txt_b64)
+        if pdf_b64:
+            _save_b64(pdf_path, pdf_b64)
+        if cbb_b64:
+            _save_b64(cbb_path, cbb_b64)
+        if txt_b64:
+            _save_b64(txt_path, txt_b64)
 
         # 8) Persistir en DB
         f.cfdi_uuid = tfd.get("uuid")
@@ -467,10 +529,14 @@ class FacturacionModernaPAC:
         fecha_timbrado_dt: Optional[datetime] = None
         if fecha_timbrado_iso:
             try:
-                fecha_timbrado_dt = datetime.fromisoformat(fecha_timbrado_iso.replace("Z", "+00:00"))
+                fecha_timbrado_dt = datetime.fromisoformat(
+                    fecha_timbrado_iso.replace("Z", "+00:00")
+                )
             except Exception:
                 try:
-                    fecha_timbrado_dt = datetime.fromisoformat(fecha_timbrado_iso.split(".")[0])
+                    fecha_timbrado_dt = datetime.fromisoformat(
+                        fecha_timbrado_iso.split(".")[0]
+                    )
                 except Exception:
                     fecha_timbrado_dt = None
         f.fecha_timbrado = fecha_timbrado_dt
@@ -492,26 +558,33 @@ class FacturacionModernaPAC:
             setattr(f, "txt_path", txt_path if txt_b64 else None)
 
         f.estatus = "TIMBRADA"
-        db.add(f); db.commit(); db.refresh(f)
+        db.add(f)
+        db.commit()
+        db.refresh(f)
 
         # 9) Respuesta
         out: Dict[str, Any] = {
             "timbrada": True,
             "uuid": f.cfdi_uuid,
-            "fecha_timbrado": f.fecha_timbrado.isoformat() if f.fecha_timbrado else None,
+            "fecha_timbrado": f.fecha_timbrado.isoformat()
+            if f.fecha_timbrado
+            else None,
             "rfc_proveedor_sat": tfd.get("rfc_prov_certif"),
             "no_certificado_sat": f.no_certificado_sat,
             "sello_cfdi": f.sello_cfdi,
             "sello_sat": f.sello_sat,
             "xml_path": xml_path,
         }
-        if pdf_b64: out["pdf_path"] = pdf_path
-        if cbb_b64: out["cbb_path"] = cbb_path
-        if txt_b64: out["txt_path"] = txt_path
+        if pdf_b64:
+            out["pdf_path"] = pdf_path
+        if cbb_b64:
+            out["cbb_path"] = cbb_path
+        if txt_b64:
+            out["txt_path"] = txt_path
         # si quieres exponer el XML timbrado en base64:
         out["cfdi_b64"] = cfdi_b64
         return out
-    
+
     def timbrar_pago(
         self,
         *,
@@ -532,9 +605,9 @@ class FacturacionModernaPAC:
 
         # 2) XML sin timbrar (sellado internamente en pago20_xml)
         xml_sin_timbre: bytes = build_pago20_xml_sin_timbrar(db=db, pago_id=pago_id)
-        
+
         print("--- INICIO: XML del Complemento de Pago (sin timbrar) ---")
-        print(xml_sin_timbre.decode('utf-8'))
+        print(xml_sin_timbre.decode("utf-8"))
         print("--- FIN: XML del Complemento de Pago (sin timbrar) ---")
 
         xml_b64 = base64.b64encode(xml_sin_timbre).decode("utf-8")
@@ -563,8 +636,14 @@ class FacturacionModernaPAC:
 
         # Log SOAP (truncado)
         soap_txt = resp.text
-        soap_log = soap_txt if len(soap_txt) <= 20000 else soap_txt[:20000] + "\n... [truncated]"
-        (logger.info if logger else print)(f"[PAC SOAP] HTTP {resp.status_code}\n{soap_log}")
+        soap_log = (
+            soap_txt
+            if len(soap_txt) <= 20000
+            else soap_txt[:20000] + "\n... [truncated]"
+        )
+        (logger.info if logger else print)(
+            f"[PAC SOAP] HTTP {resp.status_code}\n{soap_log}"
+        )
         if resp.status_code >= 400:
             raise RuntimeError(f"HTTP {resp.status_code} del PAC: {soap_txt}")
 
@@ -581,13 +660,22 @@ class FacturacionModernaPAC:
                 msg = None
                 for ch in el:
                     ln = _etree_strip_ns(ch.tag)
-                    if ln == "faultcode":   code = (ch.text or "").strip()
-                    if ln == "faultstring": msg  = (ch.text or "").strip()
-                raise RuntimeError(f"PAC devolvió Fault: {code or ''} {msg or ''}".strip())
+                    if ln == "faultcode":
+                        code = (ch.text or "").strip()
+                    if ln == "faultstring":
+                        msg = (ch.text or "").strip()
+                raise RuntimeError(
+                    f"PAC devolvió Fault: {code or ''} {msg or ''}".strip()
+                )
 
-        cfdi_b64 = _find_first_text(root, ["xml", "cfdi", "xmlTimbrado", "cfdiTimbrado", "response", "returnXml"])
+        cfdi_b64 = _find_first_text(
+            root,
+            ["xml", "cfdi", "xmlTimbrado", "cfdiTimbrado", "response", "returnXml"],
+        )
         if not cfdi_b64:
-            raise RuntimeError("No se encontró el nodo <xml> (CFDI timbrado en Base64) en la respuesta del PAC.")
+            raise RuntimeError(
+                "No se encontró el nodo <xml> (CFDI timbrado en Base64) en la respuesta del PAC."
+            )
 
         # Adjuntos opcionales
         pdf_b64 = _find_first_text(root, ["pdf", "PDF"]) if generar_pdf else None
@@ -609,10 +697,14 @@ class FacturacionModernaPAC:
         # 6) Extraer TFD (XML → regex fallback)
         tfd = _parse_tfd_fields(cfdi_bytes)
         if not tfd.get("uuid"):
-            (logger.warning if logger else print)("⚠️ TFD no detectado por parser/regex. Verifica respuesta del PAC.")
+            (logger.warning if logger else print)(
+                "⚠️ TFD no detectado por parser/regex. Verifica respuesta del PAC."
+            )
             # Aún así guardamos el XML y respondemos con detalle para inspección.
             out_dir = _ensure_cfdi_dir()
-            xml_only = os.path.join(out_dir, _build_base_filename(p, None) + "-SINUUID.xml")
+            xml_only = os.path.join(
+                out_dir, _build_base_filename(p, None) + "-SINUUID.xml"
+            )
             _save_bytes(xml_only, cfdi_bytes)
             raise RuntimeError("El PAC no devolvió UUID en el TFD.")
 
@@ -625,9 +717,12 @@ class FacturacionModernaPAC:
         pdf_path = os.path.join(out_dir, base_name + ".pdf") if pdf_b64 else None
         cbb_path = os.path.join(out_dir, base_name + ".png") if cbb_b64 else None
         txt_path = os.path.join(out_dir, base_name + ".txt") if txt_b64 else None
-        if pdf_b64: _save_b64(pdf_path, pdf_b64)
-        if cbb_b64: _save_b64(cbb_path, cbb_b64)
-        if txt_b64: _save_b64(txt_path, txt_b64)
+        if pdf_b64:
+            _save_b64(pdf_path, pdf_b64)
+        if cbb_b64:
+            _save_b64(cbb_path, cbb_b64)
+        if txt_b64:
+            _save_b64(txt_path, txt_b64)
 
         # 8) Persistir en DB
         p.uuid = tfd.get("uuid")
@@ -637,10 +732,14 @@ class FacturacionModernaPAC:
         fecha_timbrado_dt: Optional[datetime] = None
         if fecha_timbrado_iso:
             try:
-                fecha_timbrado_dt = datetime.fromisoformat(fecha_timbrado_iso.replace("Z", "+00:00"))
+                fecha_timbrado_dt = datetime.fromisoformat(
+                    fecha_timbrado_iso.replace("Z", "+00:00")
+                )
             except Exception:
                 try:
-                    fecha_timbrado_dt = datetime.fromisoformat(fecha_timbrado_iso.split(".")[0])
+                    fecha_timbrado_dt = datetime.fromisoformat(
+                        fecha_timbrado_iso.split(".")[0]
+                    )
                 except Exception:
                     fecha_timbrado_dt = None
         p.fecha_timbrado = fecha_timbrado_dt
@@ -662,26 +761,33 @@ class FacturacionModernaPAC:
         #     setattr(p, "txt_path", txt_path if txt_b64 else None)
 
         p.estatus = "TIMBRADO"
-        db.add(p); db.commit(); db.refresh(p)
+        db.add(p)
+        db.commit()
+        db.refresh(p)
 
         # 9) Respuesta
         out: Dict[str, Any] = {
             "timbrada": True,
             "uuid": p.uuid,
-            "fecha_timbrado": p.fecha_timbrado.isoformat() if p.fecha_timbrado else None,
+            "fecha_timbrado": p.fecha_timbrado.isoformat()
+            if p.fecha_timbrado
+            else None,
             "rfc_proveedor_sat": tfd.get("rfc_prov_certif"),
             "no_certificado_sat": p.no_certificado_sat,
             "sello_cfdi": p.sello_cfdi,
             "sello_sat": p.sello_sat,
             "xml_path": xml_path,
         }
-        if pdf_b64: out["pdf_path"] = pdf_path
-        if cbb_b64: out["cbb_path"] = cbb_path
-        if txt_b64: out["txt_path"] = txt_path
+        if pdf_b64:
+            out["pdf_path"] = pdf_path
+        if cbb_b64:
+            out["cbb_path"] = cbb_path
+        if txt_b64:
+            out["txt_path"] = txt_path
         # si quieres exponer el XML timbrado en base64:
         out["cfdi_b64"] = cfdi_b64
         return out
-    
+
     def solicitar_cancelacion_cfdi(
         self,
         *,
@@ -700,19 +806,25 @@ class FacturacionModernaPAC:
             raise ValueError("Factura no encontrada")
 
         if (f.estatus or "").upper() != "TIMBRADA":
-            raise ValueError("Solo se puede solicitar cancelación de una factura TIMBRADA")
+            raise ValueError(
+                "Solo se puede solicitar cancelación de una factura TIMBRADA"
+            )
 
         uuid = (getattr(f, "cfdi_uuid", None) or "").strip()
         if not uuid:
             raise ValueError("La factura TIMBRADA no tiene UUID registrado")
 
-        emisor_rfc = (getattr(getattr(f, "empresa", None), "rfc", None) or "").strip().upper()
+        emisor_rfc = (
+            (getattr(getattr(f, "empresa", None), "rfc", None) or "").strip().upper()
+        )
         if not emisor_rfc:
             raise ValueError("La factura no tiene RFC de emisor")
 
         # Regla del motivo 01
         if motivo == "01" and not (folio_sustitucion or "").strip():
-            raise ValueError("Para Motivo '01' es obligatorio FolioSustitucion (UUID que sustituye)")
+            raise ValueError(
+                "Para Motivo '01' es obligatorio FolioSustitucion (UUID que sustituye)"
+            )
 
         # 2) SOAP envelope
         env = _soap_cancelar_envelope(
@@ -738,10 +850,18 @@ class FacturacionModernaPAC:
             raise RuntimeError(f"Error de red al solicitar cancelación: {e}") from e
 
         soap_txt = resp.text
-        soap_log = soap_txt if len(soap_txt) <= 20000 else soap_txt[:20000] + "\n... [truncated]"
-        (logger.info if logger else print)(f"[PAC SOAP Cancel] HTTP {resp.status_code}\n{soap_log}")
+        soap_log = (
+            soap_txt
+            if len(soap_txt) <= 20000
+            else soap_txt[:20000] + "\n... [truncated]"
+        )
+        (logger.info if logger else print)(
+            f"[PAC SOAP Cancel] HTTP {resp.status_code}\n{soap_log}"
+        )
         if resp.status_code >= 400:
-            raise RuntimeError(f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}")
+            raise RuntimeError(
+                f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
+            )
 
         try:
             root = fromstring(resp.content)
@@ -754,17 +874,20 @@ class FacturacionModernaPAC:
         # 5) Persistir marca opcional (no cambiamos estatus todavía)
         if hasattr(f, "cancelacion_solicitada_en"):
             from datetime import datetime as _dt
+
             f.cancelacion_solicitada_en = _dt.utcnow()
         if hasattr(f, "cancelacion_code"):
             f.cancelacion_code = res.get("code")
         if hasattr(f, "cancelacion_message"):
             f.cancelacion_message = res.get("message")
 
-        db.add(f); db.commit(); db.refresh(f)
+        db.add(f)
+        db.commit()
+        db.refresh(f)
 
         # 6) Devolvemos el estado actual + info del PAC
         return {
-            "estatus": f.estatus,          # permanece TIMBRADA de momento
+            "estatus": f.estatus,  # permanece TIMBRADA de momento
             "uuid": uuid,
             "code": res.get("code"),
             "message": res.get("message"),

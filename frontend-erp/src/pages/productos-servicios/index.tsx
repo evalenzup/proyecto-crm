@@ -18,6 +18,10 @@ const ProductosServiciosPage: React.FC = () => {
   const {
     productosServicios,
     loading,
+    total,
+    currentPage,
+    pageSize,
+    handlePageChange,
     handleDelete,
     empresasForFilter,
     empresaFiltro,
@@ -136,8 +140,14 @@ const ProductosServiciosPage: React.FC = () => {
           columns={columns}
           dataSource={productosServicios}
           loading={loading}
-          pagination={{ pageSize: 10 }}
-          locale={{ emptyText: 'No hay productos o servicios' }}
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
+            onChange: handlePageChange,
+            showSizeChanger: true,
+          }}
+          locale={{ emptyText: "No hay productos o servicios" }}
         />
       </div>
     </>

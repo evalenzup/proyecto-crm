@@ -433,7 +433,12 @@ export const useFacturaForm = () => {
         }
         try {
           const data = await svc.searchSatProductos(q);
-          setClaveSatOpts((data || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
+          setClaveSatOpts((data || []).map((x: any) => {
+            const value = x?.value ?? x?.clave;
+            const desc = x?.descripcion ?? x?.label;
+            const label = value && desc ? `${value} - ${desc}` : String(value ?? desc ?? '');
+            return { value, label };
+          }));
         } catch {
           setClaveSatOpts([]);
         }
@@ -450,7 +455,12 @@ export const useFacturaForm = () => {
         }
         try {
           const data = await svc.searchSatUnidades(q);
-          setUnidadOpts((data || []).map((u: any) => ({ value: u.clave, label: `${u.clave} — ${u.descripcion}` })));
+          setUnidadOpts((data || []).map((u: any) => {
+            const value = u?.value ?? u?.clave;
+            const desc = u?.descripcion ?? u?.label;
+            const label = value && desc ? `${value} - ${desc}` : String(value ?? desc ?? '');
+            return { value, label };
+          }));
         } catch {
           setUnidadOpts([]);
         }
@@ -539,14 +549,15 @@ export const useFacturaForm = () => {
       if (id) {
         await svc.updateFactura(id, payload);
         message.success('Factura actualizada');
+        fetchInitialData(); // Recargar datos para ver cambios
       } else {
         // server asigna folio
         const payload2: any = { ...payload };
         delete payload2.folio;
-        await svc.createFactura(payload2);
+        const nuevaFactura = await svc.createFactura(payload2);
         message.success('Factura creada');
+        router.push(`/facturas/form/${nuevaFactura.id}`);
       }
-      router.push('/facturas');
     } catch (err: any) {
       // Marcar errores de validación en los campos y mostrar mensaje amigable
       applyFormErrors(err, form);
@@ -561,13 +572,9 @@ export const useFacturaForm = () => {
     if (!id) return;
     setAccionLoading((s) => ({ ...s, timbrar: true }));
     try {
-      const data = await svc.timbrarFactura(id);
-      setEstatusCFDI(data.estatus);
-      form.setFieldsValue({
-        fecha_timbrado: data.fecha_timbrado ? dayjs(data.fecha_timbrado) : form.getFieldValue('fecha_timbrado'),
-        folio_fiscal: data.folio_fiscal ?? form.getFieldValue('folio_fiscal'),
-      });
+      await svc.timbrarFactura(id);
       message.success('Factura timbrada');
+      fetchInitialData(); // Recargar todos los datos de la factura
     } catch (e: any) {
       message.error(normalizeHttpError(e) || 'No se pudo timbrar');
     } finally {
