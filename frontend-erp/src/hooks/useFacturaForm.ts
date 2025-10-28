@@ -6,6 +6,8 @@ import { Form, message } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import debounce from 'lodash/debounce';
 import * as svc from '@/services/facturaService';
+import { normalizeHttpError } from '@/utils/httpError';
+import { applyFormErrors } from '@/utils/formErrors';
 
 type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'CANCELADA';
 type StatusPago = 'PAGADA' | 'NO_PAGADA';
@@ -191,7 +193,7 @@ export const useFacturaForm = () => {
       }
     } catch (e) {
       console.error(e);
-      message.error('Error al cargar catálogos/empresas');
+      message.error(normalizeHttpError(e) || 'Error al cargar catálogos/empresas');
     } finally {
       setLoading(false);
     }
@@ -546,15 +548,9 @@ export const useFacturaForm = () => {
       }
       router.push('/facturas');
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        const mensajes = detail.map((e: any) => `${e?.loc?.join('.')}: ${e?.msg}`).join('\n');
-        message.error(mensajes || 'Error de validación');
-      } else if (typeof detail === 'string') {
-        message.error(detail);
-      } else {
-        message.error('Error al guardar');
-      }
+      // Marcar errores de validación en los campos y mostrar mensaje amigable
+      applyFormErrors(err, form);
+      message.error(normalizeHttpError(err));
     } finally {
       setSaving(false);
     }
@@ -573,7 +569,7 @@ export const useFacturaForm = () => {
       });
       message.success('Factura timbrada');
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || 'No se pudo timbrar');
+      message.error(normalizeHttpError(e) || 'No se pudo timbrar');
     } finally {
       setAccionLoading((s) => ({ ...s, timbrar: false }));
     }
@@ -600,8 +596,9 @@ export const useFacturaForm = () => {
       setCancelModalOpen(false);
     } catch (e: any) {
       if (!e?.errorFields) {
-        const detail = e?.response?.data?.detail || e?.message;
-        message.error(detail || 'No se pudo cancelar');
+        // Intentar marcar errores del formulario de cancelación si vienen como 422
+        applyFormErrors(e, cancelForm);
+        message.error(normalizeHttpError(e) || 'No se pudo cancelar');
       }
     } finally {
       setCancelSubmitting(false);
@@ -626,8 +623,7 @@ export const useFacturaForm = () => {
           : await svc.getPdf(id);
       openBlobInNewTab(blob);
     } catch (e: any) {
-      const detail = e?.response?.data?.detail;
-      message.error(detail || 'No se pudo abrir el PDF');
+      message.error(normalizeHttpError(e) || 'No se pudo abrir el PDF');
     }
   };
 
@@ -649,8 +645,7 @@ export const useFacturaForm = () => {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e: any) {
-      const detail = e?.response?.data?.detail;
-      message.error(detail || 'No se pudo descargar el PDF');
+      message.error(normalizeHttpError(e) || 'No se pudo descargar el PDF');
     }
   };
 
@@ -672,8 +667,7 @@ export const useFacturaForm = () => {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (e: any) {
-      const detail = e?.response?.data?.detail;
-      message.error(detail || 'No se pudo descargar el XML');
+      message.error(normalizeHttpError(e) || 'No se pudo descargar el XML');
     }
   };
 

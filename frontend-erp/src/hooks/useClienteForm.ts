@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react';
 import { message, Form } from 'antd';
 import { clienteService, ClienteOut, ClienteCreate, ClienteUpdate } from '../services/clienteService';
 import { empresaService } from '../services/empresaService'; // Para obtener las empresas para el select
+import { getContactosByCliente, createContacto, deleteContacto } from '../services/contactoService'; // IMPORTAR SERVICIOS DE CONTACTO
 import { useRouter } from 'next/router';
+import { normalizeHttpError } from '@/utils/httpError';
+import { applyFormErrors } from '@/utils/formErrors';
 
 interface ClienteFormData {
   id?: string;
@@ -54,7 +57,7 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
         setEmpresasOptions(empresasData.map(emp => ({ value: emp.id, label: emp.nombre_comercial })));
         setSchema(schemaData);
       })
-      .catch(() => message.error('Error al cargar datos iniciales del formulario'))
+      .catch((e) => message.error(normalizeHttpError(e)))
       .finally(() => {
         setLoadingEmpresas(false);
         setLoadingSchema(false);
@@ -74,33 +77,60 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
         form.setFieldsValue(initial);
         setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
       })
-      .catch(() => {
-        message.error('Registro no encontrado');
+      .catch((e) => {
+        message.error(normalizeHttpError(e) || 'Registro no encontrado');
         router.replace('/clientes'); // Redirigir si no se encuentra el registro
       })
       .finally(() => setLoadingRecord(false));
   }, [id, form, router]);
 
   // Manejo del envío del formulario
-  const onFinish = async (values: ClienteFormData) => {
+  const onFinish = async (values: any) => { // Cambiado a any para incluir contactos
     try {
+      // 1. Separar contactos de los datos del cliente
+      const { contactos, ...clienteData } = values;
+
       const payload: ClienteCreate | ClienteUpdate = {
-        ...values,
-        // Asegurarse de que empresa_id sea un array de strings
-        empresa_id: values.empresa_id || [],
+        ...clienteData,
+        empresa_id: clienteData.empresa_id || [],
       };
 
+      let clienteId = id;
+
+      // 2. Guardar el cliente y obtener su ID
       if (id) {
         await clienteService.updateCliente(id, payload as ClienteUpdate);
         message.success('Cliente actualizado');
       } else {
-        await clienteService.createCliente(payload as ClienteCreate);
-        message.success('Cliente creada');
+        const nuevoCliente = await clienteService.createCliente(payload as ClienteCreate);
+        clienteId = nuevoCliente.id; // Guardamos el ID del nuevo cliente
+        message.success('Cliente creado');
       }
+
+      if (!clienteId) {
+        throw new Error('No se pudo obtener el ID del cliente.');
+      }
+
+      // 3. Obtener y eliminar contactos antiguos
+      const contactosAntiguos = await getContactosByCliente(clienteId);
+      for (const contacto of contactosAntiguos) {
+        await deleteContacto(contacto.id);
+      }
+
+      // 4. Crear los nuevos contactos
+      if (contactos && Array.isArray(contactos)) {
+        for (const contacto of contactos) {
+          if (contacto) { // Asegurarse de que el contacto no sea nulo/undefined
+            await createContacto(clienteId, contacto);
+          }
+        }
+      }
+
       router.push('/clientes'); // Redirigir al listado
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      message.error(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : 'Error inesperado');
+      // Marcar errores de validación en el formulario y mostrar mensaje amigable
+      applyFormErrors(err, form);
+      message.error(normalizeHttpError(err));
     }
   };
 

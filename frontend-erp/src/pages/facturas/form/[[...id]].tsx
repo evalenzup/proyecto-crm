@@ -38,6 +38,7 @@ import {
 } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
+import { TipoProductoServicio } from '@/services/productoServicioService';
 import api from '@/lib/axios';
 
 const { Text } = Typography;
@@ -850,11 +851,11 @@ const FacturaFormPage: React.FC = () => {
               cantidad: vals.cantidad ?? null,
               valor_unitario: Number(vals.valor_unitario),
               empresa_id: form.getFieldValue('empresa_id'),
-              stock_actual: vals.tipo === 'PRODUCTO' ? Number(vals.stock_actual || 0) : 0,
-              stock_minimo: vals.tipo === 'PRODUCTO' ? Number(vals.stock_minimo || 0) : null,
-              unidad_inventario: vals.tipo === 'PRODUCTO' ? vals.unidad_inventario || null : null,
-              ubicacion: vals.tipo === 'PRODUCTO' ? vals.ubicacion || null : null,
-              requiere_lote: vals.tipo === 'PRODUCTO' ? Boolean(vals.requiere_lote) : false,
+              stock_actual: vals.tipo === TipoProductoServicio.PRODUCTO ? Number(vals.stock_actual || 0) : 0,
+              stock_minimo: vals.tipo === TipoProductoServicio.PRODUCTO ? Number(vals.stock_minimo || 0) : null,
+              unidad_inventario: vals.tipo === TipoProductoServicio.PRODUCTO ? vals.unidad_inventario || null : null,
+              ubicacion: vals.tipo === TipoProductoServicio.PRODUCTO ? vals.ubicacion || null : null,
+              requiere_lote: vals.tipo === TipoProductoServicio.PRODUCTO ? Boolean(vals.requiere_lote) : false,
             });
             message.success('Producto/Servicio creado');
             setPsModalOpen(false);
@@ -870,8 +871,8 @@ const FacturaFormPage: React.FC = () => {
           <Form.Item label="Tipo" name="tipo" rules={[{ required: true }]}>
             <Select
               options={[
-                { value: 'PRODUCTO', label: 'Producto' },
-                { value: 'SERVICIO', label: 'Servicio' },
+                { value: TipoProductoServicio.PRODUCTO, label: 'Producto' },
+                { value: TipoProductoServicio.SERVICIO, label: 'Servicio' },
               ]}
               disabled={isFormDisabled}
             />
@@ -911,7 +912,7 @@ const FacturaFormPage: React.FC = () => {
           {/* Campos de inventario condicionales (PRODUCTO) */}
           <Form.Item noStyle shouldUpdate={(p, c) => p.tipo !== c.tipo}>
             {({ getFieldValue }) =>
-              getFieldValue('tipo') === 'PRODUCTO' ? (
+              getFieldValue('tipo') === TipoProductoServicio.PRODUCTO ? (
                 <>
                   <Form.Item label="Stock actual" name="stock_actual">
                     <InputNumber min={0} style={{ width: '100%' }} disabled={isFormDisabled} />
@@ -952,11 +953,11 @@ const FacturaFormPage: React.FC = () => {
               cantidad: vals.cantidad ?? null,
               valor_unitario: Number(vals.valor_unitario),
               empresa_id: form.getFieldValue('empresa_id'),
-              stock_actual: vals.tipo === 'PRODUCTO' ? Number(vals.stock_actual || 0) : 0,
-              stock_minimo: vals.tipo === 'PRODUCTO' ? Number(vals.stock_minimo || 0) : null,
-              unidad_inventario: vals.tipo === 'PRODUCTO' ? vals.unidad_inventario || null : null,
-              ubicacion: vals.tipo === 'PRODUCTO' ? vals.ubicacion || null : null,
-              requiere_lote: vals.tipo === 'PRODUCTO' ? Boolean(vals.requiere_lote) : false,
+              stock_actual: vals.tipo === TipoProductoServicio.PRODUCTO ? Number(vals.stock_actual || 0) : 0,
+              stock_minimo: vals.tipo === TipoProductoServicio.PRODUCTO ? Number(vals.stock_minimo || 0) : null,
+              unidad_inventario: vals.tipo === TipoProductoServicio.PRODUCTO ? vals.unidad_inventario || null : null,
+              ubicacion: vals.tipo === TipoProductoServicio.PRODUCTO ? vals.ubicacion || null : null,
+              requiere_lote: vals.tipo === TipoProductoServicio.PRODUCTO ? Boolean(vals.requiere_lote) : false,
             });
             message.success('Producto/Servicio creado');
             setPsModalOpen(false);
@@ -972,8 +973,8 @@ const FacturaFormPage: React.FC = () => {
           <Form.Item label="Tipo" name="tipo" rules={[{ required: true }]}>
             <Select
               options={[
-                { value: 'PRODUCTO', label: 'Producto' },
-                { value: 'SERVICIO', label: 'Servicio' },
+                { value: TipoProductoServicio.PRODUCTO, label: 'Producto' },
+                { value: TipoProductoServicio.SERVICIO, label: 'Servicio' },
               ]}
               disabled={isFormDisabled}
             />
@@ -1013,7 +1014,7 @@ const FacturaFormPage: React.FC = () => {
           {/* Campos de inventario condicionales (PRODUCTO) */}
           <Form.Item noStyle shouldUpdate={(p, c) => p.tipo !== c.tipo}>
             {({ getFieldValue }) =>
-              getFieldValue('tipo') === 'PRODUCTO' ? (
+              getFieldValue('tipo') === TipoProductoServicio.PRODUCTO ? (
                 <>
                   <Form.Item label="Stock actual" name="stock_actual">
                     <InputNumber min={0} style={{ width: '100%' }} disabled={isFormDisabled} />

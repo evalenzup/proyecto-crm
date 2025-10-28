@@ -33,7 +33,8 @@ def get_form_schema(db: Session = Depends(get_db)):
         {"value": "PRODUCTO", "label": "PRODUCTO"},
         {"value": "SERVICIO", "label": "SERVICIO"},
     ]
-    props["tipo"]["enum"] = [True, False] # This was a bug, should be ["PRODUCTO", "SERVICIO"]
+    # Enum correcto para el tipo
+    props["tipo"]["enum"] = ["PRODUCTO", "SERVICIO"]
 
     # Campo 'empresa_id' (x-options con empresas existentes)
     empresas = db.query(Empresa.id, Empresa.nombre_comercial).all()

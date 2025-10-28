@@ -19,14 +19,16 @@ export const useEgresoForm = () => {
   const [empresas, setEmpresas] = useState<{ label: string; value: string }[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
   const [estatus, setEstatus] = useState<string[]>([]);
+  const [metodosPago, setMetodosPago] = useState<{ label: string; value: string }[]>([]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        const [empresasData, enumsData] = await Promise.all([
+        const [empresasData, enumsData, formasPagoData] = await Promise.all([
           facturaService.getEmpresas(),
           egresoService.getEgresoEnums(),
+          facturaService.getFormasPago(),
         ]);
 
         setEmpresas(
@@ -38,6 +40,12 @@ export const useEgresoForm = () => {
 
         setCategorias(enumsData.categorias);
         setEstatus(enumsData.estatus);
+        setMetodosPago(
+          (formasPagoData || []).map((fp: any) => ({
+            value: fp.clave,
+            label: `${fp.clave} - ${fp.descripcion}`,
+          }))
+        );
 
         if (id) {
           const egresoData = await egresoService.getEgresoById(id);
@@ -47,11 +55,14 @@ export const useEgresoForm = () => {
             fecha_egreso: egresoData.fecha_egreso ? dayjs(egresoData.fecha_egreso) : null,
           });
         } else {
+          const selectedEmpresaId = localStorage.getItem('selectedEmpresaId');
           form.setFieldsValue({
+            empresa_id: selectedEmpresaId || null,
             fecha_egreso: dayjs(),
             moneda: 'MXN',
             estatus: 'Pendiente',
             categoria: 'Gastos Generales',
+            metodo_pago: '03', // Default to Transferencia electrónica
           });
         }
       } catch (error) {
@@ -77,6 +88,10 @@ export const useEgresoForm = () => {
       } else {
         await egresoService.createEgreso(payload);
       }
+      
+      if (payload.empresa_id) {
+        localStorage.setItem('selectedEmpresaId', payload.empresa_id);
+      }
 
       message.success(`Egreso ${id ? 'actualizado' : 'creado'} con éxito.`);
       router.push('/egresos');
@@ -96,6 +111,8 @@ export const useEgresoForm = () => {
     empresas,
     categorias,
     estatus,
+    metodosPago,
     onFinish,
+    egreso,
   };
 };

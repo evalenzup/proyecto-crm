@@ -20,3 +20,4 @@ qrcode[pil]>=7.4.2
 lxml>=5.0.0
 cryptography>=42.0.0
 saxonche>=12.3
+requests

@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/apiClient';
+import api from '@/lib/axios';
 
 // Tipos de datos basados en los schemas de Pydantic
 export interface EmailConfig {
@@ -32,23 +32,36 @@ export interface EmailConfigUpdate {
   use_tls?: boolean;
 }
 
+export interface EmailConfigTest {
+  smtp_server: string;
+  smtp_port: number;
+  smtp_user: string;
+  smtp_password?: string;
+  use_tls: boolean;
+}
+
 const getEmailConfig = async (empresaId: string): Promise<EmailConfig> => {
-  const response = await apiClient.get<EmailConfig>(`/empresas/${empresaId}/email-config/`);
+  const response = await api.get<EmailConfig>('/email-config/', { params: { empresa_id: empresaId } });
   return response.data;
 };
 
 const createEmailConfig = async (empresaId: string, data: EmailConfigCreate): Promise<EmailConfig> => {
-  const response = await apiClient.post<EmailConfig>(`/empresas/${empresaId}/email-config/`, data);
+  const response = await api.post<EmailConfig>('/email-config/', data, { params: { empresa_id: empresaId } });
   return response.data;
 };
 
 const updateEmailConfig = async (empresaId: string, data: EmailConfigUpdate): Promise<EmailConfig> => {
-  const response = await apiClient.put<EmailConfig>(`/empresas/${empresaId}/email-config/`, data);
+  const response = await api.put<EmailConfig>('/email-config/', data, { params: { empresa_id: empresaId } });
   return response.data;
 };
 
 const deleteEmailConfig = async (empresaId: string): Promise<void> => {
-  await apiClient.delete(`/empresas/${empresaId}/email-config/`);
+  await api.delete('/email-config/', { params: { empresa_id: empresaId } });
+};
+
+const testEmailConnection = async (empresaId: string, data: EmailConfigTest): Promise<{ message: string }> => {
+  const response = await api.post<{ message: string }>('/email-config/test-connection', data, { params: { empresa_id: empresaId } });
+  return response.data;
 };
 
 export const emailConfigService = {
@@ -56,4 +69,5 @@ export const emailConfigService = {
   create: createEmailConfig,
   update: updateEmailConfig,
   delete: deleteEmailConfig,
+  testConnection: testEmailConnection,
 };

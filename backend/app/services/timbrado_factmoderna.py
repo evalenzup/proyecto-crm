@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.factura import Factura
+from app.models.pago import Pago
 from app.services.cfdi40_xml import build_cfdi40_xml_sin_timbrar
+from app.services.pago20_xml import build_pago20_xml_sin_timbrar
 
 try:
     from app.core.logger import logger
@@ -66,6 +68,47 @@ def _soap_timbrar_envelope(
     })
     body = SubElement(envelope, "SOAP-ENV:Body")
     op = SubElement(body, "ns1:requestTimbrarCFDI")
+    req = SubElement(op, "request", {"xsi:type": "SOAP-ENC:Struct"})
+
+    def add_str(name: str, value: str):
+        SubElement(req, name, {"xsi:type": "xsd:string"}).text = value
+
+    add_str("UserID", user_id)
+    add_str("UserPass", user_pass)
+    add_str("emisorRFC", emisor_rfc)
+    add_str("text2CFDI", xml_b64)
+    add_str("generarCBB", "true" if generar_cbb else "false")
+    add_str("generarTXT", "true" if generar_txt else "false")
+    add_str("generarPDF", "true" if generar_pdf else "false")
+
+    return tostring(envelope, encoding="utf-8", xml_declaration=True)
+
+def _soap_timbrar_pago_envelope(
+    *,
+    user_id: str,
+    user_pass: str,
+    emisor_rfc: str,
+    xml_b64: str,
+    generar_cbb: bool = False,
+    generar_txt: bool = False,
+    generar_pdf: bool = False,
+) -> bytes:
+    ENV = "http://schemas.xmlsoap.org/soap/envelope/"
+    NS1 = "http://t1.facturacionmoderna.com/timbrado/soap"
+    XSD = "http://www.w3.org/2001/XMLSchema"
+    XSI = "http://www.w3.org/2001/XMLSchema-instance"
+    ENC = "http://schemas.xmlsoap.org/soap/encoding/"
+
+    envelope = Element("SOAP-ENV:Envelope", {
+        "xmlns:SOAP-ENV": ENV,
+        "xmlns:ns1": NS1,
+        "xmlns:xsd": XSD,
+        "xmlns:xsi": XSI,
+        "xmlns:SOAP-ENC": ENC,
+        "SOAP-ENV:encodingStyle": ENC,
+    })
+    body = SubElement(envelope, "SOAP-ENV:Body")
+    op = SubElement(body, "ns1:requestTimbrarCFDI") # The same endpoint is used for CFDI and Pago
     req = SubElement(op, "request", {"xsi:type": "SOAP-ENC:Struct"})
 
     def add_str(name: str, value: str):
@@ -262,7 +305,9 @@ def _parse_tfd_fields(cfdi_bytes: bytes) -> Dict[str, Any]:
 # Guardado de archivos
 # ─────────────────────────────────────────────────────────────────────────────
 def _ensure_cfdi_dir() -> str:
-    base = getattr(settings, "DATA_DIR", "/data")
+    if not hasattr(settings, "DATA_DIR") or not settings.DATA_DIR:
+        raise ValueError("La configuración DATA_DIR no está definida.")
+    base = settings.DATA_DIR
     out_dir = os.path.join(base, "cfdis")
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
@@ -458,6 +503,176 @@ class FacturacionModernaPAC:
             "no_certificado_sat": f.no_certificado_sat,
             "sello_cfdi": f.sello_cfdi,
             "sello_sat": f.sello_sat,
+            "xml_path": xml_path,
+        }
+        if pdf_b64: out["pdf_path"] = pdf_path
+        if cbb_b64: out["cbb_path"] = cbb_path
+        if txt_b64: out["txt_path"] = txt_path
+        # si quieres exponer el XML timbrado en base64:
+        out["cfdi_b64"] = cfdi_b64
+        return out
+    
+    def timbrar_pago(
+        self,
+        *,
+        db: Session,
+        pago_id: UUID,
+        generar_cbb: bool = False,
+        generar_txt: bool = False,
+        generar_pdf: bool = False,
+    ) -> Dict[str, Any]:
+        # 1) Cargar pago
+        p: Optional[Pago] = db.query(Pago).filter(Pago.id == pago_id).first()
+        if not p:
+            raise ValueError("Pago no encontrado")
+        if p.estatus != "BORRADOR":
+            raise ValueError("Solo se puede timbrar un pago en BORRADOR")
+        if not p.empresa or not p.empresa.rfc:
+            raise ValueError("El pago no tiene empresa válida (RFC emisor requerido).")
+
+        # 2) XML sin timbrar (sellado internamente en pago20_xml)
+        xml_sin_timbre: bytes = build_pago20_xml_sin_timbrar(db=db, pago_id=pago_id)
+        
+        print("--- INICIO: XML del Complemento de Pago (sin timbrar) ---")
+        print(xml_sin_timbre.decode('utf-8'))
+        print("--- FIN: XML del Complemento de Pago (sin timbrar) ---")
+
+        xml_b64 = base64.b64encode(xml_sin_timbre).decode("utf-8")
+
+        # 3) SOAP y POST
+        env = _soap_timbrar_pago_envelope(
+            user_id=_fm_user_id(),
+            user_pass=_fm_user_pass(),
+            emisor_rfc=p.empresa.rfc,
+            xml_b64=xml_b64,
+            generar_cbb=generar_cbb,
+            generar_txt=generar_txt,
+            generar_pdf=generar_pdf,
+        )
+        headers = {
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": "requestTimbrarCFDI",
+        }
+        url = _fm_url()
+
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                resp = client.post(url, content=env, headers=headers)
+        except Exception as e:
+            raise RuntimeError(f"Error de red al timbrar: {e}") from e
+
+        # Log SOAP (truncado)
+        soap_txt = resp.text
+        soap_log = soap_txt if len(soap_txt) <= 20000 else soap_txt[:20000] + "\n... [truncated]"
+        (logger.info if logger else print)(f"[PAC SOAP] HTTP {resp.status_code}\n{soap_log}")
+        if resp.status_code >= 400:
+            raise RuntimeError(f"HTTP {resp.status_code} del PAC: {soap_txt}")
+
+        # 4) Parse SOAP → obtener <xml> (Base64)
+        try:
+            root = fromstring(resp.content)
+        except Exception as e:
+            raise RuntimeError(f"Respuesta SOAP inválida: {e}")
+
+        # Detecta Fault si existe
+        for el in root.iter():
+            if _etree_strip_ns(el.tag) == "Fault":
+                code = None
+                msg = None
+                for ch in el:
+                    ln = _etree_strip_ns(ch.tag)
+                    if ln == "faultcode":   code = (ch.text or "").strip()
+                    if ln == "faultstring": msg  = (ch.text or "").strip()
+                raise RuntimeError(f"PAC devolvió Fault: {code or ''} {msg or ''}".strip())
+
+        cfdi_b64 = _find_first_text(root, ["xml", "cfdi", "xmlTimbrado", "cfdiTimbrado", "response", "returnXml"])
+        if not cfdi_b64:
+            raise RuntimeError("No se encontró el nodo <xml> (CFDI timbrado en Base64) en la respuesta del PAC.")
+
+        # Adjuntos opcionales
+        pdf_b64 = _find_first_text(root, ["pdf", "PDF"]) if generar_pdf else None
+        cbb_b64 = _find_first_text(root, ["cbb", "CBB"]) if generar_cbb else None
+        txt_b64 = _find_first_text(root, ["txt", "TXT"]) if generar_txt else None
+
+        # 5) Decodificar el CFDI timbrado
+        try:
+            cfdi_bytes = base64.b64decode(cfdi_b64)
+        except Exception as e:
+            raise RuntimeError(f"No se pudo decodificar el XML timbrado (base64): {e}")
+
+        # Debug: previews de inicio/fin
+        head = cfdi_bytes[:400].decode("utf-8", "ignore")
+        tail = cfdi_bytes[-400:].decode("utf-8", "ignore")
+        (logger.info if logger else print)(f"[CFDI preview:head]\n{head}")
+        (logger.info if logger else print)(f"[CFDI preview:tail]\n{tail}")
+
+        # 6) Extraer TFD (XML → regex fallback)
+        tfd = _parse_tfd_fields(cfdi_bytes)
+        if not tfd.get("uuid"):
+            (logger.warning if logger else print)("⚠️ TFD no detectado por parser/regex. Verifica respuesta del PAC.")
+            # Aún así guardamos el XML y respondemos con detalle para inspección.
+            out_dir = _ensure_cfdi_dir()
+            xml_only = os.path.join(out_dir, _build_base_filename(p, None) + "-SINUUID.xml")
+            _save_bytes(xml_only, cfdi_bytes)
+            raise RuntimeError("El PAC no devolvió UUID en el TFD.")
+
+        # 7) Guardar archivos en disco
+        out_dir = _ensure_cfdi_dir()
+        base_name = _build_base_filename(p, tfd["uuid"])
+        xml_path = os.path.join(out_dir, base_name + ".xml")
+        _save_bytes(xml_path, cfdi_bytes)
+
+        pdf_path = os.path.join(out_dir, base_name + ".pdf") if pdf_b64 else None
+        cbb_path = os.path.join(out_dir, base_name + ".png") if cbb_b64 else None
+        txt_path = os.path.join(out_dir, base_name + ".txt") if txt_b64 else None
+        if pdf_b64: _save_b64(pdf_path, pdf_b64)
+        if cbb_b64: _save_b64(cbb_path, cbb_b64)
+        if txt_b64: _save_b64(txt_path, txt_b64)
+
+        # 8) Persistir en DB
+        p.uuid = tfd.get("uuid")
+
+        # FechaTimbrado → datetime
+        fecha_timbrado_iso = tfd.get("fecha_timbrado")
+        fecha_timbrado_dt: Optional[datetime] = None
+        if fecha_timbrado_iso:
+            try:
+                fecha_timbrado_dt = datetime.fromisoformat(fecha_timbrado_iso.replace("Z", "+00:00"))
+            except Exception:
+                try:
+                    fecha_timbrado_dt = datetime.fromisoformat(fecha_timbrado_iso.split(".")[0])
+                except Exception:
+                    fecha_timbrado_dt = None
+        p.fecha_timbrado = fecha_timbrado_dt
+
+        # Campos TFD
+        p.no_certificado_sat = tfd.get("no_certificado_sat")
+        p.sello_sat = tfd.get("sello_sat")
+        p.sello_cfdi = tfd.get("sello_cfdi")
+        p.rfc_proveedor_sat = tfd.get("rfc_prov_certif")
+
+        # Paths
+        if hasattr(p, "xml_path"):
+            p.xml_path = xml_path
+        if hasattr(p, "pdf_path"):
+            p.pdf_path = pdf_path if pdf_b64 else None
+        # if hasattr(p, "cbb_path"):
+        #     setattr(p, "cbb_path", cbb_path if cbb_b64 else None)
+        # if hasattr(p, "txt_path"):
+        #     setattr(p, "txt_path", txt_path if txt_b64 else None)
+
+        p.estatus = "TIMBRADO"
+        db.add(p); db.commit(); db.refresh(p)
+
+        # 9) Respuesta
+        out: Dict[str, Any] = {
+            "timbrada": True,
+            "uuid": p.uuid,
+            "fecha_timbrado": p.fecha_timbrado.isoformat() if p.fecha_timbrado else None,
+            "rfc_proveedor_sat": tfd.get("rfc_prov_certif"),
+            "no_certificado_sat": p.no_certificado_sat,
+            "sello_cfdi": p.sello_cfdi,
+            "sello_sat": p.sello_sat,
             "xml_path": xml_path,
         }
         if pdf_b64: out["pdf_path"] = pdf_path

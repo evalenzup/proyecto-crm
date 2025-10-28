@@ -102,6 +102,27 @@ def leer_pago(pago_id: uuid.UUID, db: Session = Depends(get_db)):
 def delete_pago(pago_id: uuid.UUID, db: Session = Depends(get_db)):
     return pago_service.eliminar_pago(db, pago_id)
 
+@router.post("/{pago_id}/set-to-borrador", summary="DEBUG: Establecer pago a estado BORRADOR")
+def set_pago_to_borrador(pago_id: uuid.UUID, db: Session = Depends(get_db)):
+    pago = db.query(Pago).filter(Pago.id == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    pago.estatus = "BORRADOR"
+    pago.uuid = None
+    pago.fecha_timbrado = None
+    pago.xml_path = None
+    pago.pdf_path = None
+    pago.cadena_original = None
+    pago.qr_url = None
+    pago.no_certificado = None
+    pago.no_certificado_sat = None
+    pago.sello_cfdi = None
+    pago.sello_sat = None
+    pago.rfc_proveedor_sat = None
+    db.commit()
+    db.refresh(pago)
+    return {"message": f"Pago {pago_id} establecido a BORRADOR.", "pago_estatus": pago.estatus}
+
 @router.get("/clientes/{cliente_id}/facturas-pendientes", response_model=List[FacturaOut])
 def listar_facturas_pendientes_por_cliente(cliente_id: uuid.UUID, db: Session = Depends(get_db)):
     """
@@ -142,11 +163,8 @@ def get_pago_pdf(pago_id: uuid.UUID, db: Session = Depends(get_db)):
 def get_pago_xml(pago_id: uuid.UUID, db: Session = Depends(get_db)):
     xml_path, filename = pago_service.obtener_ruta_xml_pago(db, pago_id)
     
-    # This part will fail for the dummy path, but it's the correct logic for a real scenario
     if not os.path.exists(xml_path):
-        # For the simulation, create a dummy XML file on the fly
-        dummy_xml_content = f"<cfdi:Comprobante xmlns:cfdi='http://www.sat.gob.mx/cfd/4' Folio='{filename}' Sello='DUMMY'/>"
-        return Response(content=dummy_xml_content, media_type="application/xml", headers={"Content-Disposition": f"attachment; filename={filename}"})
+        raise HTTPException(status_code=404, detail=f"El archivo XML para el pago no fue encontrado en la ruta: {xml_path}")
 
     return FileResponse(path=xml_path, media_type="application/xml", filename=filename)
 
@@ -166,12 +184,11 @@ async def enviar_pago_por_email(
         # Obtener el XML del pago
         xml_path, xml_filename = pago_service.obtener_ruta_xml_pago(db, pago_id)
         xml_content = None
-        if os.path.exists(xml_path):
-            with open(xml_path, "rb") as f:
-                xml_content = f.read()
-        else:
-            # Si no existe el archivo, generar un dummy para el correo
-            xml_content = f"<cfdi:Comprobante xmlns:cfdi='http://www.sat.gob.mx/cfd/4' Folio='{xml_filename}' Sello='DUMMY'/>".encode('utf-8')
+        if not os.path.exists(xml_path):
+            raise HTTPException(status_code=404, detail=f"XML para el pago no encontrado, no se puede enviar el correo.")
+        
+        with open(xml_path, "rb") as f:
+            xml_content = f.read()
 
         # Enviar correo
         await send_pago_email(

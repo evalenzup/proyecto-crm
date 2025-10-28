@@ -49,5 +49,6 @@ class Egreso(Base):
     
     # Ruta a un archivo de comprobante (factura, recibo, etc.)
     path_documento = Column(String)
+    metodo_pago = Column(String, nullable=True)
 
     empresa = relationship("Empresa")

@@ -6,6 +6,8 @@ import {
 } from 'antd';
 import { useForm } from 'antd/lib/form/Form';
 import api from '@/lib/axios';
+import { normalizeHttpError } from '@/utils/httpError';
+import { applyFormErrors } from '@/utils/formErrors';
 
 interface EmailConfig {
   id: string;
@@ -106,8 +108,8 @@ const EmailConfigModal: React.FC<EmailConfigModalProps> = ({
       message.success('Conexión SMTP exitosa.');
       setIsConnectionTestSuccessful(true);
     } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      message.error(typeof detail === 'string' ? detail : 'Error al probar la conexión SMTP.');
+      message.error(normalizeHttpError(error) || 'Error al probar la conexión SMTP.');
+      applyFormErrors(error, form);
       setIsConnectionTestSuccessful(false);
     } finally {
       setIsTestingConnection(false);
@@ -132,8 +134,8 @@ const EmailConfigModal: React.FC<EmailConfigModalProps> = ({
       onConfigSaved(response.data);
       onClose();
     } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      message.error(typeof detail === 'string' ? detail : 'Error al guardar la configuración de correo.');
+      message.error(normalizeHttpError(error) || 'Error al guardar la configuración de correo.');
+      applyFormErrors(error, form);
     }
   };
 

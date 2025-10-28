@@ -1,14 +1,16 @@
 // frontend-erp/src/hooks/useProductoServicioForm.ts
 import { useEffect, useState } from 'react';
 import { message, Form } from 'antd';
-import { productoServicioService, ProductoServicioOut, ProductoServicioCreate, ProductoServicioUpdate } from '../services/productoServicioService';
+import { productoServicioService, ProductoServicioOut, ProductoServicioCreate, ProductoServicioUpdate, TipoProductoServicio } from '../services/productoServicioService';
 import { empresaService, EmpresaOut } from '../services/empresaService'; // Para obtener las empresas para el select
 import { useRouter } from 'next/router';
 import api from '../lib/axios'; // Para los catálogos SAT
+import { normalizeHttpError } from '@/utils/httpError';
+import { applyFormErrors } from '@/utils/formErrors';
 
 interface ProductoServicioFormData {
   id?: string;
-  tipo: 'PRODUCTO' | 'SERVICIO';
+  tipo: TipoProductoServicio;
   clave_producto: string;
   clave_unidad: string;
   descripcion: string;
@@ -59,14 +61,29 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
     ])
       .then(([empresasData, schemaData, productosSatData, unidadesSatData]) => {
         setEmpresasOptions(empresasData.map(emp => ({ value: emp.id, label: emp.nombre_comercial })));
-        setSchema(schemaData);
+        
+        // Inyectar opciones de catálogos SAT en el esquema
+        const newSchema = { ...schemaData };
+        if (newSchema.properties.clave_producto) {
+          newSchema.properties.clave_producto['x-options'] = productosSatData.data.map((item: any) => ({
+            value: item.clave,
+            label: `${item.clave} - ${item.descripcion}`,
+          }));
+        }
+        if (newSchema.properties.clave_unidad) {
+          newSchema.properties.clave_unidad['x-options'] = unidadesSatData.data.map((item: any) => ({
+            value: item.clave,
+            label: `${item.clave} - ${item.descripcion}`,
+          }));
+        }
+        setSchema(newSchema);
 
         const newMapaClavesSat: Record<string, string> = {};
         productosSatData.data.forEach((item: any) => { newMapaClavesSat[item.clave] = item.descripcion; });
         unidadesSatData.data.forEach((item: any) => { newMapaClavesSat[item.clave] = item.descripcion; });
         setMapaClavesSat(newMapaClavesSat);
       })
-      .catch(() => message.error('Error al cargar datos iniciales del formulario'))
+      .catch((e) => message.error(normalizeHttpError(e)))
       .finally(() => {
         setLoadingEmpresas(false);
         setLoadingSchema(false);
@@ -90,8 +107,8 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
         form.setFieldsValue(initial);
         setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
       })
-      .catch(() => {
-        message.error('Registro no encontrado');
+      .catch((e) => {
+        message.error(normalizeHttpError(e) || 'Registro no encontrado');
         router.replace('/productos-servicios');
       })
       .finally(() => setLoadingRecord(false));
@@ -117,8 +134,8 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
       }
       router.push('/productos-servicios');
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      message.error(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : 'Error inesperado');
+      applyFormErrors(err, form);
+      message.error(normalizeHttpError(err));
     }
   };
 

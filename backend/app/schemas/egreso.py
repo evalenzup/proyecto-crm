@@ -13,6 +13,7 @@ class EgresoBase(BaseModel):
     estatus: EstatusEgreso
     proveedor: Optional[str] = None
     path_documento: Optional[str] = None
+    metodo_pago: Optional[str] = None
 
 class EgresoCreate(EgresoBase):
     empresa_id: uuid.UUID
@@ -26,6 +27,7 @@ class EgresoUpdate(BaseModel):
     estatus: Optional[EstatusEgreso] = None
     proveedor: Optional[str] = None
     path_documento: Optional[str] = None
+    metodo_pago: Optional[str] = None
 
 class Egreso(EgresoBase):
     id: uuid.UUID

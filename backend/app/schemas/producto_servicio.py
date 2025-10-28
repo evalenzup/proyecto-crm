@@ -1,15 +1,20 @@
 # app/schemas/producto_servicio.py
 
 from pydantic import BaseModel, Field, condecimal, constr
-from typing import Optional, Literal
+from typing import Optional
 from uuid import UUID
 from datetime import datetime
+import enum
 from app.schemas.utils import make_optional # Importamos la utilidad
 
 Numeric = condecimal(max_digits=18, decimal_places=2)
 
+class TipoProductoServicio(str, enum.Enum):
+    PRODUCTO = "PRODUCTO"
+    SERVICIO = "SERVICIO"
+
 class ProductoServicioBase(BaseModel):
-    tipo              : Literal['PRODUCTO', 'SERVICIO']  = Field(..., title="Tipo")
+    tipo              : TipoProductoServicio  = Field(..., title="Tipo")
     clave_producto    : constr(max_length=8)             = Field(..., title="Clave de Producto/Servicio", description="Clave SAT 8 dígitos")
     clave_unidad      : constr(max_length=8)             = Field(..., title="Clave de Unidad", description="Clave SAT 8 dígitos")
     descripcion       : constr(max_length=1000)          = Field(..., title="Descripción")

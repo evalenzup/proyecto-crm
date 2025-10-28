@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import datetime
 import re
 from app.schemas.common import EmpresaSimpleOut
+from app.schemas.contacto import ContactoOut
 from app.schemas.utils import make_optional # Importamos la utilidad
 
 class ClienteBase(BaseModel):
@@ -21,6 +22,9 @@ class ClienteBase(BaseModel):
     numero_interior    : Optional[constr(max_length=50)]  = Field(None, title="Número Interior") # type: ignore
     colonia            : Optional[constr(max_length=100)] = Field(None, title="Colonia") # type: ignore
     codigo_postal      : constr(max_length=10)            = Field(..., title="Código Postal") # type: ignore
+    # Geolocalización
+    latitud            : Optional[float] = Field(None, title="Latitud")
+    longitud           : Optional[float] = Field(None, title="Longitud")
     # Contacto (listas)
     telefono           : Optional[List[constr(max_length=50)]] = Field(None, title="Teléfono") # type: ignore
     email              : Optional[List[EmailStr]]               = Field(None, title="Correo Electrónico")
@@ -78,6 +82,7 @@ class ClienteOut(ClienteBase):
     creado_en      : datetime               = Field(..., title="Creado en")
     actualizado_en : datetime               = Field(..., title="Actualizado en")
     empresas       : Optional[List[EmpresaSimpleOut]] = Field(None, title="Empresas")
+    contactos      : List[ContactoOut]      = Field([], title="Contactos")
 
     class Config:
         from_attributes = True

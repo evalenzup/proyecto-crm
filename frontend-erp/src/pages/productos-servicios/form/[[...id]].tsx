@@ -16,6 +16,7 @@ import {
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useProductoServicioForm } from '@/hooks/useProductoServicioForm'; // Importamos el hook
+import { TipoProductoServicio } from '@/services/productoServicioService';
 
 const { Text } = Typography;
 
@@ -59,9 +60,9 @@ const FormularioProductoServicio: React.FC = () => {
     ].includes(key);
 
     // Ocultar campos de inventario si el tipo no es PRODUCTO
-    if (isInventario && tipo !== 'PRODUCTO') return null;
+    if (isInventario && tipo !== TipoProductoServicio.PRODUCTO) return null;
 
-    const rules = isRequired || (tipo === 'PRODUCTO' && isInventario)
+    const rules = isRequired || (tipo === TipoProductoServicio.PRODUCTO && isInventario)
       ? [{ required: true, message: `Se requiere ${prop.title || key}` }]
       : [];
 

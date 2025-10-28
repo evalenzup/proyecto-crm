@@ -13,7 +13,8 @@ class EmailConfigBase(BaseModel):
 
 # Schema para probar la configuración (requiere contraseña)
 class EmailConfigTest(EmailConfigBase):
-    smtp_password: str = Field(..., example="secretpassword")
+    # Opcional para permitir probar con la contraseña guardada si no se envía desde el cliente
+    smtp_password: Optional[str] = Field(None, example="secretpassword")
 
 # Schema para crear una configuración (requiere contraseña)
 class EmailConfigCreate(EmailConfigBase):

@@ -17,19 +17,33 @@ router = APIRouter()
 def test_email_config_connection(
     empresa_id: uuid.UUID,
     email_config_test: email_config.EmailConfigTest,
+    db: Session = Depends(get_db),
 ):
-    """Prueba la conexión a un servidor SMTP con las credenciales dadas."""
+    """Prueba la conexión a un servidor SMTP. Si no se envía `smtp_password`, usa la contraseña guardada en la empresa."""
     try:
+        smtp_password = email_config_test.smtp_password
+        if not smtp_password:
+            # Buscar configuración almacenada y usar la contraseña cifrada
+            db_email_cfg = db.query(models.EmailConfig).filter(models.EmailConfig.empresa_id == empresa_id).first()
+            if not db_email_cfg:
+                raise HTTPException(status_code=404, detail="Configuración de email no encontrada para la empresa")
+            try:
+                smtp_password = decrypt_data(db_email_cfg.smtp_password)
+            except Exception:
+                raise HTTPException(status_code=500, detail="No se pudo descifrar la contraseña almacenada")
+
         email_sender.test_smtp_connection(
             smtp_server=email_config_test.smtp_server,
             smtp_port=email_config_test.smtp_port,
             smtp_user=email_config_test.smtp_user,
-            smtp_password=email_config_test.smtp_password,
+            smtp_password=smtp_password,
             use_tls=email_config_test.use_tls,
         )
         return {"message": "Conexión SMTP exitosa."}
     except email_sender.EmailSendingError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error inesperado al probar la conexión: {e}")
 

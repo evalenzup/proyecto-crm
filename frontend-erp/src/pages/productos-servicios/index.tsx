@@ -7,7 +7,7 @@ import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useProductoServicioList } from '@/hooks/useProductoServicioList'; // Importamos el hook
-import { ProductoServicioOut } from '@/services/productoServicioService'; // Importamos la interfaz ProductoServicioOut
+import { ProductoServicioOut, TipoProductoServicio } from '@/services/productoServicioService'; // Importamos la interfaz ProductoServicioOut
 import { EmpresaOut } from '@/services/empresaService'; // Importamos la interfaz EmpresaOut para el filtro
 
 const { Option } = Select;
@@ -101,8 +101,8 @@ const ProductosServiciosPage: React.FC = () => {
               // Si el usuario insiste en el filtro por tipo, se debería añadir al hook.
             }}
           >
-            <Option value="PRODUCTO">PRODUCTO</Option>
-            <Option value="SERVICIO">SERVICIO</Option>
+            <Option value={TipoProductoServicio.PRODUCTO}>PRODUCTO</Option>
+            <Option value={TipoProductoServicio.SERVICIO}>SERVICIO</Option>
           </Select>
           <Select
             placeholder="Filtrar por Empresa"

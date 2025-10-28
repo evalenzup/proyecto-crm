@@ -5,6 +5,8 @@ import type { UploadFile } from 'antd';
 import { empresaService } from '../services/empresaService';
 import { CertInfoOut, EmpresaOut } from '../services/empresaService'; // Reutilizamos las interfaces del servicio
 import { useRouter } from 'next/router'; // Para redirección
+import { normalizeHttpError } from '@/utils/httpError';
+import { applyFormErrors } from '@/utils/formErrors';
 
 interface EmpresaFormData {
   // Campos del formulario, incluyendo los de EmpresaCreate/Update
@@ -78,7 +80,7 @@ export const useEmpresaForm = (id?: string): UseEmpresaFormResult => {
   useEffect(() => {
     empresaService.getEmpresaSchema()
       .then(setSchema)
-      .catch(() => message.error('Error al cargar esquema del formulario'))
+      .catch((e) => message.error(normalizeHttpError(e)))
       .finally(() => setLoadingSchema(false));
   }, []);
 
@@ -123,8 +125,8 @@ export const useEmpresaForm = (id?: string): UseEmpresaFormResult => {
           setCertInfo(null);
         }
       })
-      .catch(() => {
-        message.error('Registro no encontrado');
+      .catch((e) => {
+        message.error(normalizeHttpError(e) || 'Registro no encontrado');
         router.replace('/empresas'); // Redirigir si no se encuentra el registro
       })
       .finally(() => setLoadingRecord(false));
@@ -201,8 +203,9 @@ export const useEmpresaForm = (id?: string): UseEmpresaFormResult => {
       }
       router.push('/empresas'); // Redirigir al listado
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      message.error(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : 'Error inesperado');
+      // Marcar errores de validación en campos y mostrar mensaje amigable
+      applyFormErrors(err, form);
+      message.error(normalizeHttpError(err));
     }
   };
 

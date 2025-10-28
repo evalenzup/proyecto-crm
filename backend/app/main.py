@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # Importar configuración de logging
 from app.core.logger import logger
@@ -18,6 +19,8 @@ from app.api import catalogos
 from app.api import pagos
 from app.api import egresos
 from app.api.email_config import router as email_config_router
+from app.api.utils import router as utils_router
+from app.api.contactos import router as contactos_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -29,6 +32,8 @@ app = FastAPI(
      version="1.0.0",
 )
 
+# Montar el directorio de datos como archivos estáticos
+app.mount("/data", StaticFiles(directory="data"), name="data")
 
 # CORS usando orígenes definidos en settings
 app.add_middleware(
@@ -89,6 +94,20 @@ app.include_router(
     email_config_router,
     prefix="/api/empresas/{empresa_id}/email-config",
     tags=["email-config"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    utils_router,
+    prefix="/api/utils",
+    tags=["utilidades"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    contactos_router,
+    prefix="/api",
+    tags=["contactos"],
     responses={404: {"description": "No encontrado"}},
 )
 

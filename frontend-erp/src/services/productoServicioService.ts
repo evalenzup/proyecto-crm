@@ -6,9 +6,14 @@ interface ProductoServicioSchema {
   required?: string[];
 }
 
-interface ProductoServicioOut {
+export enum TipoProductoServicio {
+  PRODUCTO = "PRODUCTO",
+  SERVICIO = "SERVICIO",
+}
+
+export interface ProductoServicioOut {
   id: string;
-  tipo: 'PRODUCTO' | 'SERVICIO';
+  tipo: TipoProductoServicio;
   clave_producto: string;
   clave_unidad: string;
   descripcion: string;
@@ -24,8 +29,8 @@ interface ProductoServicioOut {
   actualizado_en: string;
 }
 
-interface ProductoServicioCreate {
-  tipo: 'PRODUCTO' | 'SERVICIO';
+export interface ProductoServicioCreate {
+  tipo: TipoProductoServicio;
   clave_producto: string;
   clave_unidad: string;
   descripcion: string;
@@ -39,8 +44,8 @@ interface ProductoServicioCreate {
   requiere_lote: boolean;
 }
 
-interface ProductoServicioUpdate {
-  tipo?: 'PRODUCTO' | 'SERVICIO';
+export interface ProductoServicioUpdate {
+  tipo?: TipoProductoServicio;
   clave_producto?: string;
   clave_unidad?: string;
   descripcion?: string;

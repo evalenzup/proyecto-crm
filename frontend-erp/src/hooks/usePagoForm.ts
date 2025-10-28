@@ -6,6 +6,8 @@ import dayjs from 'dayjs';
 import * as pagoService from '@/services/pagoService';
 import * as facturaService from '@/services/facturaService';
 import type { Pago } from '@/services/pagoService';
+import { normalizeHttpError } from '@/utils/httpError';
+import { applyFormErrors } from '@/utils/formErrors';
 
 export const usePagoForm = () => {
   const router = useRouter();
@@ -107,7 +109,7 @@ export const usePagoForm = () => {
           setClientes([]);
         }
       } catch (error) {
-        message.error('Error al cargar datos iniciales.');
+        message.error(normalizeHttpError(error) || 'Error al cargar datos iniciales.');
       } finally {
         setLoading(false);
       }
@@ -124,7 +126,7 @@ export const usePagoForm = () => {
           const nextFolio = await pagoService.getSiguienteFolioPago(empresaId, '');
           form.setFieldsValue({ folio: nextFolio.toString() });
         } catch (error) {
-          message.error('Error al obtener el siguiente folio.');
+          message.error(normalizeHttpError(error) || 'Error al obtener el siguiente folio.');
         }
       };
       fetchFolio();
@@ -148,7 +150,7 @@ export const usePagoForm = () => {
           })),
         ),
       )
-      .catch(() => message.error('Error al cargar clientes.'));
+  .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar clientes.'));
   }, [empresaId, form]);
 
   // Efecto para manejar la lógica de facturas pendientes y asignaciones cuando cambia el cliente
@@ -186,7 +188,7 @@ export const usePagoForm = () => {
           setPaymentAllocation({});
         }
       })
-      .catch(() => message.error('Error al cargar facturas pendientes.'));
+  .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar facturas pendientes.'));
   }, [clienteId, id, pago]);
 
   const onFinish = async (values: any) => {
@@ -244,7 +246,8 @@ export const usePagoForm = () => {
         setPago(nuevo);
       }
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || 'Error al guardar el pago.');
+      applyFormErrors(err, form);
+      message.error(normalizeHttpError(err) || 'Error al guardar el pago.');
     } finally {
       setSaving(false);
     }
@@ -259,7 +262,7 @@ export const usePagoForm = () => {
       setPago(updated);
       message.success(result?.message || 'Pago timbrado con éxito.');
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || 'Error al timbrar el pago.');
+      message.error(normalizeHttpError(error) || 'Error al timbrar el pago.');
     } finally {
       setAccionLoading((s) => ({ ...s, timbrando: false }));
     }
@@ -272,7 +275,7 @@ export const usePagoForm = () => {
       // Implementar cuando tu backend lo soporte
       message.info('Funcionalidad de cancelación no implementada.');
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || 'Error al cancelar el pago.');
+      message.error(normalizeHttpError(error) || 'Error al cancelar el pago.');
     } finally {
       setAccionLoading((s) => ({ ...s, cancelando: false }));
     }
@@ -307,7 +310,7 @@ export const usePagoForm = () => {
       const blob = await pagoService.getPagoPdf(id); // <— nombre correcto
       openBlobInNewTab(blob);
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || 'Error al generar el PDF.');
+      message.error(normalizeHttpError(error) || 'Error al generar el PDF.');
     } finally {
       setAccionLoading((s) => ({ ...s, visualizando: false }));
     }
@@ -320,7 +323,7 @@ export const usePagoForm = () => {
       const blob = await pagoService.getPagoPdf(id); // <— nombre correcto
       forceDownload(blob, `pago-${pago?.folio || id}.pdf`);
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || 'Error al descargar el PDF.');
+      message.error(normalizeHttpError(error) || 'Error al descargar el PDF.');
     } finally {
       setAccionLoading((s) => ({ ...s, descargando: false }));
     }
@@ -333,7 +336,7 @@ export const usePagoForm = () => {
       const blob = await pagoService.downloadPagoXml(id);
       forceDownload(blob, `pago-${pago?.folio || id}.xml`);
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || 'Error al descargar el XML.');
+      message.error(normalizeHttpError(error) || 'Error al descargar el XML.');
     } finally {
       setAccionLoading((s) => ({ ...s, descargando: false }));
     }

@@ -10,7 +10,7 @@ export const getEgresoEnums = () =>
   getData<{ categorias: string[], estatus: string[] }>(api.get('/egresos/enums'));
 
 export const getEgresos = (params: any) =>
-  getData<EgresoListResponse>(api.get('/egresos/', { params }));
+  getData<Egreso[]>(api.get('/egresos/', { params }));
 
 export const getEgresoById = (id: string) =>
   getData<Egreso>(api.get(`/egresos/${id}`));
@@ -37,9 +37,4 @@ export interface Egreso {
   path_documento?: string;
 }
 
-export interface EgresoListResponse {
-  items: Egreso[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+

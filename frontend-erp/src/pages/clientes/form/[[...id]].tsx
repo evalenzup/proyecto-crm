@@ -12,7 +12,9 @@ import {
   Space,
   Typography,
   message, // Importar message para notificaciones
+  Divider,
 } from 'antd';
+import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
@@ -20,6 +22,36 @@ import { useClienteForm } from '@/hooks/useClienteForm';
 import { getRegimenesFiscales } from '@/services/facturaService';
 
 const { Text } = Typography;
+
+// --- INICIO: Sub-componente para Geolocalización ---
+const GeolocationFields = () => {
+  const form = Form.useFormInstance(); // Obtiene la instancia del formulario actual
+  const lat = Form.useWatch('latitud', form);
+  const lon = Form.useWatch('longitud', form);
+
+  return (
+    <>
+      <Form.Item label="Latitud" name="latitud">
+        <Input type="number" placeholder="Ej. 19.4326" />
+      </Form.Item>
+      <Form.Item label="Longitud" name="longitud">
+        <Input type="number" placeholder="Ej. -99.1332" />
+      </Form.Item>
+      {lat && lon && (
+        <Form.Item>
+          <a
+            href={`https://www.google.com/maps?q=${lat},${lon}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Ver Ubicación en Google Maps
+          </a>
+        </Form.Item>
+      )}
+    </>
+  );
+};
+// --- FIN: Sub-componente para Geolocalización ---
 
 // Campos que deben forzar mayúsculas
 const UPPERCASE_FIELDS = [
@@ -135,6 +167,15 @@ const ClienteFormPage: React.FC = () => {
         </Form.Item>
       );
     }
+
+    // --- INICIO: Lógica para renderizar campos de Geolocalización ---
+    if (key === 'latitud') {
+      return <GeolocationFields key="geo-fields" />;
+    }
+    if (key === 'longitud') {
+      return null; // Se renderiza dentro de GeolocationFields
+    }
+    // --- FIN: Lógica para renderizar campos de Geolocalización ---
 
     if (key === 'tamano') {
       return (
@@ -271,6 +312,72 @@ const ClienteFormPage: React.FC = () => {
             {Object.entries(schema.properties || {}).map(([key, prop]) =>
               renderField(key, { ...prop, required: schema.required?.includes(key) })
             )}
+
+            {/* --- INICIO: SECCIÓN DE CONTACTOS DINÁMICOS --- */}
+            <Divider>Contactos</Divider>
+            <Form.List name="contactos">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Card size="small" key={key} style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <MinusCircleOutlined onClick={() => remove(name)} />
+                      </div>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'nombre']}
+                        label="Nombre del Contacto"
+                        rules={[{ required: true, message: 'El nombre es requerido' }]}
+                      >
+                        <Input placeholder="Nombre completo" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'puesto']}
+                        label="Puesto"
+                      >
+                        <Input placeholder="Ej. Gerente de Compras" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'email']}
+                        label="Email"
+                        rules={[{ type: 'email', message: 'Email no válido' }]}
+                      >
+                        <Input placeholder="contacto@email.com" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'telefono']}
+                        label="Teléfono"
+                      >
+                        <Input placeholder="+52 123 456 7890" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'tipo']}
+                        label="Tipo de Contacto"
+                        initialValue="PRINCIPAL"
+                      >
+                        <Select placeholder="Selecciona un tipo">
+                          <Select.Option value="PRINCIPAL">PRINCIPAL</Select.Option>
+                          <Select.Option value="ADMINISTRATIVO">ADMINISTRATIVO</Select.Option>
+                          <Select.Option value="COBRANZA">COBRANZA</Select.Option>
+                          <Select.Option value="OPERATIVO">OPERATIVO</Select.Option>
+                          <Select.Option value="OTRO">OTRO</Select.Option>
+                        </Select>
+                      </Form.Item>
+                    </Card>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                      Añadir Contacto
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+            {/* --- FIN: SECCIÓN DE CONTACTOS DINÁMICOS --- */}
 
             <Form.Item>
               <Space>

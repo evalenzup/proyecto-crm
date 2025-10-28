@@ -1,7 +1,7 @@
 // src/pages/egresos/index.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Row, Col, Card } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -15,7 +15,7 @@ const EgresosListPage: React.FC = () => {
   const router = useRouter();
   const [egresos, setEgresos] = useState<Egreso[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<any>({
     empresa_id: null,
     proveedor: null,
     categoria: null,
@@ -33,7 +33,7 @@ const EgresosListPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await getEgresos(filters);
-      setEgresos(response.items);
+      setEgresos(response);
     } catch (error) {
       message.error('Error al cargar los egresos.');
     } finally {
@@ -42,6 +42,11 @@ const EgresosListPage: React.FC = () => {
   };
 
   useEffect(() => {
+    const selectedEmpresaId = localStorage.getItem('selectedEmpresaId');
+    if (selectedEmpresaId) {
+      setFilters((prev: any) => ({ ...prev, empresa_id: selectedEmpresaId }));
+    }
+
     const fetchFilterData = async () => {
         try {
             const [empresasData, enumsData] = await Promise.all([
@@ -63,7 +68,15 @@ const EgresosListPage: React.FC = () => {
   }, [filters]);
 
   const handleFilterChange = (key: string, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    if (key === 'empresa_id') {
+      setEgresos([]); // Limpiar egresos al cambiar de empresa
+      if (value) {
+        localStorage.setItem('selectedEmpresaId', value);
+      } else {
+        localStorage.removeItem('selectedEmpresaId');
+      }
+    }
+    setFilters((prev: any) => ({ ...prev, [key]: value }));
   };
 
   const handleDateChange = (dates: any) => {
@@ -83,6 +96,11 @@ const EgresosListPage: React.FC = () => {
       message.error('Error al eliminar el egreso.');
     }
   };
+
+  const sumatoriaMostrada = React.useMemo(
+    () => egresos.reduce((acc, r) => acc + (Number(r.monto) || 0), 0),
+    [egresos]
+  );
 
   const columns = [
     {
@@ -160,6 +178,7 @@ const EgresosListPage: React.FC = () => {
                 style={{ width: 200 }}
                 allowClear
                 options={empresas}
+                value={filters.empresa_id}
                 onChange={(value) => handleFilterChange('empresa_id', value)}
               />
             </Col>
@@ -201,6 +220,21 @@ const EgresosListPage: React.FC = () => {
           dataSource={egresos}
           columns={columns}
           bordered
+          summary={() => (
+            <Table.Summary>
+              <Table.Summary.Row>
+                <Table.Summary.Cell index={0} colSpan={3} align="right">
+                  <strong>Total mostrado:</strong>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={3} align="right">
+                  <strong>
+                    {sumatoriaMostrada.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                  </strong>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={4} colSpan={3} />
+              </Table.Summary.Row>
+            </Table.Summary>
+          )}
         />
       </div>
     </>

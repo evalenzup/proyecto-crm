@@ -1,7 +1,7 @@
 // src/pages/egresos/form/[[...id]].tsx
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   Form,
@@ -15,17 +15,59 @@ import {
   Row,
   Col,
   Space,
+  Upload,
+  message,
 } from 'antd';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEgresoForm } from '@/hooks/useEgresoForm';
-import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { SaveOutlined, ArrowLeftOutlined, UploadOutlined } from '@ant-design/icons';
+import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 
 const EgresoFormPage: React.FC = () => {
   const router = useRouter();
-  const { id, form, loading, saving, empresas, categorias, estatus, onFinish } = useEgresoForm();
+  const { id, form, loading, saving, empresas, categorias, estatus, metodosPago, onFinish, egreso } = useEgresoForm();
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+
+  React.useEffect(() => {
+    if (egreso && egreso.path_documento) {
+      setFileList([
+        {
+          uid: '-1',
+          name: egreso.path_documento.split('/').pop() || 'documento',
+          status: 'done',
+          url: `http://localhost:8000/${egreso.path_documento}`,
+        },
+      ]);
+    }
+    if (egreso) {
+      form.setFieldsValue({
+        metodo_pago: egreso.metodo_pago,
+      });
+    }
+  }, [egreso]);
 
   const categoriaOptions = categorias.map(c => ({ label: c, value: c }));
   const estatusOptions = estatus.map(e => ({ label: e, value: e }));
+
+  const uploadProps: UploadProps = {
+    name: 'file',
+    action: 'http://localhost:8000/api/egresos/upload-documento/',
+    fileList,
+    maxCount: 1,
+    onChange(info) {
+      setFileList(info.fileList);
+      if (info.file.status === 'done') {
+        message.success(`${info.file.name} file uploaded successfully`);
+        form.setFieldsValue({ path_documento: info.file.response.path_documento });
+      } else if (info.file.status === 'error') {
+        message.error(`${info.file.name} file upload failed.`);
+      }
+    },
+    onRemove: (file) => {
+      form.setFieldsValue({ path_documento: null });
+      return true;
+    },
+  };
 
   if (loading) return <Spin style={{ margin: 48 }} />;
 
@@ -78,6 +120,18 @@ const EgresoFormPage: React.FC = () => {
               <Col xs={24} md={8}>
                 <Form.Item label="Proveedor" name="proveedor">
                   <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="Método de Pago" name="metodo_pago" rules={[{ required: true }]}>
+                  <Select options={metodosPago} placeholder="Seleccione un método de pago" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="Documento" name="path_documento">
+                  <Upload {...uploadProps}>
+                    <Button icon={<UploadOutlined />}>Click to Upload</Button>
+                  </Upload>
                 </Form.Item>
               </Col>
             </Row>

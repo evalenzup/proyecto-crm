@@ -1,6 +1,7 @@
 // src/lib/axios.ts
 import axios from 'axios';
 import { message } from 'antd';
+import { normalizeHttpError } from '@/utils/httpError';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -14,12 +15,12 @@ api.interceptors.response.use(
       error?.config?.url &&
       error.config.url.includes('/email-config')
     );
+    const isValidationError = error?.response?.status === 422;
 
-    if (!isEmailConfigNotFound) {
-      const msg =
-        error?.response?.data?.detail ||
-        error?.response?.statusText ||
-        'Error en la comunicación con el servidor';
+    // Evitar toasts ruidosos para 404 del email-config y para validaciones 422;
+    // las pantallas de formularios manejarán el 422 localmente.
+    if (!isEmailConfigNotFound && !isValidationError) {
+      const msg = normalizeHttpError(error);
       message.error(msg);
     }
     return Promise.reject(error);

@@ -3,15 +3,20 @@ from __future__ import annotations
 from uuid import UUID
 from sqlalchemy.orm import Session, selectinload
 from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
+from decimal import Decimal
 
 from app.models.pago import Pago, PagoDocumentoRelacionado
+from app.services.cfdi40_xml import (
+    _build_cadena_original_40,
+    _load_csd_key_for_empresa,
+    _sign_cadena_sha256_pkcs1v15,
+    _load_csd_cert_for_empresa,
+    _fmt_cfdi_fecha_local,
+    money2,
+    tasa6,
+)
 
-# Placeholder for the real implementation
 def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
-    """
-    This is a placeholder for the payment complement XML builder.
-    A real implementation would be very complex, similar to cfdi40_xml.py
-    """
     pago = db.query(Pago).options(
         selectinload(Pago.empresa),
         selectinload(Pago.cliente),
@@ -21,33 +26,200 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
     if not pago:
         raise ValueError("Pago no encontrado")
 
-    # Define namespaces
+    empresa = pago.empresa
+    cliente = pago.cliente
+
     NS_CFDI = "http://www.sat.gob.mx/cfd/4"
     NS_PAGO20 = "http://www.sat.gob.mx/Pagos20"
     NS_XSI = "http://www.w3.org/2001/XMLSchema-instance"
     register_namespace("cfdi", NS_CFDI)
     register_namespace("pago20", NS_PAGO20)
-    register_namespace("xsi", NS_XSI)
 
-    # Create a dummy XML for now
-    comprobante = Element(f"{{{NS_CFDI}}}Comprobante", {
+    # --- START: Calculate Totals ---
+    monto_total_pagos = sum(dr.imp_pagado for dr in pago.documentos_relacionados)
+    
+    total_retenciones_isr = Decimal('0.0')
+    total_retenciones_iva = Decimal('0.0')
+    total_traslados_base_iva16 = Decimal('0.0')
+    total_traslados_impuesto_iva16 = Decimal('0.0')
+    # Add other IVA rates if needed, e.g., 8, 0.
+    
+    for dr in pago.documentos_relacionados:
+        if not dr.impuestos_dr:
+            continue
+        
+        for ret in dr.impuestos_dr.get('retenciones_dr', []):
+            if ret['impuesto_dr'] == '001': # ISR
+                total_retenciones_isr += Decimal(ret['importe_dr'])
+            elif ret['impuesto_dr'] == '002': # IVA
+                total_retenciones_iva += Decimal(ret['importe_dr'])
+
+        for tras in dr.impuestos_dr.get('traslados_dr', []):
+            if tras['impuesto_dr'] == '002': # IVA
+                tasa = Decimal(tras['tasa_o_cuota_dr'])
+                if tasa == Decimal('0.160000'):
+                    total_traslados_base_iva16 += Decimal(tras['base_dr'])
+                    total_traslados_impuesto_iva16 += Decimal(tras['importe_dr'])
+    # --- END: Calculate Totals ---
+
+    comprobante_attrs = {
+        "xmlns:cfdi": NS_CFDI,
+        "xmlns:pago20": NS_PAGO20,
+        "xmlns:xsi": NS_XSI,
+        "xsi:schemaLocation": "http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd http://www.sat.gob.mx/Pagos20 http://www.sat.gob.mx/sitio_internet/cfd/Pagos/Pagos20.xsd",
         "Version": "4.0",
         "Serie": pago.serie or "P",
         "Folio": pago.folio or "1",
-        "Fecha": pago.fecha_pago.strftime("%Y-%m-%dT%H:%M:%S"),
+        "Fecha": _fmt_cfdi_fecha_local(pago.fecha_pago),
         "SubTotal": "0",
         "Moneda": "XXX",
         "Total": "0",
         "TipoDeComprobante": "P",
         "Exportacion": "01",
-        "LugarExpedicion": pago.empresa.codigo_postal,
-        f"{{{NS_XSI}}}schemaLocation": "http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd http://www.sat.gob.mx/Pagos20 http://www.sat.gob.mx/sitio_internet/cfd/Pagos/Pagos20.xsd",
+        "LugarExpedicion": empresa.codigo_postal,
+    }
+    
+    comprobante = Element("cfdi:Comprobante", comprobante_attrs)
+
+    no_cert, cert_b64, _ = _load_csd_cert_for_empresa(empresa)
+    if no_cert: comprobante.set("NoCertificado", no_cert)
+    if cert_b64: comprobante.set("Certificado", cert_b64)
+
+    SubElement(comprobante, "cfdi:Emisor", {
+        "Rfc": empresa.rfc,
+        "Nombre": empresa.nombre,
+        "RegimenFiscal": empresa.regimen_fiscal,
     })
 
-    # A real implementation would add Emisor, Receptor, Concepto, and the Complemento node here.
+    SubElement(comprobante, "cfdi:Receptor", {
+        "Rfc": cliente.rfc,
+        "Nombre": cliente.nombre_razon_social,
+        "DomicilioFiscalReceptor": cliente.codigo_postal,
+        "RegimenFiscalReceptor": cliente.regimen_fiscal,
+        "UsoCFDI": "CP01",
+    })
 
-    xml_bytes = tostring(comprobante, encoding="UTF-8", xml_declaration=True)
+    conceptos = SubElement(comprobante, "cfdi:Conceptos")
+    SubElement(conceptos, "cfdi:Concepto", {
+        "ClaveProdServ": "84111506",
+        "Cantidad": "1",
+        "ClaveUnidad": "ACT",
+        "Descripcion": "Pago",
+        "ValorUnitario": "0",
+        "Importe": "0",
+        "ObjetoImp": "01",
+    })
 
-    # The signing process would happen here
+    complemento = SubElement(comprobante, "cfdi:Complemento")
+    pagos_node = SubElement(complemento, "pago20:Pagos", {"Version": "2.0"})
 
-    return xml_bytes
+    totales_attrs = {
+        "MontoTotalPagos": money2(monto_total_pagos),
+    }
+    if total_retenciones_isr > 0:
+        totales_attrs["TotalRetencionesISR"] = money2(total_retenciones_isr)
+    if total_retenciones_iva > 0:
+        totales_attrs["TotalRetencionesIVA"] = money2(total_retenciones_iva)
+    if total_traslados_impuesto_iva16 > 0:
+        totales_attrs["TotalTrasladosBaseIVA16"] = money2(total_traslados_base_iva16)
+        totales_attrs["TotalTrasladosImpuestoIVA16"] = money2(total_traslados_impuesto_iva16)
+    
+    SubElement(pagos_node, "pago20:Totales", totales_attrs)
+
+    pago_node = SubElement(pagos_node, "pago20:Pago", {
+        "FechaPago": _fmt_cfdi_fecha_local(pago.fecha_pago),
+        "FormaDePagoP": pago.forma_pago_p,
+        "MonedaP": pago.moneda_p,
+        "Monto": money2(pago.monto),
+        "TipoCambioP": str(pago.tipo_cambio_p) if pago.moneda_p != 'MXN' else "1",
+    })
+
+    # --- START: ImpuestosP (Level: Payment) ---
+    has_impuestos_p = total_retenciones_isr > 0 or total_retenciones_iva > 0 or total_traslados_impuesto_iva16 > 0
+    if has_impuestos_p:
+        impuestos_p_node = SubElement(pago_node, "pago20:ImpuestosP")
+
+        if total_traslados_impuesto_iva16 > 0:
+            traslados_p_node = SubElement(impuestos_p_node, "pago20:TrasladosP")
+            SubElement(traslados_p_node, "pago20:TrasladoP", {
+                "BaseP": money2(total_traslados_base_iva16),
+                "ImpuestoP": "002", # IVA
+                "TipoFactorP": "Tasa",
+                "TasaOCuotaP": tasa6(Decimal('0.16')),
+                "ImporteP": money2(total_traslados_impuesto_iva16)
+            })
+            # Add other IVA rates here if needed
+
+        if total_retenciones_isr > 0 or total_retenciones_iva > 0:
+            retenciones_p_node = SubElement(impuestos_p_node, "pago20:RetencionesP")
+            if total_retenciones_isr > 0:
+                SubElement(retenciones_p_node, "pago20:RetencionP", {
+                    "ImpuestoP": "001", # ISR
+                    "ImporteP": money2(total_retenciones_isr)
+                })
+            if total_retenciones_iva > 0:
+                SubElement(retenciones_p_node, "pago20:RetencionP", {
+                    "ImpuestoP": "002", # IVA
+                    "ImporteP": money2(total_retenciones_iva)
+                })
+    # --- END: ImpuestosP ---
+
+    for doc in pago.documentos_relacionados:
+        docto_rel_attrs = {
+            "IdDocumento": doc.id_documento,
+            "MonedaDR": doc.moneda_dr,
+            "NumParcialidad": str(doc.num_parcialidad),
+            "ImpSaldoAnt": money2(doc.imp_saldo_ant),
+            "ImpPagado": money2(doc.imp_pagado),
+            "ImpSaldoInsoluto": money2(doc.imp_saldo_insoluto),
+            "ObjetoImpDR": "02", # Asumiendo que es objeto de impuesto
+            "EquivalenciaDR": str(doc.tipo_cambio_dr),
+        }
+        docto_relacionado_node = SubElement(pago_node, "pago20:DoctoRelacionado", docto_rel_attrs)
+
+        if doc.impuestos_dr:
+            impuestos_dr_node = SubElement(docto_relacionado_node, "pago20:ImpuestosDR")
+            
+            # --- START: TrasladosDR (Level: Document) ---
+            if 'traslados_dr' in doc.impuestos_dr and doc.impuestos_dr['traslados_dr']:
+                traslados_dr_node = SubElement(impuestos_dr_node, "pago20:TrasladosDR")
+                for tras in doc.impuestos_dr['traslados_dr']:
+                    SubElement(traslados_dr_node, "pago20:TrasladoDR", {
+                        "BaseDR": money2(Decimal(tras['base_dr'])),
+                        "ImpuestoDR": tras['impuesto_dr'],
+                        "TipoFactorDR": tras['tipo_factor_dr'],
+                        "TasaOCuotaDR": tasa6(Decimal(tras['tasa_o_cuota_dr'])),
+                        "ImporteDR": money2(Decimal(tras['importe_dr'])),
+                    })
+            # --- END: TrasladosDR ---
+
+            if 'retenciones_dr' in doc.impuestos_dr and doc.impuestos_dr['retenciones_dr']:
+                retenciones_dr_node = SubElement(impuestos_dr_node, "pago20:RetencionesDR")
+                for ret in doc.impuestos_dr['retenciones_dr']:
+                    SubElement(retenciones_dr_node, "pago20:RetencionDR", {
+                        "BaseDR": money2(Decimal(ret['base_dr'])),
+                        "ImpuestoDR": ret['impuesto_dr'],
+                        "TipoFactorDR": ret['tipo_factor_dr'],
+                        "TasaOCuotaDR": tasa6(Decimal(ret['tasa_o_cuota_dr'])),
+                        "ImporteDR": money2(Decimal(ret['importe_dr'])),
+                    })
+
+    xml_sin_sello = tostring(comprobante, encoding="UTF-8", xml_declaration=False)
+    
+    cadena_original = _build_cadena_original_40(xml_sin_sello)
+    if not cadena_original:
+        raise RuntimeError("No se pudo generar la Cadena Original 4.0 para el complemento de pago.")
+
+    private_key = _load_csd_key_for_empresa(empresa)
+    if not private_key:
+        raise RuntimeError("No se pudo cargar la llave privada del CSD para firmar el pago.")
+
+    sello = _sign_cadena_sha256_pkcs1v15(cadena_original, private_key)
+    if not sello:
+        raise RuntimeError("No se pudo firmar la cadena original del pago.")
+    
+    comprobante.set("Sello", sello)
+
+    xml_final = tostring(comprobante, encoding="UTF-8", xml_declaration=True)
+    
+    return xml_final

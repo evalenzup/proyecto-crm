@@ -37,8 +37,23 @@ router = APIRouter()
 # ────────────────────────────────────────────────────────────────
 # Modelos de Respuesta/Entrada específicos de la API
 
-class SendEmailIn(BaseModel):
-    recipient_emails: str
+class FlexibleSendEmailIn(BaseModel):
+    # Acepta múltiples formatos para compatibilidad hacia atrás con el frontend
+    recipients: Optional[List[str]] = None
+    recipient_email: Optional[str] = None
+    recipient_emails: Optional[str] = None  # coma-separado
+    subject: Optional[str] = None
+    body: Optional[str] = None
+
+    def normalized_recipients(self) -> List[str]:
+        # Prioridad: lista -> recipient_emails (csv) -> recipient_email
+        if self.recipients:
+            return [e.strip() for e in self.recipients if e and e.strip()]
+        if self.recipient_emails:
+            return [e.strip() for e in self.recipient_emails.split(',') if e and e.strip()]
+        if self.recipient_email:
+            return [self.recipient_email.strip()] if self.recipient_email.strip() else []
+        return []
 
 class FacturasPageOut(BaseModel):
     items: List[FacturaOut]
@@ -156,7 +171,7 @@ def descargar_xml_timbrado(id: UUID, db: Session = Depends(get_db)):
 @router.post("/{id}/send-preview-email", status_code=status.HTTP_200_OK, summary="Enviar vista previa de factura por correo electrónico")
 def send_preview_factura_by_email(
     id: UUID,
-    payload: SendEmailIn,
+    payload: FlexibleSendEmailIn,
     db: Session = Depends(get_db)
 ):
     """Envía la vista previa de la factura (PDF) a los correos especificados por el usuario."""
@@ -164,7 +179,7 @@ def send_preview_factura_by_email(
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    recipient_emails = [email.strip() for email in payload.recipient_emails.split(',') if email.strip()]
+    recipient_emails = payload.normalized_recipients()
     if not recipient_emails:
         raise HTTPException(status_code=400, detail="No se encontraron correos electrónicos válidos para enviar.")
 
@@ -198,7 +213,7 @@ def send_preview_factura_by_email(
 @router.post("/{id}/send-email", status_code=status.HTTP_200_OK, summary="Enviar factura por correo electrónico")
 def send_factura_by_email(
     id: UUID,
-    payload: SendEmailIn,
+    payload: FlexibleSendEmailIn,
     db: Session = Depends(get_db)
 ):
     """Envía la factura (PDF y XML) a los correos especificados por el usuario."""
@@ -206,7 +221,7 @@ def send_factura_by_email(
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    recipient_emails = [email.strip() for email in payload.recipient_emails.split(',') if email.strip()]
+    recipient_emails = payload.normalized_recipients()
     if not recipient_emails:
         raise HTTPException(status_code=400, detail="No se encontraron correos electrónicos válidos para enviar.")
 

@@ -11,7 +11,7 @@ from sqlalchemy import (
     Enum as SQLAlchemyEnum,
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.models.base import Base
 
 
@@ -81,6 +81,7 @@ class PagoDocumentoRelacionado(Base):
     imp_pagado = Column(Numeric(18, 4), nullable=False)
     imp_saldo_insoluto = Column(Numeric(18, 4), nullable=False)
     tipo_cambio_dr = Column(Numeric(18, 6), nullable=True)
+    impuestos_dr = Column(JSONB, nullable=True) # Almacena el desglose de impuestos del documento relacionado
 
     # --- Relaciones ---
     pago = relationship("Pago", back_populates="documentos_relacionados")

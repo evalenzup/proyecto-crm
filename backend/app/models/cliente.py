@@ -1,5 +1,5 @@
 # app/models/cliente.py
-from sqlalchemy import Column, String, Text, TIMESTAMP, Integer
+from sqlalchemy import Column, String, Text, TIMESTAMP, Integer, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -27,6 +27,9 @@ class Cliente(Base):
     numero_interior     = Column(String(50))
     colonia             = Column(String(100))
     codigo_postal       = Column(String(10), nullable=False)
+    # Geolocalización
+    latitud             = Column(Float, nullable=True)
+    longitud            = Column(Float, nullable=True)
     # Contacto texto separado por comas
     telefono            = Column(Text, nullable=True)
     email               = Column(Text, nullable=True)
@@ -46,6 +49,8 @@ class Cliente(Base):
         secondary=cliente_empresa,
         back_populates="clientes"
     )
+
+    contactos = relationship("Contacto", back_populates="cliente", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Cliente(nombre_comercial={self.nombre_comercial}, rfc={self.rfc})>"
