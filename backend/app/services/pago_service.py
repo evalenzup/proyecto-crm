@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 import re
 from decimal import Decimal
 
-from app.models.pago import Pago, PagoDocumentoRelacionado
+from app.models.pago import Pago, PagoDocumentoRelacionado, EstatusPago
 from app.models.factura import Factura
 from app.schemas.pago import PagoCreate
 from app.services.timbrado_factmoderna import FacturacionModernaPAC
@@ -147,8 +147,9 @@ def listar_facturas_pendientes_por_cliente(
 
 def get_pago_pdf(db: Session, pago_id: UUID) -> tuple[bytes, str]:
     try:
-        pdf_bytes = render_pago_pdf_bytes_from_model(db, pago_id, preview=True)
         pago = db.query(Pago).filter(Pago.id == pago_id).first()
+        preview = not (pago and pago.estatus == EstatusPago.TIMBRADO)
+        pdf_bytes = render_pago_pdf_bytes_from_model(db, pago_id, preview=preview)
         folio_str = (
             f"{pago.serie}-{pago.folio}"
             if pago and pago.serie

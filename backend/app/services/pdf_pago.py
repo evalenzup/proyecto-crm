@@ -65,21 +65,34 @@ def load_pago_full(db: Session, pago_id: UUID) -> Optional[Pago]:
 
 
 # --- QR Code ---
+def _tfd_cadena_original_11_pago(p: Pago) -> str | None:
+    uuid = (getattr(p, "uuid", None) or "").strip()
+    sello_cfd = (getattr(p, "sello_cfdi", None) or "").strip()
+    rfc_pac = (getattr(p, "rfc_proveedor_sat", None) or "").strip()
+    nocer_sat = (getattr(p, "no_certificado_sat", None) or "").strip()
+    ft = getattr(p, "fecha_timbrado", None)
+    if not (uuid and sello_cfd and rfc_pac and nocer_sat and ft):
+        return None
+    try:
+        fecha_iso = ft.strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception:
+        return None
+    return f"||1.1|{uuid}|{fecha_iso}|{rfc_pac}|{sello_cfd}|{nocer_sat}||"
+
 def _build_pago_qr_url(p: Pago) -> str:
     base = "https://verificacfdi.facturaelectronica.sat.gob.mx/"
     uuid = (getattr(p, "uuid", None) or "").strip()
     re = (getattr(getattr(p, "empresa", None), "rfc", None) or "").strip().upper()
     rr = (getattr(getattr(p, "cliente", None), "rfc", None) or "").strip().upper()
     total = getattr(p, "monto", None)
-    # El sello del CFDI de pago no está en el modelo, asumimos que se podría añadir
-    # sello_cfdi = (getattr(p, "sello_cfdi", None) or "").strip()
-    # fe = sello_cfdi[-8:] if sello_cfdi else ""
+    sello_cfdi = (getattr(p, "sello_cfdi", None) or "").strip()
+    fe = sello_cfdi[-8:] if sello_cfdi else ""
 
     if uuid and re and rr and (total is not None):
         params = {"id": uuid, "re": re, "rr": rr, "tt": f"{total:.2f}"}
         query = urlencode(params)
-        # if fe:
-        #     query += f"&fe={fe}"
+        if fe:
+            query += f"&fe={fe}"
         return base + "?" + query
     return base
 
@@ -253,7 +266,7 @@ def _draw_pago_footer(c: canvas.Canvas, p: Pago):
     y = draw_block("Sello digital del SAT:", getattr(p, "sello_sat", None), y)
     y = draw_block(
         "Cadena original del complemento de certificación digital del SAT:",
-        getattr(p, "cadena_original", None),
+        _tfd_cadena_original_11_pago(p),
         y,
     )
     if p.no_certificado:
@@ -376,6 +389,42 @@ def render_pago_pdf_bytes_from_model(
         c.setFont(FONT, 7)
         c.drawString(x_curr + 70, y_pago_info, value)
         y_pago_info -= 12
+
+    # Resumen de Impuestos del Pago (similar a factura)
+    # Agregar IVA 16% e IVA 8% a nivel pago, sumando lo presente en DR
+    from decimal import Decimal
+
+    total_traslados_iva16 = Decimal("0.0")
+    total_traslados_iva8 = Decimal("0.0")
+    for dr in (p.documentos_relacionados or []):
+        impuestos = getattr(dr, "impuestos_dr", None) or {}
+        for tras in impuestos.get("traslados_dr", []) or []:
+            if str(tras.get("impuesto_dr")) == "002":
+                try:
+                    tasa = Decimal(str(tras.get("tasa_o_cuota_dr"))).quantize(Decimal("0.000001"))
+                    importe = Decimal(str(tras.get("importe_dr")))
+                except Exception:
+                    continue
+                if tasa == Decimal("0.160000"):
+                    total_traslados_iva16 += importe
+                elif tasa == Decimal("0.080000"):
+                    total_traslados_iva8 += importe
+
+    # Dibujar líneas si hay importes
+    if total_traslados_iva16 > 0 or total_traslados_iva8 > 0:
+        y_pago_info -= 4
+        if total_traslados_iva16 > 0:
+            c.setFont(FONT_B, 7)
+            c.drawString(CONTENT_X0, y_pago_info, "IVA 16.00%:")
+            c.setFont(FONT, 7)
+            c.drawString(CONTENT_X0 + 70, y_pago_info, _money(total_traslados_iva16))
+            y_pago_info -= 12
+        if total_traslados_iva8 > 0:
+            c.setFont(FONT_B, 7)
+            c.drawString(CONTENT_X0, y_pago_info, "IVA 8.00%:")
+            c.setFont(FONT, 7)
+            c.drawString(CONTENT_X0 + 70, y_pago_info, _money(total_traslados_iva8))
+            y_pago_info -= 12
 
     # --- Tabla de Documentos Relacionados ---
     y_table_start = y_pago_info - 10

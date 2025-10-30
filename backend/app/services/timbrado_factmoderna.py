@@ -318,6 +318,25 @@ def _parse_tfd_fields_regex(cfdi_bytes: bytes) -> Dict[str, Any]:
     }
 
 
+def _parse_comprobante_no_certificado(cfdi_bytes: bytes) -> Optional[str]:
+    """
+    Intenta extraer el atributo NoCertificado del nodo Comprobante del CFDI timbrado.
+    Usa XML parsing por local-name, con regex como fallback simple si es necesario.
+    """
+    try:
+        root = fromstring(cfdi_bytes)
+        for el in root.iter():
+            if _etree_strip_ns(el.tag) == "Comprobante":
+                val = el.attrib.get("NoCertificado")
+                if val:
+                    return val
+                break
+    except Exception:
+        pass
+    m = re.search(rb'NoCertificado\s*=\s*["\']([^"\']+)["\']', cfdi_bytes)
+    return m.group(1).decode("utf-8", "ignore") if m else None
+
+
 def _parse_tfd_fields(cfdi_bytes: bytes) -> Dict[str, Any]:
     """
     Orquesta: primero XML, luego regex; regresa dict sólo con keys encontradas.
@@ -694,7 +713,7 @@ class FacturacionModernaPAC:
         (logger.info if logger else print)(f"[CFDI preview:head]\n{head}")
         (logger.info if logger else print)(f"[CFDI preview:tail]\n{tail}")
 
-        # 6) Extraer TFD (XML → regex fallback)
+    # 6) Extraer TFD (XML → regex fallback)
         tfd = _parse_tfd_fields(cfdi_bytes)
         if not tfd.get("uuid"):
             (logger.warning if logger else print)(
@@ -749,6 +768,8 @@ class FacturacionModernaPAC:
         p.sello_sat = tfd.get("sello_sat")
         p.sello_cfdi = tfd.get("sello_cfdi")
         p.rfc_proveedor_sat = tfd.get("rfc_prov_certif")
+        # Comprobante@NoCertificado (emisor)
+        p.no_certificado = _parse_comprobante_no_certificado(cfdi_bytes)
 
         # Paths
         if hasattr(p, "xml_path"):
