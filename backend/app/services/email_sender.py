@@ -372,3 +372,93 @@ def test_smtp_connection(
         raise EmailSendingError(f"No se pudo conectar al servidor SMTP: {e}")
     except Exception as e:
         raise EmailSendingError(f"Error al probar la conexión SMTP: {e}")
+
+
+def send_presupuesto_email(
+    db: Session, empresa_id: uuid.UUID, presupuesto_id: uuid.UUID, recipient_email: str
+):
+    # 1. Obtener la configuración de email de la empresa
+    email_config = (
+        db.query(models.EmailConfig)
+        .filter(models.EmailConfig.empresa_id == empresa_id)
+        .first()
+    )
+    if not email_config:
+        raise EmailSendingError(
+            "La empresa no tiene una configuración de correo electrónico."
+        )
+
+    # 2. Obtener el presupuesto
+    presupuesto = (
+        db.query(models.Presupuesto)
+        .options(selectinload(models.Presupuesto.empresa), selectinload(models.Presupuesto.cliente))
+        .filter(
+            models.Presupuesto.id == presupuesto_id, models.Presupuesto.empresa_id == empresa_id
+        )
+        .first()
+    )
+    if not presupuesto:
+        raise EmailSendingError("Presupuesto no encontrado.")
+
+    # 3. Generar PDF en memoria
+    try:
+        from app.services.pdf_generator import generate_presupuesto_pdf
+        pdf_bytes = generate_presupuesto_pdf(presupuesto, db)
+    except Exception as e:
+        raise EmailSendingError(f"No se pudo generar el PDF para el envío: {e}")
+
+    # 4. Desencriptar contraseña y preparar datos del correo
+    try:
+        smtp_password = decrypt_data(email_config.smtp_password)
+    except Exception:
+        raise EmailSendingError(
+            "No se pudo desencriptar la contraseña del correo. Verifique la configuración."
+        )
+
+    msg = MIMEMultipart()
+    msg["From"] = (
+        f"{email_config.from_name} <{email_config.from_address}>"
+        if email_config.from_name
+        else email_config.from_address
+    )
+    msg["To"] = recipient_email
+    msg["Subject"] = (
+        f"Presupuesto {presupuesto.folio} de {presupuesto.empresa.nombre_comercial}"
+    )
+
+    body = f"""
+    <html>
+      <body>
+        <p>Estimado cliente {presupuesto.cliente.nombre_comercial},</p>
+        <p>Adjuntamos el presupuesto con folio <strong>{presupuesto.folio}</strong>.</p>
+        <p>Saludos cordiales,<br/>{presupuesto.empresa.nombre_comercial}</p>
+      </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, "html"))
+
+    # 5. Adjuntar PDF desde memoria
+    pdf_filename = f"Presupuesto-{presupuesto.folio}.pdf"
+    part_pdf = MIMEBase("application", "octet-stream")
+    part_pdf.set_payload(pdf_bytes)
+    encoders.encode_base64(part_pdf)
+    part_pdf.add_header(
+        "Content-Disposition",
+        f'attachment; filename="{pdf_filename}"',
+    )
+    msg.attach(part_pdf)
+
+    # 6. Enviar correo
+    try:
+        server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
+        if email_config.use_tls:
+            server.starttls()
+        server.login(email_config.smtp_user, smtp_password)
+        server.send_message(msg)
+        server.quit()
+    except smtplib.SMTPAuthenticationError:
+        raise EmailSendingError(
+            "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+        )
+    except Exception as e:
+        raise EmailSendingError(f"Error al enviar el correo: {e}")
