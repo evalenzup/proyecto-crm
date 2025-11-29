@@ -293,6 +293,21 @@ class PresupuestoRepository(BaseRepository[Presupuesto, PresupuestoCreate, Presu
         if presupuesto.estado != "ACEPTADO":
             raise HTTPException(status_code=400, detail="Solo se pueden convertir presupuestos ACEPTADOS")
 
+        # Validar que todos los conceptos tengan producto vinculado para obtener claves SAT
+        conceptos_sin_producto = []
+        for det in presupuesto.detalles:
+            if not det.producto_servicio_id:
+                conceptos_sin_producto.append(det.descripcion)
+        
+        if conceptos_sin_producto:
+            lista_conceptos = ", ".join(conceptos_sin_producto[:3])
+            if len(conceptos_sin_producto) > 3:
+                lista_conceptos += ", ..."
+            raise HTTPException(
+                status_code=400, 
+                detail=f"No se puede facturar: Los siguientes conceptos no están vinculados a un producto del catálogo y faltan sus claves SAT: {lista_conceptos}. Por favor edite el presupuesto y vincúlelos a un producto."
+            )
+
         # Crear nueva factura
         serie_factura = "A" # O la lógica que se decida
         folio_factura = siguiente_folio(db, presupuesto.empresa_id, serie_factura)
@@ -315,6 +330,14 @@ class PresupuestoRepository(BaseRepository[Presupuesto, PresupuestoCreate, Presu
         )
 
         for detalle_presupuesto in presupuesto.detalles:
+            # Obtener claves SAT del producto relacionado si existe
+            clave_prod = "01010101" # Fallback genérico
+            clave_uni = "H87"       # Fallback genérico (Pieza)
+            
+            if detalle_presupuesto.producto_servicio:
+                clave_prod = detalle_presupuesto.producto_servicio.clave_producto or clave_prod
+                clave_uni = detalle_presupuesto.producto_servicio.clave_unidad or clave_uni
+
             factura_detalle = FacturaDetalleModel(
                 factura_id=factura.id,
                 producto_servicio_id=detalle_presupuesto.producto_servicio_id,
@@ -322,9 +345,8 @@ class PresupuestoRepository(BaseRepository[Presupuesto, PresupuestoCreate, Presu
                 cantidad=detalle_presupuesto.cantidad,
                 valor_unitario=detalle_presupuesto.precio_unitario,
                 importe=detalle_presupuesto.importe,
-                # TODO: Mapear claves SAT y tasas de impuestos si existen en el presupuesto
-                clave_producto="01010101", # Sin clasificación
-                clave_unidad="H87", # Pieza
+                clave_producto=clave_prod,
+                clave_unidad=clave_uni,
             )
             factura.conceptos.append(factura_detalle)
         

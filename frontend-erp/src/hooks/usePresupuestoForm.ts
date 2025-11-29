@@ -98,7 +98,7 @@ export const usePresupuestoForm = (id?: string) => {
 
       const newCliente = await clienteService.createCliente(payload);
       message.success('Cliente creado con éxito');
-      
+
       const newOption = { label: newCliente.nombre_comercial, value: newCliente.id };
       setClientesOptions(prev => [newOption, ...prev]);
       form.setFieldValue('cliente_id', newCliente.id);
@@ -217,7 +217,7 @@ export const usePresupuestoForm = (id?: string) => {
   const handleSaveConcepto = async () => {
     const values = await conceptoForm.validateFields();
     const importe = (values.cantidad || 0) * (values.precio_unitario || 0);
-    
+
     const newConcepto: PresupuestoDetalle = {
       id: editingConcepto?.id || crypto.randomUUID(),
       ...values,
@@ -236,7 +236,7 @@ export const usePresupuestoForm = (id?: string) => {
 
   const onFinish = async (values: PresupuestoCreate) => {
     setIsSubmitting(true);
-    
+
     const formattedValues = {
       ...values,
       fecha_emision: values.fecha_emision ? dayjs(values.fecha_emision).format('YYYY-MM-DD') : undefined,
@@ -298,6 +298,18 @@ export const usePresupuestoForm = (id?: string) => {
     onError: (err) => message.error(normalizeHttpError(err) || 'Error al subir evidencia'),
   });
 
+  const conversionMutation = useMutation({
+    mutationFn: (id: string) => presupuestoService.convertirAFactura(id),
+    onSuccess: (factura) => {
+      message.success(`Factura ${factura.serie}-${factura.folio} creada exitosamente`);
+      queryClient.invalidateQueries({ queryKey: ['presupuestos'] });
+      queryClient.invalidateQueries({ queryKey: ['presupuesto', selectedVersionId] });
+      // Opcional: Redirigir a la factura creada
+      // router.push(`/facturas/form/${factura.id}`);
+    },
+    onError: (err) => message.error(normalizeHttpError(err) || 'Error al convertir a factura'),
+  });
+
   const verPDF = async () => {
     if (!selectedVersionId) {
       message.info('Guarda el presupuesto para generar una vista previa.');
@@ -334,6 +346,7 @@ export const usePresupuestoForm = (id?: string) => {
     // Status Change
     statusUpdateMutation,
     uploadEvidenciaMutation,
+    conversionMutation,
     // Conceptos
     conceptos,
     setConceptos,

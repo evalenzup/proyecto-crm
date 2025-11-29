@@ -9,7 +9,7 @@ from app.models.cliente import Cliente
 from app.models.empresa import Empresa
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.repository.base import BaseRepository
-from app.catalogos_sat import validar_regimen_fiscal
+from app.catalogos_sat.regimenes_fiscales import obtener_clave_regimen_por_descripcion
 from app.catalogos_sat.codigos_postales import validar_codigo_postal
 from app.validators.rfc import validar_rfc_por_regimen
 
@@ -24,15 +24,21 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
         cliente_existente: Optional[Cliente] = None,
     ):
         """Validaciones de negocio específicas para Cliente."""
-        if regimen_fiscal and not validar_regimen_fiscal(regimen_fiscal):
-            raise HTTPException(status_code=400, detail="Régimen fiscal inválido.")
+        regimen_fiscal_clave = None
+        if regimen_fiscal:
+            regimen_fiscal_clave = obtener_clave_regimen_por_descripcion(regimen_fiscal)
+            if not regimen_fiscal_clave:
+                raise HTTPException(status_code=400, detail="Régimen fiscal inválido.")
+
         if codigo_postal and not validar_codigo_postal(codigo_postal):
             raise HTTPException(status_code=400, detail="Código postal inválido.")
+        
         if rfc:
-            regimen = regimen_fiscal or getattr(
-                cliente_existente, "regimen_fiscal", None
-            )
-            if not validar_rfc_por_regimen(rfc, regimen):
+            regimen_clave_a_usar = regimen_fiscal_clave
+            if not regimen_clave_a_usar and cliente_existente:
+                regimen_clave_a_usar = obtener_clave_regimen_por_descripcion(cliente_existente.regimen_fiscal)
+
+            if regimen_clave_a_usar and not validar_rfc_por_regimen(rfc, regimen_clave_a_usar):
                 raise HTTPException(
                     status_code=400, detail="RFC inválido para el régimen fiscal."
                 )

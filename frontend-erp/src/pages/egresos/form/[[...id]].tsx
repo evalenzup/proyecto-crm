@@ -35,7 +35,7 @@ const EgresoFormPage: React.FC = () => {
           uid: '-1',
           name: egreso.path_documento.split('/').pop() || 'documento',
           status: 'done',
-          url: `http://localhost:8000/${egreso.path_documento}`,
+          url: `http://localhost:8000/data/${egreso.path_documento}`,
         },
       ]);
     }

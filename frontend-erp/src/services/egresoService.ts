@@ -44,6 +44,7 @@ export interface Egreso {
   estatus: string;
   proveedor?: string;
   path_documento?: string;
+  metodo_pago?: string;
 }
 
 export interface EgresoPageOut {

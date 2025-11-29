@@ -1,7 +1,8 @@
 # app/schemas/cliente.py
 
-from pydantic import BaseModel, Field, EmailStr, constr, conint, field_validator
-from typing import Optional, List, Literal
+from pydantic import BaseModel, Field, EmailStr, field_validator
+from typing import Optional, List, Literal, Annotated
+from pydantic import StringConstraints
 from uuid import UUID
 from datetime import datetime
 import re
@@ -12,31 +13,31 @@ from app.schemas.utils import make_optional  # Importamos la utilidad
 
 class ClienteBase(BaseModel):
     # Nombres
-    nombre_comercial: constr(max_length=255) = Field(..., title="Nombre Comercial")  # type: ignore
-    nombre_razon_social: constr(max_length=255) = Field(..., title="Nombre Fiscal")  # type: ignore
+    nombre_comercial: Annotated[str, StringConstraints(max_length=255)] = Field(..., title="Nombre Comercial")
+    nombre_razon_social: Annotated[str, StringConstraints(max_length=255)] = Field(..., title="Nombre Fiscal")
     # Datos fiscales
-    rfc: constr(max_length=13) = Field(..., title="RFC")  # type: ignore
-    regimen_fiscal: constr(max_length=100) = Field(..., title="Régimen Fiscal")  # type: ignore
+    rfc: Annotated[str, StringConstraints(max_length=13)] = Field(..., title="RFC")
+    regimen_fiscal: Annotated[str, StringConstraints(max_length=100)] = Field(..., title="Régimen Fiscal")
     # Dirección
-    calle: Optional[constr(max_length=100)] = Field(None, title="Calle")  # type: ignore
-    numero_exterior: Optional[constr(max_length=50)] = Field(
+    calle: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Calle")
+    numero_exterior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(
         None, title="Número Exterior"
-    )  # type: ignore
-    numero_interior: Optional[constr(max_length=50)] = Field(
+    )
+    numero_interior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(
         None, title="Número Interior"
-    )  # type: ignore
-    colonia: Optional[constr(max_length=100)] = Field(None, title="Colonia")  # type: ignore
-    codigo_postal: constr(max_length=10) = Field(..., title="Código Postal")  # type: ignore
+    )
+    colonia: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Colonia")
+    codigo_postal: Annotated[str, StringConstraints(max_length=10)] = Field(..., title="Código Postal")
     # Geolocalización
     latitud: Optional[float] = Field(None, title="Latitud")
     longitud: Optional[float] = Field(None, title="Longitud")
     # Contacto (listas)
-    telefono: Optional[List[constr(max_length=50)]] = Field(None, title="Teléfono")  # type: ignore
+    telefono: Optional[List[Annotated[str, StringConstraints(max_length=50)]]] = Field(None, title="Teléfono")
     email: Optional[List[EmailStr]] = Field(None, title="Correo Electrónico")
     # Datos para pago
-    dias_credito: Optional[conint(ge=0)] = Field(0, title="Días de Crédito")  # type: ignore
-    dias_recepcion: Optional[conint(ge=0)] = Field(0, title="Días de Recepción")  # type: ignore
-    dias_pago: Optional[conint(ge=0)] = Field(0, title="Días de Pago")  # type: ignore
+    dias_credito: Optional[int] = Field(0, ge=0, title="Días de Crédito")
+    dias_recepcion: Optional[int] = Field(0, ge=0, title="Días de Recepción")
+    dias_pago: Optional[int] = Field(0, ge=0, title="Días de Pago")
     # Clasificación
     tamano: Optional[Literal["CHICO", "MEDIANO", "GRANDE"]] = Field(
         None, title="Tamaño"

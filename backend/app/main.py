@@ -18,9 +18,11 @@ from app.api.factura import router as factura_router
 from app.api import catalogos
 from app.api import pagos
 from app.api import egresos
+from app.api import dashboard
 from app.api.email_config import router as email_config_router
 from app.api.utils import router as utils_router
 from app.api.contactos import router as contactos_router
+from app.api.presupuestos import router as presupuestos_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -91,6 +93,13 @@ app.include_router(
 )
 
 app.include_router(
+    dashboard.router,
+    prefix="/api/dashboard",
+    tags=["dashboard"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
     email_config_router,
     prefix="/api/empresas/{empresa_id}/email-config",
     tags=["email-config"],
@@ -108,6 +117,13 @@ app.include_router(
     contactos_router,
     prefix="/api",
     tags=["contactos"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    presupuestos_router,
+    prefix="/api/presupuestos",
+    tags=["presupuestos"],
     responses={404: {"description": "No encontrado"}},
 )
 

@@ -17,6 +17,15 @@ def obtener_descripcion_regimen(clave: str) -> str:
     return ""
 
 
+def obtener_clave_regimen_por_descripcion(descripcion: str) -> str | None:
+    """Obtiene la clave del régimen fiscal dada su descripción."""
+    for rf in REGIMENES_FISCALES_SAT:
+        if rf["descripcion"] == descripcion:
+            return rf["clave"]
+    return None
+
+
+
 def obtener_todos_regimenes() -> List[Dict[str, str]]:
     """
     Devuelve la lista completa de regímenes fiscales

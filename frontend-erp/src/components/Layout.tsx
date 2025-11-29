@@ -15,6 +15,7 @@ import {
   ContactsOutlined,
   BulbOutlined,
   MoonOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip } from 'antd';
 import esES from 'antd/locale/es_ES';
@@ -32,6 +33,7 @@ const menuData = [
   { path: '/clientes', name: 'Clientes', icon: <ContactsOutlined /> },
   { path: '/productos-servicios', name: 'Productos', icon: <ProductOutlined /> },
   { path: '/facturas', name: 'Facturación', icon: <ContainerOutlined />},
+  { path: '/presupuestos', name: 'Presupuestos', icon: <FileTextOutlined /> },
   { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined />},
   { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
   { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
@@ -100,21 +102,69 @@ export const Layout: React.FC<{
     [algorithm]
   );
 
+  // Logo de empresa arriba del menú (estático desde /public)
+  // Coloca tu archivo en: frontend-erp/public/logo-empresa.png
+  const [logoUrl, setLogoUrl] = useState<string>('/logo-empresa.png');
+
   return (
     <ConfigProvider theme={themeConfig} locale={esES}>
       <ProLayout
-        title="CORPORATIVO NORTON"
+        title={false}
         menuDataRender={() => menuData}
         location={{ pathname: router.pathname }}
         menuItemRender={(item, dom) => <Link href={item.path || '/'}>{dom}</Link>}
-        layout="side"
-        fixedHeader={false}
-        fixSiderbar={false}
-        siderWidth={180}
+    layout="side"
+    fixedHeader={false}
+    fixSiderbar={true}
+    siderWidth={240}
         contentWidth="Fluid"
         contentStyle={{ margin: 0, padding: 0, maxWidth: '100%' }}
-        rightContentRender={() => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 12 }}>
+        rightContentRender={false}
+        // Render del header del sider para colocar el logo arriba del menú
+        menuHeaderRender={() => (
+          <div
+            style={{
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+            }}
+          >
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl}
+                alt="Logo empresa"
+                style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                onError={(e) => {
+                  const t = e.currentTarget as HTMLImageElement;
+                  // evitar loops
+                  if (t.src.endsWith('/vercel.svg')) return;
+                  t.src = '/vercel.svg';
+                }}
+              />
+            ) : (
+              <div style={{ width: '100%', height: 40, background: 'var(--ant-color-fill-tertiary)' }} />
+            )}
+          </div>
+        )}
+        // Footer del menú lateral: switch de tema fijo al final del menú
+        menuFooterRender={(props) => (
+          <div
+            style={{
+              padding: props?.collapsed ? '12px 8px' : 12,
+              borderTop: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: props?.collapsed ? 'center' : 'space-between',
+              gap: 8,
+              width: '100%',
+            }}
+          >
+            {!props?.collapsed && (
+              <span style={{ fontSize: 12, opacity: 0.85 }}>Modo oscuro</span>
+            )}
             <ThemeSwitch mode={mode} onToggle={(c) => setMode(c ? 'dark' : 'light')} />
           </div>
         )}

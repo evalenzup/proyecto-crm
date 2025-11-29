@@ -40,3 +40,13 @@
   padding: 0 !important;
   width: 100% !important;
 }
+
+/* 4) Ocultar el indicador de actividad de Next.js (círculo con "N") en desarrollo */
+#nextjs__build_indicator,
+#nextjs__build_indicator *,
+:root .nextjs-container-build-activity,
+:root [data-nextjs-build-indicator],
+:root #__next-build-indicator,
+:root #__next-build-watcher {
+  display: none !important;
+}

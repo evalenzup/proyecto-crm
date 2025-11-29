@@ -24,7 +24,7 @@ import {
   message,
 } from 'antd';
 import type { MenuProps } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, FilePdfOutlined, DownOutlined, UploadOutlined, PaperClipOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, FilePdfOutlined, DownOutlined, UploadOutlined, PaperClipOutlined, FileDoneOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd/es/upload/interface';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePresupuestoForm } from '@/hooks/usePresupuestoForm';
@@ -59,6 +59,7 @@ const PresupuestoFormPage: React.FC = () => {
     // Status Change
     statusUpdateMutation,
     uploadEvidenciaMutation,
+    conversionMutation,
     // Conceptos
     conceptos,
     setConceptos,
@@ -86,7 +87,7 @@ const PresupuestoFormPage: React.FC = () => {
     return presupuesto.id !== latestVersion.id;
   }, [presupuesto, versionHistory]);
 
-  const subtotal = useMemo(() => 
+  const subtotal = useMemo(() =>
     conceptos.reduce((acc, item) => acc + (item.cantidad || 0) * (item.precio_unitario || 0), 0),
     [conceptos]
   );
@@ -188,7 +189,7 @@ const PresupuestoFormPage: React.FC = () => {
         </div>
       </div>
       <div className="app-content">
-        
+
         {/* Version Selector outside the form */}
         {presupuestoId && (
           <Card size="small" style={{ marginBottom: 16 }}>
@@ -211,7 +212,7 @@ const PresupuestoFormPage: React.FC = () => {
               </Col>
               <Col xs={24} md={8}>
                 <Form.Item label="Estado Actual" style={{ marginBottom: 0 }}>
-                    <Tag color={presupuesto?.estado === 'ARCHIVADO' ? 'orange' : 'blue'} style={{ fontSize: 14, padding: '4px 8px' }}>{presupuesto?.estado || 'BORRADOR'}</Tag>
+                  <Tag color={presupuesto?.estado === 'ARCHIVADO' ? 'orange' : 'blue'} style={{ fontSize: 14, padding: '4px 8px' }}>{presupuesto?.estado || 'BORRADOR'}</Tag>
                 </Form.Item>
               </Col>
             </Row>
@@ -228,8 +229,8 @@ const PresupuestoFormPage: React.FC = () => {
               </Col>
               <Col xs={24} md={8}>
                 <Form.Item name="empresa_id" label="Empresa Emisora" rules={[{ required: true }]}>
-                  <Select 
-                    placeholder="Seleccionar empresa" 
+                  <Select
+                    placeholder="Seleccionar empresa"
                     options={empresasOptions}
                     onChange={onEmpresaChange}
                   />
@@ -239,8 +240,8 @@ const PresupuestoFormPage: React.FC = () => {
                 <Form.Item label="Cliente" required>
                   <Space.Compact style={{ width: '100%' }}>
                     <Form.Item name="cliente_id" noStyle rules={[{ required: true, message: 'Selecciona un cliente' }]}>
-                      <Select 
-                        showSearch 
+                      <Select
+                        showSearch
                         filterOption={false}
                         placeholder={!empresaId ? 'Selecciona una empresa primero' : 'Buscar cliente...'}
                         options={clientesOptions}
@@ -250,9 +251,9 @@ const PresupuestoFormPage: React.FC = () => {
                         style={{ width: '100%' }}
                       />
                     </Form.Item>
-                    <Button 
-                      icon={<PlusOutlined />} 
-                      onClick={() => setIsClienteModalOpen(true)} 
+                    <Button
+                      icon={<PlusOutlined />}
+                      onClick={() => setIsClienteModalOpen(true)}
                       disabled={!empresaId || isReadOnly}
                     />
                   </Space.Compact>
@@ -290,16 +291,16 @@ const PresupuestoFormPage: React.FC = () => {
               </Col>
             </Row>
             <Row gutter={16}>
-                <Col xs={24} md={12}>
-                    <Form.Item name="condiciones_comerciales" label="Condiciones Comerciales">
-                        <TextArea rows={2} />
-                    </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                    <Form.Item name="notas_internas" label="Notas Internas">
-                        <TextArea rows={2} />
-                    </Form.Item>
-                </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="condiciones_comerciales" label="Condiciones Comerciales">
+                  <TextArea rows={2} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="notas_internas" label="Notas Internas">
+                  <TextArea rows={2} />
+                </Form.Item>
+              </Col>
             </Row>
           </Card>
 
@@ -313,7 +314,7 @@ const PresupuestoFormPage: React.FC = () => {
                 conceptoForm.resetFields();
                 setIsConceptoModalOpen(true);
               }}
-              disabled={!empresaId || isReadOnly}
+                disabled={!empresaId || isReadOnly}
               >
                 Agregar Concepto
               </Button>
@@ -329,9 +330,9 @@ const PresupuestoFormPage: React.FC = () => {
             />
             <Divider />
             <Row justify="end" gutter={24}>
-                <Col><Text>Subtotal: <b>{formatCurrency(subtotal)}</b></Text></Col>
-                <Col><Text>Impuestos: <b>{formatCurrency(impuestos)}</b></Text></Col>
-                <Col><Text>Total: <b>{formatCurrency(total)}</b></Text></Col>
+              <Col><Text>Subtotal: <b>{formatCurrency(subtotal)}</b></Text></Col>
+              <Col><Text>Impuestos: <b>{formatCurrency(impuestos)}</b></Text></Col>
+              <Col><Text>Total: <b>{formatCurrency(total)}</b></Text></Col>
             </Row>
           </Card>
 
@@ -343,6 +344,26 @@ const PresupuestoFormPage: React.FC = () => {
               <Button icon={<FilePdfOutlined />} onClick={verPDF} disabled={!selectedVersionId}>
                 Ver PDF
               </Button>
+
+              {presupuesto?.estado === 'ACEPTADO' && (
+                <Button
+                  icon={<FileDoneOutlined />}
+                  onClick={() => {
+                    Modal.confirm({
+                      title: '¿Convertir a Factura?',
+                      content: 'Esta acción creará una nueva factura en estado BORRADOR a partir de este presupuesto. El presupuesto será marcado como FACTURADO.',
+                      onOk: () => selectedVersionId && conversionMutation.mutate(selectedVersionId),
+                      okText: 'Convertir',
+                      cancelText: 'Cancelar',
+                    });
+                  }}
+                  loading={conversionMutation.isPending}
+                  disabled={isReadOnly}
+                >
+                  Convertir a Factura
+                </Button>
+              )}
+
               <Dropdown menu={{ items: statusMenuItems }} disabled={isReadOnly || !selectedVersionId}>
                 <Button>
                   Cambiar Estado <DownOutlined />

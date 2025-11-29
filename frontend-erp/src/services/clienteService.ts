@@ -73,8 +73,12 @@ export const clienteService = {
     return response.data;
   },
 
-  buscarClientes: async (q: string, limit: number = 10): Promise<ClienteOut[]> => {
-    const response = await api.get<ClienteOut[]>(`/clientes/busqueda`, { params: { q, limit } });
+  buscarClientes: async (q: string, empresaId?: string, limit: number = 10): Promise<ClienteOut[]> => {
+    const params: any = { q, limit };
+    if (empresaId) {
+      params.empresa_id = empresaId;
+    }
+    const response = await api.get<ClienteOut[]>(`/clientes/busqueda`, { params });
     return response.data;
   },
 

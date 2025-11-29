@@ -7,6 +7,13 @@ from .factura import Factura
 from .factura_detalle import FacturaDetalle
 from .pago import Pago, PagoDocumentoRelacionado
 from .contacto import Contacto
+from .egreso import Egreso
+from .presupuestos import (
+    Presupuesto,
+    PresupuestoDetalle,
+    PresupuestoAdjunto,
+    PresupuestoEvento,
+)
 
 # Usar uno de los Base como referencia unificada
 Base = BaseCliente
@@ -23,4 +30,9 @@ __all__ = [
     "Pago",
     "PagoDocumentoRelacionado",
     "Contacto",
+    "Egreso",
+    "Presupuesto",
+    "PresupuestoDetalle",
+    "PresupuestoAdjunto",
+    "PresupuestoEvento",
 ]
