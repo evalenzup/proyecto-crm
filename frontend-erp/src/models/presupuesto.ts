@@ -52,4 +52,9 @@ export interface Presupuesto {
   detalles: PresupuestoDetalle[];
   adjuntos: PresupuestoAdjunto[];
   eventos: PresupuestoEvento[];
+  firma_cliente?: string;
+  cliente: {
+    id: string;
+    nombre_comercial: string;
+  };
 }

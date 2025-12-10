@@ -24,14 +24,29 @@ export const getEgresos = (params: {
 export const getEgresoById = (id: string) =>
   getData<Egreso>(api.get(`/egresos/${id}`));
 
-export const createEgreso = (payload: any) =>
+export const createEgreso = (payload: EgresoCreate) =>
   getData<Egreso>(api.post('/egresos/', payload));
 
-export const updateEgreso = (id: string, payload: any) =>
+export const updateEgreso = (id: string, payload: EgresoUpdate) =>
   getData<Egreso>(api.put(`/egresos/${id}`, payload));
 
 export const deleteEgreso = (id: string) =>
   getData(api.delete(`/egresos/${id}`));
+
+export interface EgresoCreate {
+  empresa_id: string;
+  descripcion: string;
+  monto: number;
+  moneda: string;
+  fecha_egreso: string; // YYYY-MM-DD
+  categoria: string;
+  estatus: string;
+  proveedor?: string;
+  metodo_pago?: string;
+  path_documento?: string;
+}
+
+export interface EgresoUpdate extends Partial<EgresoCreate> { }
 
 export interface Egreso {
   id: string;

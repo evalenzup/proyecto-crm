@@ -31,6 +31,7 @@ import { usePresupuestoForm } from '@/hooks/usePresupuestoForm';
 import { formatCurrency } from '@/utils/format';
 import { PresupuestoDetalle } from '@/models/presupuesto';
 import dayjs from 'dayjs';
+import api from '@/lib/axios';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -132,27 +133,33 @@ const PresupuestoFormPage: React.FC = () => {
     showUploadList: false,
   };
 
+  // Helper para obtener la URL base (sin /api)
+  const getBaseUrl = () => {
+    const apiUrl = api.defaults.baseURL || '';
+    return apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+  };
+
   const detalleColumns = [
     { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
-    { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', align: 'right' },
+    { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', align: 'right' as const },
     {
       title: 'Precio Unitario',
       dataIndex: 'precio_unitario',
       key: 'precio_unitario',
-      align: 'right',
+      align: 'right' as const,
       render: (value: number) => formatCurrency(value),
     },
     {
       title: 'Importe',
       key: 'importe',
-      align: 'right',
+      align: 'right' as const,
       render: (_: unknown, record: PresupuestoDetalle) => formatCurrency(record.importe),
     },
     {
       title: 'Acciones',
       key: 'action',
       width: 100,
-      align: 'center',
+      align: 'center' as const,
       render: (_: unknown, record: PresupuestoDetalle, index: number) => (
         <Space>
           <Button
@@ -265,7 +272,7 @@ const PresupuestoFormPage: React.FC = () => {
                 <Form.Item label="Evidencia de Aceptación">
                   {presupuesto?.firma_cliente ? (
                     <Space>
-                      <Button icon={<PaperClipOutlined />} href={`http://localhost:8000/${presupuesto.firma_cliente}`} target="_blank">
+                      <Button icon={<PaperClipOutlined />} href={`${getBaseUrl()}/${presupuesto.firma_cliente}`} target="_blank">
                         Ver Evidencia
                       </Button>
                       <Upload {...uploadProps} disabled={isReadOnly}>
@@ -408,7 +415,7 @@ const PresupuestoFormPage: React.FC = () => {
             </Col>
             <Col span={8}>
               <Form.Item label="Precio Unitario" name="precio_unitario" rules={[{ required: true }]} initialValue={0}>
-                <InputNumber min={0} style={{ width: '100%' }} formatter={value => `$ ${value}`} parser={value => value!.replace('$ ', '')} />
+                <InputNumber<number> min={0} style={{ width: '100%' }} formatter={value => `$ ${value}`} parser={value => value!.replace(/\$\s?|(,*)/g, '') as unknown as number} />
               </Form.Item>
             </Col>
             <Col span={8}>

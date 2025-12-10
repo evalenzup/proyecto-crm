@@ -22,11 +22,18 @@ import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEgresoForm } from '@/hooks/useEgresoForm';
 import { SaveOutlined, ArrowLeftOutlined, UploadOutlined } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
+import api from '@/lib/axios';
 
 const EgresoFormPage: React.FC = () => {
   const router = useRouter();
   const { id, form, loading, saving, empresas, categorias, estatus, metodosPago, onFinish, egreso } = useEgresoForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
+
+  // Helper para obtener la URL base (sin /api)
+  const getBaseUrl = () => {
+    const apiUrl = api.defaults.baseURL || '';
+    return apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+  };
 
   React.useEffect(() => {
     if (egreso && egreso.path_documento) {
@@ -35,7 +42,7 @@ const EgresoFormPage: React.FC = () => {
           uid: '-1',
           name: egreso.path_documento.split('/').pop() || 'documento',
           status: 'done',
-          url: `http://localhost:8000/data/${egreso.path_documento}`,
+          url: `${getBaseUrl()}/data/${egreso.path_documento}`,
         },
       ]);
     }
@@ -51,7 +58,7 @@ const EgresoFormPage: React.FC = () => {
 
   const uploadProps: UploadProps = {
     name: 'file',
-    action: 'http://localhost:8000/api/egresos/upload-documento/',
+    action: `${api.defaults.baseURL}/egresos/upload-documento/`,
     fileList,
     maxCount: 1,
     onChange(info) {
