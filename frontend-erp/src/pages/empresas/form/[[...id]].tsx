@@ -149,7 +149,7 @@ const EmpresaFormPage: React.FC = () => {
     const list = (form.getFieldValue('logo_file') as UploadFile[] | undefined) || [];
     const f = list[0] as any;
     const src = f?.originFileObj ? (f.originFileObj as File) : (currentLogoUrl || null);
-    if (!src) return; // Validación extra
+
     setLogoEditorInitial(src);
     setLogoEditorOpen(true);
   };

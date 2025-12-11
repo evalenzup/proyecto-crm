@@ -186,6 +186,35 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
             .all()
         )
 
+    def validar_rfc_global(self, db: Session, rfc: str, exclude_cliente_id: Optional[UUID] = None) -> List[str]:
+        """
+        Retorna una lista de nombres de empresas donde este RFC ya está registrado.
+        Excluye al propio cliente editado si se provee exclude_cliente_id.
+        """
+        query = db.query(self.model).filter(self.model.rfc == rfc)
+        
+        if exclude_cliente_id:
+            query = query.filter(self.model.id != exclude_cliente_id)
+            
+        clientes_con_mismo_rfc = query.all()
+        
+        empresas_nombres = set()
+        for c in clientes_con_mismo_rfc:
+            for empresa in c.empresas:
+                empresas_nombres.add(empresa.nombre_comercial)
+                
+        return list(empresas_nombres)
+
+    def get_by_rfc_and_name(self, db: Session, rfc: str, nombre_comercial: str) -> Optional[Cliente]:
+        """Busca un cliente que coincida exactamente en RFC y Nombre Comercial (case insensitive)."""
+        return (
+            db.query(self.model)
+            .filter(self.model.rfc == rfc)
+            .filter(self.model.nombre_comercial.ilike(nombre_comercial))
+            .first()
+        )
+
+
 
 # Se instancia el repositorio con el modelo SQLAlchemy correspondiente
 cliente_repo = ClienteRepository(Cliente)

@@ -13,6 +13,9 @@ import {
   Typography,
   message, // Importar message para notificaciones
   Divider,
+  Modal,
+  Alert,
+  Tag,
 } from 'antd';
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
@@ -74,6 +77,10 @@ const ClienteFormPage: React.FC = () => {
     empresasOptions,
     onFinish,
     schema,
+    existingClientCandidate,
+    confirmAssignment,
+    cancelAssignment,
+    lockedEmpresaIds,
   } = useClienteForm(id);
 
   // --- NUEVO ESTADO PARA GUARDAR LAS OPCIONES DEL CATÁLOGO ---
@@ -133,7 +140,33 @@ const ClienteFormPage: React.FC = () => {
               : []
           }
         >
-          <Select mode="multiple" placeholder="Selecciona una o más empresas">
+
+          <Select
+            mode="multiple"
+            placeholder="Selecciona una o más empresas"
+            tagRender={(props) => {
+              const { label, value, closable, onClose } = props;
+              const isLocked = lockedEmpresaIds.includes(value);
+              const handleClose = (e: React.MouseEvent<HTMLElement>) => {
+                if (isLocked) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return;
+                }
+                onClose(e);
+              };
+              return (
+                <Tag
+                  color={isLocked ? "default" : undefined}
+                  closable={!isLocked} // Ocultar X si está bloqueado, o mostrarla pero inactiva? AntD closable=false oculta la X.
+                  onClose={handleClose}
+                  style={{ marginRight: 3, cursor: isLocked ? 'not-allowed' : 'default' }}
+                >
+                  {label} {isLocked && "(Sin acceso)"}
+                </Tag>
+              );
+            }}
+          >
             {empresasOptions.map((opt: any) => (
               <Select.Option key={opt.value} value={opt.value}>
                 {opt.label}
@@ -291,6 +324,36 @@ const ClienteFormPage: React.FC = () => {
 
   return (
     <>
+      {/* Modal para confirmación de cliente existente */}
+      <Modal
+        title="Cliente existente encontrado"
+        open={!!existingClientCandidate}
+        onOk={confirmAssignment}
+        onCancel={cancelAssignment}
+        okText="Asignar a esta empresa"
+        cancelText="Cancelar y corregir"
+        okButtonProps={{ danger: false }}
+      >
+        {existingClientCandidate && (
+          <div>
+            <Alert
+              message="Coincidencia Exacta"
+              description="Se ha encontrado un cliente con el mismo RFC y Nombre Comercial registrado en otra(s) empresa(s)."
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            <p><strong>Nombre Comercial:</strong> {existingClientCandidate.nombre_comercial}</p>
+            <p><strong>RFC:</strong> {existingClientCandidate.rfc}</p>
+            <p><strong>Régimen Fiscal:</strong> {existingClientCandidate.regimen_fiscal}</p>
+            <p><strong>CP:</strong> {existingClientCandidate.codigo_postal}</p>
+            <Divider />
+            <p>¿Deseas <b>asignar este cliente existente</b> a tu empresa en lugar de crear uno nuevo?</p>
+            <p style={{ fontSize: '0.85em', color: '#666' }}>Esto compartirá la ficha del cliente, pero mantendrá los datos sincronizados.</p>
+          </div>
+        )}
+      </Modal>
+
       <div className="app-page-header">
         <div className="app-page-header__left">
           <Breadcrumbs />

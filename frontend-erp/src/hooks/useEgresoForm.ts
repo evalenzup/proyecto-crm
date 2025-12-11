@@ -38,6 +38,8 @@ export const useEgresoForm = () => {
           }))
         );
 
+        const empOptions = (empresasData || []);
+
         setCategorias(enumsData.categorias);
         setEstatus(enumsData.estatus);
         setMetodosPago(
@@ -55,9 +57,15 @@ export const useEgresoForm = () => {
             fecha_egreso: egresoData.fecha_egreso ? dayjs(egresoData.fecha_egreso) : null,
           });
         } else {
-          const selectedEmpresaId = localStorage.getItem('selectedEmpresaId');
+          let defaultEmpresaId = localStorage.getItem('selectedEmpresaId') || null;
+
+          // Si solo hay una empresa, forzar esa
+          if (empOptions.length === 1) {
+            defaultEmpresaId = empOptions[0].id;
+          }
+
           form.setFieldsValue({
-            empresa_id: selectedEmpresaId || null,
+            empresa_id: defaultEmpresaId,
             fecha_egreso: dayjs(),
             moneda: 'MXN',
             estatus: 'Pendiente',
@@ -88,7 +96,7 @@ export const useEgresoForm = () => {
       } else {
         await egresoService.createEgreso(payload);
       }
-      
+
       if (payload.empresa_id) {
         localStorage.setItem('selectedEmpresaId', payload.empresa_id);
       }
@@ -113,6 +121,5 @@ export const useEgresoForm = () => {
     estatus,
     metodosPago,
     onFinish,
-    egreso,
   };
 };

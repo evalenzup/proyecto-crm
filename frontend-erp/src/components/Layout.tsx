@@ -100,7 +100,7 @@ export const Layout: React.FC<{
   extra?: React.ReactNode;
 }> = ({ children, title, breadcrumbs, extra }) => {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
 
   // Tema con persistencia
   const [mode, setMode] = useState<'light' | 'dark'>('light');
@@ -194,7 +194,7 @@ export const Layout: React.FC<{
         siderWidth={240}
         contentWidth="Fluid"
         contentStyle={{ margin: 0, padding: 0, maxWidth: '100%' }}
-        rightContentRender={() => <RightContent />}
+        rightContentRender={false}
         // Render del header del sider para colocar el logo arriba del menú
         menuHeaderRender={() => (
           <div
@@ -224,24 +224,60 @@ export const Layout: React.FC<{
           </div>
         )}
         // Footer del menú lateral: switch de tema fijo al final del menú
-        menuFooterRender={(props) => (
-          <div
-            style={{
-              padding: props?.collapsed ? '12px 8px' : 12,
-              borderTop: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: props?.collapsed ? 'center' : 'space-between',
-              gap: 8,
-              width: '100%',
-            }}
-          >
-            {!props?.collapsed && (
-              <span style={{ fontSize: 12, opacity: 0.85 }}>Modo oscuro</span>
-            )}
-            <ThemeSwitch mode={mode} onToggle={handleThemeChange} />
-          </div>
-        )}
+        // Footer del menú lateral: Usuario + Switch tema
+        menuFooterRender={(props) => {
+          if (props?.collapsed) {
+            return (
+              <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <Tooltip title="Cerrar Sesión">
+                  <LogoutOutlined
+                    style={{ fontSize: 16, cursor: 'pointer', color: 'var(--ant-color-error)' }}
+                    onClick={logout}
+                  />
+                </Tooltip>
+                <ThemeSwitch mode={mode} onToggle={handleThemeChange} />
+              </div>
+            );
+          }
+
+          return (
+            <div
+              style={{
+                padding: 12,
+                borderTop: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                width: '100%',
+              }}
+            >
+              {user && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Avatar style={{ backgroundColor: '#1890ff' }} icon={<UserOutlined />} />
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {user.nombre_completo || 'Usuario'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--ant-color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {user.email}
+                    </div>
+                  </div>
+                  <Tooltip title="Cerrar Sesión">
+                    <LogoutOutlined
+                      style={{ cursor: 'pointer', color: 'var(--ant-color-text-description)' }}
+                      onClick={logout}
+                    />
+                  </Tooltip>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, opacity: 0.85 }}>Modo oscuro</span>
+                <ThemeSwitch mode={mode} onToggle={handleThemeChange} />
+              </div>
+            </div>
+          );
+        }}
         // No usamos PageContainer interno de ProLayout
         pageTitleRender={false}
         breadcrumbRender={(routers = []) => {

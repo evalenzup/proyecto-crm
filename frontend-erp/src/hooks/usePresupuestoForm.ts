@@ -44,7 +44,7 @@ export const usePresupuestoForm = (id?: string) => {
   // Fetch data for select options
   const { data: empresas, isLoading: loadingEmpresas } = useQuery({
     queryKey: ['empresasForSelect'],
-    queryFn: () => empresaService.getEmpresas({ limit: 500, offset: 0 }),
+    queryFn: () => empresaService.getEmpresas(),
   });
 
   const [clientesOptions, setClientesOptions] = useState<{ label: string; value: string; }[]>([]);
@@ -170,8 +170,18 @@ export const usePresupuestoForm = (id?: string) => {
       });
       setConceptos([]);
       setClientesOptions([]);
+
+      // Auto-selección de empresa única
+      if (empresas && empresas.length === 1) {
+        const singleId = empresas[0].id;
+        const currentEmpId = form.getFieldValue('empresa_id');
+        if (currentEmpId !== singleId) {
+          form.setFieldValue('empresa_id', singleId);
+          onEmpresaChange(singleId);
+        }
+      }
     }
-  }, [selectedVersionId, presupuesto, form]);
+  }, [selectedVersionId, presupuesto, form, empresas]);
 
   const onFechaEmisionChange = (date: Dayjs | null) => {
     if (date) {
@@ -239,7 +249,7 @@ export const usePresupuestoForm = (id?: string) => {
 
     const formattedValues = {
       ...values,
-      fecha_emision: values.fecha_emision ? dayjs(values.fecha_emision).format('YYYY-MM-DD') : undefined,
+      fecha_emision: values.fecha_emision ? dayjs(values.fecha_emision).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
       fecha_vencimiento: values.fecha_vencimiento ? dayjs(values.fecha_vencimiento).format('YYYY-MM-DD') : undefined,
     };
 
@@ -298,9 +308,11 @@ export const usePresupuestoForm = (id?: string) => {
     onError: (err) => message.error(normalizeHttpError(err) || 'Error al subir evidencia'),
   });
 
+
+
   const conversionMutation = useMutation({
     mutationFn: (id: string) => presupuestoService.convertirAFactura(id),
-    onSuccess: (factura) => {
+    onSuccess: (factura: any) => { // Fix: Type assertion or correct type import if available
       message.success(`Factura ${factura.serie}-${factura.folio} creada exitosamente`);
       queryClient.invalidateQueries({ queryKey: ['presupuestos'] });
       queryClient.invalidateQueries({ queryKey: ['presupuesto', selectedVersionId] });

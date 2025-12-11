@@ -33,7 +33,11 @@ interface UseClienteFormResult {
   metadata: { creado_en: string; actualizado_en: string } | null;
   empresasOptions: { value: string; label: string }[];
   onFinish: (values: ClienteFormData) => Promise<void>;
-  schema: JSONSchema; // Ahora el hook expone el schema
+  schema: JSONSchema;
+  existingClientCandidate: ClienteOut | null;
+  confirmAssignment: () => Promise<void>;
+  cancelAssignment: () => void;
+  lockedEmpresaIds: string[];
 }
 
 export const useClienteForm = (id?: string): UseClienteFormResult => {
@@ -47,42 +51,79 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
   const [empresasOptions, setEmpresasOptions] = useState<{ value: string; label: string }[]>([]);
   const [schema, setSchema] = useState<JSONSchema>({ properties: {}, required: [] }); // Nuevo estado para el schema
 
-  // Cargar opciones de empresas y esquema
+  const [lockedEmpresaIds, setLockedEmpresaIds] = useState<string[]>([]);
+
+  // Función auxiliar para mezclar opciones y detectar bloqueados
+  const mergeEmpresas = (accessibleOpts: { value: string; label: string }[], clienteEmpresas: { id: string; nombre_comercial: string }[]) => {
+    const accessibleSet = new Set(accessibleOpts.map(o => o.value));
+    const extraOpts: { value: string; label: string }[] = [];
+    const lockedIds: string[] = [];
+
+    clienteEmpresas.forEach(emp => {
+      if (!accessibleSet.has(emp.id)) {
+        extraOpts.push({ value: emp.id, label: emp.nombre_comercial });
+        lockedIds.push(emp.id);
+      }
+    });
+
+    return {
+      mergedOptions: [...accessibleOpts, ...extraOpts],
+      locked: lockedIds
+    };
+  };
+
+  // Cargar datos (Unificado para evitar condiciones de carrera)
   useEffect(() => {
-    Promise.all([
-      empresaService.getEmpresas(),
-      clienteService.getClienteSchema() // Cargar el schema
-    ])
-      .then(([empresasData, schemaData]) => {
-        setEmpresasOptions(empresasData.map(emp => ({ value: emp.id, label: emp.nombre_comercial })));
+    const fetchData = async () => {
+      try {
+        const [empresasData, schemaData] = await Promise.all([
+          empresaService.getEmpresas(),
+          clienteService.getClienteSchema()
+        ]);
+
+        const accessibleOpts = empresasData.map(emp => ({ value: emp.id, label: emp.nombre_comercial }));
         setSchema(schemaData);
-      })
-      .catch((e) => message.error(normalizeHttpError(e)))
-      .finally(() => {
+
+        if (id) {
+          setLoadingRecord(true);
+          try {
+            const clienteData = await clienteService.getCliente(id);
+            const { mergedOptions, locked } = mergeEmpresas(accessibleOpts, clienteData.empresas || []);
+
+            setEmpresasOptions(mergedOptions);
+            setLockedEmpresaIds(locked);
+
+            const initial: ClienteFormData = {
+              ...clienteData,
+              empresa_id: clienteData.empresas?.map(e => e.id) || [],
+            };
+            form.setFieldsValue(initial);
+            setMetadata({ creado_en: clienteData.creado_en, actualizado_en: clienteData.actualizado_en });
+          } catch (e) {
+            message.error(normalizeHttpError(e) || 'Registro no encontrado');
+            router.replace('/clientes');
+          } finally {
+            setLoadingRecord(false);
+          }
+        } else {
+          setEmpresasOptions(accessibleOpts);
+          // Si estamos creando (no id) y solo hay una empresa disponible, seleccionarla por defecto
+          if (accessibleOpts.length === 1) {
+            form.setFieldValue('empresa_id', [accessibleOpts[0].value]);
+          }
+        }
+      } catch (e) {
+        message.error(normalizeHttpError(e));
+      } finally {
         setLoadingEmpresas(false);
         setLoadingSchema(false);
-      });
-  }, []);
+      }
+    };
 
-  // Cargar datos del registro si es edición
-  useEffect(() => {
-    if (!id) return;
-    setLoadingRecord(true);
-    clienteService.getCliente(id)
-      .then((data: ClienteOut) => {
-        const initial: ClienteFormData = {
-          ...data,
-          empresa_id: data.empresas?.map(e => e.id) || [], // Mapear a IDs para el formulario
-        };
-        form.setFieldsValue(initial);
-        setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
-      })
-      .catch((e) => {
-        message.error(normalizeHttpError(e) || 'Registro no encontrado');
-        router.replace('/clientes'); // Redirigir si no se encuentra el registro
-      })
-      .finally(() => setLoadingRecord(false));
+    fetchData();
   }, [id, form, router]);
+
+  const [existingClientCandidate, setExistingClientCandidate] = useState<ClienteOut | null>(null);
 
   // Manejo del envío del formulario
   const onFinish = async (values: any) => { // Cambiado a any para incluir contactos
@@ -90,48 +131,86 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
       // 1. Separar contactos de los datos del cliente
       const { contactos, ...clienteData } = values;
 
-      const payload: ClienteCreate | ClienteUpdate = {
-        ...clienteData,
-        empresa_id: clienteData.empresa_id || [],
-      };
-
-      let clienteId = id;
-
-      // 2. Guardar el cliente y obtener su ID
-      if (id) {
-        await clienteService.updateCliente(id, payload as ClienteUpdate);
-        message.success('Cliente actualizado');
-      } else {
-        const nuevoCliente = await clienteService.createCliente(payload as ClienteCreate);
-        clienteId = nuevoCliente.id; // Guardamos el ID del nuevo cliente
-        message.success('Cliente creado');
+      // Si NO estamos editando (id vacío), verificar existencia antes de crear
+      if (!id) {
+        const potentialMatch = await clienteService.checkExistingClient(clienteData.rfc, clienteData.nombre_comercial);
+        if (potentialMatch) {
+          // DETENER FLUJO y retornar candidato para que la UI muestre el modal
+          setExistingClientCandidate(potentialMatch);
+          return;
+        }
       }
 
-      if (!clienteId) {
-        throw new Error('No se pudo obtener el ID del cliente.');
-      }
+      await executeSave(values);
+    } catch (err: any) {
+      applyFormErrors(err, form);
+      message.error(normalizeHttpError(err));
+    }
+  };
 
-      // 3. Obtener y eliminar contactos antiguos
+  const executeSave = async (values: any, forceClientId?: string) => {
+    const { contactos, ...clienteData } = values;
+    const payload: ClienteCreate | ClienteUpdate = {
+      ...clienteData,
+      empresa_id: clienteData.empresa_id || [],
+    };
+
+    let clienteId = id || forceClientId;
+
+    if (id) {
+      await clienteService.updateCliente(id, payload as ClienteUpdate);
+      message.success('Cliente actualizado');
+    } else if (forceClientId) {
+      // Asignación de empresas a cliente existente (USAR ENDPOINT DE VINCULACIÓN)
+      await clienteService.linkCliente(forceClientId, payload.empresa_id || []);
+      message.success('Cliente existente asignado a esta empresa');
+    } else {
+      const nuevoCliente = await clienteService.createCliente(payload as ClienteCreate);
+      clienteId = nuevoCliente.id;
+      message.success('Cliente creado');
+    }
+
+    if (!clienteId) {
+      throw new Error('No se pudo obtener el ID del cliente.');
+    }
+
+    // 3. Obtener y eliminar contactos antiguos (Solo si es edición o asignación completa, 
+    // pero en asignación NO deberíamos borrar contactos de otras empresas... 
+    // El requerimiento dice "hacer la asignacion de ese cliente a la otra empresa". 
+    // Asumiremos que contactos se mantienen o se agregan. Por simplicidad en asignación, no tocamos contactos antiguos, solo nuevos.)
+
+    if (id) {
+      // Solo limpiar contactos si estamos editando explícitamente el registro
       const contactosAntiguos = await getContactosByCliente(clienteId);
       for (const contacto of contactosAntiguos) {
         await deleteContacto(contacto.id);
       }
+    }
 
-      // 4. Crear los nuevos contactos
-      if (contactos && Array.isArray(contactos)) {
-        for (const contacto of contactos) {
-          if (contacto) { // Asegurarse de que el contacto no sea nulo/undefined
-            await createContacto(clienteId, contacto);
-          }
+    // 4. Crear los contactos del formulario
+    if (contactos && Array.isArray(contactos)) {
+      for (const contacto of contactos) {
+        if (contacto) {
+          await createContacto(clienteId, contacto);
         }
       }
+    }
 
-      router.push('/clientes'); // Redirigir al listado
+    router.push('/clientes');
+  };
+
+  const confirmAssignment = async () => {
+    if (!existingClientCandidate) return;
+    const values = form.getFieldsValue();
+    try {
+      await executeSave(values, existingClientCandidate.id);
     } catch (err: any) {
-      // Marcar errores de validación en el formulario y mostrar mensaje amigable
-      applyFormErrors(err, form);
       message.error(normalizeHttpError(err));
     }
+  };
+
+  const cancelAssignment = () => {
+    setExistingClientCandidate(null);
   };
 
   return {
@@ -140,6 +219,10 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
     metadata,
     empresasOptions,
     onFinish,
-    schema, // Exponemos el schema
+    schema,
+    existingClientCandidate,
+    confirmAssignment,
+    cancelAssignment,
+    lockedEmpresaIds,
   };
 };

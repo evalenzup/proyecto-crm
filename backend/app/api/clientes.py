@@ -8,7 +8,7 @@ from uuid import UUID
 
 from app.database import get_db
 from app.models.empresa import Empresa
-from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate
+from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate, ClienteVincular
 from app.services.cliente_service import cliente_repo
 from app.api import deps
 from app.models.usuario import Usuario, RolUsuario
@@ -67,6 +67,37 @@ def buscar_clientes(
         empresa_id = current_user.empresa_id
 
     return cliente_repo.search_by_name(db, name_query=q, limit=limit, empresa_id=empresa_id)
+
+
+@router.get("/validar-rfc", response_model=List[str])
+def validar_rfc_cliente(
+    rfc: str = Query(..., min_length=12, max_length=13, description="RFC a validar"),
+    exclude_id: Optional[UUID] = Query(None, description="ID del cliente a excluir (edición)"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Verifica si un RFC ya existe en la base de datos de clientes.
+    Retorna la lista de nombres de empresas donde está registrado.
+    """
+    return cliente_repo.validar_rfc_global(db, rfc=rfc.upper(), exclude_cliente_id=exclude_id)
+
+
+    return cliente_repo.validar_rfc_global(db, rfc=rfc.upper(), exclude_cliente_id=exclude_id)
+
+
+@router.get("/buscar-existente", response_model=Optional[ClienteOut])
+def buscar_cliente_existente(
+    rfc: str = Query(..., min_length=12, max_length=13),
+    nombre_comercial: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Busca un cliente que coincida exactamente con RFC y Nombre Comercial.
+    Retorna el cliente si existe, o null.
+    """
+    return cliente_repo.get_by_rfc_and_name(db, rfc=rfc.upper(), nombre_comercial=nombre_comercial)
 
 
 @router.get("/", response_model=ClientePageOut)
@@ -170,5 +201,48 @@ def eliminar_cliente(
         if current_user.empresa_id not in empresas_ids:
             raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    cliente_repo.remove(db, id=id)
-    return
+@router.post("/{id}/vincular", status_code=200)
+def vincular_cliente(
+    id: UUID,
+    payload: ClienteVincular,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user)
+):
+    """
+    Agrega asociaciones de empresas a un cliente existente sin eliminar las actuales.
+    Permite a inspectores vincular clientes existentes a su empresa asignada.
+    """
+    cliente = cliente_repo.get(db, id=id)
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+        
+    ids_a_vincular = set(payload.empresa_ids)
+    
+    # Restricción Supervisor: Solo puede vincular A SU PROPIA empresa
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if not current_user.empresa_id:
+             raise HTTPException(status_code=400, detail="Supervisor sin empresa asignada")
+        
+        # Ignoramos lo que envíe en el payload y forzamos solo su empresa
+        ids_a_vincular = {current_user.empresa_id}
+        
+    # Lógica de vinculación (append)
+    empresas_existentes = {e.id for e in cliente.empresas}
+    nuevas_empresas = []
+    
+    # Buscar entidades Empresa para agregar
+    from app.models.empresa import Empresa
+    empresas_db = db.query(Empresa).filter(Empresa.id.in_(list(ids_a_vincular))).all()
+    
+    cambios = False
+    for emp in empresas_db:
+        if emp.id not in empresas_existentes:
+            cliente.empresas.append(emp)
+            cambios = True
+            
+    if cambios:
+        db.commit()
+        db.refresh(cliente)
+        
+    return {"message": "Cliente vinculado correctamente", "cliente_id": cliente.id}
+

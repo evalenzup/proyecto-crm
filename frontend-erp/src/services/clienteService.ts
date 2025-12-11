@@ -82,6 +82,20 @@ export const clienteService = {
     return response.data;
   },
 
+  checkRfcExistence: async (rfc: string, excludeId?: string): Promise<string[]> => {
+    const params: any = { rfc };
+    if (excludeId) params.exclude_id = excludeId;
+    // Retorna lista de nombres de empresas
+    const response = await api.get<string[]>('/clientes/validar-rfc', { params });
+    return response.data;
+  },
+
+  checkExistingClient: async (rfc: string, nombre_comercial: string): Promise<ClienteOut | null> => {
+    const params = { rfc, nombre_comercial };
+    const response = await api.get<ClienteOut | null>('/clientes/buscar-existente', { params });
+    return response.data;
+  },
+
   getClientes: async (params: {
     limit: number;
     offset: number;
@@ -106,6 +120,10 @@ export const clienteService = {
   updateCliente: async (id: string, data: ClienteUpdate): Promise<ClienteOut> => {
     const response = await api.put<ClienteOut>(`/clientes/${id}`, data);
     return response.data;
+  },
+
+  linkCliente: async (id: string, empresa_ids: string[]): Promise<void> => {
+    await api.post(`/clientes/${id}/vincular`, { empresa_ids });
   },
 
   deleteCliente: async (id: string): Promise<void> => {

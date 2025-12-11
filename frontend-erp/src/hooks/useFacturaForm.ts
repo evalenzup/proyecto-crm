@@ -113,10 +113,11 @@ export const useFacturaForm = () => {
         svc.getMotivosCancelacion(),
       ]);
 
-      setEmpresas((empresasData || []).map((e: any) => ({
+      const empOptions = (empresasData || []).map((e: any) => ({
         value: e.id,
         label: e.nombre_comercial ?? e.nombre,
-      })));
+      }));
+      setEmpresas(empOptions);
       setMetodosPago((mpData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
       setFormasPago((fpData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
       setUsosCfdi((ucData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
@@ -190,6 +191,13 @@ export const useFacturaForm = () => {
           fecha_emision: dayjs(),
           status_pago: 'NO_PAGADA',
         });
+
+        // Auto-selección de empresa única
+        if (empOptions.length === 1) {
+          const singleId = empOptions[0].value;
+          form.setFieldValue('empresa_id', singleId);
+          await onEmpresaChange(singleId);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -197,7 +205,7 @@ export const useFacturaForm = () => {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {

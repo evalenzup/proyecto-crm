@@ -14,12 +14,14 @@ type Props = {
   onClose: () => void;
   onConfirm: (file: File) => void;        // retorna el PNG recortado
   empresaId: string;                      // para nombrar el archivo {id}.png
+  initialImage?: string | File | Blob | null;
+  initialImageUrl?: string;
 };
 
 const EXPORT_W = 1000;
 const EXPORT_H = 600; // 5:3
 
-export default function LogoCropperModal({ open, onClose, onConfirm, empresaId }: Props) {
+export default function LogoCropperModal({ open, onClose, onConfirm, empresaId, initialImage, initialImageUrl }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -32,7 +34,7 @@ export default function LogoCropperModal({ open, onClose, onConfirm, empresaId }
   const [tx, setTx] = useState(0);             // translate X en px (viewport)
   const [ty, setTy] = useState(0);             // translate Y en px (viewport)
   const [dragging, setDragging] = useState(false);
-  const [lastPt, setLastPt] = useState<{x:number,y:number}|null>(null);
+  const [lastPt, setLastPt] = useState<{ x: number, y: number } | null>(null);
 
   // margen blanco porcentual en la exportación
   const [marginPct, setMarginPct] = useState(8); // 8% por defecto
@@ -45,11 +47,50 @@ export default function LogoCropperModal({ open, onClose, onConfirm, empresaId }
 
   // Tamaño del viewport (cuadro rojo)
   const vp = useMemo(() => {
+    // Forzar re-calculo cuando se abre
+    if (!open) return { w: 0, h: 0 };
     const el = viewportRef.current;
     if (!el) return { w: 0, h: 0 };
     const r = el.getBoundingClientRect();
     return { w: r.width, h: r.height };
   }, [open, loaded]);
+
+  // Cargar initialImage al abrir
+  useEffect(() => {
+    if (open && (initialImage || initialImageUrl) && !imgObj) {
+      const src = initialImage || initialImageUrl;
+      let url = "";
+
+      if (src instanceof File || src instanceof Blob) {
+        url = URL.createObjectURL(src);
+      } else if (typeof src === 'string') {
+        url = src;
+      }
+
+      if (url) {
+        const img = new Image();
+        img.onload = () => {
+          setImgObj(img);
+          imgRef.current = img;
+          setLoaded(true);
+          setScale(1);
+        };
+        img.onerror = () => {
+          // Fallback silencioso o limpiar
+          setImgObj(null);
+          setLoaded(false);
+        };
+        img.src = url;
+        // No revocamos URL aquí para mantenerla viva mientras se edita, 
+        // browser limpiará blob urls al cerrar si es necesario o garbage collect.
+        // Para ser puristas deberíamos limpiar si creamos nosotros el blob url.
+      }
+    } else if (!open) {
+      // Limpiar al cerrar
+      setImgObj(null);
+      setLoaded(false);
+    }
+  }, [open, initialImage, initialImageUrl]);
 
   // escala base "contain": que la imagen QUEPA completa en el viewport
   const baseScale = useMemo(() => {

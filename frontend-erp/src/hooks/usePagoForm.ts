@@ -54,12 +54,16 @@ export const usePagoForm = () => {
           facturaService.getFormasPago(),
         ]);
 
-        setEmpresas(
-          (empresasData || []).map((e: any) => ({
-            value: e.id,
-            label: e.nombre_comercial ?? e.nombre,
-          })),
-        );
+        const empOptions = (empresasData || []).map((e: any) => ({
+          value: e.id,
+          label: e.nombre_comercial ?? e.nombre,
+        }));
+        setEmpresas(empOptions);
+
+        // Auto-selección si solo hay una empresa y es nuevo
+        if (!id && empOptions.length === 1) {
+          form.setFieldValue('empresa_id', empOptions[0].value);
+        }
 
         setFormasPago(
           (formasPagoData || []).map((fp: any) => ({
@@ -186,7 +190,7 @@ export const usePagoForm = () => {
         setClientes([]);
       }
     }, 350)
-  , [form]);
+    , [form]);
 
   // Efecto para manejar la lógica de facturas cuando cambia el cliente
   useEffect(() => {

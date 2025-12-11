@@ -60,8 +60,14 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
       api.get('/catalogos/unidades'), // Catálogo de unidades SAT
     ])
       .then(([empresasData, schemaData, productosSatData, unidadesSatData]) => {
-        setEmpresasOptions(empresasData.map(emp => ({ value: emp.id, label: emp.nombre_comercial })));
-        
+        const options = empresasData.map(emp => ({ value: emp.id, label: emp.nombre_comercial }));
+        setEmpresasOptions(options);
+
+        // Auto-selección si es nuevo y solo hay una empresa
+        if (!id && options.length === 1) {
+          form.setFieldValue('empresa_id', options[0].value);
+        }
+
         // Inyectar opciones de catálogos SAT en el esquema
         const newSchema = { ...schemaData };
         if (newSchema.properties.clave_producto) {

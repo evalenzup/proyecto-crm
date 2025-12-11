@@ -85,6 +85,10 @@ class ClienteCreate(ClienteBase):
     )
 
 
+class ClienteVincular(BaseModel):
+    empresa_ids: List[UUID] = Field(..., title="Empresas a Vincular")
+
+
 # Generamos ClienteUpdate automáticamente
 ClienteUpdate = make_optional(ClienteCreate)
 
