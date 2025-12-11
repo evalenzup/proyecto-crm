@@ -63,11 +63,27 @@ export function normalizeHttpError(err: unknown): string {
   const status = error?.response?.status;
   const data = error?.response?.data;
 
-  // Si el backend devolvió un string (ej. XML SOAP), intentar extraer <faultstring>
+  // Si el backend devolvió un string
   if (typeof data === 'string') {
+    // 1. Intentar XML SOAP
     const m = data.match(/<faultstring>([\s\S]*?)<\/faultstring>/i);
     if (m && m[1]) {
       return m[1].trim();
+    }
+    // 2. Intentar parsear si parece JSON
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed && (parsed.detail || parsed.message)) {
+        // Recursión o asignación manual
+        const d = parsed.detail || parsed.message;
+        const msg = formatDetail(d);
+        if (msg) return msg;
+      }
+    } catch {
+      // No es JSON, usar el string tal cual si es corto y parece un mensaje legible
+      if (status === 400 && data.length < 200) {
+        return data;
+      }
     }
   }
 
@@ -82,10 +98,12 @@ export function normalizeHttpError(err: unknown): string {
   }
 
   // Mensajes por status comunes
-  if (status === 422) return 'Hay errores de validación en el formulario. Por favor revisa los campos marcados.';
+  // PRIORIDAD: Si no encontré detalle, uso mensajes genéricos.
+  if (status === 422) return 'Hay errores de validación en el formulario.';
   if (status === 404) return 'Recurso no encontrado.';
   if (status === 401) return 'No autorizado. Inicia sesión nuevamente.';
   if (status === 403) return 'No tienes permisos para realizar esta acción.';
+  // Remover 400 genérico si existe data, o hacerlo último recurso
   if (status === 400) return 'Solicitud inválida. Verifica la información ingresada.';
   if (status === 500) return 'Error interno del servidor. Intenta más tarde.';
 

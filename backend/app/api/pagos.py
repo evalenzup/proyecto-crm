@@ -10,6 +10,8 @@ from sqlalchemy import cast, Integer, or_
 from app.database import get_db
 from app.models.pago import Pago, PagoDocumentoRelacionado
 from app.models.factura import Factura
+from app.models.usuario import Usuario, RolUsuario
+from app.api import deps
 from app.schemas.pago import Pago as PagoSchema, PagoCreate, PagoListResponse
 from app.schemas.factura import FacturaOut
 from app.services import pago_service
@@ -22,7 +24,15 @@ router = APIRouter()
 
 
 @router.post("/", response_model=PagoSchema, status_code=201)
-def crear_pago(pago: PagoCreate, db: Session = Depends(get_db)):
+def crear_pago(
+    pago: PagoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if not current_user.empresa_id:
+             raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
+        pago.empresa_id = current_user.empresa_id
     return pago_service.crear_pago(db, pago)
 
 
@@ -65,7 +75,11 @@ def listar_pagos(
     estatus: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+        
     items, total = pago_service.listar_pagos(
         db,
         offset=offset,
@@ -82,19 +96,51 @@ def listar_pagos(
 
 
 @router.get("/{pago_id}", response_model=PagoSchema)
-def leer_pago(pago_id: uuid.UUID, db: Session = Depends(get_db)):
-    return pago_service.leer_pago(db, pago_id)
+def leer_pago(
+    pago_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    pago = pago_service.leer_pago(db, pago_id)
+    if not pago:
+         raise HTTPException(status_code=404, detail="Pago no encontrado")
+         
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+        
+    return pago
 
 
 @router.delete("/{pago_id}", status_code=200)
-def delete_pago(pago_id: uuid.UUID, db: Session = Depends(get_db)):
+def delete_pago(
+    pago_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    pago = pago_service.leer_pago(db, pago_id) # Consulta previa
+    if not pago:
+         raise HTTPException(status_code=404, detail="Pago no encontrado")
+         
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
     return pago_service.eliminar_pago(db, pago_id)
 
 
 @router.post(
     "/{pago_id}/set-to-borrador", summary="DEBUG: Establecer pago a estado BORRADOR"
 )
-def set_pago_to_borrador(pago_id: uuid.UUID, db: Session = Depends(get_db)):
+def set_pago_to_borrador(
+    pago_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    pago = pago_service.leer_pago(db, pago_id)
+    if not pago:
+         raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+        
     pago = pago_service.set_pago_to_borrador(db, pago_id)
     return {
         "message": f"Pago {pago.id} establecido a BORRADOR.",
@@ -112,7 +158,17 @@ def listar_facturas_pendientes_por_cliente(
 
 
 @router.post("/{pago_id}/timbrar", summary="Timbrar un complemento de pago")
-def timbrar_pago_endpoint(pago_id: uuid.UUID, db: Session = Depends(get_db)):
+def timbrar_pago_endpoint(
+    pago_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    pago = pago_service.leer_pago(db, pago_id)
+    if not pago:
+         raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+        
     return pago_service.timbrar_pago(db, pago_id)
 
 

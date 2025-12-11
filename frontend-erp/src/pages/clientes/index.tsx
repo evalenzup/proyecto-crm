@@ -31,6 +31,7 @@ const ClientesPage: React.FC = () => {
     nombreFiltro,
     setNombreFiltro,
     clearFilters,
+    isAdmin, // Nuevo
   } = useClienteList();
 
   const columns: ColumnsType<ClienteOut> = [
@@ -92,6 +93,7 @@ const ClientesPage: React.FC = () => {
             allowClear
             onChange={setEmpresaFiltro}
             value={empresaFiltro}
+            disabled={!isAdmin} // Deshabilitar si no es admin
           >
             {empresasForFilter.map((emp: EmpresaOut) => (
               <Option key={emp.id} value={emp.id}>

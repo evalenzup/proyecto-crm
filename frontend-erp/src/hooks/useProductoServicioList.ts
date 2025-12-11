@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { message } from 'antd';
 import { productoServicioService, ProductoServicioOut } from '../services/productoServicioService';
-import { empresaService, EmpresaOut } from '../services/empresaService';
+import { EmpresaOut } from '../services/empresaService';
 import api from '../lib/axios';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 interface UseProductoServicioListResult {
   productosServicios: ProductoServicioOut[];
@@ -13,26 +14,30 @@ interface UseProductoServicioListResult {
   handlePageChange: (page: number, size?: number) => void;
   handleDelete: (id: string) => Promise<void>;
   empresasForFilter: EmpresaOut[];
-  empresaFiltro: string | null;
-  setEmpresaFiltro: (id: string | null) => void;
+  empresaFiltro: string | undefined;
+  setEmpresaFiltro: (id: string | undefined) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   clearFilters: () => void;
   mapaClaves: Record<string, string>;
+  isAdmin: boolean;
 }
 
 export const useProductoServicioList = (): UseProductoServicioListResult => {
   const [productosServicios, setProductosServicios] = useState<ProductoServicioOut[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
-  const [empresasForFilter, setEmpresasForFilter] = useState<EmpresaOut[]>([]);
   const [mapaClaves, setMapaClaves] = useState<Record<string, string>>({});
 
-  // Filter states
-  const [empresaFiltro, setEmpresaFiltro] = useState<string | null>(null);
+  const {
+    selectedEmpresaId: empresaFiltro,
+    setSelectedEmpresaId: setEmpresaFiltro,
+    empresas: empresasForFilter,
+    isAdmin
+  } = useEmpresaSelector();
+
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
@@ -60,12 +65,19 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
         mapa[res.data.clave] = res.data.descripcion;
       }
     } catch (error) {
-      message.warning('No se pudo obtener descripción de claves SAT.');
+      // message.warning('No se pudo obtener descripción de claves SAT.');
+      console.error("Error obteniendo descripciones SAT", error);
     }
-    setMapaClaves(mapa);
+    setMapaClaves(prev => ({ ...prev, ...mapa }));
   }, []);
 
   const fetchProductosServicios = useCallback(async () => {
+    if (!empresaFiltro) {
+      setProductosServicios([]);
+      setTotal(0);
+      return;
+    }
+
     setLoading(true);
     try {
       const params = {
@@ -77,30 +89,20 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
       const data = await productoServicioService.getProductoServicios(params);
       setProductosServicios(data.items);
       setTotal(data.total);
-      await fetchDescripciones(data.items);
+
+      // Asincrono para no bloquear UI
+      fetchDescripciones(data.items);
     } catch (error) {
+      console.error(error);
       message.error('Error al cargar productos y servicios.');
     } finally {
       setLoading(false);
     }
   }, [currentPage, pageSize, empresaFiltro, debouncedSearchTerm, fetchDescripciones]);
 
-  const fetchEmpresasForFilter = useCallback(async () => {
-    try {
-      const data = await empresaService.getEmpresas();
-      setEmpresasForFilter(data);
-    } catch (error) {
-      message.error('Error al cargar empresas para el filtro.');
-    }
-  }, []);
-
   useEffect(() => {
     fetchProductosServicios();
   }, [fetchProductosServicios]);
-
-  useEffect(() => {
-    fetchEmpresasForFilter();
-  }, [fetchEmpresasForFilter]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -108,6 +110,7 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
       message.success('Producto/Servicio eliminado correctamente.');
       fetchProductosServicios();
     } catch (error) {
+      console.error(error);
       message.error('Error al eliminar el producto/servicio.');
     }
   }, [fetchProductosServicios]);
@@ -120,7 +123,7 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
   };
 
   const clearFilters = useCallback(() => {
-    setEmpresaFiltro(null);
+    // Solo limpiamos búsqueda, empresa se mantiene
     setSearchTerm('');
   }, []);
 
@@ -134,10 +137,11 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
     handleDelete,
     empresasForFilter,
     empresaFiltro,
-    setEmpresaFiltro,
+    setEmpresaFiltro, // Type fix
     searchTerm,
     setSearchTerm,
     clearFilters,
     mapaClaves,
+    isAdmin
   };
 };

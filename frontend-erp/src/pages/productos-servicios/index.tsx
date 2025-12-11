@@ -29,7 +29,8 @@ const ProductosServiciosPage: React.FC = () => {
     searchTerm,
     setSearchTerm,
     clearFilters,
-    mapaClaves, // Obtenemos el mapa de claves del hook
+    mapaClaves,
+    isAdmin, // Nuevo
   } = useProductoServicioList();
 
   const columns: ColumnsType<ProductoServicioOut> = [
@@ -114,6 +115,7 @@ const ProductosServiciosPage: React.FC = () => {
             allowClear
             onChange={setEmpresaFiltro}
             value={empresaFiltro}
+            disabled={!isAdmin} // Deshabilitar si no es admin
           >
             {empresasForFilter.map((emp: EmpresaOut) => (
               <Option key={emp.id} value={emp.id}>

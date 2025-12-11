@@ -23,6 +23,8 @@ from app.api.email_config import router as email_config_router
 from app.api.utils import router as utils_router
 from app.api.contactos import router as contactos_router
 from app.api.presupuestos import router as presupuestos_router
+from app.api.login import router as login_router
+from app.api.users import router as users_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -124,6 +126,20 @@ app.include_router(
     presupuestos_router,
     prefix="/api/presupuestos",
     tags=["presupuestos"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    login_router,
+    prefix="/api",
+    tags=["login"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    users_router,
+    prefix="/api/users",
+    tags=["users"],
     responses={404: {"description": "No encontrado"}},
 )
 

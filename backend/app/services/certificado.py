@@ -164,25 +164,71 @@ class CertificadoService:
     @staticmethod
     def extraer_info_bytes(cer_bytes: bytes) -> Dict:
         try:
-            cert = x509.load_der_x509_certificate(cer_bytes, backend=default_backend())
-        except Exception:
-            cert = x509.load_pem_x509_certificate(cer_bytes, backend=default_backend())
-        nvb, nva = _utc_pair(cert)
-        subject, issuer = cert.subject, cert.issuer
-        subj_ids = _rfc_curp_from_subject(subject)
+            try:
+                cert = x509.load_der_x509_certificate(cer_bytes, backend=default_backend())
+            except Exception:
+                cert = x509.load_pem_x509_certificate(cer_bytes, backend=default_backend())
+            
+            nvb, nva = _utc_pair(cert)
+            
+            # Protección contra certificados con ASN.1 corrupto en subject/issuer
+            try:
+                subject = cert.subject
+                issuer = cert.issuer
+                subj_ids = _rfc_curp_from_subject(subject)
+                nombre_cn = _name_attr(subject, NameOID.COMMON_NAME)
+                rfc = subj_ids["rfc"]
+                curp = subj_ids["curp"]
+                tipo_cert = _tipo_cert(subject)
+                issuer_cn = _name_attr(issuer, NameOID.COMMON_NAME)
+            except ValueError as e:
+                logger.warning(f"⚠️ Error parseando subject/issuer ASN.1: {e}")
+                subject = None
+                issuer = None
+                subj_ids = {}
+                nombre_cn = "Error lectura Subject"
+                rfc = None
+                curp = None
+                tipo_cert = "DESCONOCIDO"
+                issuer_cn = None
+            except Exception as e:
+                logger.warning(f"⚠️ Error inesperado parseando subject/issuer: {e}")
+                subject = None
+                issuer = None
+                subj_ids = {}
+                nombre_cn = "Error inesperado Subject"
+                rfc = None
+                curp = None
+                tipo_cert = "DESCONOCIDO"
+                issuer_cn = None
 
-        return {
-            "nombre_cn": _name_attr(subject, NameOID.COMMON_NAME),
-            "rfc": subj_ids["rfc"],
-            "curp": subj_ids["curp"],
-            "numero_serie": format(cert.serial_number, "x").upper(),
-            "valido_desde": nvb.isoformat(),
-            "valido_hasta": nva.isoformat(),
-            "issuer_cn": _name_attr(issuer, NameOID.COMMON_NAME),
-            "key_usage": _key_usage(cert),
-            "extended_key_usage": _eku(cert),
-            "tipo_cert": _tipo_cert(subject),
-        }
+            return {
+                "nombre_cn": nombre_cn,
+                "rfc": rfc,
+                "curp": curp,
+                "numero_serie": format(cert.serial_number, "x").upper(),
+                "valido_desde": nvb.isoformat(),
+                "valido_hasta": nva.isoformat(),
+                "issuer_cn": issuer_cn,
+                "key_usage": _key_usage(cert),
+                "extended_key_usage": _eku(cert),
+                "tipo_cert": tipo_cert,
+            }
+        except Exception as e:
+            logger.error(f"❌ Error fatal extrayendo info certificado: {e}")
+            # Retornar estructura vacía controlada para no romper frontend 500
+            return {
+                "nombre_cn": "Error crítico al leer certificado",
+                "rfc": None,
+                "curp": None,
+                "numero_serie": None,
+                "valido_desde": None,
+                "valido_hasta": None,
+                "issuer_cn": None,
+                "key_usage": [],
+                "extended_key_usage": [],
+                "tipo_cert": "ERROR",
+            }
 
     @staticmethod
     def validar(cer_path: str, key_path: str, password: str) -> Dict:

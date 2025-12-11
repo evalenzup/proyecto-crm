@@ -75,6 +75,8 @@ export const productoServicioService = {
   getProductoServicios: async (params: {
     limit: number;
     offset: number;
+    empresa_id?: string | null;
+    q?: string; // Agregar soporte para búsqueda también aquí si se usa
   }): Promise<ProductoServicioPageOut> => {
     const response = await api.get<ProductoServicioPageOut>("/productos-servicios", {
       params,

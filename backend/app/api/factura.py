@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import settings
 from app.database import get_db
 from app.models.factura import Factura
+from app.models.usuario import Usuario, RolUsuario
+from app.api import deps
 from app.schemas.factura import FacturaCreate, FacturaUpdate, FacturaOut
 
 # Catálogos (se mantienen aquí por ser data de solo lectura para el schema del UI)
@@ -88,21 +90,50 @@ def get_form_schema_factura():
 
 @router.post("/", response_model=FacturaOut, status_code=status.HTTP_201_CREATED)
 def crear_factura_endpoint(
-    payload: FacturaCreate, db: Session = Depends(get_db)
+    payload: FacturaCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Factura:
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if not current_user.empresa_id:
+             raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
+        payload.empresa_id = current_user.empresa_id
     return srv.crear_factura(db, payload)
 
 
 @router.put("/{id}", response_model=FacturaOut)
 def actualizar_factura_endpoint(
-    id: UUID, payload: FacturaUpdate, db: Session = Depends(get_db)
+    id: UUID, 
+    payload: FacturaUpdate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Factura:
+    factura = srv.obtener_factura(db, id) # Verificamos existencia y propiedad antes
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if factura.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=404, detail="Factura no encontrada") # Ocultamos que existe
+        payload.empresa_id = current_user.empresa_id # Prevenir cambio de empresa
+
     return srv.actualizar_factura(db, id, payload)
 
 
 @router.get("/{id}", response_model=FacturaOut)
-def obtener_factura(id: UUID, db: Session = Depends(get_db)) -> Factura:
-    return srv.obtener_factura(db, id=id)
+def obtener_factura(
+    id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Factura:
+    factura = srv.obtener_factura(db, id=id)
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        
+    return factura
 
 
 @router.get("/", response_model=FacturasPageOut)
@@ -121,7 +152,11 @@ def listar_facturas_endpoint(
     order_dir: Literal["asc", "desc"] = Query("asc"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+
     items, total = srv.listar_facturas(
         db,
         empresa_id=empresa_id,
@@ -142,7 +177,18 @@ def listar_facturas_endpoint(
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_factura(id: UUID, db: Session = Depends(get_db)):
+def eliminar_factura(
+    id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    factura = srv.obtener_factura(db, id) # Consulta previa para validar
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
     return srv.eliminar_factura(db, id=id)
 
 
@@ -171,7 +217,17 @@ def obtener_por_folio_endpoint(
 
 
 @router.post("/{id}/timbrar", summary="Timbrar factura con PAC")
-def timbrar_endpoint(id: UUID, db: Session = Depends(get_db)):
+def timbrar_endpoint(
+    id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    factura = srv.obtener_factura(db, id)
+    if not factura: 
+         raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        
     return srv.timbrar_factura(db, id)
 
 

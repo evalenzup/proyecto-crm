@@ -21,6 +21,8 @@ from app.services.presupuesto_service import presupuesto_repo
 from app.services.pdf_generator import generate_presupuesto_pdf
 from app.services.email_sender import send_presupuesto_email
 from app.models.presupuestos import PresupuestoEvento
+from app.models.usuario import Usuario, RolUsuario
+from app.api import deps
 from pydantic import BaseModel, EmailStr
 
 router = APIRouter()
@@ -55,10 +57,14 @@ def listar_presupuestos(
     estado: str = Query(None, description="Filtrar por estado"),
     fecha_inicio: str = Query(None, description="Fecha de inicio para el rango de búsqueda"),
     fecha_fin: str = Query(None, description="Fecha de fin para el rango de búsqueda"),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Obtiene una lista paginada y filtrada de presupuestos.
     """
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+
     items, total = presupuesto_repo.get_multi(
         db,
         skip=offset,
@@ -75,17 +81,25 @@ def listar_presupuestos(
 @router.post("/", response_model=PresupuestoOut, status_code=201)
 def crear_presupuesto(
     payload: PresupuestoCreate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Crea un nuevo presupuesto con sus detalles.
     """
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if not current_user.empresa_id:
+             raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
+        payload.empresa_id = current_user.empresa_id
+        payload.responsable_id = current_user.id # Asignar como responsable automáticamente
+    
     return presupuesto_repo.create(db, obj_in=payload)
 
 @router.get("/{id}", response_model=PresupuestoOut)
 def obtener_presupuesto(
     id: UUID = Path(...), 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Obtiene un presupuesto por su ID.
@@ -93,13 +107,18 @@ def obtener_presupuesto(
     presupuesto = presupuesto_repo.get(db, id=id)
     if not presupuesto:
         raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        
+    if current_user.rol == RolUsuario.SUPERVISOR and presupuesto.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        
     return presupuesto
 
 @router.put("/{id}", response_model=PresupuestoOut)
 def actualizar_presupuesto(
     id: UUID, 
     payload: PresupuestoUpdate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Actualiza un presupuesto.
@@ -107,6 +126,12 @@ def actualizar_presupuesto(
     db_obj = presupuesto_repo.get(db, id=id)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if db_obj.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        payload.empresa_id = current_user.empresa_id # Prevenir cambio
+
     return presupuesto_repo.update(db, db_obj=db_obj, obj_in=payload)
 
 @router.patch("/{id}/estado", response_model=PresupuestoOut)
@@ -147,11 +172,22 @@ def subir_evidencia_presupuesto(
 
 
 @router.delete("/{id}", status_code=204)
-def eliminar_presupuesto(id: UUID, db: Session = Depends(get_db)):
+def eliminar_presupuesto(
+    id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     """
     Elimina un presupuesto.
     """
-    presupuesto = presupuesto_repo.remove(db, id=id)
+    presupuesto = presupuesto_repo.get(db, id=id)
+    if not presupuesto:
+         raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+         
+    if current_user.rol == RolUsuario.SUPERVISOR and presupuesto.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        
+    presupuesto_repo.remove(db, id=id)
     if not presupuesto:
         raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
     return

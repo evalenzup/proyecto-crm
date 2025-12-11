@@ -123,6 +123,7 @@ const FacturasIndexPage: React.FC = () => {
                 allowClear placeholder="Empresa" style={{ width: 220 }}
                 options={empresasOptions} value={empresaId}
                 onChange={setEmpresaId} onClear={() => setEmpresaId(undefined)}
+                disabled={!filters.isAdmin}
               />
               <Select
                 allowClear showSearch placeholder="Cliente (escribe ≥ 3 letras)" style={{ width: 280 }}

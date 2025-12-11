@@ -90,7 +90,20 @@ const EmpresaFormPage: React.FC = () => {
         if (data.archivo_cer) initial.archivo_cer_file = [{ uid: '-1', name: data.archivo_cer, url: `${API_BASE}/empresas/certificados/${data.archivo_cer}?v=${ts}` }];
         if (data.archivo_key) initial.archivo_key_file = [{ uid: '-1', name: data.archivo_key, url: `${API_BASE}/empresas/certificados/${data.archivo_key}?v=${ts}` }];
 
-        setCurrentLogoUrl(`${API_BASE}/empresas/logos/${id}.png?v=${ts}`);
+        // Cargar logo como Blob para enviar headers de auth
+        if (data.logo && typeof data.logo === 'string' && data.logo.trim().length > 0) {
+          try {
+            const logoBlob = await api.get(`/empresas/logos/${id}.png`, { responseType: 'blob' });
+            const logoUrl = URL.createObjectURL(logoBlob.data);
+            setCurrentLogoUrl(logoUrl);
+          } catch (ignored) {
+            // Si falla (ej. 404), simplemente no mostramos logo
+            setCurrentLogoUrl(null);
+          }
+        } else {
+          setCurrentLogoUrl(null);
+        }
+
         form.setFieldsValue(initial);
         setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
 
@@ -136,13 +149,17 @@ const EmpresaFormPage: React.FC = () => {
     const list = (form.getFieldValue('logo_file') as UploadFile[] | undefined) || [];
     const f = list[0] as any;
     const src = f?.originFileObj ? (f.originFileObj as File) : (currentLogoUrl || null);
+    if (!src) return; // Validación extra
     setLogoEditorInitial(src);
     setLogoEditorOpen(true);
   };
-  const onLogoCropped = (file: File, previewURL: string) => {
+  const onLogoCropped = (file: File) => {
+    const previewURL = URL.createObjectURL(file);
     const fileList: UploadFile[] = [{ uid: String(Date.now()), name: file.name, status: 'done', originFileObj: file as any, thumbUrl: previewURL } as any];
     form.setFieldsValue({ logo_file: fileList });
     setLogoEditorOpen(false);
+    // Revocar URL anterior si existía y era blob
+    // if (currentLogoUrl?.startsWith('blob:')) URL.revokeObjectURL(currentLogoUrl);
     setCurrentLogoUrl(previewURL);
     message.success('Logo recortado listo para guardar.');
   };
@@ -213,7 +230,7 @@ const EmpresaFormPage: React.FC = () => {
       const now = Date.now();
       const days = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
       if (days <= 30) return `El certificado vence en ${days} día(s).`;
-    } catch {}
+    } catch { }
     return null;
   })();
 
@@ -253,10 +270,19 @@ const EmpresaFormPage: React.FC = () => {
         <Form.Item key={key} label={prop.title}>
           <Space wrap>
             <Button icon={<UploadOutlined />} onClick={openLogoEditor}>Subir logo</Button>
-            {id && (
-              <a href={`${API_BASE}/empresas/logos/${id}.png?v=${Date.now()}`} target="_blank" rel="noopener noreferrer">
-                <Button icon={<DownloadOutlined />} type="link">Descargar logo actual</Button>
-              </a>
+            {id && currentLogoUrl && (
+              <Button
+                icon={<DownloadOutlined />}
+                type="link"
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = currentLogoUrl!;
+                  a.download = `logo-${id}.png`;
+                  a.click();
+                }}
+              >
+                Descargar logo actual
+              </Button>
             )}
             {currentLogoUrl && <img src={currentLogoUrl} alt="preview logo" style={{ height: 40, borderRadius: 6, border: '1px solid #eee', marginLeft: 8 }} />}
           </Space>

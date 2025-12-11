@@ -25,6 +25,8 @@ from app.services.empresa_service import empresa_repo  # Importamos el nuevo rep
 from app.services.certificado import CertificadoService
 from app.config import settings
 from app.core.logger import logger
+from app.models.usuario import Usuario, RolUsuario
+from app.api import deps
 from pydantic import BaseModel
 
 
@@ -96,7 +98,11 @@ def get_form_schema():
 
 
 @router.get("/logos/{empresa_id}.png", summary="Descargar logo de la empresa")
-def descargar_logo(empresa_id: UUID):
+def descargar_logo(empresa_id: UUID, current_user: Usuario = Depends(deps.get_current_active_user)):
+    # Validar acceso
+    if current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id != empresa_id:
+         raise HTTPException(status_code=403, detail="Acceso denegado a logo de otra empresa")
+
     filename = f"{empresa_id}.png"
 
     # --- Path sanitization ---
@@ -145,7 +151,15 @@ def descargar_certificado(filename: str = Path(..., regex=r"^[\w.\-]+$")):
     response_model=CertInfoOut,
     summary="Info del certificado de la empresa",
 )
-def obtener_cert_info(id: UUID, db: Session = Depends(get_db)):
+def obtener_cert_info(
+    id: UUID, 
+    db: Session = Depends(get_db), 
+    current_user: Usuario = Depends(deps.get_current_active_user)
+):
+    # Validar acceso
+    if current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id != id:
+         raise HTTPException(status_code=403, detail="Acceso denegado")
+
     # Se obtiene la empresa a través del repo
     empresa = empresa_repo.get(db, id)
     if not empresa:
@@ -177,7 +191,20 @@ def listar_empresas(
     limit: int = Query(100, ge=1, le=1000),
     rfc: Optional[str] = Query(None),
     nombre_comercial: Optional[str] = Query(None),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    # Si Supervisor -> filtrar solo su empresa (reemplazando cualquier otro filtro de ID si lo hubiera, 
+    # aunque aquí get_multi no filtra por ID per se, pero limitamos la query)
+    # get_multi de EmpresaRepo no soporta filtro por ID directo en kwargs standard, 
+    # pero podemos hacerlo en memoria o wrapper.
+    # Mejor: si es supervisor, ignorar params y retornar solo su empresa.
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if not current_user.empresa_id:
+             return {"items": [], "total": 0, "limit": limit, "offset": offset}
+        empresa = empresa_repo.get(db, current_user.empresa_id)
+        items = [empresa] if empresa else []
+        return {"items": items, "total": len(items), "limit": limit, "offset": offset}
+
     items, total = empresa_repo.get_multi(
         db,
         skip=offset,
@@ -189,7 +216,9 @@ def listar_empresas(
 
 
 @router.get("/{id}", response_model=EmpresaOut, summary="Obtener empresa por ID")
-def obtener_empresa(id: UUID, db: Session = Depends(get_db)):
+def obtener_empresa(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(deps.get_current_active_user)):
+    if current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id != id:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
     empresa = empresa_repo.get(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
@@ -203,7 +232,10 @@ def crear_empresa(
     archivo_key: UploadFile = File(...),
     logo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    if current_user.rol != RolUsuario.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden crear empresas")
     data = _parse_json_form(empresa_data, EmpresaCreate)
     return empresa_repo.create(
         db, obj_in=data, archivo_cer=archivo_cer, archivo_key=archivo_key, logo=logo
@@ -218,7 +250,12 @@ def actualizar_empresa(
     archivo_key: UploadFile | None = File(None),
     logo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    # Solo admin puede editar empresas (por seguridad fiscal)
+    if current_user.rol != RolUsuario.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden editar empresas")
+
     data = _parse_json_form(empresa_data, EmpresaUpdate)
     empresa = empresa_repo.get(db, id)
     if not empresa:
@@ -234,7 +271,9 @@ def actualizar_empresa(
 
 
 @router.delete("/{id}", status_code=204, summary="Eliminar empresa")
-def eliminar_empresa(id: UUID, db: Session = Depends(get_db)):
+def eliminar_empresa(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(deps.get_current_active_user)):
+    if current_user.rol != RolUsuario.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar empresas")
     empresa = empresa_repo.remove(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")

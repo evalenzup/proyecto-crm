@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     FM_USER_PASS: str = "ddf6f5be0deeac05a0c144a81cad9d5da63c7bba"
     FM_TIMBRADO_URL: str = "http://t1.facturacionmoderna.com/timbrado/soap"
 
+    # API Prefix
+    API_V1_STR: str = "/api"
+
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",

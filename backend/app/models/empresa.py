@@ -54,6 +54,8 @@ class Empresa(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    # Agregar relación inversa para usuarios
+    usuarios = relationship("Usuario", back_populates="empresa")
 
     def __repr__(self) -> str:
         return f"<Empresa(nombre={self.nombre}, nombre_comercial={self.nombre_comercial}, ruc={self.ruc})>"

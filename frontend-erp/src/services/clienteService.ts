@@ -85,7 +85,7 @@ export const clienteService = {
   getClientes: async (params: {
     limit: number;
     offset: number;
-    empresa_id?: string | null;
+    empresa_id?: string | null; // Ahora lo pasaremos explícitamente
     rfc?: string | null;
     nombre_comercial?: string | null;
   }): Promise<ClientePageOut> => {

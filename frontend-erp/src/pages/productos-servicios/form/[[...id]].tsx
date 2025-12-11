@@ -42,9 +42,9 @@ const FormularioProductoServicio: React.FC = () => {
 
   if (loading || loadingSatCatalogs) {
     return (
-        <Spin spinning tip="Cargando...">
-          <div style={{ minHeight: 200 }} />
-        </Spin>
+      <Spin spinning tip="Cargando...">
+        <div style={{ minHeight: 200 }} />
+      </Spin>
     );
   }
 
@@ -88,8 +88,8 @@ const FormularioProductoServicio: React.FC = () => {
           <Select
             showSearch
             filterOption={(input, option) =>
-              (option?.value?.toLowerCase().indexOf(input.toLowerCase()) >= 0) ||
-              (option?.label?.toLowerCase().indexOf(input.toLowerCase()) >= 0)
+              (String(option?.value || '').toLowerCase().indexOf(input.toLowerCase()) >= 0) ||
+              (String(option?.label || '').toLowerCase().indexOf(input.toLowerCase()) >= 0)
             }
             placeholder="Buscar clave o descripción SAT"
             options={prop['x-options']?.map((opt: any) => ({ value: opt.value, label: opt.label })) || []}
@@ -151,7 +151,7 @@ const FormularioProductoServicio: React.FC = () => {
             {Object.entries(schema.properties || {}).map(([key, prop]) =>
               renderField(key, { ...prop, required: schema.required?.includes(key) })
             )}
-            <Form.Item>
+            <Form.Item style={{ textAlign: 'right', marginTop: 16 }}>
               <Space>
                 <Button onClick={() => router.push('/productos-servicios')}>Cancelar</Button>
                 <Button type="primary" htmlType="submit">

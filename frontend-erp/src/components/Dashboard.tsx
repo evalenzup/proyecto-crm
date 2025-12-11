@@ -4,6 +4,7 @@ import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select } 
 import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
+import { useAuth } from '@/context/AuthContext';
 import dynamic from 'next/dynamic';
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
@@ -143,21 +144,26 @@ export const Dashboard: React.FC = () => {
     } as const;
   }, [chartSeries, ccy, data?.series]);
 
+  // auth hook
+  const { user } = useAuth();
+
   return (
     <Row gutter={[16, 16]}>
-      {/* Filtro de Empresa */}
-      <Col span={24} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Select
-          placeholder="Filtrar por Empresa"
-          style={{ width: 250 }}
-          allowClear
-          value={empresaId}
-          onChange={setEmpresaId}
-          options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
-        />
-      </Col>
+      {/* Filtro de Empresa (Solo Admin) */}
+      {user?.rol === 'admin' && (
+        <Col span={24} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Select
+            placeholder="Filtrar por Empresa"
+            style={{ width: 250 }}
+            allowClear
+            value={empresaId}
+            onChange={setEmpresaId}
+            options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
+          />
+        </Col>
+      )}
 
-      {/* Sección de Ventas y Presupuestos */}
+      {/* Sección de Ventas y Presupuestos - COMENTADA POR SOLICITUD
       <Col span={24}>
         <Typography.Title level={4}>Ventas y Presupuestos</Typography.Title>
       </Col>
@@ -231,6 +237,7 @@ export const Dashboard: React.FC = () => {
           />
         </Card>
       </Col>
+      */}
 
       <Col span={24}>
         <Typography.Title level={4} style={{ marginTop: 16 }}>Finanzas</Typography.Title>

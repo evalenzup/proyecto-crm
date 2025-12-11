@@ -379,7 +379,7 @@ const ClienteFormPage: React.FC = () => {
             </Form.List>
             {/* --- FIN: SECCIÓN DE CONTACTOS DINÁMICOS --- */}
 
-            <Form.Item>
+            <Form.Item style={{ textAlign: 'right', marginTop: 16 }}>
               <Space>
                 <Button onClick={() => router.push('/clientes')}>Cancelar</Button>
                 <Button type="primary" htmlType="submit">

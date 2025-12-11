@@ -4,11 +4,11 @@ import { Dayjs } from 'dayjs';
 import debounce from 'lodash/debounce';
 import {
   getFacturas,
-  getEmpresas,
   searchClientes,
   type FacturaListParams,
   type FacturaRow,
 } from '@/services/facturaService';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'CANCELADA';
 type EstatusPago = 'PAGADA' | 'NO_PAGADA';
@@ -33,8 +33,15 @@ export const useFacturasList = () => {
   });
 
   // Filtros
-  const [empresasOptions, setEmpresasOptions] = useState<Opcion[]>([]);
-  const [empresaId, setEmpresaId] = useState<string | undefined>(undefined);
+  const {
+    selectedEmpresaId: empresaId,
+    setSelectedEmpresaId: setEmpresaId,
+    empresas,
+    isAdmin
+  } = useEmpresaSelector();
+
+  const empresasOptions = (empresas || []).map((e: any) => ({ value: e.id, label: e.nombre_comercial || e.nombre }));
+
   const [clienteOptions, setClienteOptions] = useState<Opcion[]>([]);
   const [clienteId, setClienteId] = useState<string | undefined>(undefined);
   const [clienteQuery, setClienteQuery] = useState<string>('');
@@ -43,6 +50,12 @@ export const useFacturasList = () => {
   const [rangoFechas, setRangoFechas] = useState<[Dayjs, Dayjs] | null>(null);
 
   const fetchFacturas = useCallback(async (pag: TablePaginationConfig = pagination) => {
+    if (!empresaId) {
+      setRows([]);
+      setTotalRows(0);
+      return;
+    }
+
     const { limit, offset } = toLimitOffset(pag);
     const params: FacturaListParams = { limit, offset, order_by: 'serie_folio', order_dir: 'desc' };
     if (empresaId) params.empresa_id = empresaId;
@@ -72,16 +85,7 @@ export const useFacturasList = () => {
     fetchFacturas();
   }, [fetchFacturas]);
 
-  const fetchEmpresas = useCallback(async () => {
-    try {
-      const list = await getEmpresas();              // ← devuelve arreglo directo
-      setEmpresasOptions(
-        (list || []).map((e: any) => ({ value: e.id, label: e.nombre_comercial || e.nombre }))
-      );
-    } catch (error) {
-      console.error('Error fetching empresas', error);
-    }
-  }, []);
+  // Ya no necesitamos fetchEmpresas, el hook lo hace
 
   const debouncedBuscarClientes = useMemo(() =>
     debounce(async (q: string) => {
@@ -90,7 +94,7 @@ export const useFacturasList = () => {
         return;
       }
       try {
-        const list = await searchClientes(q);        // ← devuelve arreglo directo
+        const list = await searchClientes(q, empresaId); // Buscar clientes filtrados por empresa si es posible
         setClienteOptions(
           (list || []).slice(0, 20).map((c: any) => ({
             value: c.id,
@@ -101,11 +105,12 @@ export const useFacturasList = () => {
         setClienteOptions([]);
       }
     }, 300)
-  , []);
+    , [empresaId]); // Dependencia empresaId agregada
 
-  useEffect(() => {
-    fetchEmpresas();
-  }, [fetchEmpresas]);
+  // useEffect(() => {
+  //   fetchEmpresas();
+  // }, [fetchEmpresas]);
+  // ELIMINADO
 
   return {
     rows,
@@ -121,6 +126,7 @@ export const useFacturasList = () => {
       estatus, setEstatus,
       estatusPago, setEstatusPago,
       rangoFechas, setRangoFechas,
+      isAdmin, // Nuevo
     },
   };
 };

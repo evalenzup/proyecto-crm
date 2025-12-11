@@ -8,7 +8,8 @@ import {
   type PagoRow,
   type EstatusPagoCfdi,
 } from '@/services/pagoService';
-import { getEmpresas, searchClientes } from '@/services/facturaService';
+import { searchClientes } from '@/services/facturaService';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 interface Opcion { label: string; value: string }
 
@@ -32,8 +33,15 @@ export const usePagosList = () => {
   });
 
   // Filters
-  const [empresasOptions, setEmpresasOptions] = useState<Opcion[]>([]);
-  const [empresaId, setEmpresaId] = useState<string | undefined>(undefined);
+  const {
+    selectedEmpresaId: empresaId,
+    setSelectedEmpresaId: setEmpresaId,
+    empresas,
+    isAdmin
+  } = useEmpresaSelector();
+
+  const empresasOptions = (empresas || []).map((e: any) => ({ value: e.id, label: e.nombre_comercial || e.nombre }));
+
   const [clienteOptions, setClienteOptions] = useState<Opcion[]>([]);
   const [clienteId, setClienteId] = useState<string | undefined>(undefined);
   const [clienteQuery, setClienteQuery] = useState<string>('');
@@ -41,6 +49,11 @@ export const usePagosList = () => {
   const [rangoFechas, setRangoFechas] = useState<[Dayjs, Dayjs] | null>(null);
 
   const fetchPagos = useCallback(async (pag: TablePaginationConfig = pagination) => {
+    if (!empresaId) {
+      setRows([]);
+      setTotalRows(0);
+      return;
+    }
     const { limit, offset } = toLimitOffset(pag);
     const params: any = { limit, offset, order_by: 'folio', order_dir: 'desc' };
     if (empresaId) params.empresa_id = empresaId;
@@ -68,16 +81,7 @@ export const usePagosList = () => {
     fetchPagos();
   }, [fetchPagos, router.asPath]);
 
-  const fetchEmpresas = useCallback(async () => {
-    try {
-      const list = await getEmpresas();
-      setEmpresasOptions(
-        (list || []).map((e: any) => ({ value: e.id, label: e.nombre_comercial || e.nombre }))
-      );
-    } catch (error) {
-      console.error('Error fetching empresas', error);
-    }
-  }, []);
+  // Ya no necesitamos fetchEmpresas, el hook lo hace
 
   const debouncedBuscarClientes = useMemo(() =>
     debounce(async (q: string) => {
@@ -86,7 +90,7 @@ export const usePagosList = () => {
         return;
       }
       try {
-        const list = await searchClientes(q);
+        const list = await searchClientes(q, empresaId); // Filtrar por empresa
         setClienteOptions(
           (list || []).slice(0, 20).map((c: any) => ({
             value: c.id,
@@ -97,11 +101,12 @@ export const usePagosList = () => {
         setClienteOptions([]);
       }
     }, 300)
-  , []);
+    , [empresaId]);
 
-  useEffect(() => {
-    fetchEmpresas();
-  }, [fetchEmpresas]);
+  // useEffect(() => {
+  //   fetchEmpresas();
+  // }, [fetchEmpresas]);
+  // ELIMINADO
 
   return {
     rows,
@@ -116,6 +121,7 @@ export const usePagosList = () => {
       clienteQuery, setClienteQuery, debouncedBuscarClientes,
       estatus, setEstatus,
       rangoFechas, setRangoFechas,
+      isAdmin, // Nuevo
     },
   };
 };

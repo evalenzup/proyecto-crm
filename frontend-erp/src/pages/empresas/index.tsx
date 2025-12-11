@@ -6,10 +6,12 @@ import type { ColumnsType } from 'antd/es/table';
 import type { EmpresaOut } from '@/services/empresaService'; // Usamos la interfaz del servicio
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEmpresasList } from '@/hooks/useEmpresasList'; // Importamos el hook
+import { useAuth } from '@/context/AuthContext';
 
 const EmpresasPage: React.FC = () => {
   const router = useRouter();
   const { empresas, loading, handleDelete } = useEmpresasList(); // Usamos el hook
+  const { user } = useAuth();
 
   const columns: ColumnsType<EmpresaOut> = [
     { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
@@ -27,14 +29,16 @@ const EmpresasPage: React.FC = () => {
             icon={<EditOutlined />}
             onClick={() => router.push(`/empresas/form/${record.id}`)}
           />
-          <Popconfirm
-            title="¿Eliminar empresa?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Sí"
-            cancelText="No"
-          >
-            <Button type="link" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {user?.rol === 'admin' && (
+            <Popconfirm
+              title="¿Eliminar empresa?"
+              onConfirm={() => handleDelete(record.id)}
+              okText="Sí"
+              cancelText="No"
+            >
+              <Button type="link" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -48,13 +52,15 @@ const EmpresasPage: React.FC = () => {
           <h1 className="app-title">Empresas</h1>
         </div>
         <div className="app-page-header__right">
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => router.push('/empresas/form')}
-          >
-            Agregar
-          </Button>
+          {user?.rol === 'admin' && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => router.push('/empresas/form')}
+            >
+              Agregar
+            </Button>
+          )}
         </div>
       </div>
       <div className="app-content">

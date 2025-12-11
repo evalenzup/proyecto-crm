@@ -90,15 +90,15 @@ const PagosIndexPage: React.FC = () => {
       width: 120,
       render: (_: any, r) => (
         <Space>
-            <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/pagos/form/${r.id}`)} />
-            {r.estatus === 'BORRADOR' && (
-                <Button
-                    type="link"
-                    icon={<ThunderboltOutlined />}
-                    onClick={() => handleTimbrar(r.id)}
-                    title="Timbrar"
-                />
-            )}
+          <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/pagos/form/${r.id}`)} />
+          {r.estatus === 'BORRADOR' && (
+            <Button
+              type="link"
+              icon={<ThunderboltOutlined />}
+              onClick={() => handleTimbrar(r.id)}
+              title="Timbrar"
+            />
+          )}
         </Space>
       ),
     },
@@ -144,6 +144,7 @@ const PagosIndexPage: React.FC = () => {
                 allowClear placeholder="Empresa" style={{ width: 220 }}
                 options={empresasOptions} value={empresaId}
                 onChange={setEmpresaId} onClear={() => setEmpresaId(undefined)}
+                disabled={!filters.isAdmin}
               />
               <Select
                 allowClear showSearch placeholder="Cliente (escribe ≥ 3 letras)" style={{ width: 280 }}

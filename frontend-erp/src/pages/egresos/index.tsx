@@ -8,15 +8,24 @@ import { getEmpresas } from '@/services/facturaService';
 
 const { RangePicker } = DatePicker;
 
+import { useEmpresaSelector } from '@/hooks/useEmpresaSelector'; // Importar hook
+
 const EgresosListPage: React.FC = () => {
   const router = useRouter();
   const [egresos, setEgresos] = useState<Egreso[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const {
+    selectedEmpresaId,
+    setSelectedEmpresaId,
+    empresas,
+    isAdmin
+  } = useEmpresaSelector();
+
   const [filters, setFilters] = useState<any>({
-    empresa_id: null,
     proveedor: null,
     categoria: null,
     estatus: null,
@@ -25,16 +34,23 @@ const EgresosListPage: React.FC = () => {
   });
 
   // Data for filters
-  const [empresas, setEmpresas] = useState<{ label: string, value: string }[]>([]);
+  // const [empresas, setEmpresas] = useState<{ label: string, value: string }[]>([]); // YA NO SE USA
   const [categorias, setCategorias] = useState<string[]>([]);
   const [estatusOptions, setEstatusOptions] = useState<string[]>([]);
 
   const fetchEgresos = async () => {
+    if (!selectedEmpresaId) {
+      setEgresos([]);
+      setTotal(0);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await getEgresos({
         skip: (currentPage - 1) * pageSize,
         limit: pageSize,
+        empresa_id: selectedEmpresaId, // Usar del hook
         ...filters,
       });
       setEgresos(response.items);
@@ -47,49 +63,42 @@ const EgresosListPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const selectedEmpresaId = localStorage.getItem('selectedEmpresaId');
-    if (selectedEmpresaId) {
-      setFilters((prev: any) => ({ ...prev, empresa_id: selectedEmpresaId }));
-    }
+    // Ya no usamos localStorage manual para empresa
+    // if (selectedEmpresaId) {
+    //   setFilters((prev: any) => ({ ...prev, empresa_id: selectedEmpresaId }));
+    // }
 
     const fetchFilterData = async () => {
-        try {
-            const [empresasData, enumsData] = await Promise.all([
-                getEmpresas(),
-                getEgresoEnums(),
-            ]);
-            setEmpresas((empresasData || []).map((e: any) => ({ label: e.nombre_comercial || e.nombre, value: e.id })));
-            setCategorias(enumsData.categorias);
-            setEstatusOptions(enumsData.estatus);
-        } catch (error) {
-            message.error('Error al cargar datos para filtros.');
-        }
+      try {
+        const [enumsData] = await Promise.all([
+          // getEmpresas(), // YA NO SE USA
+          getEgresoEnums(),
+        ]);
+        // setEmpresas((empresasData || []).map((e: any) => ({ label: e.nombre_comercial || e.nombre, value: e.id })));
+        setCategorias(enumsData.categorias);
+        setEstatusOptions(enumsData.estatus);
+      } catch (error) {
+        message.error('Error al cargar datos para filtros.');
+      }
     };
     fetchFilterData();
   }, []);
 
   useEffect(() => {
     fetchEgresos();
-  }, [filters, currentPage, pageSize]);
+  }, [filters, currentPage, pageSize, selectedEmpresaId]); // Agregar dependency
 
   const handleFilterChange = (key: string, value: any) => {
-    if (key === 'empresa_id') {
-      setEgresos([]); // Limpiar egresos al cambiar de empresa
-      if (value) {
-        localStorage.setItem('selectedEmpresaId', value);
-      } else {
-        localStorage.removeItem('selectedEmpresaId');
-      }
-    }
+    // Empresa se maneja aparte
     setFilters((prev: any) => ({ ...prev, [key]: value }));
     setCurrentPage(1); // Reset page when filters change
   };
 
   const handleDateChange = (dates: any) => {
-    setFilters(prev => ({
-        ...prev,
-        fecha_desde: dates ? dates[0].format('YYYY-MM-DD') : null,
-        fecha_hasta: dates ? dates[1].format('YYYY-MM-DD') : null,
+    setFilters((prev: any) => ({
+      ...prev,
+      fecha_desde: dates ? dates[0].format('YYYY-MM-DD') : null,
+      fecha_hasta: dates ? dates[1].format('YYYY-MM-DD') : null,
     }));
     setCurrentPage(1); // Reset page when filters change
   };
@@ -138,7 +147,7 @@ const EgresosListPage: React.FC = () => {
       dataIndex: 'monto',
       key: 'monto',
       align: 'right' as const,
-      render: (amount: number, record: Egreso) => 
+      render: (amount: number, record: Egreso) =>
         `${amount.toLocaleString('es-MX', { style: 'currency', currency: record.moneda || 'MXN' })}`,
     },
     {
@@ -191,9 +200,10 @@ const EgresosListPage: React.FC = () => {
                 placeholder="Empresa"
                 style={{ width: 200 }}
                 allowClear
-                options={empresas}
-                value={filters.empresa_id}
-                onChange={(value) => handleFilterChange('empresa_id', value)}
+                options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
+                value={selectedEmpresaId}
+                onChange={setSelectedEmpresaId}
+                disabled={!isAdmin}
               />
             </Col>
             <Col>

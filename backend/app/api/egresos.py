@@ -11,6 +11,8 @@ from app.schemas.egreso import Egreso, EgresoCreate, EgresoUpdate
 from app.models.egreso import CategoriaEgreso, EstatusEgreso
 from app.config import settings
 from app.services.egreso_service import egreso_repo
+from app.models.usuario import Usuario, RolUsuario
+from app.api import deps
 
 router = APIRouter()
 
@@ -42,7 +44,15 @@ def get_egreso_enums():
     }
 
 @router.post("/", response_model=Egreso, status_code=201)
-def create_egreso(egreso: EgresoCreate, db: Session = Depends(get_db)):
+def create_egreso(
+    egreso: EgresoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if not current_user.empresa_id:
+             raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
+        egreso.empresa_id = current_user.empresa_id
     return egreso_repo.create(db, obj_in=egreso)
 
 @router.get("/", response_model=EgresoPageOut)
@@ -56,7 +66,11 @@ def read_egresos(
     estatus: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+
     items, total = egreso_repo.get_multi(
         db,
         skip=skip,
@@ -71,24 +85,52 @@ def read_egresos(
     return {"items": items, "total": total, "limit": limit, "offset": skip}
 
 @router.get("/{egreso_id}", response_model=Egreso)
-def read_egreso(egreso_id: uuid.UUID, db: Session = Depends(get_db)):
-    db_egreso = egreso_repo.get(db, id=egreso_id)
-    if db_egreso is None:
-        raise HTTPException(status_code=404, detail="Egreso not found")
-    return db_egreso
-
-@router.put("/{egreso_id}", response_model=Egreso)
-def update_egreso(
-    egreso_id: uuid.UUID, egreso: EgresoUpdate, db: Session = Depends(get_db)
+def read_egreso(
+    egreso_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     db_egreso = egreso_repo.get(db, id=egreso_id)
     if db_egreso is None:
         raise HTTPException(status_code=404, detail="Egreso not found")
+        
+    if current_user.rol == RolUsuario.SUPERVISOR and db_egreso.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Egreso not found")
+        
+    return db_egreso
+
+@router.put("/{egreso_id}", response_model=Egreso)
+def update_egreso(
+    egreso_id: uuid.UUID, 
+    egreso: EgresoUpdate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    db_egreso = egreso_repo.get(db, id=egreso_id)
+    if db_egreso is None:
+        raise HTTPException(status_code=404, detail="Egreso not found")
+        
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        if db_egreso.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=404, detail="Egreso not found")
+        egreso.empresa_id = current_user.empresa_id
+
     return egreso_repo.update(db, db_obj=db_egreso, obj_in=egreso)
 
 @router.delete("/{egreso_id}", status_code=204)
-def delete_egreso(egreso_id: uuid.UUID, db: Session = Depends(get_db)):
-    db_egreso = egreso_repo.remove(db, id=egreso_id)
+def delete_egreso(
+    egreso_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    db_egreso = egreso_repo.get(db, id=egreso_id)
+    if db_egreso is None:
+         raise HTTPException(status_code=404, detail="Egreso not found")
+         
+    if current_user.rol == RolUsuario.SUPERVISOR and db_egreso.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Egreso not found")
+
+    egreso_repo.remove(db, id=egreso_id)
     if db_egreso is None:
         raise HTTPException(status_code=404, detail="Egreso not found")
     return
