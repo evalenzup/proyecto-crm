@@ -253,8 +253,16 @@ def actualizar_empresa(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     # Solo admin puede editar empresas (por seguridad fiscal)
-    if current_user.rol != RolUsuario.ADMIN:
-        raise HTTPException(status_code=403, detail="Solo administradores pueden editar empresas")
+    # Validar permisos: Admin total o Supervisor de su propia empresa
+    is_admin = current_user.rol == RolUsuario.ADMIN
+    is_supervisor_own = (
+        current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id == id
+    )
+
+    if not (is_admin or is_supervisor_own):
+        raise HTTPException(
+            status_code=403, detail="No tienes permisos para editar esta empresa"
+        )
 
     data = _parse_json_form(empresa_data, EmpresaUpdate)
     empresa = empresa_repo.get(db, id)

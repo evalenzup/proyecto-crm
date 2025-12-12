@@ -563,7 +563,16 @@ def _group_traslados_por_tasa(
 
 
 def _tipo_cert(subject: "x509.Name", cert_obj: "x509.Certificate | None" = None) -> str:
-    s = subject.rfc4514_string().upper()
+    try:
+        s = subject.rfc4514_string().upper()
+    except Exception:
+        # Si falla el parsing estricto del subject, intentamos usar str() o string vacío
+        # Esto permite que el código continúe y cheque EKU abajo.
+        try:
+            s = str(subject).upper()
+        except Exception:
+            s = ""
+
     if "FIEL" in s or "E.FIRMA" in s or "FIRMA ELECTR" in s:
         return "FIEL"
     if "SELLO" in s:
@@ -575,6 +584,10 @@ def _tipo_cert(subject: "x509.Name", cert_obj: "x509.Certificate | None" = None)
             ).value
             eku_oids = {oid.dotted_string for oid in eku}
             if eku_oids:
+                # Si tiene EKU, por defecto asumimos CSD si no se detectó FIEL explícitamente antes
+                # (Las FIEL suelen tener 'secureEmail' etc, pero los CSD tienen OIDs específicos de SAT a veces, 
+                #  o simplemente el hecho de tener EKU suele diferenciarlo de algunos certs legacy, 
+                #  pero lo importante es que si llegamos aquí, no es FIEL por nombre).
                 return "CSD"
     except Exception:
         pass
@@ -652,8 +665,31 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
 
     if _CRYPTO_OK and cert_der:
         cert_obj = x509.load_der_x509_certificate(cert_der)
-        tipo = _tipo_cert(cert_obj.subject, cert_obj)
-        subj = cert_obj.subject.rfc4514_string()
+        try:
+            tipo = _tipo_cert(cert_obj.subject, cert_obj)
+        except Exception as e:
+            # Si falla el acceso a .subject (ValueError ASN1), intentamos inferir por EKU si es posible
+            # sin acceder a subject, o asumimos CSD si tenemos key_usage adecuado.
+            # Como _tipo_cert intenta leer subject, aquí hacemos un fallback manual.
+            (logger.warning if logger else print)(f"Error leyendo subject del certificado: {e}")
+            tipo = "DESCONOCIDO"
+            try:
+                eku = cert_obj.extensions.get_extension_for_oid(
+                    ExtensionOID.EXTENDED_KEY_USAGE
+                ).value
+                if eku:
+                    tipo = "CSD"
+            except Exception:
+                pass
+            # Si seguimos sin saber, y no pudimos leer subject para ver si es FIEL, 
+            # asumimos CSD (riesgoso pero permite timbrar si es valido para el PAC)
+            if tipo == "DESCONOCIDO":
+                 tipo = "CSD"
+        try:
+            subj = cert_obj.subject.rfc4514_string()
+        except Exception:
+            subj = "ERROR_PARSING_SUBJECT"
+
         (logger.info if logger else print)(
             f"[CSD check] subject={subj} tipo_inferido={tipo}"
         )

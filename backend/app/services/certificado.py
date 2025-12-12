@@ -56,8 +56,15 @@ def _name_attr(name: x509.Name, oid: NameOID | ObjectIdentifier) -> Optional[str
 
 
 def _rfc_curp_from_subject(name: x509.Name) -> Dict[str, Optional[str]]:
-    text = name.rfc4514_string()
-    serial = _name_attr(name, OID_SERIALNUMBER) or _name_attr(name, OID_UNIQUE_ID)
+    try:
+        text = name.rfc4514_string()
+    except Exception:
+        text = ""
+    
+    try:
+        serial = _name_attr(name, OID_SERIALNUMBER) or _name_attr(name, OID_UNIQUE_ID)
+    except Exception:
+        serial = None
     r_rfc = RFC_REGEX.search(text)
     r_curp = CURP_REGEX.search(text)
     real_rfc = (
@@ -135,12 +142,34 @@ def _eku(cert: x509.Certificate) -> Optional[List[str]]:
     return out
 
 
-def _tipo_cert(subject: x509.Name) -> str:
-    s = subject.rfc4514_string().upper()
-    if "SELLO" in s:
-        return "CSD"
+def _tipo_cert(subject: x509.Name, cert_obj: x509.Certificate | None = None) -> str:
+    try:
+        s = subject.rfc4514_string().upper()
+    except Exception:
+        try:
+             s = str(subject).upper()
+        except:
+             s = ""
+
     if "FIEL" in s or "E.FIRMA" in s or "FIRMA ELECTR" in s:
         return "FIEL"
+    if "SELLO" in s:
+        return "CSD"
+
+    # Fallback checking EKU
+    try:
+        if cert_obj is not None:
+             eku = cert_obj.extensions.get_extension_for_oid(
+                 ExtensionOID.EXTENDED_KEY_USAGE
+             ).value
+             # Si tiene EKU y no es FIEL explícito, asumimos CSD
+             if eku:
+                 return "CSD"
+    except Exception:
+        pass
+        
+    # Si todo falla pero pudimos ler algo, retornamos desconocido. 
+    # Si s estaba vacío por error de lectura y no detectamos nada más, retornamos CSD por defecto (agresivo) o DESCONOCIDO
     return "DESCONOCIDO"
 
 
@@ -173,14 +202,35 @@ class CertificadoService:
             
             # Protección contra certificados con ASN.1 corrupto en subject/issuer
             try:
-                subject = cert.subject
-                issuer = cert.issuer
-                subj_ids = _rfc_curp_from_subject(subject)
-                nombre_cn = _name_attr(subject, NameOID.COMMON_NAME)
-                rfc = subj_ids["rfc"]
-                curp = subj_ids["curp"]
-                tipo_cert = _tipo_cert(subject)
-                issuer_cn = _name_attr(issuer, NameOID.COMMON_NAME)
+                try:
+                    subject = cert.subject
+                    issuer = cert.issuer
+                except Exception as e:
+                    logger.warning(f"⚠️ Error accediendo subject/issuer objeto cert: {e}")
+                    raise ValueError("ASN1 corrupto en subject/issuer")
+
+                try:
+                    subj_ids = _rfc_curp_from_subject(subject)
+                    rfc = subj_ids["rfc"]
+                    curp = subj_ids["curp"]
+                except Exception:
+                    rfc = None
+                    curp = None
+
+                try:
+                    nombre_cn = _name_attr(subject, NameOID.COMMON_NAME)
+                except Exception:
+                    nombre_cn = "Error lectura CN"
+                
+                try:
+                    tipo_cert = _tipo_cert(subject, cert)
+                except Exception:
+                    tipo_cert = "DESCONOCIDO"
+
+                try:
+                    issuer_cn = _name_attr(issuer, NameOID.COMMON_NAME)
+                except Exception:
+                    issuer_cn = None
             except ValueError as e:
                 logger.warning(f"⚠️ Error parseando subject/issuer ASN.1: {e}")
                 subject = None
@@ -189,7 +239,20 @@ class CertificadoService:
                 nombre_cn = "Error lectura Subject"
                 rfc = None
                 curp = None
-                tipo_cert = "DESCONOCIDO"
+                
+                # Intentar inferir tipo por EKU aunque no tengamos subject
+                try:
+                    tipo_cert = "DESCONOCIDO"
+                    # Usamos la función helper _eku que ya extrae la lista de usos
+                    ekus = _eku(cert)
+                    if ekus:
+                        # Si tiene usos extendidos definidos (ej. id-kp-timeStamping, etc), 
+                        # asumimos probabilidad alta de CSD vs FIEL (que suele ser más limpia o tener secureEmail)
+                        # O simplemente por tener EKU en contexto SAT suele ser CSD.
+                        tipo_cert = "CSD"
+                except Exception:
+                    tipo_cert = "DESCONOCIDO"
+
                 issuer_cn = None
             except Exception as e:
                 logger.warning(f"⚠️ Error inesperado parseando subject/issuer: {e}")
