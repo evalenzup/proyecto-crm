@@ -108,6 +108,37 @@ export const usePagosList = () => {
   // }, [fetchEmpresas]);
   // ELIMINADO
 
+  // Preview Modal logic
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewRow, setPreviewRow] = useState<PagoRow | null>(null);
+
+  const verPdf = async (row: PagoRow) => {
+    setLoading(true);
+    try {
+      // Importar getPagoPdf del servicio (asumiendo que existe y se llama así)
+      const { getPagoPdf } = await import('@/services/pagoService');
+      const blob = await getPagoPdf(row.id);
+      const url = window.URL.createObjectURL(blob);
+      setPreviewPdfUrl(url);
+      setPreviewRow(row);
+      setPreviewModalOpen(true);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cerrarPreview = () => {
+    setPreviewModalOpen(false);
+    setPreviewRow(null);
+    if (previewPdfUrl) {
+      window.URL.revokeObjectURL(previewPdfUrl);
+      setPreviewPdfUrl(null);
+    }
+  };
+
   return {
     rows,
     totalRows,
@@ -121,7 +152,13 @@ export const usePagosList = () => {
       clienteQuery, setClienteQuery, debouncedBuscarClientes,
       estatus, setEstatus,
       rangoFechas, setRangoFechas,
-      isAdmin, // Nuevo
+      isAdmin,
     },
+    // Preview helpers
+    previewModalOpen,
+    previewPdfUrl,
+    previewRow,
+    verPdf,
+    cerrarPreview,
   };
 };

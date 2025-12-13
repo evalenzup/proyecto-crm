@@ -346,16 +346,30 @@ export const usePagoForm = () => {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
+  // Modal preview
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+
   const verPdf = async () => {
     if (!id) return;
     setAccionLoading((s) => ({ ...s, visualizando: true }));
     try {
-      const blob = await pagoService.getPagoPdf(id); // <— nombre correcto
-      openBlobInNewTab(blob);
+      const blob = await pagoService.getPagoPdf(id);
+      const url = window.URL.createObjectURL(blob);
+      setPreviewPdfUrl(url);
+      setPreviewModalOpen(true);
     } catch (error: any) {
       message.error(normalizeHttpError(error) || 'Error al generar el PDF.');
     } finally {
       setAccionLoading((s) => ({ ...s, visualizando: false }));
+    }
+  };
+
+  const cerrarPreview = () => {
+    setPreviewModalOpen(false);
+    if (previewPdfUrl) {
+      URL.revokeObjectURL(previewPdfUrl);
+      setPreviewPdfUrl(null);
     }
   };
 
@@ -406,5 +420,8 @@ export const usePagoForm = () => {
     verPdf,
     descargarPdf,
     descargarXml,
+    previewModalOpen,
+    previewPdfUrl,
+    cerrarPreview,
   };
 };

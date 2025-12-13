@@ -1,8 +1,8 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal } from 'antd';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useFacturasList } from '@/hooks/useFacturasList';
@@ -46,7 +46,7 @@ const FacturasIndexPage: React.FC = () => {
   const screens = useBreakpoint();
   const { containerRef, tableY } = useTableHeight();
 
-  const { rows, totalRows, loading, pagination, fetchFacturas, filters } = useFacturasList();
+  const { rows, totalRows, loading, pagination, fetchFacturas, filters, verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview } = useFacturasList();
 
   const {
     empresaId, setEmpresaId, empresasOptions,
@@ -99,7 +99,10 @@ const FacturasIndexPage: React.FC = () => {
       key: 'acciones',
       width: 90,
       render: (_: any, r) => (
-        <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/facturas/form/${r.id}`)} />
+        <Space>
+          <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/facturas/form/${r.id}`)} />
+          <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} title="Ver PDF" />
+        </Space>
       ),
     },
   ];
@@ -219,6 +222,41 @@ const FacturasIndexPage: React.FC = () => {
           />
         </Card>
       </div>
+      <Modal
+        title="Vista Previa de Factura"
+        open={previewModalOpen}
+        onCancel={cerrarPreview}
+        footer={[
+          <Button key="close" onClick={cerrarPreview}>Cerrar</Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<FilePdfOutlined />}
+            onClick={() => {
+              if (previewPdfUrl && previewRow) {
+                const a = document.createElement('a');
+                a.href = previewPdfUrl;
+                a.download = `factura-${previewRow.serie || ''}${previewRow.folio || previewRow.id}.pdf`;
+                a.click();
+              }
+            }}
+          >
+            Descargar
+          </Button>
+        ]}
+        width="90%"
+        style={{ top: 20 }}
+        bodyStyle={{ height: '80vh', padding: 0 }}
+        destroyOnClose
+      >
+        {previewPdfUrl && (
+          <iframe
+            src={previewPdfUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Vista Previa PDF"
+          />
+        )}
+      </Modal>
     </>
   );
 };

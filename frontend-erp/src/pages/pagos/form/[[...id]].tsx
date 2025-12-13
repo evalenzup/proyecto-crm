@@ -18,6 +18,7 @@ import {
   Col,
   Table,
   Tag,
+  Modal,
 } from 'antd';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePagoForm } from '@/hooks/usePagoForm';
@@ -63,6 +64,9 @@ const PagoFormPage: React.FC = () => {
     verPdf,
     descargarPdf,
     descargarXml,
+    previewModalOpen,
+    previewPdfUrl,
+    cerrarPreview,
   } = usePagoForm();
 
   const totalAllocated = React.useMemo<number>(() => {
@@ -94,7 +98,7 @@ const PagoFormPage: React.FC = () => {
   const facturasColumns: ColumnsType<FacturaPendiente> = [
     { title: 'Folio', dataIndex: 'folio', render: (val: any, rec: any) => `${rec.serie}-${val}` },
     { title: 'Fecha Emisión', dataIndex: 'fecha_emision', render: (val: string) => new Date(val).toLocaleDateString() },
-    { title: 'Total Factura', dataIndex: 'total', align: 'right', render: (val: number) => val.toLocaleString('es-MX', {style: 'currency', currency: 'MXN'}) },
+    { title: 'Total Factura', dataIndex: 'total', align: 'right', render: (val: number) => val.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) },
     {
       title: 'Monto a Pagar',
       dataIndex: 'id',
@@ -154,10 +158,10 @@ const PagoFormPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item label="Cliente" name="cliente_id" rules={[{ required: true }]}> 
-                  <Select 
+                <Form.Item label="Cliente" name="cliente_id" rules={[{ required: true }]}>
+                  <Select
                     options={clientes}
-                    showSearch 
+                    showSearch
                     filterOption={false}
                     onSearch={buscarClientes}
                     placeholder="Escribe al menos 3 letras para buscar"
@@ -168,47 +172,47 @@ const PagoFormPage: React.FC = () => {
           </Card>
 
           <Card size="small" title="Datos del Pago" style={{ marginBottom: 16 }}>
-             <Row gutter={16}>
-                <Col xs={24} md={8}>
-                    <Form.Item label="Fecha de Pago" name="fecha_pago" rules={[{ required: true }]}>
-                        <DatePicker style={{ width: '100%' }} />
-                    </Form.Item>
-                </Col>
-                <Col xs={24} md={8}>
-                    <Form.Item label="Forma de Pago" name="forma_pago_p" rules={[{ required: true }]}>
-                        <Select placeholder="Seleccione una forma de pago" options={formasPago} />
-                    </Form.Item>
-                </Col>
-                <Col xs={24} md={8}>
-                    <Form.Item label="Monto" name="monto" rules={[{ required: true }]}>
-                        <InputNumber min={0} style={{ width: '100%' }} addonBefore="$" disabled />
-                    </Form.Item>
-                </Col>
-             </Row>
-             <Row gutter={16}>
-                <Col xs={24} md={8}>
-                    <Form.Item label="Moneda" name="moneda_p" rules={[{ required: true }]}>
-                        <Select options={[{label: 'MXN', value: 'MXN'}, {label: 'USD', value: 'USD'}]} />
-                    </Form.Item>
-                </Col>
-                <Col xs={24} md={8}>
-                    <Form.Item label="Folio" name="folio" rules={[{ required: true }]}>
-                        <Input disabled />
-                    </Form.Item>
-                </Col>
-             </Row>
-             <Row gutter={16}>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Folio Fiscal (UUID)" name="uuid_cfdi">
-                    <Input disabled />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Fecha y Hora de Timbrado" name="timbrado_at">
-                    <Input disabled />
-                  </Form.Item>
-                </Col>
-              </Row>
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.Item label="Fecha de Pago" name="fecha_pago" rules={[{ required: true }]}>
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="Forma de Pago" name="forma_pago_p" rules={[{ required: true }]}>
+                  <Select placeholder="Seleccione una forma de pago" options={formasPago} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="Monto" name="monto" rules={[{ required: true }]}>
+                  <InputNumber min={0} style={{ width: '100%' }} addonBefore="$" disabled />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.Item label="Moneda" name="moneda_p" rules={[{ required: true }]}>
+                  <Select options={[{ label: 'MXN', value: 'MXN' }, { label: 'USD', value: 'USD' }]} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item label="Folio" name="folio" rules={[{ required: true }]}>
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item label="Folio Fiscal (UUID)" name="uuid_cfdi">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Fecha y Hora de Timbrado" name="timbrado_at">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+            </Row>
           </Card>
 
           <Card size="small" title="Facturas a Pagar">
@@ -268,14 +272,6 @@ const PagoFormPage: React.FC = () => {
               Ver PDF
             </Button>
             <Button
-              icon={<DownloadOutlined />}
-              onClick={descargarPdf}
-              loading={accionLoading.descargando}
-              disabled={!id || isCancelado}
-            >
-              Descargar PDF
-            </Button>
-            <Button
               icon={<FileTextOutlined />}
               onClick={descargarXml}
               loading={accionLoading.descargando}
@@ -295,6 +291,32 @@ const PagoFormPage: React.FC = () => {
           </Space>
         </Form>
       </div>
+      {/* Modal: Vista Previa PDF */}
+      <Modal
+        title="Vista Previa de Pago"
+        open={previewModalOpen}
+        onCancel={cerrarPreview}
+        footer={[
+          <Button key="close" onClick={cerrarPreview}>
+            Cerrar
+          </Button>,
+          <Button key="download" type="primary" icon={<FilePdfOutlined />} onClick={descargarPdf}>
+            Descargar
+          </Button>,
+        ]}
+        width="90%"
+        style={{ top: 20 }}
+        bodyStyle={{ height: '80vh', padding: 0 }}
+        destroyOnClose
+      >
+        {previewPdfUrl && (
+          <iframe
+            src={previewPdfUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Vista Previa PDF"
+          />
+        )}
+      </Modal>
     </>
   );
 };

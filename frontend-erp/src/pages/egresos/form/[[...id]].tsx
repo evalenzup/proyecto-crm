@@ -28,7 +28,10 @@ import { deleteEgreso } from '@/services/egresoService';
 
 const EgresoFormPage: React.FC = () => {
   const router = useRouter();
-  const { id, form, loading, saving, empresas, categorias, estatus, metodosPago, onFinish, egreso } = useEgresoForm();
+  const { id, form, loading, saving, empresas, categorias, estatus, metodosPago,
+    onFinish,
+    egreso,
+  } = useEgresoForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
 
   // Helper para obtener la URL base (sin /api)
@@ -149,9 +152,11 @@ const EgresoFormPage: React.FC = () => {
               </Col>
               <Col xs={24} md={8}>
                 <Form.Item label="Documento" name="path_documento">
-                  <Upload {...uploadProps}>
-                    <Button icon={<UploadOutlined />}>Click to Upload</Button>
-                  </Upload>
+                  <Space>
+                    <Upload {...uploadProps}>
+                      <Button icon={<UploadOutlined />}>Click to Upload</Button>
+                    </Upload>
+                  </Space>
                 </Form.Item>
               </Col>
             </Row>

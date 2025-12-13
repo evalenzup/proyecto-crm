@@ -134,6 +134,9 @@ const FacturaFormPage: React.FC = () => {
     descargarPDF,
     descargarXML,
     currentEmpresa,
+    previewModalOpen,
+    previewPdfUrl,
+    cerrarPreview,
   } = useFacturaForm();
 
   const handleSendEmail = async () => {
@@ -682,7 +685,7 @@ const FacturaFormPage: React.FC = () => {
                   {estatusCFDI === 'TIMBRADA' && (
                     <Button icon={<FileExcelOutlined />} onClick={descargarXML}>Descargar XML</Button>
                   )}
-                  <Button icon={<FilePdfOutlined />} onClick={descargarPDF}>Descargar PDF</Button>
+
                   <Button
                     icon={<MailOutlined />}
                     onClick={handleSendEmail}
@@ -1185,6 +1188,32 @@ const FacturaFormPage: React.FC = () => {
             <Input.TextArea rows={4} placeholder="correo1@dominio.com, correo2@dominio.com (también puedes usar ; o saltos de línea)" />
           </Form.Item>
         </Form>
+      </Modal>
+      {/* Modal: Vista Previa PDF */}
+      <Modal
+        title="Vista Previa de Factura"
+        open={previewModalOpen}
+        onCancel={cerrarPreview}
+        footer={[
+          <Button key="close" onClick={cerrarPreview}>
+            Cerrar
+          </Button>,
+          <Button key="download" type="primary" icon={<FilePdfOutlined />} onClick={descargarPDF}>
+            Descargar
+          </Button>,
+        ]}
+        width="90%"
+        style={{ top: 20 }}
+        bodyStyle={{ height: '80vh', padding: 0 }}
+        destroyOnClose
+      >
+        {previewPdfUrl && (
+          <iframe
+            src={previewPdfUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Vista Previa PDF"
+          />
+        )}
       </Modal>
     </>
   );

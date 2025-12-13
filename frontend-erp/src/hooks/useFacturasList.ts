@@ -112,6 +112,41 @@ export const useFacturasList = () => {
   // }, [fetchEmpresas]);
   // ELIMINADO
 
+  // Preview Modal
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewRow, setPreviewRow] = useState<FacturaRow | null>(null);
+
+  const verPdf = async (row: FacturaRow) => {
+    setLoading(true);
+    try {
+      // Importar servicio dinámicamente o añadir imports arriba si no conflicituan
+      // Asumiendo imports: getPdf, getPdfPreview
+      const blob = row.estatus === 'BORRADOR'
+        ? await import('@/services/facturaService').then(m => m.getPdfPreview(row.id))
+        : await import('@/services/facturaService').then(m => m.getPdf(row.id));
+
+      const url = window.URL.createObjectURL(blob);
+      setPreviewPdfUrl(url);
+      setPreviewRow(row); // Guardar row para nombre de archivo
+      setPreviewModalOpen(true);
+    } catch (error) {
+      console.error(error);
+      // Podrías añadir un toast message aquí si importas 'message' de antd
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cerrarPreview = () => {
+    setPreviewModalOpen(false);
+    setPreviewRow(null);
+    if (previewPdfUrl) {
+      window.URL.revokeObjectURL(previewPdfUrl);
+      setPreviewPdfUrl(null);
+    }
+  };
+
   return {
     rows,
     totalRows,
@@ -126,7 +161,13 @@ export const useFacturasList = () => {
       estatus, setEstatus,
       estatusPago, setEstatusPago,
       rangoFechas, setRangoFechas,
-      isAdmin, // Nuevo
+      isAdmin,
     },
+    // Preview helpers
+    previewModalOpen,
+    previewPdfUrl,
+    previewRow,
+    verPdf,
+    cerrarPreview,
   };
 };

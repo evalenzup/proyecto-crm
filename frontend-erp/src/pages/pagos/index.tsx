@@ -1,8 +1,8 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal } from 'antd';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePagosList } from '@/hooks/usePagosList';
@@ -48,7 +48,7 @@ const PagosIndexPage: React.FC = () => {
   const screens = useBreakpoint();
   const { containerRef, tableY } = useTableHeight();
 
-  const { rows, totalRows, loading, pagination, fetchPagos, filters } = usePagosList();
+  const { rows, totalRows, loading, pagination, fetchPagos, filters, verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview } = usePagosList();
 
   const {
     empresaId, setEmpresaId, empresasOptions,
@@ -111,6 +111,7 @@ const PagosIndexPage: React.FC = () => {
       render: (_: any, r) => (
         <Space>
           <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/pagos/form/${r.id}`)} />
+          <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} title="Ver PDF" />
           {r.estatus === 'BORRADOR' && (
             <Button
               type="link"
@@ -231,6 +232,41 @@ const PagosIndexPage: React.FC = () => {
           />
         </Card>
       </div>
+      <Modal
+        title="Vista Previa de Pago"
+        open={previewModalOpen}
+        onCancel={cerrarPreview}
+        footer={[
+          <Button key="close" onClick={cerrarPreview}>Cerrar</Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<FilePdfOutlined />}
+            onClick={() => {
+              if (previewPdfUrl && previewRow) {
+                const a = document.createElement('a');
+                a.href = previewPdfUrl;
+                a.download = `pago-${previewRow.folio || previewRow.id}.pdf`;
+                a.click();
+              }
+            }}
+          >
+            Descargar
+          </Button>
+        ]}
+        width="90%"
+        style={{ top: 20 }}
+        bodyStyle={{ height: '80vh', padding: 0 }}
+        destroyOnClose
+      >
+        {previewPdfUrl && (
+          <iframe
+            src={previewPdfUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Vista Previa PDF"
+          />
+        )}
+      </Modal>
     </>
   );
 };

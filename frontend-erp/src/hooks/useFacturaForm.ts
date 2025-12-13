@@ -629,6 +629,10 @@ export const useFacturaForm = () => {
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
+  // modal preview PDF
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+
   const verPDF = async () => {
     if (!id) {
       message.info('Guarda la factura para generar la vista previa.');
@@ -639,9 +643,20 @@ export const useFacturaForm = () => {
         estatusCFDI === 'BORRADOR'
           ? await svc.getPdfPreview(id)
           : await svc.getPdf(id);
-      openBlobInNewTab(blob);
+
+      const url = window.URL.createObjectURL(blob);
+      setPreviewPdfUrl(url);
+      setPreviewModalOpen(true);
     } catch (e: any) {
       message.error(normalizeHttpError(e) || 'No se pudo abrir el PDF');
+    }
+  };
+
+  const cerrarPreview = () => {
+    setPreviewModalOpen(false);
+    if (previewPdfUrl) {
+      URL.revokeObjectURL(previewPdfUrl);
+      setPreviewPdfUrl(null);
     }
   };
 
@@ -727,5 +742,8 @@ export const useFacturaForm = () => {
 
     // acciones (CFDI / archivos)
     timbrarFactura, verPDF, descargarPDF, descargarXML,
+
+    // preview PDF
+    previewModalOpen, previewPdfUrl, cerrarPreview,
   };
 };
