@@ -2,12 +2,12 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Popconfirm, Space, Select, Input } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Button, Popconfirm, Space, Select, Input, message } from 'antd';
+import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useClienteList } from '@/hooks/useClienteList'; // Importamos el hook
-import { ClienteOut } from '@/services/clienteService'; // Importamos la interfaz ClienteOut
+import { ClienteOut, clienteService } from '@/services/clienteService'; // Importamos la interfaz ClienteOut
 import { EmpresaOut } from '@/services/empresaService'; // Importamos la interfaz EmpresaOut
 
 const { Option } = Select;
@@ -33,6 +33,25 @@ const ClientesPage: React.FC = () => {
     clearFilters,
     isAdmin, // Nuevo
   } = useClienteList();
+
+  const handleExport = async () => {
+    try {
+      const blob = await clienteService.exportClientesExcel({
+        empresa_id: empresaFiltro || undefined,
+        rfc: rfcFiltro || undefined,
+        nombre_comercial: nombreFiltro || undefined,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'clientes.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      message.error('Error al exportar clientes');
+    }
+  };
 
   const columns: ColumnsType<ClienteOut> = [
     { title: 'Nombre Comercial', dataIndex: 'nombre_comercial', key: 'nombre_comercial' },
@@ -76,13 +95,18 @@ const ClientesPage: React.FC = () => {
           <h1 className="app-title">Clientes</h1>
         </div>
         <div className="app-page-header__right">
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => router.push('/clientes/form')}
-          >
-            Agregar
-          </Button>
+          <Space>
+            <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
+              Exportar
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => router.push('/clientes/form')}
+            >
+              Agregar
+            </Button>
+          </Space>
         </div>
       </div>
       <div className="app-content">

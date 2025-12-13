@@ -1,12 +1,22 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response, FileResponse, StreamingResponse
 import os
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 from datetime import date
 from sqlalchemy import cast, Integer, or_
 
+from app.utils.excel import generate_excel
+from typing import List, Optional
+from datetime import date
+from sqlalchemy import cast, Integer, or_
+
+from app.database import get_db
+from app.models.pago import Pago, PagoDocumentoRelacionado
+from app.models.factura import Factura
+from app.models.usuario import Usuario, RolUsuario
+from app.api import deps
 from app.database import get_db
 from app.models.pago import Pago, PagoDocumentoRelacionado
 from app.models.factura import Factura
@@ -19,6 +29,9 @@ from app.services.pdf_pago import render_pago_pdf_bytes_from_model
 from app.services.email_sender import send_pago_email, EmailSendingError
 from app.schemas.factura import SendEmailIn
 from app.config import settings
+
+# Catálogos
+from app.catalogos_sat.facturacion import FORMA_PAGO
 
 router = APIRouter()
 
@@ -93,6 +106,85 @@ def listar_pagos(
         fecha_hasta=fecha_hasta,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/export-excel")
+def exportar_pagos_excel(
+    db: Session = Depends(get_db),
+    order_by: str = "fecha_pago",
+    order_dir: str = "desc",
+    empresa_id: Optional[uuid.UUID] = None,
+    cliente_id: Optional[uuid.UUID] = None,
+    estatus: Optional[str] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+        
+    items, _ = pago_service.listar_pagos(
+        db,
+        offset=0,
+        limit=5000,
+        order_by=order_by,
+        order_dir=order_dir,
+        empresa_id=empresa_id,
+        cliente_id=cliente_id,
+        estatus=estatus,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+    )
+
+    # Mapa de formas de pago
+    map_formas = {i["clave"]: i["descripcion"] for i in FORMA_PAGO}
+
+    data_list = []
+    for p in items:
+        cliente_nombre = "—"
+        if p.cliente:
+            cliente_nombre = p.cliente.nombre_comercial or p.cliente.nombre_razon_social or "—"
+        
+        # Forma de pago description
+        forma_desc = p.forma_pago_p
+        if p.forma_pago_p and p.forma_pago_p in map_formas:
+            forma_desc = f"{p.forma_pago_p} - {map_formas[p.forma_pago_p]}"
+            
+        # Moneda
+        moneda = p.moneda_p if hasattr(p, 'moneda_p') else p.moneda # Fallback por si acaso modelo difiere
+
+        # Estatus (si es Enum)
+        estatus_str = p.estatus.value if hasattr(p.estatus, 'value') else p.estatus
+
+        data_list.append({
+            "folio_completo": f"{p.serie or ''}-{p.folio or ''}",
+            "fecha": p.fecha_pago,
+            "cliente": cliente_nombre,
+            "rfc": p.cliente.rfc if p.cliente else "",
+            "monto": p.monto,
+            "moneda": moneda,
+            "forma_pago": forma_desc,
+            "estatus": estatus_str,
+        })
+
+    headers = {
+        "folio_completo": "Folio",
+        "fecha": "Fecha Pago",
+        "cliente": "Cliente",
+        "rfc": "RFC Cliente",
+        "monto": "Monto",
+        "moneda": "Moneda",
+        "forma_pago": "Forma Pago",
+        "estatus": "Estatus",
+    }
+
+    excel_file = generate_excel(data_list, headers, sheet_name="Pagos")
+    
+    headers_resp = {
+        "Content-Disposition": 'attachment; filename="pagos.xlsx"'
+    }
+    return StreamingResponse(excel_file, headers=headers_resp, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 @router.get("/{pago_id}", response_model=PagoSchema)

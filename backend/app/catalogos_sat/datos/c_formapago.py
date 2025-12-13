@@ -5,13 +5,13 @@ Catálogo generado a partir de la hoja 'c_FormaPago'
 """
 
 CATALOGO: List[Dict[str, str]] = [
-    {"clave": "1", "descripcion": "Efectivo"},
-    {"clave": "2", "descripcion": "Cheque nominativo"},
-    {"clave": "3", "descripcion": "Transferencia electrónica de fondos"},
-    {"clave": "4", "descripcion": "Tarjeta de crédito"},
-    {"clave": "5", "descripcion": "Monedero electrónico"},
-    {"clave": "6", "descripcion": "Dinero electrónico"},
-    {"clave": "8", "descripcion": "Vales de despensa"},
+    {"clave": "01", "descripcion": "Efectivo"},
+    {"clave": "02", "descripcion": "Cheque nominativo"},
+    {"clave": "03", "descripcion": "Transferencia electrónica de fondos"},
+    {"clave": "04", "descripcion": "Tarjeta de crédito"},
+    {"clave": "05", "descripcion": "Monedero electrónico"},
+    {"clave": "06", "descripcion": "Dinero electrónico"},
+    {"clave": "08", "descripcion": "Vales de despensa"},
     {"clave": "12", "descripcion": "Dación en pago"},
     {"clave": "13", "descripcion": "Pago por subrogación"},
     {"clave": "14", "descripcion": "Pago por consignación"},

@@ -1,10 +1,13 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 import os
 from pydantic import BaseModel
+
+from app.utils.excel import generate_excel
 
 from app.database import get_db
 from app.schemas.egreso import Egreso, EgresoCreate, EgresoUpdate
@@ -13,6 +16,8 @@ from app.config import settings
 from app.services.egreso_service import egreso_repo
 from app.models.usuario import Usuario, RolUsuario
 from app.api import deps
+# Catálogos
+from app.catalogos_sat.facturacion import FORMA_PAGO
 
 router = APIRouter()
 
@@ -84,6 +89,82 @@ def read_egresos(
     )
     return {"items": items, "total": total, "limit": limit, "offset": skip}
 
+
+@router.get("/export-excel")
+def exportar_egresos_excel(
+    db: Session = Depends(get_db),
+    empresa_id: Optional[uuid.UUID] = Query(None),
+    proveedor: Optional[str] = Query(None),
+    categoria: Optional[str] = Query(None),
+    estatus: Optional[str] = Query(None),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+
+    items, _ = egreso_repo.get_multi(
+        db,
+        skip=0,
+        limit=5000,
+        empresa_id=empresa_id,
+        proveedor=proveedor,
+        categoria=categoria,
+        estatus=estatus,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+    )
+
+    # Nota: En Egresos, el campo 'metodo_pago' suele guardar claves de 'Forma de Pago' (example: 03, 01)
+    # por lo que usamos FORMA_PAGO para obtener la descripción.
+    map_formas = {i["clave"]: i["descripcion"] for i in FORMA_PAGO}
+
+    data_list = []
+    for e in items:
+        # Metodo pago desc (usando catálogo de formas)
+        metodo_desc = e.metodo_pago
+        if e.metodo_pago and e.metodo_pago in map_formas:
+            metodo_desc = f"{e.metodo_pago} - {map_formas[e.metodo_pago]}"
+
+        # Clean Enums
+        cat_str = e.categoria.value if hasattr(e.categoria, 'value') else str(e.categoria)
+        # Si por alguna razón sigue saliendo CategoriaEgreso.X, hacemos split
+        if "CategoriaEgreso." in cat_str:
+             cat_str = cat_str.replace("CategoriaEgreso.", "")
+             
+        estatus_str = e.estatus.value if hasattr(e.estatus, 'value') else str(e.estatus)
+
+        data_list.append({
+            "fecha_egreso": e.fecha_egreso,
+            "proveedor": e.proveedor,
+            "descripcion": e.descripcion,
+            "categoria": cat_str,
+            "estatus": estatus_str,
+            "metodo_pago": metodo_desc,
+            "monto": e.monto,
+            "moneda": e.moneda,
+        })
+
+    headers = {
+        "fecha_egreso": "Fecha",
+        "proveedor": "Proveedor",
+        "descripcion": "Descripción",
+        "categoria": "Categoría",
+        "estatus": "Estatus",
+        "metodo_pago": "Método de Pago",
+        "monto": "Monto",
+        "moneda": "Moneda",
+    }
+
+    excel_file = generate_excel(data_list, headers, sheet_name="Egresos")
+    
+    headers_resp = {
+        "Content-Disposition": 'attachment; filename="egresos.xlsx"'
+    }
+    return StreamingResponse(excel_file, headers=headers_resp, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 @router.get("/{egreso_id}", response_model=Egreso)
 def read_egreso(
     egreso_id: uuid.UUID, 
@@ -113,7 +194,6 @@ def update_egreso(
     if current_user.rol == RolUsuario.SUPERVISOR:
         if db_egreso.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=404, detail="Egreso not found")
-        egreso.empresa_id = current_user.empresa_id
 
     return egreso_repo.update(db, db_obj=db_egreso, obj_in=egreso)
 

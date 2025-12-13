@@ -17,12 +17,14 @@ import {
   Space,
   Upload,
   message,
+  Popconfirm,
 } from 'antd';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEgresoForm } from '@/hooks/useEgresoForm';
-import { SaveOutlined, ArrowLeftOutlined, UploadOutlined } from '@ant-design/icons';
+import { SaveOutlined, ArrowLeftOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 import api from '@/lib/axios';
+import { deleteEgreso } from '@/services/egresoService';
 
 const EgresoFormPage: React.FC = () => {
   const router = useRouter();
@@ -33,6 +35,17 @@ const EgresoFormPage: React.FC = () => {
   const getBaseUrl = () => {
     const apiUrl = api.defaults.baseURL || '';
     return apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteEgreso(id);
+      message.success('Egreso eliminado correctamente');
+      router.push('/egresos');
+    } catch (error) {
+      message.error('Error al eliminar el egreso');
+    }
   };
 
   React.useEffect(() => {
@@ -149,6 +162,20 @@ const EgresoFormPage: React.FC = () => {
               <Button icon={<SaveOutlined />} type="primary" htmlType="submit" loading={saving}>
                 {id ? 'Actualizar' : 'Guardar'}
               </Button>
+              {id && (
+                <Popconfirm
+                  title="Eliminar Egreso"
+                  description="¿Estás seguro de eliminar este egreso?"
+                  onConfirm={handleDelete}
+                  okText="Sí"
+                  cancelText="No"
+                  okButtonProps={{ danger: true }}
+                >
+                  <Button icon={<DeleteOutlined />} danger>
+                    Eliminar
+                  </Button>
+                </Popconfirm>
+              )}
             </Space>
           </Card>
         </Form>

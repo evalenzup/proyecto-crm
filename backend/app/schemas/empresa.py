@@ -36,6 +36,7 @@ class EmpresaOut(EmpresaBase):
     actualizado_en: datetime = Field(..., title="Actualizado en")
     clientes: Optional[List[ClienteSimpleOut]] = Field(None, title="Clientes")
     contrasena: Optional[str] = Field(None, title="Contraseña del CSD (.key)")
+    tiene_config_email: bool = Field(False, title="¿Tiene configuración de email?")
 
     class Config:
         orm_mode = True

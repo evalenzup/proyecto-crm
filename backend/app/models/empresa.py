@@ -57,5 +57,9 @@ class Empresa(Base):
     # Agregar relación inversa para usuarios
     usuarios = relationship("Usuario", back_populates="empresa")
 
+    @property
+    def tiene_config_email(self) -> bool:
+        return self.email_config is not None
+
     def __repr__(self) -> str:
         return f"<Empresa(nombre={self.nombre}, nombre_comercial={self.nombre_comercial}, ruc={self.ruc})>"

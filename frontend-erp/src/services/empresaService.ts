@@ -24,6 +24,7 @@ export interface EmpresaOut {
   actualizado_en: string;
   clientes?: Array<{ id: string; nombre_comercial: string }>;
   contrasena?: string; // Solo para el output, no se envía en create/update
+  tiene_config_email?: boolean;
 }
 
 export interface CertInfoOut {

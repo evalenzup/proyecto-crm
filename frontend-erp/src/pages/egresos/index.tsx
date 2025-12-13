@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Row, Col, Card, Pagination } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, PaperClipOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
-import { getEgresos, deleteEgreso, Egreso, getEgresoEnums } from '@/services/egresoService';
+import { getEgresos, Egreso, getEgresoEnums, exportEgresosExcel } from '@/services/egresoService';
+import api from '@/lib/axios';
 import { getEmpresas } from '@/services/facturaService';
 
 const { RangePicker } = DatePicker;
@@ -103,15 +104,29 @@ const EgresosListPage: React.FC = () => {
     setCurrentPage(1); // Reset page when filters change
   };
 
-  const handleDelete = async (id: string) => {
+  const handleExport = async () => {
     try {
-      await deleteEgreso(id);
-      message.success('Egreso eliminado con éxito.');
-      fetchEgresos();
-    } catch (error) {
-      message.error('Error al eliminar el egreso.');
+      const blob = await exportEgresosExcel({
+        empresa_id: selectedEmpresaId || undefined,
+        proveedor: filters.proveedor || undefined,
+        categoria: filters.categoria || undefined,
+        estatus: filters.estatus || undefined,
+        fecha_desde: filters.fecha_desde || undefined,
+        fecha_hasta: filters.fecha_hasta || undefined,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'egresos.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      message.error('Error al exportar egresos');
     }
   };
+
+
 
   const handlePageChange = (page: number, size?: number) => {
     setCurrentPage(page);
@@ -173,7 +188,17 @@ const EgresosListPage: React.FC = () => {
       render: (_: any, record: Egreso) => (
         <Space size="middle">
           <Button icon={<EditOutlined />} onClick={() => router.push(`/egresos/form/${record.id}`)} />
-          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)} />
+          {record.path_documento && (
+            <Button
+              icon={<PaperClipOutlined />}
+              title="Ver Documento"
+              onClick={() => {
+                const apiUrl = api.defaults.baseURL || '';
+                const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+                window.open(`${baseUrl}/data/${record.path_documento}`, '_blank');
+              }}
+            />
+          )}
         </Space>
       ),
     },
@@ -184,13 +209,18 @@ const EgresosListPage: React.FC = () => {
       <div className="app-page-header">
         <Breadcrumbs />
         <h1 className="app-title">Egresos</h1>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => router.push('/egresos/form')}
-        >
-          Nuevo Egreso
-        </Button>
+        <Space>
+          <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
+            Exportar
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => router.push('/egresos/form')}
+          >
+            Nuevo Egreso
+          </Button>
+        </Space>
       </div>
       <div className="app-content">
         <Card style={{ marginBottom: 16 }}>

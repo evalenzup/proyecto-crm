@@ -1,37 +1,21 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-env/
+*.py[cod]
 venv/
-*.sqlite3
-
-# VSCode
-.vscode/
-
-# macOS
-.DS_Store
-
-# Docker volumes
-postgres_data/
-pgdata/
-
-# Env files
 .env
 
 # Node
 node_modules/
-dist/
-build/
+.DS_Store
 
-# Logs
-*.log
-
-.venv/
-
-# Datos de la aplicación y certificados
+# Data
 backend/data/
-*.cer
-*.key
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+*.log
 *.bak
+debug_catalogos.py

@@ -96,6 +96,11 @@ export const clienteService = {
     return response.data;
   },
 
+  exportClientesExcel: async (params: any): Promise<Blob> => {
+    const response = await api.get('/clientes/export-excel', { params, responseType: 'blob' });
+    return response.data;
+  },
+
   getClientes: async (params: {
     limit: number;
     offset: number;

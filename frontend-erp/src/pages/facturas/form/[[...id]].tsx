@@ -133,10 +133,19 @@ const FacturaFormPage: React.FC = () => {
     verPDF,
     descargarPDF,
     descargarXML,
+    currentEmpresa,
   } = useFacturaForm();
 
   const handleSendEmail = async () => {
     if (!id) return;
+    if (currentEmpresa && !currentEmpresa.tiene_config_email) {
+      Modal.warning({
+        title: 'Falta configuración de correo',
+        content: 'La empresa no tiene configurado el servicio de correo electrónico. Por favor, realiza la configuración en el módulo de Empresas antes de enviar.',
+      });
+      return;
+    }
+
     const clienteEmail = form.getFieldValue(['cliente', 'email']);
     emailForm.setFieldsValue({ recipient_emails: clienteEmail });
     setIsSendingPreview(false); // Ensure this is false for regular email
@@ -145,6 +154,14 @@ const FacturaFormPage: React.FC = () => {
 
   const handleSendPreviewEmail = async () => {
     if (!id) return;
+    if (currentEmpresa && !currentEmpresa.tiene_config_email) {
+      Modal.warning({
+        title: 'Falta configuración de correo',
+        content: 'La empresa no tiene configurado el servicio de correo electrónico. Por favor, realiza la configuración en el módulo de Empresas antes de enviar.',
+      });
+      return;
+    }
+
     const clienteEmail = form.getFieldValue(['cliente', 'email']);
     emailForm.setFieldsValue({ recipient_emails: clienteEmail });
     setIsSendingPreview(true); // Set to true for preview email
@@ -191,6 +208,17 @@ const FacturaFormPage: React.FC = () => {
       emailForm.setFieldsValue({ recipient_emails: clienteEmail });
     }
   }, [isEmailModalOpen, id, form, emailForm]);
+
+  // Poblar formulario de concepto al abrir modal
+  React.useEffect(() => {
+    if (isConceptoModalOpen) {
+      if (editingConcepto) {
+        conceptoForm.setFieldsValue(editingConcepto);
+      } else {
+        conceptoForm.resetFields();
+      }
+    }
+  }, [isConceptoModalOpen, editingConcepto, conceptoForm]);
 
   if (loading) return <Spin style={{ margin: 48 }} />;
 
@@ -600,7 +628,7 @@ const FacturaFormPage: React.FC = () => {
                 <Col><Text>Retenciones: <b>{resumen.retenciones}</b></Text></Col>
                 <Col><Text>Total: <b>{resumen.total}</b></Text></Col>
               </Row>
-              
+
             </Card>
 
             <Divider />
@@ -721,7 +749,7 @@ const FacturaFormPage: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item label="Cantidad" name="cantidad" rules={[{ required: true }]}>
+              <Form.Item label="Cantidad" name="cantidad" rules={[{ required: true }]} initialValue={1}>
                 <InputNumber min={0} style={{ width: '100%' }} disabled={isFormDisabled} />
               </Form.Item>
             </Col>
@@ -739,7 +767,7 @@ const FacturaFormPage: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item label="IVA Tasa" name="iva_tasa" initialValue={0.16}>
+              <Form.Item label="IVA Tasa" name="iva_tasa" initialValue={0.08}>
                 <Select
                   options={[
                     { value: 0, label: '0%' },
@@ -819,15 +847,15 @@ const FacturaFormPage: React.FC = () => {
                   rules={
                     necesitaSustituto
                       ? [
-                          { required: true, message: 'Requerido cuando el motivo es 01' },
-                          {
-                            validator: (_, v) => {
-                              if (!v) return Promise.resolve();
-                              const ok = /^[0-9A-Fa-f-]{36}$/.test(String(v).trim());
-                              return ok ? Promise.resolve() : Promise.reject(new Error('UUID inválido'));
-                            },
+                        { required: true, message: 'Requerido cuando el motivo es 01' },
+                        {
+                          validator: (_, v) => {
+                            if (!v) return Promise.resolve();
+                            const ok = /^[0-9A-Fa-f-]{36}$/.test(String(v).trim());
+                            return ok ? Promise.resolve() : Promise.reject(new Error('UUID inválido'));
                           },
-                        ]
+                        },
+                      ]
                       : []
                   }
                 >
@@ -1092,15 +1120,15 @@ const FacturaFormPage: React.FC = () => {
                   rules={
                     necesitaSustituto
                       ? [
-                          { required: true, message: 'Requerido cuando el motivo es 01' },
-                          {
-                            validator: (_, v) => {
-                              if (!v) return Promise.resolve();
-                              const ok = /^[0-9A-Fa-f-]{36}$/.test(String(v).trim());
-                              return ok ? Promise.resolve() : Promise.reject(new Error('UUID inválido'));
-                            },
+                        { required: true, message: 'Requerido cuando el motivo es 01' },
+                        {
+                          validator: (_, v) => {
+                            if (!v) return Promise.resolve();
+                            const ok = /^[0-9A-Fa-f-]{36}$/.test(String(v).trim());
+                            return ok ? Promise.resolve() : Promise.reject(new Error('UUID inválido'));
                           },
-                        ]
+                        },
+                      ]
                       : []
                   }
                 >

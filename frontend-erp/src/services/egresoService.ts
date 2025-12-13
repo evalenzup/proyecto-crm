@@ -21,6 +21,9 @@ export const getEgresos = (params: {
 }) =>
   getData<EgresoPageOut>(api.get('/egresos/', { params }));
 
+export const exportEgresosExcel = (params: any) =>
+  api.get('/egresos/export-excel', { params, responseType: 'blob' }).then(r => r.data as Blob);
+
 export const getEgresoById = (id: string) =>
   getData<Egreso>(api.get(`/egresos/${id}`));
 

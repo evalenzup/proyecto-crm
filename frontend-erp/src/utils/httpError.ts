@@ -80,8 +80,8 @@ export function normalizeHttpError(err: unknown): string {
         if (msg) return msg;
       }
     } catch {
-      // No es JSON, usar el string tal cual si es corto y parece un mensaje legible
-      if (status === 400 && data.length < 200) {
+      // No es JSON, usar el string tal cual
+      if (status === 400 && data.length < 2000) {
         return data;
       }
     }
@@ -103,8 +103,19 @@ export function normalizeHttpError(err: unknown): string {
   if (status === 404) return 'Recurso no encontrado.';
   if (status === 401) return 'No autorizado. Inicia sesión nuevamente.';
   if (status === 403) return 'No tienes permisos para realizar esta acción.';
-  // Remover 400 genérico si existe data, o hacerlo último recurso
-  if (status === 400) return 'Solicitud inválida. Verifica la información ingresada.';
+
+  // Modificado: Si es 400 y tenemos data, intentamos mostrarla
+  if (status === 400) {
+    // Si llegamos aqui y data es string (largo) o objeto sin detail/message
+    if (data && typeof data === 'string') return data;
+    if (data && typeof data === 'object') {
+      // Intento final de formatear lo que haya
+      const raw = formatDetail(data);
+      if (raw && raw !== 'Error desconocido') return raw;
+      return JSON.stringify(data);
+    }
+    return 'Solicitud inválida. Verifica la información ingresada.';
+  }
   if (status === 500) return 'Error interno del servidor. Intenta más tarde.';
 
   // Fallback por statusText o mensaje

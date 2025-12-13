@@ -7,9 +7,11 @@ from typing import List, Optional, Literal
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session, selectinload
+
+from app.utils.excel import generate_excel
 
 from app.config import settings
 from app.database import get_db
@@ -26,6 +28,14 @@ from app.services import factura_service as srv
 # Importaciones para el envío de correo
 from app.services import email_sender
 from app.services.email_sender import EmailSendingError
+
+# Catálogos para exportación
+from app.catalogos_sat.facturacion import (
+    METODO_PAGO, 
+    FORMA_PAGO, 
+    USO_CFDI
+)
+from app.catalogos_sat.regimenes_fiscales import REGIMENES_FISCALES_SAT
 
 logger = logging.getLogger("app")
 router = APIRouter()
@@ -101,6 +111,90 @@ def crear_factura_endpoint(
     return srv.crear_factura(db, payload)
 
 
+
+@router.get("/export-excel")
+def exportar_facturas_excel(
+    db: Session = Depends(get_db),
+    empresa_id: Optional[UUID] = Query(None),
+    cliente_id: Optional[UUID] = Query(None),
+    serie: Optional[str] = Query(None),
+    folio_min: Optional[int] = Query(None),
+    folio_max: Optional[int] = Query(None),
+    estatus: Optional[Literal["BORRADOR", "TIMBRADA", "CANCELADA"]] = Query(None),
+    status_pago: Optional[Literal["PAGADA", "NO_PAGADA"]] = Query(None),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+
+    # Obtener todos los registros (sin paginación estricta, pero ponemos un límite seguro)
+    items, _ = srv.listar_facturas(
+        db,
+        empresa_id=empresa_id,
+        cliente_id=cliente_id,
+        serie=serie,
+        folio_min=folio_min,
+        folio_max=folio_max,
+        estatus=estatus,
+        status_pago=status_pago,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        order_by="fecha",
+        order_dir="desc",
+        limit=5000, # Límite razonable para exportación
+        offset=0,
+    )
+
+    # Preparar mapas de catálogos
+    map_metodos = {i["clave"]: i["descripcion"] for i in METODO_PAGO}
+    # map_formas = {i["clave"]: i["descripcion"] for i in FORMA_PAGO} # Si se usa forma_pago
+    
+    # Preparar datos para Excel
+    data_list = []
+    for f in items:
+        cliente_nombre = "—"
+        if f.cliente:
+            cliente_nombre = f.cliente.nombre_comercial or f.cliente.nombre_razon_social or "—"
+        
+        # Obtener descripción de método de pago si existe
+        metodo_desc = f.metodo_pago
+        if f.metodo_pago and f.metodo_pago in map_metodos:
+            metodo_desc = f"{f.metodo_pago} - {map_metodos[f.metodo_pago]}"
+
+        data_list.append({
+            "folio_completo": f"{f.serie or ''}-{f.folio or ''}",
+            "fecha": f.fecha_emision,
+            "cliente": cliente_nombre,
+            "rfc": f.cliente.rfc if f.cliente else "",
+            "metodo_pago": metodo_desc,
+            "total": f.total,
+            "moneda": f.moneda,
+            "estatus": f.estatus,
+            "status_pago": f.status_pago,
+        })
+
+    headers = {
+        "folio_completo": "Folio",
+        "fecha": "Fecha Emisión",
+        "cliente": "Cliente",
+        "rfc": "RFC Receptor",
+        "metodo_pago": "Método Pago",
+        "total": "Total",
+        "moneda": "Moneda",
+        "estatus": "Estatus CFDI",
+        "status_pago": "Estatus Pago",
+    }
+
+    excel_file = generate_excel(data_list, headers, sheet_name="Facturas")
+    
+    headers_resp = {
+        "Content-Disposition": 'attachment; filename="facturas.xlsx"'
+    }
+    return StreamingResponse(excel_file, headers=headers_resp, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 @router.put("/{id}", response_model=FacturaOut)
 def actualizar_factura_endpoint(
     id: UUID, 
@@ -115,7 +209,8 @@ def actualizar_factura_endpoint(
     if current_user.rol == RolUsuario.SUPERVISOR:
         if factura.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=404, detail="Factura no encontrada") # Ocultamos que existe
-        payload.empresa_id = current_user.empresa_id # Prevenir cambio de empresa
+        # payload.empresa_id = current_user.empresa_id # Prevenir cambio de empresa - REDUNDANTE y causa error 500
+
 
     return srv.actualizar_factura(db, id, payload)
 
@@ -174,6 +269,12 @@ def listar_facturas_endpoint(
         offset=offset,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+
+
+
+
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)

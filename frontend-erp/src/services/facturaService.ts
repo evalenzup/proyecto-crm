@@ -10,6 +10,9 @@ const getBlob = (p: Promise<any>): Promise<Blob> => p.then((r) => r.data as Blob
 export const getFacturas = (params: any) =>
   getData(api.get('/facturas/', { params }));
 
+export const exportFacturasExcel = (params: any) =>
+  getBlob(api.get('/facturas/export-excel', { params, responseType: 'blob' }));
+
 export const getFacturaById = (id: string) =>
   getData(api.get(`/facturas/${id}`));
 
@@ -95,12 +98,12 @@ export const createProductoServicio = async (payload: any) =>
   (await api.post('/productos-servicios/', payload)).data;
 
 // ---------------------- Catálogos ----------------------
-export const getMetodosPago         = async () => (await api.get('/catalogos/cfdi/metodos-pago')).data;
-export const getFormasPago          = async () => (await api.get('/catalogos/cfdi/formas-pago')).data;
-export const getUsosCfdi            = async () => (await api.get('/catalogos/cfdi/usos-cfdi')).data;
-export const getRegimenesFiscales   = async () => (await api.get('/catalogos/regimen-fiscal')).data;
-export const getTiposRelacion       = async () => (await api.get('/catalogos/cfdi/tipos-relacion')).data;
-export const getMotivosCancelacion  = async () => (await api.get('/catalogos/cfdi/motivos-cancelacion')).data;
+export const getMetodosPago = async () => (await api.get('/catalogos/cfdi/metodos-pago')).data;
+export const getFormasPago = async () => (await api.get('/catalogos/cfdi/formas-pago')).data;
+export const getUsosCfdi = async () => (await api.get('/catalogos/cfdi/usos-cfdi')).data;
+export const getRegimenesFiscales = async () => (await api.get('/catalogos/regimen-fiscal')).data;
+export const getTiposRelacion = async () => (await api.get('/catalogos/cfdi/tipos-relacion')).data;
+export const getMotivosCancelacion = async () => (await api.get('/catalogos/cfdi/motivos-cancelacion')).data;
 
 // SAT search (con query)
 export const searchSatProductos = async (q: string) =>

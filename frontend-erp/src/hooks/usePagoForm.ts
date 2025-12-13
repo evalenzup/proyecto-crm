@@ -77,8 +77,15 @@ export const usePagoForm = () => {
           setPago(pagoData);
 
           // Setear campos del formulario
+          // Normalizar forma_pago_p (padding si es necesario)
+          let fp = pagoData.forma_pago_p;
+          if (fp && typeof fp === 'string' && fp.length === 1) {
+            fp = `0${fp}`;
+          }
+
           form.setFieldsValue({
             ...pagoData,
+            forma_pago_p: fp,
             fecha_pago: pagoData?.fecha_pago ? dayjs(pagoData.fecha_pago) : null,
           });
 
@@ -127,7 +134,7 @@ export const usePagoForm = () => {
           // Valores por defecto para un nuevo pago
           form.setFieldsValue({
             fecha_pago: dayjs(),
-            forma_pago_p: '3', // 3 = Transferencia electrónica de fondos
+            forma_pago_p: '03', // 03 = Transferencia electrónica de fondos
             moneda_p: 'MXN',
           });
           setClientes([]);

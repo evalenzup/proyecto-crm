@@ -2,11 +2,11 @@
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Select, DatePicker, Card, Grid, theme } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useFacturasList } from '@/hooks/useFacturasList';
-import { FacturaRow } from '@/services/facturaService';
+import { FacturaRow, exportFacturasExcel } from '@/services/facturaService';
 
 const { RangePicker } = DatePicker;
 const { useToken } = theme;
@@ -58,6 +58,27 @@ const FacturasIndexPage: React.FC = () => {
 
   const aplicarFiltros = () => fetchFacturas({ ...pagination, current: 1 });
 
+  const handleExport = async () => {
+    try {
+      const blob = await exportFacturasExcel({
+        empresa_id: empresaId,
+        cliente_id: clienteId,
+        estatus: estatus || undefined,
+        status_pago: estatusPago || undefined,
+        fecha_desde: rangoFechas?.[0]?.format('YYYY-MM-DD'),
+        fecha_hasta: rangoFechas?.[1]?.format('YYYY-MM-DD'),
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'facturas.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const columns: ColumnsType<FacturaRow> = [
     { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.serie ?? ''}-${r.folio ?? ''}`, width: 110 },
     { title: 'Fecha', dataIndex: 'creado_en', key: 'creado_en', render: (v: string) => formatDateTijuana(v), width: 180 },
@@ -99,6 +120,9 @@ const FacturasIndexPage: React.FC = () => {
           <Space wrap>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push('/facturas/form')}>
               Nueva factura
+            </Button>
+            <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
+              Exportar
             </Button>
             <Button icon={<ReloadOutlined />} onClick={() => fetchFacturas()}>
               Recargar

@@ -2,11 +2,11 @@
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Select, DatePicker, Card, Grid, theme } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePagosList } from '@/hooks/usePagosList';
-import { PagoRow, timbrarPago } from '@/services/pagoService';
+import { PagoRow, timbrarPago, exportPagosExcel } from '@/services/pagoService';
 import { message } from 'antd';
 
 const { RangePicker } = DatePicker;
@@ -70,6 +70,26 @@ const PagosIndexPage: React.FC = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const blob = await exportPagosExcel({
+        empresa_id: empresaId,
+        cliente_id: clienteId,
+        estatus: estatus || undefined,
+        fecha_desde: rangoFechas?.[0]?.format('YYYY-MM-DD'),
+        fecha_hasta: rangoFechas?.[1]?.format('YYYY-MM-DD'),
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pagos.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      message.error('Error al exportar pagos');
+    }
+  };
+
   const columns: ColumnsType<PagoRow> = [
     { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.folio ?? ''}`, width: 110 },
     { title: 'Fecha Pago', dataIndex: 'fecha_pago', key: 'fecha_pago', render: (v: string) => formatDateTijuana(v), width: 180 },
@@ -120,6 +140,9 @@ const PagosIndexPage: React.FC = () => {
           <Space wrap>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push('/pagos/form')}>
               Nuevo Pago
+            </Button>
+            <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
+              Exportar
             </Button>
             <Button icon={<ReloadOutlined />} onClick={() => fetchPagos()}>
               Recargar

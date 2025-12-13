@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
+
+from app.utils.excel import generate_excel
+# Catálogos
+from app.catalogos_sat.regimenes_fiscales import REGIMENES_FISCALES_SAT
 
 from app.database import get_db
 from app.models.empresa import Empresa
@@ -124,6 +129,76 @@ def listar_clientes(
         nombre_comercial=nombre_comercial,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/export-excel")
+def exportar_clientes_excel(
+    db: Session = Depends(get_db),
+    empresa_id: Optional[UUID] = Query(None),
+    rfc: Optional[str] = Query(None),
+    nombre_comercial: Optional[str] = Query(None),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+        
+    items, _ = cliente_repo.get_multi(
+        db,
+        skip=0,
+        limit=5000,
+        empresa_id=empresa_id,
+        rfc=rfc,
+        nombre_comercial=nombre_comercial,
+    )
+
+    # Mapa de regimenes
+    map_regimenes = {i["clave"]: i["descripcion"] for i in REGIMENES_FISCALES_SAT}
+
+    data_list = []
+    for c in items:
+        # Manejo seguro de listas (email/telefono pueden ser None o List)
+        emails = c.email if c.email else []
+        if isinstance(emails, list):
+            email_str = ", ".join(emails)
+        else:
+            email_str = str(emails)
+            
+        telefonos = c.telefono if c.telefono else []
+        if isinstance(telefonos, list):
+            telefono_str = ", ".join(telefonos)
+        else:
+            telefono_str = str(telefonos)
+
+        # Regimen fiscal description
+        regimen_desc = c.regimen_fiscal
+        if c.regimen_fiscal and c.regimen_fiscal in map_regimenes:
+            regimen_desc = f"{c.regimen_fiscal} - {map_regimenes[c.regimen_fiscal]}"
+
+        data_list.append({
+            "nombre_comercial": c.nombre_comercial,
+            "nombre_razon_social": c.nombre_razon_social,
+            "rfc": c.rfc,
+            "regimen_fiscal": regimen_desc,
+            "email": email_str,
+            "telefono": telefono_str,
+        })
+
+    headers = {
+        "nombre_comercial": "Nombre Comercial",
+        "nombre_razon_social": "Razón Social",
+        "rfc": "RFC",
+        "regimen_fiscal": "Régimen Fiscal",
+        "email": "Email",
+        "telefono": "Teléfono",
+    }
+
+    excel_file = generate_excel(data_list, headers, sheet_name="Clientes")
+    
+    headers_resp = {
+        "Content-Disposition": 'attachment; filename="clientes.xlsx"'
+    }
+    return StreamingResponse(excel_file, headers=headers_resp, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 @router.get("/{id}", response_model=ClienteOut)

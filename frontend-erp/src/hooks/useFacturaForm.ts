@@ -59,6 +59,7 @@ export const useFacturaForm = () => {
   const [usosCfdi, setUsosCfdi] = useState<{ value: string; label: string }[]>([]);
   const [tiposRelacion, setTiposRelacion] = useState<{ value: string; label: string }[]>([]);
   const [motivosCancel, setMotivosCancel] = useState<{ value: string; label: string }[]>([]);
+  const [currentEmpresa, setCurrentEmpresa] = useState<any | null>(null);
 
   // clientes / productos
   const [clienteOpts, setClienteOpts] = useState<{ label: string; value: string }[]>([]);
@@ -231,10 +232,12 @@ export const useFacturaForm = () => {
         lugar_expedicion: undefined,
       });
       setRfcEmisor('');
+      setCurrentEmpresa(null);
       return;
     }
 
     const data = await svc.getEmpresaById(empId);
+    setCurrentEmpresa(data);
     form.setFieldsValue({
       nombre_fiscal_emisor: data.nombre ?? data.nombre_comercial,
       regimen_fiscal_emisor: data.regimen_fiscal,
@@ -696,7 +699,9 @@ export const useFacturaForm = () => {
 
     // catálogos / opciones
     empresas, regimenes, metodosPago, formaPagoOptions, usosCfdi, tiposRelacion, motivosCancel,
-    clienteOpts, psOpts, unidadOpts, claveSatOpts,
+    clienteOpts, psOpts, unidadOpts, claveSatOpts, currentEmpresa,
+
+    // watchers / flags
 
     // watchers / flags
     empresaId, moneda, isFormDisabled, fieldDisabled, fieldAlwaysEditable, puedeTimbrar, puedeCancelar,

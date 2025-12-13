@@ -44,7 +44,7 @@ from .pdf_factura import (
 
 # Layout específico para Complemento de Pago
 CBB_SIZE = 1.4 * inch
-FOOTER_TOP_Y = CONTENT_Y0 + 3.2 * inch
+FOOTER_TOP_Y = CONTENT_Y0 + 1.9 * inch  # Ajustado para pegar el footer al margen inferior
 AVAILABLE_BOTTOM_Y = FOOTER_TOP_Y + 0.10 * inch
 
 
@@ -115,7 +115,7 @@ def _draw_pago_qr(c: canvas.Canvas, p: Pago):
         c.drawImage(
             ir,
             CONTENT_X0,
-            FOOTER_TOP_Y - CBB_SIZE - 1.1 * inch,
+            FOOTER_TOP_Y - CBB_SIZE - 0.35 * inch,
             width=CBB_SIZE,
             height=CBB_SIZE,
             mask="auto",
@@ -246,7 +246,8 @@ def _draw_pago_footer(c: canvas.Canvas, p: Pago):
 
     qr_right_x = CONTENT_X0 + CBB_SIZE + 12
     max_w = CONTENT_X1 - qr_right_x
-    y = FOOTER_TOP_Y - CBB_SIZE - 24
+    # Alinear texto con el top del QR
+    y = FOOTER_TOP_Y - 0.35 * inch - 6 # Pequeño ajuste para alinear con letras
 
     def draw_block(label, value, y_start):
         if not value:
