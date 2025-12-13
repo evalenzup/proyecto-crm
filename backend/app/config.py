@@ -17,10 +17,12 @@ class Settings(BaseSettings):
     CERT_DIR: str = "/data/certificados"
     DATA_DIR: str = "/data"
     CADENA40_XSLT_PATH: str = "/data/sat/cadenaoriginal_4_0.xslt"
-    FM_USER_ID: str = "BORO850708SZ7"
-    FM_TIMBRADO_URL: str = "http://t1.facturacionmoderna.com/timbrado/soap"
-    # Usamos IP directa temporalmente por problemas de DNS en contenedor
-    # FM_TIMBRADO_URL: str = "http://20.65.162.131/timbrado/soap"
+    
+    # Facturación Moderna (PAC)
+    FM_USER_ID: str = "BORO850708SZ7"  # Default de prueba, sobreescribir en .env para prod
+    FM_USER_PASS: str = "ddf6f5be0deeac05a0c144a81cad9d5da63c7bba"             # Contraseña del PAC
+    FM_TIMBRADO_URL: str = "http://t1.facturacionmoderna.com/timbrado/soap" # URL Producción por default
+    # Para pruebas: http://t1.facturacionmoderna.com/timbrado/soap
 
     # API Prefix
     API_V1_STR: str = "/api"
