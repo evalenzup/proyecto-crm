@@ -131,3 +131,7 @@ class PagoListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    
+class CancelacionRequest(BaseModel):
+    motivo: str = Field(..., description="Motivo de cancelación (01, 02, 03, 04)")
+    folio_sustituto: Optional[str] = Field(None, description="UUID del comprobante que sustituye (requerido si motivo es 01)")

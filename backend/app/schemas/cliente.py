@@ -1,7 +1,7 @@
 # app/schemas/cliente.py
 
 from pydantic import BaseModel, Field, EmailStr, field_validator
-from typing import Optional, List, Literal, Annotated
+from typing import Optional, List, Literal, Annotated, Any
 from pydantic import StringConstraints
 from uuid import UUID
 from datetime import datetime
@@ -107,6 +107,7 @@ class ClienteOut(ClienteBase):
 class ClienteSimpleOut(BaseModel):
     id: UUID
     nombre_comercial: str
+    email: Optional[Any] = None
 
     class Config:
         from_attributes = True

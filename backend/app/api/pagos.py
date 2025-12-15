@@ -22,7 +22,7 @@ from app.models.pago import Pago, PagoDocumentoRelacionado
 from app.models.factura import Factura
 from app.models.usuario import Usuario, RolUsuario
 from app.api import deps
-from app.schemas.pago import Pago as PagoSchema, PagoCreate, PagoListResponse
+from app.schemas.pago import Pago as PagoSchema, PagoCreate, PagoListResponse, CancelacionRequest
 from app.schemas.factura import FacturaOut
 from app.services import pago_service
 from app.services.pdf_pago import render_pago_pdf_bytes_from_model
@@ -310,4 +310,26 @@ async def enviar_pago_por_email(
         recipients=email_data.recipients,
         subject=email_data.subject,
         body=email_data.body,
+    )
+
+
+@router.post("/{pago_id}/cancelar-sat", summary="Cancelar pago ante el SAT")
+def cancelar_pago_sat(
+    pago_id: uuid.UUID,
+    payload: CancelacionRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    pago = pago_service.leer_pago(db, pago_id)
+    if not pago:
+         raise HTTPException(status_code=404, detail="Pago no encontrado")
+         
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+        
+    return pago_service.cancelar_pago_sat(
+        db=db,
+        pago_id=pago_id,
+        motivo=payload.motivo,
+        folio_sustituto=payload.folio_sustituto,
     )

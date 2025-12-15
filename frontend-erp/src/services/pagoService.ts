@@ -30,6 +30,9 @@ export const updatePago = (id: string, payload: any) =>
 export const timbrarPago = (id: string) =>
   getData(api.post(`/pagos/${id}/timbrar`));
 
+export const cancelarPagoSat = (id: string, motivo: string, folioSustituto?: string) =>
+  getData(api.post(`/pagos/${id}/cancelar-sat`, { motivo, folio_sustituto: folioSustituto }));
+
 // This is the key function for the form
 export const getFacturasPendientes = (clienteId: string) =>
   getData<FacturaPendiente[]>(api.get(`/pagos/clientes/${clienteId}/facturas-pendientes`));
@@ -39,6 +42,9 @@ export const getPagoPdf = (id: string) =>
 
 export const downloadPagoXml = (id: string) =>
   getBlob(api.get(`/pagos/${id}/xml`, { responseType: 'blob' }));
+
+export const enviarPagoEmail = (id: string, recipients: string[], subject?: string, body?: string) =>
+  getData(api.post(`/pagos/${id}/enviar-email`, { recipients, subject, body }));
 
 
 // ── Tipos exportados ─────────────────────────────────────────
@@ -55,7 +61,7 @@ export interface PagoRow {
   fecha_pago: string;
   monto: number;
   estatus: EstatusPagoCfdi;
-  cliente?: { id: string; nombre_comercial: string };
+  cliente?: { id: string; nombre_comercial: string; email?: string };
 }
 
 // The response from the list endpoint

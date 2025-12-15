@@ -60,14 +60,46 @@ const PagoFormPage: React.FC = () => {
     onFinish,
     generarComplemento,
     enviarComplemento,
-    cancelarComplemento,
     verPdf,
     descargarPdf,
     descargarXml,
     previewModalOpen,
     previewPdfUrl,
     cerrarPreview,
+    // Cancelacion
+    cancelacionModalOpen,
+    abrirCancelacion,
+    cerrarCancelacion,
+    confirmarCancelacion,
+    // Email
+    emailModalOpen,
+    abrirEmailModal,
+    cerrarEmailModal,
+    confirmarEnvioCorreo,
+    clienteEmail,
+    currentEmpresa,
   } = usePagoForm();
+
+  // Formulario para email
+  const [emailForm] = Form.useForm();
+
+  const handleEmailSubmit = (values: { recipient_emails: string }) => {
+    // Split recipients by comma
+    const recips = (values.recipient_emails || '').split(/[;,\n]+/).map((r: string) => r.trim()).filter(Boolean);
+    confirmarEnvioCorreo(recips, "Envío de Complemento de Pago", "Se adjunta el complemento de recepción de pagos en formato XML y PDF.");
+    emailForm.resetFields();
+  };
+
+  // Formulario independiente para el modal de cancelación
+  const [cancelacionForm] = Form.useForm();
+
+  const handleCancelacionSubmit = (values: { motivo: string; folio_sustituto?: string }) => {
+    confirmarCancelacion(values.motivo, values.folio_sustituto);
+    cancelacionForm.resetFields();
+  };
+
+  // Watch motivo to show/hide folio sustituto
+  const motivo = Form.useWatch('motivo', cancelacionForm);
 
   const totalAllocated = React.useMemo<number>(() => {
     return Object.values(paymentAllocation).reduce((sum: number, amount) => sum + Number(amount || 0), 0);
@@ -92,6 +124,7 @@ const PagoFormPage: React.FC = () => {
       form.setFieldsValue({ folio: 1 });
     }
   }, [id, form]);
+
 
   if (loading) return <Spin style={{ margin: 48 }} />;
 
@@ -239,71 +272,129 @@ const PagoFormPage: React.FC = () => {
               )}
             />
           </Card>
-
-          <Divider />
-
-          <Space wrap>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/pagos')}>Regresar</Button>
-            <Button icon={<SaveOutlined />} type="primary" htmlType="submit" loading={saving} disabled={isTimbrado || isCancelado}>
-              {id ? 'Actualizar Pago' : 'Guardar Borrador'}
-            </Button>
-            <Button
-              icon={<ThunderboltOutlined />}
-              onClick={generarComplemento}
-              loading={accionLoading.timbrando}
-              disabled={!id || isTimbrado || isCancelado}
-            >
-              Timbrar
-            </Button>
-            <Button
-              icon={<MailOutlined />}
-              onClick={enviarComplemento}
-              loading={accionLoading.enviando}
-              disabled={!isTimbrado || isCancelado}
-            >
-              Enviar por Correo
-            </Button>
-            <Button
-              icon={<FilePdfOutlined />}
-              onClick={verPdf}
-              loading={accionLoading.visualizando}
-              disabled={!id || isCancelado}
-            >
-              Ver PDF
-            </Button>
-            <Button
-              icon={<FileTextOutlined />}
-              onClick={descargarXml}
-              loading={accionLoading.descargando}
-              disabled={!isTimbrado || isCancelado}
-            >
-              Descargar XML
-            </Button>
-            <Button
-              icon={<DeleteOutlined />}
-              danger
-              onClick={cancelarComplemento}
-              loading={accionLoading.cancelando}
-              disabled={!isTimbrado || isCancelado}
-            >
-              Cancelar Complemento
-            </Button>
-          </Space>
         </Form>
+
+        <Divider />
+
+        <Space wrap>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/pagos')}>Regresar</Button>
+          <Button icon={<SaveOutlined />} type="primary" onClick={() => form.submit()} loading={saving} disabled={isTimbrado || isCancelado}>
+            {id ? 'Actualizar Pago' : 'Guardar Borrador'}
+          </Button>
+          <Button
+            icon={<ThunderboltOutlined />}
+            onClick={generarComplemento}
+            loading={accionLoading.timbrando}
+            disabled={!id || isTimbrado || isCancelado}
+          >
+            Timbrar
+          </Button>
+          <Button
+            icon={<MailOutlined />}
+            onClick={() => {
+              if (currentEmpresa && !currentEmpresa.tiene_config_email) {
+                Modal.warning({
+                  title: 'Falta configuración de correo',
+                  content: 'La empresa no tiene configurado el servicio de correo electrónico. Por favor, realiza la configuración en el módulo de Empresas antes de enviar.',
+                });
+                return;
+              }
+
+              const clientEmail = form.getFieldValue(['cliente', 'email']) || clienteEmail;
+              emailForm.setFieldsValue({ recipient_emails: clientEmail });
+              abrirEmailModal();
+            }}
+            loading={accionLoading.enviando}
+            disabled={!isTimbrado && !isCancelado}
+          >
+            Enviar por Correo
+          </Button>
+          <Button
+            icon={<FilePdfOutlined />}
+            onClick={verPdf}
+            loading={accionLoading.visualizando}
+            disabled={!id}
+          >
+            Ver PDF
+          </Button>
+          <Button
+            icon={<FileTextOutlined />}
+            onClick={descargarXml}
+            loading={accionLoading.descargando}
+            disabled={!isTimbrado}
+          >
+            Descargar XML
+          </Button>
+          <Button
+            icon={<DeleteOutlined />}
+            danger
+            onClick={abrirCancelacion}
+            loading={accionLoading.cancelando}
+            disabled={!isTimbrado || isCancelado}
+          >
+          </Button>
+        </Space>
       </div>
-      {/* Modal: Vista Previa PDF */}
+
+      {/* Modal: Confirmar Cancelación */}
       <Modal
+        title="Cancelar Complemento de Pago"
+        open={cancelacionModalOpen}
+        onCancel={() => {
+          cerrarCancelacion();
+          cancelacionForm.resetFields();
+        }}
+        onOk={() => cancelacionForm.submit()}
+        confirmLoading={accionLoading.cancelando}
+        okText="Confirmar Cancelación"
+        okType="danger"
+        cancelText="Cerrar"
+      >
+        <Form form={cancelacionForm} layout="vertical" onFinish={handleCancelacionSubmit}>
+          <div style={{ marginBottom: 16, color: '#faad14' }}>
+            <ExclamationCircleOutlined /> Esta acción solicitará la cancelación ante el SAT.
+          </div>
+
+          <Form.Item
+            label="Motivo de Cancelación"
+            name="motivo"
+            rules={[{ required: true, message: 'Seleccione un motivo' }]}
+            initialValue="02"
+          >
+            <Select>
+              <Select.Option value="01">01 - Comprobante emitido con errores con relación</Select.Option>
+              <Select.Option value="02">02 - Comprobante emitido con errores sin relación</Select.Option>
+              <Select.Option value="03">03 - No se llevó a cabo la operación</Select.Option>
+              <Select.Option value="04">04 - Operación nominativa relacionada en la factura global</Select.Option>
+            </Select>
+          </Form.Item>
+
+          {motivo === '01' && (
+            <Form.Item
+              label="Folio Fiscal Sustituto (UUID)"
+              name="folio_sustituto"
+              rules={[{ required: true, message: 'El folio sustituto es obligatorio para motivo 01' }]}
+            >
+              <Input placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" />
+            </Form.Item>
+          )}
+        </Form>
+      </Modal >
+
+      {/* Modal: Vista Previa PDF */}
+      < Modal
         title="Vista Previa de Pago"
         open={previewModalOpen}
         onCancel={cerrarPreview}
-        footer={[
-          <Button key="close" onClick={cerrarPreview}>
-            Cerrar
-          </Button>,
-          <Button key="download" type="primary" icon={<FilePdfOutlined />} onClick={descargarPdf}>
-            Descargar
-          </Button>,
-        ]}
+        footer={
+          [
+            <Button key="close" onClick={cerrarPreview}>
+              Cerrar
+            </Button>,
+            <Button key="download" type="primary" icon={<FilePdfOutlined />} onClick={descargarPdf}>
+              Descargar
+            </Button>,
+          ]}
         width="90%"
         style={{ top: 20 }}
         bodyStyle={{ height: '80vh', padding: 0 }}
@@ -316,6 +407,30 @@ const PagoFormPage: React.FC = () => {
             title="Vista Previa PDF"
           />
         )}
+      </Modal>
+
+      {/* Modal: Enviar Correo (Homologado con Facturación) */}
+      <Modal
+        title="Enviar Complemento por Correo"
+        open={emailModalOpen}
+        onCancel={() => {
+          cerrarEmailModal();
+          emailForm.resetFields();
+        }}
+        onOk={() => emailForm.submit()}
+        confirmLoading={accionLoading.enviando}
+        okText="Enviar"
+        cancelText="Cancelar"
+      >
+        <Form form={emailForm} layout="vertical" onFinish={handleEmailSubmit}>
+          <Form.Item
+            label="Correos del Destinatario (separados por coma)"
+            name="recipient_emails"
+            rules={[{ required: true, message: 'Ingrese al menos un destinatario' }]}
+          >
+            <Input.TextArea rows={4} placeholder="cliente@empresa.com, contador@empresa.com" />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   );

@@ -32,6 +32,8 @@ export const usePagoForm = () => {
   const [empresas, setEmpresas] = useState<{ label: string; value: string }[]>([]);
   const [clientes, setClientes] = useState<{ label: string; value: string }[]>([]);
   const [formasPago, setFormasPago] = useState<{ label: string; value: string }[]>([]);
+  const [clienteEmail, setClienteEmail] = useState<string>('');
+  const [currentEmpresa, setCurrentEmpresa] = useState<any | null>(null);
 
   // Datos principales
   const [facturasPendientes, setFacturasPendientes] = useState<pagoService.FacturaPendiente[]>([]);
@@ -89,27 +91,19 @@ export const usePagoForm = () => {
             fecha_pago: pagoData?.fecha_pago ? dayjs(pagoData.fecha_pago) : null,
           });
 
-          // Poblar opción del cliente con el dato del pago
           if (pagoData.cliente_id) {
-            if (pagoData.cliente?.nombre_comercial) {
-              setClientes([
-                {
-                  label: pagoData.cliente.nombre_comercial || 'Cliente',
-                  value: pagoData.cliente.id,
-                },
-              ]);
-            } else {
+            // Siempre traer datos frescos del cliente para tener el email
+            try {
               const clienteData = await facturaService.getClienteById(pagoData.cliente_id);
-              setClientes([
-                {
-                  label:
-                    clienteData.nombre_comercial ||
-                    clienteData.razon_social ||
-                    clienteData.nombre ||
-                    'Cliente',
-                  value: clienteData.id,
-                },
-              ]);
+              const label = clienteData.nombre_comercial || clienteData.razon_social || clienteData.nombre || 'Cliente';
+              const email = clienteData.email || '';
+
+              setClientes([{ label, value: clienteData.id }]);
+              // Setear email en el form (oculto) y en estado
+              form.setFieldValue(['cliente', 'email'], email);
+              setClienteEmail(email);
+            } catch (e) {
+              console.error("Error fetching client details", e);
             }
           }
 
@@ -177,6 +171,17 @@ export const usePagoForm = () => {
     form.setFieldsValue({ cliente_id: null });
   }, [empresaId, form, id]);
 
+  // Cargar datos de la empresa actual cuando cambia
+  useEffect(() => {
+    if (empresaId) {
+      facturaService.getEmpresaById(empresaId)
+        .then(data => setCurrentEmpresa(data))
+        .catch(e => console.error("Error loading company", e));
+    } else {
+      setCurrentEmpresa(null);
+    }
+  }, [empresaId]);
+
   // Búsqueda de clientes por nombre (3+ letras) filtrando por empresa
   const buscarClientes = useMemo(() =>
     debounce(async (q: string) => {
@@ -232,6 +237,19 @@ export const usePagoForm = () => {
         setPaymentAllocation({});
       })
       .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar facturas pendientes.'));
+
+    // Fetch cliente details to get email for current user
+    if (clienteId) {
+      facturaService.getClienteById(clienteId).then(c => {
+        if (c) {
+          const email = c.email || '';
+          setClienteEmail(email);
+          form.setFieldValue(['cliente', 'email'], email);
+        }
+      }).catch(() => { });
+    } else {
+      setClienteEmail('');
+    }
   }, [clienteId, id, pago]);
 
   const onFinish = async (values: any) => {
@@ -311,12 +329,27 @@ export const usePagoForm = () => {
     }
   };
 
-  const cancelarComplemento = async () => {
+  // Cancelación
+  const [cancelacionModalOpen, setCancelacionModalOpen] = useState(false);
+
+  const abrirCancelacion = () => {
+    setCancelacionModalOpen(true);
+  };
+
+  const cerrarCancelacion = () => {
+    setCancelacionModalOpen(false);
+  };
+
+  const confirmarCancelacion = async (motivo: string, folioSustituto?: string) => {
     if (!id) return;
     setAccionLoading((s) => ({ ...s, cancelando: true }));
     try {
-      // Implementar cuando tu backend lo soporte
-      message.info('Funcionalidad de cancelación no implementada.');
+      await pagoService.cancelarPagoSat(id, motivo, folioSustituto);
+      message.success('Solicitud de cancelación enviada correctamente.');
+      // Recargar datos
+      const updated = await pagoService.getPagoById(id);
+      setPago(updated);
+      cerrarCancelacion();
     } catch (error: any) {
       message.error(normalizeHttpError(error) || 'Error al cancelar el pago.');
     } finally {
@@ -324,8 +357,33 @@ export const usePagoForm = () => {
     }
   };
 
+  // Envío por correo
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const abrirEmailModal = () => {
+    setEmailModalOpen(true);
+  };
+
+  const cerrarEmailModal = () => {
+    setEmailModalOpen(false);
+  };
+
+  const confirmarEnvioCorreo = async (recipients: string[], subject: string, body: string) => {
+    if (!id) return;
+    setAccionLoading((s) => ({ ...s, enviando: true }));
+    try {
+      await pagoService.enviarPagoEmail(id, recipients, subject, body);
+      message.success('Correo enviado correctamente.');
+      cerrarEmailModal();
+    } catch (error: any) {
+      message.error(normalizeHttpError(error) || 'Error al enviar el correo.');
+    } finally {
+      setAccionLoading((s) => ({ ...s, enviando: false }));
+    }
+  };
+
   const enviarComplemento = async () => {
-    message.info('Funcionalidad de envío no implementada.');
+    abrirEmailModal();
   };
 
   // Helpers descarga/visualización
@@ -416,12 +474,23 @@ export const usePagoForm = () => {
     onFinish,
     generarComplemento,
     enviarComplemento,
-    cancelarComplemento,
+    // Cancelación
+    cancelacionModalOpen,
+    abrirCancelacion,
+    cerrarCancelacion,
+    confirmarCancelacion,
     verPdf,
     descargarPdf,
     descargarXml,
     previewModalOpen,
     previewPdfUrl,
     cerrarPreview,
+    // Email
+    emailModalOpen,
+    abrirEmailModal,
+    cerrarEmailModal,
+    confirmarEnvioCorreo,
+    clienteEmail,
+    currentEmpresa,
   };
 };

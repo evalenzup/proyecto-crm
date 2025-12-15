@@ -1,8 +1,8 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input } from 'antd';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePagosList } from '@/hooks/usePagosList';
@@ -48,13 +48,54 @@ const PagosIndexPage: React.FC = () => {
   const screens = useBreakpoint();
   const { containerRef, tableY } = useTableHeight();
 
-  const { rows, totalRows, loading, pagination, fetchPagos, filters, verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview } = usePagosList();
+  const {
+    rows, totalRows, loading, pagination, fetchPagos, filters,
+    verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview,
+    // Email
+    emailModalOpen, emailRow, emailLoading, abrirEmailModal, cerrarEmailModal, enviarCorreo
+  } = usePagosList();
+
+  const [emailForm] = Form.useForm();
+
+  React.useEffect(() => {
+    if (emailModalOpen && emailRow) {
+      // Pre-fill email
+      const val = emailRow.cliente?.email;
+      let initialEmails = '';
+      if (Array.isArray(val)) {
+        initialEmails = val.join(', ');
+      } else if (typeof val === 'string') {
+        initialEmails = val;
+      }
+
+      if (initialEmails) {
+        emailForm.setFieldsValue({ recipient_emails: initialEmails });
+      } else {
+        emailForm.resetFields(['recipient_emails']);
+      }
+    }
+  }, [emailModalOpen, emailRow, emailForm]);
+
+  const handleEmailSubmit = (values: { recipient_emails: string }) => {
+    if (!emailRow) return;
+    const recips = (values.recipient_emails || '').split(/[;,\n]+/).map(r => r.trim()).filter(Boolean);
+    enviarCorreo(emailRow.id, recips)
+      .then(() => {
+        message.success('Pago enviado por correo.');
+        cerrarEmailModal();
+        emailForm.resetFields();
+      })
+      .catch((e: any) => {
+        const detail = e?.response?.data?.detail;
+        message.error(typeof detail === 'string' ? detail : 'Error al enviar correo.');
+      });
+  };
 
   const {
     empresaId, setEmpresaId, empresasOptions,
     clienteId, setClienteId, clienteOptions, clienteQuery, setClienteQuery, debouncedBuscarClientes,
     estatus, setEstatus,
-    rangoFechas, setRangoFechas,
+    rangoFechas, setRangoFechas, empresas,
   } = filters;
 
   const aplicarFiltros = () => fetchPagos({ ...pagination, current: 1 });
@@ -112,6 +153,14 @@ const PagosIndexPage: React.FC = () => {
         <Space>
           <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/pagos/form/${r.id}`)} />
           <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} title="Ver PDF" />
+          <Button type="link" icon={<MailOutlined />} onClick={() => {
+            const emp = empresas?.find((e: any) => e.id === r.empresa_id);
+            if (emp && !emp.tiene_config_email) {
+              Modal.warning({ title: 'Configuración faltante', content: 'La empresa emisora no tiene configurado el envío de correos.' });
+              return;
+            }
+            abrirEmailModal(r);
+          }} title="Enviar por Correo" />
           {r.estatus === 'BORRADOR' && (
             <Button
               type="link"
@@ -266,6 +315,27 @@ const PagosIndexPage: React.FC = () => {
             title="Vista Previa PDF"
           />
         )}
+      </Modal>
+
+      {/* Modal Envío Correo */}
+      <Modal
+        title={`Enviar Pago ${emailRow?.folio || emailRow?.id || ''}`}
+        open={emailModalOpen}
+        onCancel={() => { cerrarEmailModal(); emailForm.resetFields(); }}
+        onOk={() => emailForm.submit()}
+        confirmLoading={emailLoading}
+        okText="Enviar"
+        cancelText="Cancelar"
+      >
+        <Form form={emailForm} layout="vertical" onFinish={handleEmailSubmit}>
+          <Form.Item
+            label="Correos del Destinatario (separados por coma)"
+            name="recipient_emails"
+            rules={[{ required: true, message: 'Ingrese al menos un destinatario' }]}
+          >
+            <Input.TextArea rows={4} placeholder="cliente@empresa.com, contador@empresa.com" />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   );

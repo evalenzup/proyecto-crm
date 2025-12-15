@@ -436,9 +436,9 @@ def obtener_ruta_xml_pago(db: Session, pago_id: UUID) -> tuple[str, str]:
     pago = db.query(Pago).filter(Pago.id == pago_id).first()
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
-    if pago.estatus != "TIMBRADO":
+    if pago.estatus not in ["TIMBRADO", EstatusPago.CANCELADO]:
         raise HTTPException(
-            status_code=409, detail="El pago debe estar TIMBRADO para descargar el XML"
+            status_code=409, detail="El pago debe estar TIMBRADO o CANCELADO para descargar el XML"
         )
 
     if not pago.xml_path:
@@ -463,4 +463,74 @@ def eliminar_pago(db: Session, pago_id: UUID):
 
     db.delete(pago)
     db.commit()
+    db.delete(pago)
+    db.commit()
     return {"message": "Pago eliminado exitosamente."}
+
+
+def cancelar_pago_sat(
+    db: Session, pago_id: UUID, motivo: str, folio_sustituto: Optional[str] = None
+) -> dict:
+    pago = db.query(Pago).filter(Pago.id == pago_id).first()
+    if not pago:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado"
+        )
+
+    if pago.estatus != EstatusPago.TIMBRADO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede cancelar un pago con estatus {pago.estatus}. Solo TIMBRADO.",
+        )
+
+    # Validacion motivo 01
+    if motivo == "01" and not folio_sustituto:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Para motivo '01' se requiere folio sustituto.",
+        )
+
+    try:
+        # 1. Llamada al PAC
+        res = _pac.solicitar_cancelacion_pago(
+            db=db,
+            pago_id=pago_id,
+            motivo=motivo,
+            folio_sustituto=folio_sustituto,
+        )
+
+        # 2. Actualizar estatus del pago
+        pago.estatus = EstatusPago.CANCELADO
+        pago.motivo_cancelacion = motivo
+        pago.folio_fiscal_sustituto = folio_sustituto
+        # Nota: no tenemos campos para fecha de solicitud o mensaje del PAC en Pago,
+        # pero guardamos el motivo y sustituto que sí existen.
+
+        # 3. Revertir estatus de facturas relacionadas
+        # Si una factura estaba PAGADA gracias a este pago, la regresamos a NO_PAGADA.
+        for doc in pago.documentos_relacionados:
+            factura = db.query(Factura).filter(Factura.id == doc.factura_id).first()
+            if factura and factura.status_pago == "PAGADA":
+                # Asumimos que al cancelar este pago, deja de estar pagada en su totalidad.
+                # En un sistema más complejo, recalcularíamos el saldo con los pagos restantes.
+                factura.status_pago = "NO_PAGADA"
+        
+        db.add(pago)
+        db.commit()
+        db.refresh(pago)
+
+        return {
+            "message": "Solicitud de cancelación enviada exitosamente.",
+            "pago_estatus": pago.estatus,
+            "pac_response": res,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error al cancelar pago {pago_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al procesar la cancelación: {str(e)}",
+        )

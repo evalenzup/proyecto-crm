@@ -1,8 +1,8 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message } from 'antd';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useFacturasList } from '@/hooks/useFacturasList';
@@ -46,14 +46,56 @@ const FacturasIndexPage: React.FC = () => {
   const screens = useBreakpoint();
   const { containerRef, tableY } = useTableHeight();
 
-  const { rows, totalRows, loading, pagination, fetchFacturas, filters, verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview } = useFacturasList();
+  const {
+    rows, totalRows, loading, pagination, fetchFacturas, filters,
+    verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview,
+    // Email
+    emailModalOpen, cerrarEmailModal, abrirEmailModal, emailRow, enviarCorreo, emailLoading
+  } = useFacturasList();
+
+  const [emailForm] = Form.useForm();
+
+  // Efecto para cargar email del cliente al abrir modal
+  React.useEffect(() => {
+    if (emailModalOpen && emailRow) {
+      // Intentar obtener email del cliente de la fila si existe
+      const val = emailRow.cliente?.email;
+      let initialEmails = '';
+      if (Array.isArray(val)) {
+        initialEmails = val.join(', ');
+      } else if (typeof val === 'string') {
+        initialEmails = val;
+      }
+
+      if (initialEmails) {
+        emailForm.setFieldsValue({ recipient_emails: initialEmails });
+      } else {
+        emailForm.resetFields(['recipient_emails']);
+      }
+    }
+  }, [emailModalOpen, emailRow, emailForm]);
+
+  const handleEmailSubmit = (values: { recipient_emails: string }) => {
+    if (!emailRow) return;
+    const recips = (values.recipient_emails || '').split(/[;,\n]+/).map(r => r.trim()).filter(Boolean);
+    enviarCorreo(emailRow.id, recips)
+      .then(() => {
+        message.success('Factura enviada por correo.');
+        cerrarEmailModal();
+        emailForm.resetFields();
+      })
+      .catch((e: any) => {
+        const detail = e?.response?.data?.detail;
+        message.error(typeof detail === 'string' ? detail : 'Error al enviar correo.');
+      });
+  };
 
   const {
     empresaId, setEmpresaId, empresasOptions,
     clienteId, setClienteId, clienteOptions, clienteQuery, setClienteQuery, debouncedBuscarClientes,
     estatus, setEstatus,
     estatusPago, setEstatusPago,
-    rangoFechas, setRangoFechas,
+    rangoFechas, setRangoFechas, empresas,
   } = filters;
 
   const aplicarFiltros = () => fetchFacturas({ ...pagination, current: 1 });
@@ -97,11 +139,19 @@ const FacturasIndexPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 90,
+      width: 130,
       render: (_: any, r) => (
         <Space>
           <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/facturas/form/${r.id}`)} />
           <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} title="Ver PDF" />
+          <Button type="link" icon={<MailOutlined />} onClick={() => {
+            const emp = empresas?.find((e: any) => e.id === r.empresa_id);
+            if (emp && !emp.tiene_config_email) {
+              Modal.warning({ title: 'Configuración faltante', content: 'La empresa emisora no tiene configurado el envío de correos.' });
+              return;
+            }
+            abrirEmailModal(r);
+          }} title="Enviar por Correo" />
         </Space>
       ),
     },
@@ -256,6 +306,31 @@ const FacturasIndexPage: React.FC = () => {
             title="Vista Previa PDF"
           />
         )}
+      </Modal>
+
+      {/* Modal de Envío de Correo */}
+      <Modal
+        title={`Enviar Factura ${emailRow?.serie || ''}${emailRow?.folio || ''}`
+        }
+        open={emailModalOpen}
+        onCancel={() => {
+          cerrarEmailModal();
+          emailForm.resetFields();
+        }}
+        onOk={() => emailForm.submit()}
+        confirmLoading={emailLoading}
+        okText="Enviar"
+        cancelText="Cancelar"
+      >
+        <Form form={emailForm} layout="vertical" onFinish={handleEmailSubmit}>
+          <Form.Item
+            label="Correos del Destinatario (separados por coma)"
+            name="recipient_emails"
+            rules={[{ required: true, message: 'Ingrese al menos un destinatario' }]}
+          >
+            <Input.TextArea rows={4} placeholder="cliente@empresa.com, contador@empresa.com" />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   );

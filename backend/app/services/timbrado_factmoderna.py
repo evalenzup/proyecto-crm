@@ -913,3 +913,91 @@ class FacturacionModernaPAC:
             "code": res.get("code"),
             "message": res.get("message"),
         }
+
+    def solicitar_cancelacion_pago(
+        self,
+        *,
+        db: Session,
+        pago_id: UUID,
+        motivo: str,
+        folio_sustituto: str | None = None,
+    ) -> dict:
+        """
+        Envía la SOLICITUD de cancelación (cola del PAC/SAT) para un PAGO.
+        """
+        # 1) Cargar pago
+        p: Pago | None = db.query(Pago).filter(Pago.id == pago_id).first()
+        if not p:
+            raise ValueError("Pago no encontrado")
+
+        if (p.estatus or "").upper() != "TIMBRADO":
+            raise ValueError(
+                "Solo se puede solicitar cancelación de un pago TIMBRADO"
+            )
+
+        uuid = getattr(p, "uuid", None)
+        if not uuid:
+            raise ValueError("El pago TIMBRADO no tiene UUID registrado")
+
+        emisor_rfc = (
+            (getattr(getattr(p, "empresa", None), "rfc", None) or "").strip().upper()
+        )
+        if not emisor_rfc:
+            raise ValueError("El pago no tiene RFC de emisor")
+
+        # Regla del motivo 01
+        if motivo == "01" and not (folio_sustituto or "").strip():
+            raise ValueError(
+                "Para Motivo '01' es obligatorio FolioSustitucion (UUID que sustituye)"
+            )
+
+        # 2) SOAP envelope (reutiliza el mismo envelope genérico)
+        env = _soap_cancelar_envelope(
+            user_id=_fm_user_id(),
+            user_pass=_fm_user_pass(),
+            emisor_rfc=emisor_rfc,
+            uuid=uuid,
+            motivo=motivo,
+            folio_sustitucion=(folio_sustituto or "").strip() or None,
+        )
+
+        headers = {
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": "requestCancelarCFDI",
+        }
+        url = _fm_url()
+
+        # 3) POST
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                resp = client.post(url, content=env, headers=headers)
+        except Exception as e:
+            raise RuntimeError(f"Error de red al solicitar cancelación: {e}") from e
+
+        soap_txt = resp.text
+        soap_log = (
+            soap_txt
+            if len(soap_txt) <= 20000
+            else soap_txt[:20000] + "\n... [truncated]"
+        )
+        (logger.info if logger else print)(
+            f"[PAC SOAP Cancel Pago] HTTP {resp.status_code}\n{soap_log}"
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(
+                f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
+            )
+
+        try:
+            root = fromstring(resp.content)
+        except Exception as e:
+            raise RuntimeError(f"Respuesta SOAP inválida (cancelación): {e}")
+
+        # 4) Parse Code/Message
+        res = _parse_cancel_response(root) 
+
+        return {
+            "uuid": uuid,
+            "code": res.get("code"),
+            "message": res.get("message"),
+        }

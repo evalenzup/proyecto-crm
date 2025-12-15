@@ -53,6 +53,13 @@ export const sendEmail = (id: string, recipients: string | string[]) => {
   return getData(api.post(`/facturas/${id}/send-email`, payload));
 };
 
+export const sendPreviewEmail = (id: string, recipients: string | string[]) => {
+  const payload = Array.isArray(recipients)
+    ? { recipients }
+    : { recipient_emails: String(recipients) };
+  return getData(api.post(`/facturas/${id}/send-preview-email`, payload));
+};
+
 // ---------------------- Empresas / Clientes ----------------------
 interface EmpresaPageOut {
   items: any[];
@@ -127,7 +134,7 @@ export interface FacturaRow {
   estatus: EstatusCFDI;
   status_pago: EstatusPago;
   total: number;
-  cliente?: { id: string; nombre_comercial: string };
+  cliente?: { id: string; nombre_comercial: string; email?: string };
 }
 
 export interface FacturaListResponse {

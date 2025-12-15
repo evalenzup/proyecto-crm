@@ -113,6 +113,16 @@ export const usePagosList = () => {
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewRow, setPreviewRow] = useState<PagoRow | null>(null);
 
+  // Email Modal logic
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailRow, setEmailRow] = useState<PagoRow | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  const abrirEmailModal = (row: PagoRow) => {
+    setEmailRow(row);
+    setEmailModalOpen(true);
+  };
+
   const verPdf = async (row: PagoRow) => {
     setLoading(true);
     try {
@@ -139,6 +149,22 @@ export const usePagosList = () => {
     }
   };
 
+  const cerrarEmailModal = () => {
+    setEmailModalOpen(false);
+    setEmailRow(null);
+  };
+
+  const enviarCorreo = async (id: string, recipients: string[]) => {
+    setEmailLoading(true);
+    try {
+      // Importar dinámicamente o usar la función exportada que ya existe
+      const { enviarPagoEmail } = await import('@/services/pagoService');
+      await enviarPagoEmail(id, recipients, 'Envío de Complemento de Pago', 'Se adjunta el complemento.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   return {
     rows,
     totalRows,
@@ -147,7 +173,7 @@ export const usePagosList = () => {
     fetchPagos,
     setPagination,
     filters: {
-      empresaId, setEmpresaId, empresasOptions,
+      empresaId, setEmpresaId, empresasOptions, empresas,
       clienteId, setClienteId, clienteOptions,
       clienteQuery, setClienteQuery, debouncedBuscarClientes,
       estatus, setEstatus,
@@ -160,5 +186,12 @@ export const usePagosList = () => {
     previewRow,
     verPdf,
     cerrarPreview,
+    // Email helpers
+    emailModalOpen,
+    emailRow,
+    emailLoading,
+    abrirEmailModal,
+    cerrarEmailModal,
+    enviarCorreo
   };
 };

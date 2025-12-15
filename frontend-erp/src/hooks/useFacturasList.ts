@@ -147,6 +147,35 @@ export const useFacturasList = () => {
     }
   };
 
+  // Email Modal logic
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailRow, setEmailRow] = useState<FacturaRow | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  const abrirEmailModal = (row: FacturaRow) => {
+    setEmailRow(row);
+    setEmailModalOpen(true);
+  };
+
+  const cerrarEmailModal = () => {
+    setEmailModalOpen(false);
+    setEmailRow(null);
+  };
+
+  const enviarCorreo = async (id: string, recipients: string[]) => {
+    setEmailLoading(true);
+    try {
+      const { sendEmail, sendPreviewEmail } = await import('@/services/facturaService');
+      if (emailRow?.estatus === 'BORRADOR') {
+        await sendPreviewEmail(id, recipients);
+      } else {
+        await sendEmail(id, recipients);
+      }
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   return {
     rows,
     totalRows,
@@ -155,7 +184,7 @@ export const useFacturasList = () => {
     fetchFacturas,
     setPagination,
     filters: {
-      empresaId, setEmpresaId, empresasOptions,
+      empresaId, setEmpresaId, empresasOptions, empresas,
       clienteId, setClienteId, clienteOptions,
       clienteQuery, setClienteQuery, debouncedBuscarClientes,
       estatus, setEstatus,
@@ -169,5 +198,12 @@ export const useFacturasList = () => {
     previewRow,
     verPdf,
     cerrarPreview,
+    // Email helpers
+    emailModalOpen,
+    emailRow,
+    emailLoading,
+    abrirEmailModal,
+    cerrarEmailModal,
+    enviarCorreo
   };
 };
