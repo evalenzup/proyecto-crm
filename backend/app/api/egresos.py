@@ -89,6 +89,25 @@ def read_egresos(
     )
     return {"items": items, "total": total, "limit": limit, "offset": skip}
 
+@router.get("/busqueda-proveedores", response_model=List[str])
+def search_proveedores_endpoint(
+    q: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    empresa_id = None
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+    elif current_user.rol == RolUsuario.ADMIN:
+         # Admin can search all or filter? For now search all unique providers or maybe current contest?
+         # Usually filtering by company is best for UX
+         pass
+    
+    # Actually, let's respect the current context if passed? 
+    # But usually frontend passes empresa_id if admin. 
+    # For simplicity, let's return global if admin, or scoped if supervisor.
+    return egreso_repo.search_proveedores(db, mpresa_id=empresa_id, q=q)
+
 
 @router.get("/export-excel")
 def exportar_egresos_excel(

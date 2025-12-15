@@ -1,18 +1,27 @@
+// src/pages/egresos/index.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Row, Col, Card, Pagination } from 'antd';
+import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Card, Pagination, Tooltip, theme, Grid } from 'antd';
 import { PlusOutlined, EditOutlined, PaperClipOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
-import { getEgresos, Egreso, getEgresoEnums, exportEgresosExcel } from '@/services/egresoService';
+import { getEgresos, Egreso, getEgresoEnums, exportEgresosExcel, searchProveedores } from '@/services/egresoService';
+import { debounce } from 'lodash';
+import { Spin } from 'antd';
 import api from '@/lib/axios';
 import { getEmpresas } from '@/services/facturaService';
 
 const { RangePicker } = DatePicker;
 
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector'; // Importar hook
+import { useTableHeight } from '@/hooks/useTableHeight';
+const { useToken } = theme;
+const { useBreakpoint } = Grid;
 
 const EgresosListPage: React.FC = () => {
   const router = useRouter();
+  const { containerRef, tableY } = useTableHeight();
+  const { token } = useToken();
+  const screens = useBreakpoint();
   const [egresos, setEgresos] = useState<Egreso[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -38,6 +47,28 @@ const EgresosListPage: React.FC = () => {
   // const [empresas, setEmpresas] = useState<{ label: string, value: string }[]>([]); // YA NO SE USA
   const [categorias, setCategorias] = useState<string[]>([]);
   const [estatusOptions, setEstatusOptions] = useState<string[]>([]);
+  const [proveedorOptions, setProveedorOptions] = useState<string[]>([]);
+  const [fetchingProveedores, setFetchingProveedores] = useState(false);
+
+  // Debounced provider search
+  const handleSearchProveedores = useMemo(() => {
+    const loadOptions = async (value: string) => {
+      if (value.length < 3) {
+        setProveedorOptions([]);
+        return;
+      }
+      setFetchingProveedores(true);
+      try {
+        const results = await searchProveedores(value);
+        setProveedorOptions(results);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setFetchingProveedores(false);
+      }
+    };
+    return debounce(loadOptions, 800);
+  }, []);
 
   const fetchEgresos = async () => {
     if (!selectedEmpresaId) {
@@ -187,17 +218,20 @@ const EgresosListPage: React.FC = () => {
       key: 'acciones',
       render: (_: any, record: Egreso) => (
         <Space size="middle">
-          <Button icon={<EditOutlined />} onClick={() => router.push(`/egresos/form/${record.id}`)} />
+          <Tooltip title="Editar">
+            <Button icon={<EditOutlined />} onClick={() => router.push(`/egresos/form/${record.id}`)} />
+          </Tooltip>
           {record.path_documento && (
-            <Button
-              icon={<PaperClipOutlined />}
-              title="Ver Documento"
-              onClick={() => {
-                const apiUrl = api.defaults.baseURL || '';
-                const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
-                window.open(`${baseUrl}/data/${record.path_documento}`, '_blank');
-              }}
-            />
+            <Tooltip title="Ver Documento">
+              <Button
+                icon={<PaperClipOutlined />}
+                onClick={() => {
+                  const apiUrl = api.defaults.baseURL || '';
+                  const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+                  window.open(`${baseUrl}/data/${record.path_documento}`, '_blank');
+                }}
+              />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -207,25 +241,29 @@ const EgresosListPage: React.FC = () => {
   return (
     <>
       <div className="app-page-header">
-        <Breadcrumbs />
-        <h1 className="app-title">Egresos</h1>
-        <Space>
-          <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
-            Exportar
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => router.push('/egresos/form')}
-          >
-            Nuevo Egreso
-          </Button>
-        </Space>
+        <div className="app-page-header__left">
+          <Breadcrumbs />
+          <h1 className="app-title">Egresos</h1>
+        </div>
+        <div className="app-page-header__right">
+          <Space>
+            <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
+              Exportar
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => router.push('/egresos/form')}
+            >
+              Nuevo Egreso
+            </Button>
+          </Space>
+        </div>
       </div>
-      <div className="app-content">
-        <Card style={{ marginBottom: 16 }}>
-          <Row gutter={16}>
-            <Col>
+      <div className="app-content" ref={containerRef}>
+        <Card size="small" bordered bodyStyle={{ padding: 12 }} style={{ marginBottom: 4 }}>
+          <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: screens.lg ? '4px' : '8px', background: token.colorBgContainer }}>
+            <Space wrap>
               <Select
                 placeholder="Empresa"
                 style={{ width: 200 }}
@@ -235,15 +273,22 @@ const EgresosListPage: React.FC = () => {
                 onChange={setSelectedEmpresaId}
                 disabled={!isAdmin}
               />
-            </Col>
-            <Col>
-              <Input
-                placeholder="Proveedor"
-                style={{ width: 200 }}
-                onChange={(e) => handleFilterChange('proveedor', e.target.value)}
+              <Select
+                showSearch
+                placeholder="Nombre Proveedor (min 3 letras)"
+                style={{ width: 250 }}
+                filterOption={false}
+                onSearch={handleSearchProveedores}
+                onChange={(value) => handleFilterChange('proveedor', value)}
+                notFoundContent={fetchingProveedores ? <Spin size="small" /> : null}
+                options={proveedorOptions.map(p => ({ label: p, value: p }))}
+                allowClear
+                onClear={() => {
+                  setProveedorOptions([]);
+                  handleFilterChange('proveedor', null);
+                }}
+                value={filters.proveedor || undefined}
               />
-            </Col>
-            <Col>
               <Select
                 placeholder="Categoría"
                 style={{ width: 200 }}
@@ -251,8 +296,6 @@ const EgresosListPage: React.FC = () => {
                 options={categorias.map(c => ({ label: c, value: c }))}
                 onChange={(value) => handleFilterChange('categoria', value)}
               />
-            </Col>
-            <Col>
               <Select
                 placeholder="Estatus"
                 style={{ width: 200 }}
@@ -260,20 +303,17 @@ const EgresosListPage: React.FC = () => {
                 options={estatusOptions.map(s => ({ label: s, value: s }))}
                 onChange={(value) => handleFilterChange('estatus', value)}
               />
-            </Col>
-            <Col>
               <RangePicker
                 onChange={handleDateChange}
               />
-            </Col>
-          </Row>
+            </Space>
+          </div>
         </Card>
         <Table
           rowKey="id"
           loading={loading}
           dataSource={egresos}
           columns={columns}
-          bordered
           pagination={{
             current: currentPage,
             pageSize: pageSize,
@@ -296,6 +336,8 @@ const EgresosListPage: React.FC = () => {
               </Table.Summary.Row>
             </Table.Summary>
           )}
+          scroll={{ x: 1000, y: tableY }}
+          locale={{ emptyText: 'No hay egresos' }}
         />
       </div>
     </>

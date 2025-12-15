@@ -1,13 +1,15 @@
+// src/pages/pagos/index.tsx
+
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input } from 'antd';
+import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip } from 'antd';
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePagosList } from '@/hooks/usePagosList';
 import { PagoRow, timbrarPago, exportPagosExcel } from '@/services/pagoService';
-import { message } from 'antd';
+import { useTableHeight } from '@/hooks/useTableHeight';
 
 const { RangePicker } = DatePicker;
 const { useToken } = theme;
@@ -21,25 +23,6 @@ const formatDateTijuana = (iso: string) => {
     dateStyle: 'short',
     timeStyle: 'medium',
   });
-};
-
-const useTableHeight = () => {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [y, setY] = React.useState<number | undefined>(undefined);
-
-  React.useEffect(() => {
-    const calc = () => {
-      if (!ref.current) return setY(undefined);
-      const rect = ref.current.getBoundingClientRect();
-      const h = window.innerHeight - rect.top - 220;
-      setY(h > 240 ? h : 240);
-    };
-    calc();
-    window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
-  }, []);
-
-  return { containerRef: ref, tableY: y };
 };
 
 const PagosIndexPage: React.FC = () => {
@@ -98,7 +81,10 @@ const PagosIndexPage: React.FC = () => {
     rangoFechas, setRangoFechas, empresas,
   } = filters;
 
-  const aplicarFiltros = () => fetchPagos({ ...pagination, current: 1 });
+  // Auto-fetch on filter change
+  React.useEffect(() => {
+    fetchPagos({ ...pagination, current: 1 });
+  }, [empresaId, clienteId, estatus, rangoFechas]);
 
   const handleTimbrar = async (pagoId: string) => {
     try {
@@ -151,23 +137,30 @@ const PagosIndexPage: React.FC = () => {
       width: 120,
       render: (_: any, r) => (
         <Space>
-          <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/pagos/form/${r.id}`)} />
-          <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} title="Ver PDF" />
-          <Button type="link" icon={<MailOutlined />} onClick={() => {
-            const emp = empresas?.find((e: any) => e.id === r.empresa_id);
-            if (emp && !emp.tiene_config_email) {
-              Modal.warning({ title: 'Configuración faltante', content: 'La empresa emisora no tiene configurado el envío de correos.' });
-              return;
-            }
-            abrirEmailModal(r);
-          }} title="Enviar por Correo" />
+          <Tooltip title="Editar">
+            <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/pagos/form/${r.id}`)} />
+          </Tooltip>
+          <Tooltip title="Ver PDF">
+            <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} />
+          </Tooltip>
+          <Tooltip title="Enviar por Correo">
+            <Button type="link" icon={<MailOutlined />} onClick={() => {
+              const emp = empresas?.find((e: any) => e.id === r.empresa_id);
+              if (emp && !emp.tiene_config_email) {
+                Modal.warning({ title: 'Configuración faltante', content: 'La empresa emisora no tiene configurado el envío de correos.' });
+                return;
+              }
+              abrirEmailModal(r);
+            }} />
+          </Tooltip>
           {r.estatus === 'BORRADOR' && (
-            <Button
-              type="link"
-              icon={<ThunderboltOutlined />}
-              onClick={() => handleTimbrar(r.id)}
-              title="Timbrar"
-            />
+            <Tooltip title="Timbrar">
+              <Button
+                type="link"
+                icon={<ThunderboltOutlined />}
+                onClick={() => handleTimbrar(r.id)}
+              />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -245,7 +238,6 @@ const PagosIndexPage: React.FC = () => {
                 placeholder={['Desde', 'Hasta']}
                 allowClear
               />
-              <Button type="primary" onClick={aplicarFiltros}>Aplicar filtros</Button>
             </Space>
           </div>
 

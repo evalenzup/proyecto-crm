@@ -37,7 +37,15 @@ def get_user_preferences(
     Get current user preferences.
     """
     all_prefs = _load_preferences()
-    user_prefs = all_prefs.get(str(current_user.id), {"theme": "light"})
+    # Default values
+    defaults = {"theme": "light", "font_size": 14}
+    user_prefs = all_prefs.get(str(current_user.id), defaults)
+    
+    # Ensure defaults exist if partial data
+    for k, v in defaults.items():
+        if k not in user_prefs:
+            user_prefs[k] = v
+            
     return user_prefs
 
 @router.put("/preferences", response_model=UsuarioPreferences)
@@ -51,11 +59,14 @@ def update_user_preferences(
     all_prefs = _load_preferences()
     user_id = str(current_user.id)
     
-    # Get existing or default
-    current_prefs = all_prefs.get(user_id, {"theme": "light"})
+    defaults = {"theme": "light", "font_size": 14}
+    current_prefs = all_prefs.get(user_id, defaults)
     
-    # Update
-    current_prefs["theme"] = prefs_in.theme
+    # Merge updates
+    if prefs_in.theme is not None:
+        current_prefs["theme"] = prefs_in.theme
+    if prefs_in.font_size is not None:
+        current_prefs["font_size"] = prefs_in.font_size
     
     # Save
     all_prefs[user_id] = current_prefs

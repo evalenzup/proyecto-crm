@@ -33,10 +33,12 @@ export interface UsuarioUpdate {
 
 export interface UsuarioPreferences {
     theme: string;
+    font_size?: number;
 }
 
 export interface UsuarioPreferencesUpdate {
-    theme: string;
+    theme?: string;
+    font_size?: number;
 }
 
 export const usuarioService = {

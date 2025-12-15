@@ -48,7 +48,9 @@ export const useClienteList = (): UseClienteListResult => {
   // This effect debounces the text inputs
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedRfc(rfcFiltro);
+      if (rfcFiltro.length === 0 || rfcFiltro.length >= 3) {
+        setDebouncedRfc(rfcFiltro);
+      }
       setDebouncedNombre(nombreFiltro);
     }, 500);
     return () => clearTimeout(timer);

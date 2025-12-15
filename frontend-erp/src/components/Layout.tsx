@@ -17,12 +17,16 @@ import {
   UserOutlined,
   LogoutOutlined,
   DownOutlined,
+  FontSizeOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { Breadcrumbs } from './Breadcrumb';
 import { useAuth } from '@/context/AuthContext';
 import { usuarioService } from '@/services/usuarioService';
+import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
+import { empresaService } from '@/services/empresaService';
+import api from '@/lib/axios';
 
 // Carga ProLayout solo en cliente
 const ProLayout = dynamic(
@@ -129,6 +133,12 @@ export const Layout: React.FC<{
             localStorage.setItem(STORAGE_KEY, prefs.theme);
           }
         }
+        if (prefs.font_size) {
+          setFontSize(prefs.font_size);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(FONT_SIZE_KEY, prefs.font_size.toString());
+          }
+        }
       }).catch(err => console.error("Error cargando preferencias", err));
     }
   }, [isAuthenticated, user]);
@@ -157,6 +167,31 @@ export const Layout: React.FC<{
     [mode]
   );
 
+  // Font Size con persistencia
+  const [fontSize, setFontSize] = useState<number>(14);
+  const FONT_SIZE_KEY = 'ui.theme.fontsize';
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedSize = localStorage.getItem(FONT_SIZE_KEY);
+      if (savedSize) {
+        const parsed = parseInt(savedSize, 10);
+        if (!isNaN(parsed)) setFontSize(parsed);
+      }
+    }
+  }, []);
+
+  const handleFontSizeChange = (val: number) => {
+    setFontSize(val);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(FONT_SIZE_KEY, val.toString());
+    }
+    if (isAuthenticated) {
+      usuarioService.updatePreferences({ font_size: val })
+        .catch(err => console.error("Error guardando tamaño de letra", err));
+    }
+  };
+
   const themeConfig = useMemo(
     () => ({
       algorithm,
@@ -165,13 +200,64 @@ export const Layout: React.FC<{
         paddingLG: 16,
         paddingSM: 8,
         borderRadius: 8,
+        fontSize: fontSize,
       },
     }),
-    [algorithm]
+    [algorithm, fontSize]
   );
 
-  // Logo de empresa arriba del menú (estático desde /public)
-  const [logoUrl] = useState<string>('/logo-empresa.png');
+  // Logo dinámico basado en la empresa seleccionada
+  const { selectedEmpresaId, empresas, isAdmin } = useEmpresaSelector();
+  const [logoUrl, setLogoUrl] = useState<string>('/logo-empresa.png');
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+
+    const fetchLogo = async () => {
+      // Si es Admin, siempre mostrar logo default (pedido explícito del usuario)
+      if (isAdmin) {
+        setLogoUrl('/logo-empresa.png');
+        return;
+      }
+
+      const currentEmpresa = empresas.find(e => e.id === selectedEmpresaId);
+
+      if (currentEmpresa?.logo) {
+        try {
+          // El endpoint es protegido, así que usamos axios (via empresaService o directo) para bajar el blob
+          // empresaService.descargarLogo devuelve la URL string, la usamos para el get
+          const url = empresaService.descargarLogo(currentEmpresa.id);
+          // Importamos api instance si es necesario, o usamos fetch con headers si tenemos el token.
+          // Mejor: importamos 'api' de axios instance que ya tiene el interceptor de auth.
+          // Necesitamos importar 'api' en este archivo.
+          // Como no tengo 'api' importado, voy a usar la URL pero agregando el token si pudiera.
+          // Pero lo más limpio es importar la instancia 'api' configurada.
+          // Voy a asumir que puedo importar api from '@/lib/axios'
+
+          // IMPORTANTE: Primero tengo que agregar el import de api arriba.
+          // Por ahora escribo la lógica asumiendo que "api" estará disponible.
+          const response = await api.get(url, { responseType: 'blob' });
+          if (active) {
+            objectUrl = URL.createObjectURL(response.data);
+            setLogoUrl(objectUrl);
+          }
+        } catch (error) {
+          console.error("Error cargando logo:", error);
+          if (active) setLogoUrl('/logo-empresa.png');
+        }
+      } else {
+        if (active) setLogoUrl('/logo-empresa.png');
+      }
+    };
+
+    fetchLogo();
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedEmpresaId, empresas, isAdmin]);
 
   const menuData = useMemo(() => {
     const menu = [...baseMenuData];
@@ -224,7 +310,7 @@ export const Layout: React.FC<{
           </div>
         )}
         // Footer del menú lateral: switch de tema fijo al final del menú
-        // Footer del menú lateral: Usuario + Switch tema
+        // Footer del menú lateral: Usuario + Switch tema + Font Size
         menuFooterRender={(props) => {
           if (props?.collapsed) {
             return (
@@ -236,6 +322,20 @@ export const Layout: React.FC<{
                   />
                 </Tooltip>
                 <ThemeSwitch mode={mode} onToggle={handleThemeChange} />
+                <Dropdown
+                  menu={{
+                    items: [
+                      { key: '12', label: 'Chico (A-)', onClick: () => handleFontSizeChange(12) },
+                      { key: '14', label: 'Normal (A)', onClick: () => handleFontSizeChange(14) },
+                      { key: '16', label: 'Grande (A+)', onClick: () => handleFontSizeChange(16) },
+                      { key: '18', label: 'Extra (A++)', onClick: () => handleFontSizeChange(18) },
+                    ],
+                    selectedKeys: [fontSize.toString()]
+                  }}
+                  placement="topRight"
+                >
+                  <FontSizeOutlined style={{ fontSize: 16, cursor: 'pointer', color: 'var(--ant-color-text-description)' }} />
+                </Dropdown>
               </div>
             );
           }
@@ -274,6 +374,41 @@ export const Layout: React.FC<{
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, opacity: 0.85 }}>Modo oscuro</span>
                 <ThemeSwitch mode={mode} onToggle={handleThemeChange} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 12, opacity: 0.85 }}>Tamaño de letra</span>
+                <Space.Compact block>
+                  {[
+                    { label: 'A-', val: 12, title: 'Chico' },
+                    { label: 'A', val: 14, title: 'Normal' },
+                    { label: 'A+', val: 16, title: 'Grande' },
+                    { label: 'A++', val: 18, title: 'Extra' }
+                  ].map(opt => (
+                    <Tooltip title={opt.title} key={opt.val}>
+                      <div
+                        onClick={() => handleFontSizeChange(opt.val)}
+                        style={{
+                          flex: 1,
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          padding: '4px 0',
+                          fontSize: 12,
+                          // Usar colores del tema actual si es posible, o fallback
+                          backgroundColor: fontSize === opt.val ? (mode === 'dark' ? '#177ddc' : '#1890ff') : 'transparent',
+                          color: fontSize === opt.val ? '#fff' : 'inherit',
+                          border: '1px solid var(--ant-color-border, #d9d9d9)',
+                          borderRightWidth: opt.val === 18 ? 1 : 0, // Ultimo item tiene borde
+                          // First item rounded left, last right
+                          borderRadius: opt.val === 12 ? '4px 0 0 4px' : opt.val === 18 ? '0 4px 4px 0' : 0,
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {opt.label}
+                      </div>
+                    </Tooltip>
+                  ))}
+                </Space.Compact>
               </div>
             </div>
           );

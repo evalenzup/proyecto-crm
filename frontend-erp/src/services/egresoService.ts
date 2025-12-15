@@ -9,6 +9,9 @@ const getData = <T = any>(p: Promise<any>): Promise<T> => p.then((r) => r.data);
 export const getEgresoEnums = () =>
   getData<{ categorias: string[], estatus: string[] }>(api.get('/egresos/enums'));
 
+export const searchProveedores = (q: string) =>
+  getData<string[]>(api.get('/egresos/busqueda-proveedores', { params: { q } }));
+
 export const getEgresos = (params: {
   skip: number;
   limit: number;

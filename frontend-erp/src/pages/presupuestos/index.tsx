@@ -9,30 +9,13 @@ import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePresupuestoList } from '@/hooks/usePresupuestoList';
+import { useTableHeight } from '@/hooks/useTableHeight';
 import { PresupuestoSimpleOut } from '@/services/presupuestoService';
 import { formatCurrency } from '@/utils/format';
 
 const { RangePicker } = DatePicker;
 const { useToken } = theme;
 
-const useTableHeight = () => {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [y, setY] = React.useState<number | undefined>(undefined);
-
-  React.useEffect(() => {
-    const calc = () => {
-      if (!ref.current) return setY(undefined);
-      const rect = ref.current.getBoundingClientRect();
-      const h = window.innerHeight - rect.top - 220;
-      setY(h > 240 ? h : 240);
-    };
-    calc();
-    window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
-  }, []);
-
-  return { containerRef: ref, tableY: y };
-};
 
 
 const PresupuestosPage: React.FC = () => {
@@ -67,7 +50,10 @@ const PresupuestosPage: React.FC = () => {
     rangoFechas, setRangoFechas,
   } = filters;
 
-  const aplicarFiltros = () => fetchPresupuestos({ ...pagination, current: 1 });
+  // Auto-fetch on filter change
+  React.useEffect(() => {
+    fetchPresupuestos({ ...pagination, current: 1 });
+  }, [empresaId, clienteId, estatus, rangoFechas]);
 
   // --- Modal Handlers ---
   const showSendModal = (presupuesto: PresupuestoSimpleOut) => {
@@ -136,17 +122,17 @@ const PresupuestosPage: React.FC = () => {
     { title: 'Folio', dataIndex: 'folio', key: 'folio', width: 150, render: (text, record) => <Button type="link" onClick={() => router.push(`/presupuestos/form/${record.id}`)} style={{ padding: 0 }}><strong>{text}</strong></Button> },
     { title: 'Cliente', dataIndex: ['cliente', 'nombre_comercial'], key: 'cliente' },
     { title: 'Fecha Emisión', dataIndex: 'fecha_emision', key: 'fecha_emision', width: 120 },
-    { 
-      title: 'Total', 
-      dataIndex: 'total', 
+    {
+      title: 'Total',
+      dataIndex: 'total',
       key: 'total',
       width: 140,
       render: (value) => formatCurrency(value),
       align: 'right',
     },
-    { 
-      title: 'Estado', 
-      dataIndex: 'estado', 
+    {
+      title: 'Estado',
+      dataIndex: 'estado',
       key: 'estado',
       width: 130,
       render: (status) => <Tag color={getStatusColor(status)}>{status}</Tag>
@@ -230,7 +216,7 @@ const PresupuestosPage: React.FC = () => {
   ];
 
   const sumatoriaMostrada = useMemo(
-    () => rows.reduce((acc, r) => acc + (Number(r.total) || 0), 0),
+    () => rows.reduce((acc: number, r: PresupuestoSimpleOut) => acc + (Number(r.total) || 0), 0),
     [rows]
   );
 
@@ -268,7 +254,7 @@ const PresupuestosPage: React.FC = () => {
         <Card size="small" bordered bodyStyle={{ padding: 12 }} style={{ marginTop: 4 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '8px', marginBottom: 8, background: token.colorBgContainer, borderRadius: 8, boxShadow: token.boxShadowSecondary }}>
             <Space wrap size={[8, 8]}>
-              <Select allowClear placeholder="Empresa" style={{ width: 220 }} options={empresasOptions.map(e => ({label: e.nombre_comercial, value: e.id}))} value={empresaId} onChange={setEmpresaId} />
+              <Select allowClear placeholder="Empresa" style={{ width: 220 }} options={empresasOptions.map(e => ({ label: e.nombre_comercial, value: e.id }))} value={empresaId} onChange={setEmpresaId} />
               <Select
                 allowClear showSearch placeholder="Cliente (escribe ≥ 3 letras)" style={{ width: 280 }}
                 filterOption={false}
@@ -291,7 +277,6 @@ const PresupuestosPage: React.FC = () => {
                 ]}
               />
               <RangePicker onChange={(dates) => setRangoFechas(dates)} value={rangoFechas} placeholder={['Desde', 'Hasta']} />
-              <Button type="primary" onClick={aplicarFiltros} icon={<SearchOutlined />}>Aplicar</Button>
             </Space>
           </div>
 

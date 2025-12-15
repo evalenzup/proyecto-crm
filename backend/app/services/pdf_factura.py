@@ -168,8 +168,8 @@ def _forma_map() -> dict:
 def _forma_label(clave: Optional[str]) -> Optional[str]:
     if not clave:
         return None
-    d = _forma_map().get(clave)
     clave_fmt = f"{int(clave):02d}" if clave.isdigit() else clave
+    d = _forma_map().get(clave) or _forma_map().get(clave_fmt)
     return f"{clave_fmt} — {d}" if d else clave_fmt
 
 

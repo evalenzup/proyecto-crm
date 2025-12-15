@@ -43,5 +43,22 @@ class EgresoRepository(BaseRepository[EgresoModel, EgresoCreate, EgresoUpdate]):
         items = query.offset(skip).limit(limit).all()
         return items, total
 
+    def search_proveedores(
+        self,
+        db: Session,
+        mpresa_id: Optional[UUID] = None,
+        q: str = ""
+    ) -> List[str]:
+        query = db.query(self.model.proveedor).distinct()
+        if mpresa_id:
+            query = query.filter(self.model.empresa_id == mpresa_id)
+        if q:
+            query = query.filter(self.model.proveedor.ilike(f"%{q}%"))
+        
+        # Limit to 20 suggestions
+        results = query.limit(20).all()
+        # results is a list of tuples like [('Prov A',), ('Prov B',)]
+        return [r[0] for r in results if r[0]]
+
 
 egreso_repo = EgresoRepository(EgresoModel)

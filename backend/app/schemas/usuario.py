@@ -42,6 +42,8 @@ class UsuarioInDB(UsuarioInDBBase):
 # Preferences
 class UsuarioPreferences(BaseModel):
     theme: str = "light"
+    font_size: int = 14
 
 class UsuarioPreferencesUpdate(BaseModel):
-    theme: str
+    theme: Optional[str] = None
+    font_size: Optional[int] = None

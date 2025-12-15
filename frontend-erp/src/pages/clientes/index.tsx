@@ -2,18 +2,23 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Popconfirm, Space, Select, Input, message } from 'antd';
+import { Table, Button, Popconfirm, Space, Select, Input, message, Tooltip, Card, theme } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { debounce } from 'lodash';
+import { Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useClienteList } from '@/hooks/useClienteList'; // Importamos el hook
 import { ClienteOut, clienteService } from '@/services/clienteService'; // Importamos la interfaz ClienteOut
 import { EmpresaOut } from '@/services/empresaService'; // Importamos la interfaz EmpresaOut
+import { useTableHeight } from '@/hooks/useTableHeight';
 
 const { Option } = Select;
 
 const ClientesPage: React.FC = () => {
   const router = useRouter();
+  const { token } = theme.useToken();
+  const { containerRef, tableY } = useTableHeight();
   // Usamos el hook personalizado para toda la lógica de la lista y filtros
   const {
     clientes,
@@ -33,6 +38,29 @@ const ClientesPage: React.FC = () => {
     clearFilters,
     isAdmin, // Nuevo
   } = useClienteList();
+
+  const [clienteOptions, setClienteOptions] = React.useState<ClienteOut[]>([]);
+  const [fetchingClientes, setFetchingClientes] = React.useState(false);
+
+  const handleSearchClientes = React.useMemo(() => {
+    const loadOptions = async (value: string) => {
+      if (value.length < 3) {
+        setClienteOptions([]);
+        return;
+      }
+      setFetchingClientes(true); // set loading state
+      try {
+        // Buscamos clientes globalmente o por empresa seleccionada
+        const results = await clienteService.buscarClientes(value, empresaFiltro || undefined);
+        setClienteOptions(results);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setFetchingClientes(false);
+      }
+    };
+    return debounce(loadOptions, 800);
+  }, [empresaFiltro]);
 
   const handleExport = async () => {
     try {
@@ -69,19 +97,23 @@ const ClientesPage: React.FC = () => {
       key: 'acciones',
       render: (_, record) => (
         <Space>
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => router.push(`/clientes/form/${record.id}`)}
-          />
-          <Popconfirm
-            title="¿Eliminar cliente?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Sí"
-            cancelText="No"
-          >
-            <Button type="link" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          <Tooltip title="Editar">
+            <Button
+              type="link"
+              icon={<EditOutlined />}
+              onClick={() => router.push(`/clientes/form/${record.id}`)}
+            />
+          </Tooltip>
+          <Tooltip title="Eliminar">
+            <Popconfirm
+              title="¿Eliminar cliente?"
+              onConfirm={() => handleDelete(record.id)}
+              okText="Sí"
+              cancelText="No"
+            >
+              <Button type="link" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Tooltip>
         </Space>
       ),
     },
@@ -109,48 +141,62 @@ const ClientesPage: React.FC = () => {
           </Space>
         </div>
       </div>
-      <div className="app-content">
-        <Space style={{ marginBottom: 16 }}>
-          <Select
-            placeholder="Filtrar por Empresa"
-            style={{ width: 220 }}
-            allowClear
-            onChange={setEmpresaFiltro}
-            value={empresaFiltro}
-            disabled={!isAdmin} // Deshabilitar si no es admin
-          >
-            {empresasForFilter.map((emp: EmpresaOut) => (
-              <Option key={emp.id} value={emp.id}>
-                {emp.nombre_comercial}
-              </Option>
-            ))}
-          </Select>
-          <Input
-            placeholder="Buscar por RFC"
-            prefix={<SearchOutlined />}
-            value={rfcFiltro}
-            onChange={(e) => setRfcFiltro(e.target.value)}
-            style={{ width: 200 }}
-          />
-          <Input
-            placeholder="Buscar por Nombre Comercial"
-            prefix={<SearchOutlined />}
-            value={nombreFiltro}
-            onChange={(e) => setNombreFiltro(e.target.value)}
-            style={{ width: 200 }}
-          />
-          <Button
-            onClick={clearFilters} // Usamos la función del hook
-          >
-            Limpiar
-          </Button>
-        </Space>
+      <div className="app-content" ref={containerRef}>
+        <Card size="small" bordered bodyStyle={{ padding: 12 }} style={{ marginBottom: 8 }}>
+          <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>
+            <Space wrap>
+              <Select
+                placeholder="Filtrar por Empresa"
+                style={{ width: 220 }}
+                allowClear
+                onChange={setEmpresaFiltro}
+                value={empresaFiltro}
+                disabled={!isAdmin} // Deshabilitar si no es admin
+              >
+                {empresasForFilter.map((emp: EmpresaOut) => (
+                  <Option key={emp.id} value={emp.id}>
+                    {emp.nombre_comercial}
+                  </Option>
+                ))}
+              </Select>
+              <Input
+                placeholder="RFC (min 3 letras)"
+                prefix={<SearchOutlined />}
+                value={rfcFiltro}
+                onChange={(e) => setRfcFiltro(e.target.value)}
+                style={{ width: 200 }}
+              />
+              <Select
+                showSearch
+                placeholder="Nombre Comercial (min 3 letras)"
+                style={{ width: 280 }}
+                filterOption={false}
+                onSearch={handleSearchClientes}
+                onChange={(val) => setNombreFiltro(val)} // Al seleccionar, filtramos por ese nombre exacto o ID si el hook lo soportara
+                notFoundContent={fetchingClientes ? <Spin size="small" /> : null}
+                allowClear
+                value={nombreFiltro || undefined}
+                onClear={() => {
+                  setClienteOptions([]);
+                  setNombreFiltro('');
+                }}
+              >
+                {clienteOptions.map((c) => (
+                  <Option key={c.id} value={c.nombre_comercial}>
+                    {c.nombre_comercial} ({c.rfc})
+                  </Option>
+                ))}
+              </Select>
+            </Space>
+          </div>
+        </Card>
 
         <Table<ClienteOut>
           rowKey="id"
           columns={columns}
           dataSource={clientes}
           loading={loading}
+          scroll={{ x: 1000, y: tableY }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,
