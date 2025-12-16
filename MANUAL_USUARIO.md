@@ -20,7 +20,8 @@ Para que el sistema funcione correctamente, es vital tener la información base 
 ### Clientes
 Antes de vender, registra a quién le venderás.
 1.  Ve al menú **Clientes** y haz clic en **"+ Nuevo Cliente"**.
-2.  **Datos Fiscales (Obligatorios para Factura 4.0):**
+2.  **(Opcional) Importar CSF**: Si tienes el PDF de la Constancia de Situación Fiscal, haz clic en **"Importar desde CSF"** y sube el archivo. Esto llenará el RFC, Razón Social, CP y Régimen automáticamente.
+3.  **Datos Fiscales (Obligatorios para Factura 4.0):**
     *   **Razón Social**: Debe coincidir *exactamente* con la Constancia de Situación Fiscal (sin régimen capital como "SA de CV").
     *   **RFC**: Verifica homoclave.
     *   **Código Postal**: El registrado ante el SAT.
@@ -42,7 +43,9 @@ Define qué vendes para agilizar tus facturas.
 El flujo más común y seguro para tu administración es: **Facturar la venta → Registrar el cobro cuando ocurra**.
 
 ### Paso 1: Emitir la Factura (CFDI de Ingreso)
-1.  Ve al menú **Facturas** y presiona **"+ Nueva"**.
+1.  Ve al menú **Facturas**.
+    *   *Tip: Si es similar a una anterior, busca la factura original y pulsa el botón **Duplicar** (icono de copiar) para crear un borrador idéntico.*
+2.  Presiona **"+ Nueva"**.
 2.  **Encabezado**:
     *   Selecciona al **Cliente**.
     *   **Uso de CFDI**: Usualmente "G03 - Gastos en general".

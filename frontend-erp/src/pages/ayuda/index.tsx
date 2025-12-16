@@ -43,6 +43,7 @@ const ManualUsuarioPage: React.FC = () => {
                             <Title level={5}>Clientes</Title>
                             <ul>
                                 <li>Ve al menú <strong>Clientes</strong> y haz clic en <strong>"+ Nuevo Cliente"</strong>.</li>
+                                <li><strong>(Opcional) Importar CSF:</strong> Tienes el PDF de la Constancia? Usa el botón "Importar" para llenar los datos automáticamente.</li>
                                 <li><strong>Datos Fiscales:</strong>
                                     <ul>
                                         <li><strong>Razón Social:</strong> Sin régimen capital (ej: "Empresa S.A. de C.V." -{'>'} "Empresa").</li>
@@ -70,6 +71,7 @@ const ManualUsuarioPage: React.FC = () => {
                                     description: (
                                         <ul>
                                             <li>Ve a <strong>Facturas</strong> {'>'} "+ Nueva".</li>
+                                            <li><em>Tip: Usa el botón <strong>Duplicar</strong> (icono copiar) en el listado para copiar una factura anterior.</em></li>
                                             <li><strong>Encabezado:</strong>
                                                 <ul>
                                                     <li><strong>Método de Pago:</strong> Usa <em>PUE</em> si ya pagaron, o <em>PPD</em> si es crédito.</li>
