@@ -18,6 +18,7 @@ import {
   LogoutOutlined,
   DownOutlined,
   FontSizeOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps } from 'antd';
 import esES from 'antd/locale/es_ES';
@@ -76,6 +77,7 @@ const baseMenuData = [
   { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
   { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
   // { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
+  { path: '/ayuda', name: 'Ayuda', icon: <QuestionCircleOutlined /> },
   // El ítem de Usuarios se agrega dinámicamente
 ];
 
