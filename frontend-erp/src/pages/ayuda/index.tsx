@@ -5,7 +5,8 @@ import {
     ShopOutlined,
     FileSyncOutlined,
     BarChartOutlined,
-    SettingOutlined
+    SettingOutlined,
+    TableOutlined
 } from '@ant-design/icons';
 import { Layout } from '@/components/Layout';
 
@@ -95,8 +96,19 @@ const ManualUsuarioPage: React.FC = () => {
                             ]} />
                         </Panel>
 
-                        {/* Sección 4: Reportes */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><BarChartOutlined /> 4. Reportes y Consultas</Title>} key="4">
+                        {/* Sección 4: Egresos */}
+                        <Panel header={<Title level={4} style={{ margin: 0 }}><TableOutlined /> 4. Gestión de Gastos (Egresos)</Title>} key="4">
+                            <Paragraph>Registra tus compras y gastos operativos.</Paragraph>
+                            <ul>
+                                <li>Ve al menú <strong>Egresos</strong> {'>'} "+ Nuevo Egreso".</li>
+                                <li><strong>Proveedor:</strong> Busca por nombre (min 3 letras).</li>
+                                <li><strong>Categoría:</strong> Vital para saber en qué gastas (ej: Renta, Nómina).</li>
+                                <li><strong>Evidencia:</strong> Puedes adjuntar el PDF/XML de tu compra.</li>
+                            </ul>
+                        </Panel>
+
+                        {/* Sección 5: Reportes */}
+                        <Panel header={<Title level={4} style={{ margin: 0 }}><BarChartOutlined /> 5. Reportes y Consultas</Title>} key="5">
                             <Paragraph>En el módulo de <strong>Facturas</strong>:</Paragraph>
                             <ul>
                                 <li><strong>Buscador:</strong> Por nombre de cliente.</li>
@@ -106,8 +118,8 @@ const ManualUsuarioPage: React.FC = () => {
                             </ul>
                         </Panel>
 
-                        {/* Sección 5: Admin */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><SettingOutlined /> 5. Administración</Title>} key="5">
+                        {/* Sección 6: Admin */}
+                        <Panel header={<Title level={4} style={{ margin: 0 }}><SettingOutlined /> 6. Administración</Title>} key="6">
                             <Paragraph>
                                 <em>(Solo Administradores)</em> Ve a <strong>Configuración {'>'} Usuarios</strong> para invitar colaboradores y asignar roles.
                             </Paragraph>

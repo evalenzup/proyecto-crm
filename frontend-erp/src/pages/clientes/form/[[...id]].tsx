@@ -16,8 +16,9 @@ import {
   Modal,
   Alert,
   Tag,
+  Upload,
 } from 'antd';
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { MinusCircleOutlined, PlusOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
@@ -102,6 +103,64 @@ const ClienteFormPage: React.FC = () => {
     };
     fetchRegimenes();
   }, []);
+
+  const handleImportCSF = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      message.loading({ content: 'Analizando Constancia...', key: 'csf' });
+      // Usamos el servicio de utilidades a través de axios directamente o un servicio wrapper
+      // Si no tenemos un servicio wrapper para esto, usamos api.post directo como en empresas
+      // Necesitamos importar api de axios si no está disponible, pero useClienteForm tal vez ya tenga algo?
+      // Revisando imports: no hay 'api' importado en este archivo. Importaremos api.
+      const { default: api } = await import('@/lib/axios');
+
+      const { data } = await api.post('/utils/parse-csf', formData);
+
+      const updates: any = {};
+      if (data.rfc) updates.rfc = data.rfc;
+      if (data.razon_social) {
+        updates.nombre_razon_social = data.razon_social;
+        // Si no tiene nombre comercial, usar el mismo
+        if (!form.getFieldValue('nombre_comercial')) {
+          updates.nombre_comercial = data.razon_social;
+        }
+      }
+      if (data.codigo_postal) {
+        // Intentamos ambos nombres comunes
+        updates.codigo_postal = data.codigo_postal;
+        updates.cp = data.codigo_postal;
+      }
+      if (data.direccion) {
+        // Si tenemos campos desglosados, damos prioridad a ellos
+        if (data.calle) updates.calle = data.calle;
+        else updates.calle = data.direccion; // Fallback si no detectó desglose
+
+        if (data.numero_exterior) updates.numero_exterior = data.numero_exterior;
+        if (data.numero_interior) updates.numero_interior = data.numero_interior;
+        if (data.colonia) updates.colonia = data.colonia;
+      }
+      if (data.regimen_fiscal) {
+        updates.regimen_fiscal = data.regimen_fiscal;
+      }
+
+      form.setFieldsValue(updates);
+      message.success({ content: 'Datos extraídos de la CSF', key: 'csf' });
+
+      let msg = 'Se encontraron: ';
+      if (data.rfc) msg += 'RFC, ';
+      if (data.razon_social) msg += 'Razón Social, ';
+      if (data.codigo_postal) msg += 'CP, ';
+      if (data.direccion) msg += 'Dirección, ';
+      if (data.regimen_fiscal) msg += ` (Régimen: ${data.regimen_fiscal})`;
+      message.info(msg);
+
+    } catch (error) {
+      console.error(error);
+      message.error({ content: 'Error al analizar la CSF', key: 'csf' });
+    }
+    return false; // Prevent auto upload
+  };
 
 
   // Opciones estáticas para selects
@@ -370,6 +429,26 @@ const ClienteFormPage: React.FC = () => {
               </Text>
             </div>
           )}
+
+          {/* Importar CSF Button */}
+          <div style={{ marginBottom: 24, padding: 16, background: '#f5f5f5', borderRadius: 8 }}>
+            <Space align="center">
+              <Text strong>Autocompletar con Constancia (CSF):</Text>
+              <div
+                onClick={(e) => e.stopPropagation()} /* Evitar propagación si está dentro de un form submit area implícita */
+              >
+                <Upload
+                  accept=".pdf"
+                  showUploadList={false}
+                  beforeUpload={handleImportCSF}
+                >
+                  <Button icon={<FilePdfOutlined />} type="dashed" style={{ borderColor: '#d32f2f', color: '#d32f2f' }}>
+                    Subir PDF Constancia
+                  </Button>
+                </Upload>
+              </div>
+            </Space>
+          </div>
 
           <Form form={form} layout="vertical" onFinish={onFinish}>
             {Object.entries(schema.properties || {}).map(([key, prop]) =>

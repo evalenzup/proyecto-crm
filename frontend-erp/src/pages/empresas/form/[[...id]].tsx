@@ -7,7 +7,7 @@ import {
   Form, Input, Select, Button, Spin, Card, message, Space, Typography, Alert, Upload, Descriptions, Tag,
 } from 'antd';
 import type { UploadFile } from 'antd';
-import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
+import { UploadOutlined, DownloadOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import LogoCropperModal from '@/components/LogoCropperModal';
@@ -208,15 +208,72 @@ const EmpresaFormPage: React.FC = () => {
       if (id) {
         await api.put(`/empresas/${id}`, payload);
         message.success('Empresa actualizada');
+        router.push('/empresas');
       } else {
-        await api.post(`/empresas/`, payload);
-        message.success('Empresa creada');
+        const { data } = await api.post(`/empresas/`, payload);
+        message.success('Empresa creada. Ahora puedes configurar el correo.');
+        if (data && data.id) {
+          router.push(`/empresas/form/${data.id}`);
+        } else {
+          router.push('/empresas');
+        }
       }
-      router.push('/empresas');
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       message.error(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : 'Error inesperado');
     }
+  };
+
+  const handleImportCSF = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      message.loading({ content: 'Analizando Constancia...', key: 'csf' });
+      const { data } = await api.post('/utils/parse-csf', formData);
+
+      const updates: any = {};
+      if (data.rfc) {
+        updates.rfc = data.rfc;
+        updates.ruc = data.rfc; // RUC debe ser igual al RFC
+      }
+      if (data.razon_social) {
+        updates.nombre = data.razon_social; // Nombre oficial
+        // Si no tiene nombre comercial, usar el mismo
+        if (!form.getFieldValue('nombre_comercial')) {
+          updates.nombre_comercial = data.razon_social;
+        }
+      }
+      if (data.codigo_postal) {
+        // Asumiendo que el campo se llama 'codigo_postal' o 'direccion' contiene CP?
+        // Revisando schema... Normalmente es 'cp' o 'codigo_postal'. 
+        // Si el schema tiene 'cp', usaremos 'cp'.
+        if (schema.properties?.cp) updates.cp = data.codigo_postal;
+        if (schema.properties?.codigo_postal) updates.codigo_postal = data.codigo_postal;
+      }
+      if (data.direccion) {
+        updates.direccion = data.direccion;
+      }
+      if (data.regimen_fiscal) {
+        updates.regimen_fiscal = data.regimen_fiscal;
+      }
+
+      form.setFieldsValue(updates);
+      message.success({ content: 'Datos extraídos de la CSF', key: 'csf' });
+
+      // Mostrar alerta de lo que se encontró
+      let msg = 'Se encontraron: ';
+      if (data.rfc) msg += 'RFC, ';
+      if (data.razon_social) msg += 'Razón Social, ';
+      if (data.codigo_postal) msg += 'CP, ';
+      if (data.direccion) msg += 'Dirección, ';
+      if (data.regimen_fiscal) msg += ` (Régimen: ${data.regimen_fiscal})`;
+      message.info(msg);
+
+    } catch (error) {
+      console.error(error);
+      message.error({ content: 'Error al analizar la CSF', key: 'csf' });
+    }
+    return false; // Prevent auto upload
   };
 
   if (loadingSchema || loadingRecord) {
@@ -419,6 +476,22 @@ const EmpresaFormPage: React.FC = () => {
             <Alert style={{ marginBottom: 12 }} type="warning" showIcon message="Faltan certificados en el servidor" description="Para guardar cambios debes volver a subir los archivos CER y KEY." />
           )}
 
+          {/* Importar CSF Button */}
+          <div style={{ marginBottom: 24, padding: 16, background: '#f5f5f5', borderRadius: 8 }}>
+            <Space align="center">
+              <Text strong>Autocompletar con Constancia (CSF):</Text>
+              <Upload
+                accept=".pdf"
+                showUploadList={false}
+                beforeUpload={handleImportCSF}
+              >
+                <Button icon={<FilePdfOutlined />} type="dashed" style={{ borderColor: '#d32f2f', color: '#d32f2f' }}>
+                  Subir PDF Constancia
+                </Button>
+              </Upload>
+            </Space>
+          </div>
+
           <Form form={form} layout="vertical" onFinish={onFinish}>
             {/* Campos normales primero */}
             {normalKeys.map((k) => renderField(k, (schema.properties as any)[k]))}
@@ -436,24 +509,33 @@ const EmpresaFormPage: React.FC = () => {
               <CertInfoBlock />
             </Card>
 
-            {id && (
-              <Card size="small" style={{ marginTop: 16 }}>
-                <Text strong>Configuración de Correo</Text>
-                <div style={{ height: 8 }} />
-                <Button onClick={() => setIsEmailModalOpen(true)}>
-                  {emailConfig ? 'Editar Configuración de Correo' : 'Configurar Correo Electrónico'}
-                </Button>
-                {!emailConfig && (
-                  <Alert
-                    message="Configuración de correo requerida"
-                    description="Para poder enviar correos electrónicos (ej. facturas), debes configurar el servidor SMTP."
-                    type="warning"
-                    showIcon
-                    style={{ marginTop: 16 }}
-                  />
-                )}
-              </Card>
-            )}
+            <Card size="small" style={{ marginTop: 16 }}>
+              <Text strong>Configuración de Correo</Text>
+              <div style={{ height: 8 }} />
+              {id ? (
+                <>
+                  <Button onClick={() => setIsEmailModalOpen(true)}>
+                    {emailConfig ? 'Editar Configuración de Correo' : 'Configurar Correo Electrónico'}
+                  </Button>
+                  {!emailConfig && (
+                    <Alert
+                      message="Configuración de correo requerida"
+                      description="Para poder enviar correos electrónicos (ej. facturas), debes configurar el servidor SMTP."
+                      type="warning"
+                      showIcon
+                      style={{ marginTop: 16 }}
+                    />
+                  )}
+                </>
+              ) : (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Configuración no disponible"
+                  description="Guarda la empresa primero para habilitar la configuración de correo electrónico."
+                />
+              )}
+            </Card>
 
             <Form.Item style={{ marginTop: 16 }}>
               <Space>

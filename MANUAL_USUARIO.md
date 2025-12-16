@@ -74,7 +74,22 @@ El flujo más común y seguro para tu administración es: **Facturar la venta �
 
 ---
 
-## 📊 4. Reportes y Consultas
+## 💸 4. Gestión de Gastos (Egresos)
+Registra tus compras y gastos operativos para tener control del flujo de efectivo.
+
+1.  Ve al menú **Egresos** > **"+ Nuevo Egreso"**.
+2.  **Llenado de Datos**:
+    *   **Proveedor**: Selecciónalo (o créalo si no existe).
+    *   **Fecha**: Cuándo hiciste el gasto.
+    *   **Monto**: Total pagado.
+    *   **Categoría**: Clasifícalo (ej: Nómina, Servicios, Renta) para tus reportes.
+3.  **Adjuntar Evidencia**:
+    *   Puedes subir el PDF o XML de la factura que recibiste usando el botón del clip.
+4.  **Guardar**.
+
+---
+
+## 📊 5. Reportes y Consultas
 
 ### Filtrado de Facturas
 En el módulo de **Facturas**, puedes buscar rápidamente usando la barra de filtros superior:
@@ -93,7 +108,7 @@ Usa el botón **"Exportar Excel"** en la parte superior derecha de cualquier lis
 
 ---
 
-## ⚙️ 5. Administración
+## ⚙️ 6. Administración
 
 ### Usuarios
 *(Solo Administradores)*
