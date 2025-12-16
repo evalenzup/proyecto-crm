@@ -247,6 +247,76 @@ def actualizar_factura(
     return factura
 
 
+def duplicar_factura(db: Session, factura_id: UUID) -> Factura:
+    original = obtener_factura(db, factura_id)
+    
+    # Calcular siguiente folio
+    serie = original.serie
+    folio = siguiente_folio(db, original.empresa_id, serie)
+
+    nueva_factura = Factura(
+        empresa_id=original.empresa_id,
+        cliente_id=original.cliente_id,
+        serie=serie,
+        folio=folio,
+        moneda=original.moneda,
+        tipo_cambio=original.tipo_cambio,
+        estatus="BORRADOR",
+        status_pago="NO_PAGADA",
+        # Reseteamos fechas de pago/cobro para la nueva factura
+        fecha_pago=None,
+        fecha_cobro=None,
+        observaciones=original.observaciones,
+        tipo_comprobante=original.tipo_comprobante,
+        forma_pago=original.forma_pago,
+        metodo_pago=original.metodo_pago,
+        uso_cfdi=original.uso_cfdi,
+        fecha_emision=datetime.now(), # Fecha actual
+        lugar_expedicion=original.lugar_expedicion,
+        condiciones_pago=original.condiciones_pago,
+        rfc_proveedor_sat=original.rfc_proveedor_sat,
+        
+        # Copiamos totales (se podrían recalcular, pero si es copia fiel...)
+        subtotal=original.subtotal,
+        descuento=original.descuento,
+        impuestos_trasladados=original.impuestos_trasladados,
+        impuestos_retenidos=original.impuestos_retenidos,
+        total=original.total,
+    )
+    
+    # Copiar conceptos
+    for c in original.conceptos:
+         nueva_factura.conceptos.append(
+            FacturaDetalle(
+                clave_prod_serv=c.clave_prod_serv,
+                no_identificacion=c.no_identificacion,
+                cantidad=c.cantidad,
+                clave_unidad=c.clave_unidad,
+                unidad=c.unidad,
+                descripcion=c.descripcion,
+                valor_unitario=c.valor_unitario,
+                importe=c.importe,
+                descuento=c.descuento,
+                objeto_imp=c.objeto_imp,
+                iva_traslado=c.iva_traslado, 
+                iva_retencion=c.iva_retencion,
+                isr_retencion=c.isr_retencion,
+                iva_tasa=c.iva_tasa,
+                ret_iva_tasa=c.ret_iva_tasa,
+                ret_isr_tasa=c.ret_isr_tasa,
+                iva_importe=c.iva_importe,
+                ret_iva_importe=c.ret_iva_importe,
+                ret_isr_importe=c.ret_isr_importe,
+                cuenta_predial=c.cuenta_predial,
+            )
+         )
+
+    db.add(nueva_factura)
+    db.commit()
+    db.refresh(nueva_factura)
+    return nueva_factura
+
+
 # ────────────────────────────────────────────────────────────────
 # Acciones CFDI
 

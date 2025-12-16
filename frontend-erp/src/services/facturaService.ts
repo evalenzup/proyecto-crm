@@ -58,7 +58,11 @@ export const sendPreviewEmail = (id: string, recipients: string | string[]) => {
     ? { recipients }
     : { recipient_emails: String(recipients) };
   return getData(api.post(`/facturas/${id}/send-preview-email`, payload));
+  return getData(api.post(`/facturas/${id}/send-preview-email`, payload));
 };
+
+export const duplicarFactura = (id: string) =>
+  getData(api.post(`/facturas/${id}/duplicar`));
 
 // ---------------------- Empresas / Clientes ----------------------
 interface EmpresaPageOut {

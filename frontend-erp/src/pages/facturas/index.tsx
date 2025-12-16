@@ -4,12 +4,12 @@
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useFacturasList } from '@/hooks/useFacturasList';
 import { useTableHeight } from '@/hooks/useTableHeight';
-import { FacturaRow, exportFacturasExcel } from '@/services/facturaService';
+import { FacturaRow, exportFacturasExcel, duplicarFactura } from '@/services/facturaService';
 
 const { RangePicker } = DatePicker;
 const { useToken } = theme;
@@ -39,6 +39,21 @@ const FacturasIndexPage: React.FC = () => {
   } = useFacturasList();
 
   const [emailForm] = Form.useForm();
+
+  const handleDuplicate = async (id: string) => {
+    try {
+      message.loading({ content: 'Duplicando factura...', key: 'duplicating' });
+      const newFactura = await duplicarFactura(id);
+      message.success({ content: 'Factura duplicada correctamente', key: 'duplicating' });
+      router.push(`/facturas/form/${newFactura.id}`);
+    } catch (error: any) {
+      console.error(error);
+      message.error({
+        content: error.response?.data?.detail || 'Error al duplicar la factura',
+        key: 'duplicating'
+      });
+    }
+  };
 
   // Efecto para cargar email del cliente al abrir modal
   React.useEffect(() => {
@@ -143,11 +158,15 @@ const FacturasIndexPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 130,
+      width: 160,
+      fixed: 'right',
       render: (_: any, r) => (
         <Space>
           <Tooltip title="Editar">
             <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/facturas/form/${r.id}`)} />
+          </Tooltip>
+          <Tooltip title="Duplicar">
+            <Button type="link" icon={<CopyOutlined />} onClick={() => handleDuplicate(r.id)} />
           </Tooltip>
           <Tooltip title="Ver PDF">
             <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} />

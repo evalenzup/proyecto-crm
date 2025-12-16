@@ -217,6 +217,22 @@ def actualizar_factura_endpoint(
     return srv.actualizar_factura(db, id, payload)
 
 
+@router.post("/{id}/duplicar", response_model=FacturaOut, status_code=status.HTTP_201_CREATED)
+def duplicar_factura_endpoint(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    factura = srv.obtener_factura(db, id)
+    if not factura:
+         raise HTTPException(status_code=404, detail="Factura no encontrada")
+         
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+         raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    return srv.duplicar_factura(db, id)
+
+
 @router.get("/{id}", response_model=FacturaOut)
 def obtener_factura(
     id: UUID, 
