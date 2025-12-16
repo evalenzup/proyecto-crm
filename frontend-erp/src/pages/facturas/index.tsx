@@ -3,7 +3,7 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip } from 'antd';
+import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
@@ -165,9 +165,17 @@ const FacturasIndexPage: React.FC = () => {
           <Tooltip title="Editar">
             <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/facturas/form/${r.id}`)} />
           </Tooltip>
-          <Tooltip title="Duplicar">
-            <Button type="link" icon={<CopyOutlined />} onClick={() => handleDuplicate(r.id)} />
-          </Tooltip>
+          <Popconfirm
+            title="¿Duplicar factura?"
+            description="Se creará una copia en borrador con un nuevo folio."
+            onConfirm={() => handleDuplicate(r.id)}
+            okText="Sí, duplicar"
+            cancelText="Cancelar"
+          >
+            <Tooltip title="Duplicar">
+              <Button type="link" icon={<CopyOutlined />} />
+            </Tooltip>
+          </Popconfirm>
           <Tooltip title="Ver PDF">
             <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} />
           </Tooltip>
