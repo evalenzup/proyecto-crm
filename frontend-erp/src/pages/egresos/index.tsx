@@ -261,7 +261,7 @@ const EgresosListPage: React.FC = () => {
         </div>
       </div>
       <div className="app-content" ref={containerRef}>
-        <Card size="small" bordered bodyStyle={{ padding: 12 }} style={{ marginBottom: 4 }}>
+        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 4 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: screens.lg ? '4px' : '8px', background: token.colorBgContainer }}>
             <Space wrap>
               <Select

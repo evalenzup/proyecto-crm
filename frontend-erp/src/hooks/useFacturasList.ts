@@ -48,6 +48,7 @@ export const useFacturasList = () => {
   const [estatus, setEstatus] = useState<EstatusCFDI | undefined>(undefined);
   const [estatusPago, setEstatusPago] = useState<EstatusPago | undefined>(undefined);
   const [rangoFechas, setRangoFechas] = useState<[Dayjs, Dayjs] | null>(null);
+  const [folio, setFolio] = useState<string>('');
 
   const fetchFacturas = useCallback(async (pag: TablePaginationConfig = pagination) => {
     if (!empresaId) {
@@ -66,6 +67,9 @@ export const useFacturasList = () => {
       params.fecha_desde = rangoFechas[0].format('YYYY-MM-DD');
       params.fecha_hasta = rangoFechas[1].format('YYYY-MM-DD');
     }
+    if (folio) {
+      params.folio = folio;
+    }
 
     setLoading(true);
     try {
@@ -79,7 +83,7 @@ export const useFacturasList = () => {
     } finally {
       setLoading(false);
     }
-  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas]);
+  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas, folio]);
 
   useEffect(() => {
     fetchFacturas();
@@ -107,9 +111,6 @@ export const useFacturasList = () => {
     }, 300)
     , [empresaId]); // Dependencia empresaId agregada
 
-  // useEffect(() => {
-  //   fetchEmpresas();
-  // }, [fetchEmpresas]);
   // ELIMINADO
 
   // Preview Modal
@@ -190,6 +191,7 @@ export const useFacturasList = () => {
       estatus, setEstatus,
       estatusPago, setEstatusPago,
       rangoFechas, setRangoFechas,
+      folio, setFolio,
       isAdmin,
     },
     // Preview helpers

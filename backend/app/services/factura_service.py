@@ -483,6 +483,7 @@ def listar_facturas(
     empresa_id: Optional[UUID] = None,
     cliente_id: Optional[UUID] = None,
     serie: Optional[str] = None,
+    folio: Optional[int] = None,
     folio_min: Optional[int] = None,
     folio_max: Optional[int] = None,
     estatus: Optional[str] = None,
@@ -504,6 +505,8 @@ def listar_facturas(
         q = q.filter(Factura.cliente_id == cliente_id)
     if serie:
         q = q.filter(Factura.serie == serie.upper())
+    if folio is not None:
+        q = q.filter(Factura.folio == folio)
     if folio_min is not None:
         q = q.filter(Factura.folio >= folio_min)
     if folio_max is not None:

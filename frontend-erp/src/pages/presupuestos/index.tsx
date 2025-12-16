@@ -251,7 +251,7 @@ const PresupuestosPage: React.FC = () => {
         </div>
       </div>
       <div className="app-content" ref={containerRef}>
-        <Card size="small" bordered bodyStyle={{ padding: 12 }} style={{ marginTop: 4 }}>
+        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginTop: 4 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '8px', marginBottom: 8, background: token.colorBgContainer, borderRadius: 8, boxShadow: token.boxShadowSecondary }}>
             <Space wrap size={[8, 8]}>
               <Select allowClear placeholder="Empresa" style={{ width: 220 }} options={empresasOptions.map(e => ({ label: e.nombre_comercial, value: e.id }))} value={empresaId} onChange={setEmpresaId} />

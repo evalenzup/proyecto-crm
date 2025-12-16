@@ -134,6 +134,8 @@ export interface FacturaRow {
   estatus: EstatusCFDI;
   status_pago: EstatusPago;
   total: number;
+  fecha_pago?: string | null; // Programada
+  fecha_cobro?: string | null; // Real
   cliente?: { id: string; nombre_comercial: string; email?: string };
 }
 
@@ -155,6 +157,7 @@ export interface FacturaListParams {
   status_pago?: EstatusPago;
   fecha_desde?: string; // YYYY-MM-DD
   fecha_hasta?: string; // YYYY-MM-DD
+  folio?: string | number;
 }
 
 // Detalle de factura usado en varios formularios

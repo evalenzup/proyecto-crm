@@ -194,7 +194,7 @@ const PagosIndexPage: React.FC = () => {
         </div>
       </div>
       <div className="app-content" ref={containerRef}>
-        <Card size="small" bordered bodyStyle={{ padding: 12 }} style={{ marginTop: 4 }}>
+        <Card size="small" variant="borderless" styles={{ body: { padding: 0 } }} style={{ marginTop: 4 }}>
           <div
             style={{
               position: 'sticky', top: 0, zIndex: 9,
@@ -297,8 +297,8 @@ const PagosIndexPage: React.FC = () => {
         ]}
         width="90%"
         style={{ top: 20 }}
-        bodyStyle={{ height: '80vh', padding: 0 }}
-        destroyOnClose
+        styles={{ body: { height: '80vh', padding: 0 } }}
+        destroyOnHidden
       >
         {previewPdfUrl && (
           <iframe

@@ -713,7 +713,7 @@ const FacturaFormPage: React.FC = () => {
         onOk={handleSaveConcepto}
         onCancel={() => setIsConceptoModalOpen(false)}
         width={840}
-        destroyOnClose
+        destroyOnHidden
         okButtonProps={{ disabled: isFormDisabled }}
       >
         <Form form={conceptoForm} layout="vertical">
@@ -1204,8 +1204,8 @@ const FacturaFormPage: React.FC = () => {
         ]}
         width="90%"
         style={{ top: 20 }}
-        bodyStyle={{ height: '80vh', padding: 0 }}
-        destroyOnClose
+        styles={{ body: { height: '80vh', padding: 0 } }}
+        destroyOnHidden
       >
         {previewPdfUrl && (
           <iframe

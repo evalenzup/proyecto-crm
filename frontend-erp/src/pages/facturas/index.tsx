@@ -81,6 +81,8 @@ const FacturasIndexPage: React.FC = () => {
     estatus, setEstatus,
     estatusPago, setEstatusPago,
     rangoFechas, setRangoFechas, empresas,
+    setFolio, // Added setFolio
+    isAdmin,
   } = filters;
 
   // Auto-fetch on filter change
@@ -111,7 +113,7 @@ const FacturasIndexPage: React.FC = () => {
 
   const columns: ColumnsType<FacturaRow> = [
     { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.serie ?? ''}-${r.folio ?? ''}`, width: 110 },
-    { title: 'Fecha', dataIndex: 'creado_en', key: 'creado_en', render: (v: string) => formatDateTijuana(v), width: 180 },
+    { title: 'Fecha', dataIndex: 'creado_en', key: 'creado_en', render: (v: string) => formatDateTijuana(v).split(',')[0], width: 120 },
     { title: 'Cliente', key: 'cliente', render: (_: any, r) => r.cliente?.nombre_comercial || '—' },
     { title: 'Estatus CFDI', dataIndex: 'estatus', key: 'estatus', width: 130 },
     { title: 'Estatus Pago', dataIndex: 'status_pago', key: 'status_pago', width: 130 },
@@ -123,6 +125,20 @@ const FacturasIndexPage: React.FC = () => {
       align: 'right',
       render: (v: string | number) =>
         (Number(v) || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }),
+    },
+    {
+      title: 'Fecha Pago (Prog.)',
+      dataIndex: 'fecha_pago',
+      key: 'fecha_pago',
+      render: (val: string) => val ? formatDateTijuana(val).split(',')[0] : '-',
+      width: 120,
+    },
+    {
+      title: 'Fecha Pago (Real)',
+      dataIndex: 'fecha_cobro',
+      key: 'fecha_cobro',
+      render: (val: string) => val ? formatDateTijuana(val).split(',')[0] : '-',
+      width: 120,
     },
     {
       title: 'Acciones',
@@ -178,7 +194,7 @@ const FacturasIndexPage: React.FC = () => {
         </div>
       </div>
       <div className="app-content" ref={containerRef}>
-        <Card size="small" bordered bodyStyle={{ padding: 12 }} style={{ marginTop: 4 }}>
+        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginTop: 4 }}>
           <div
             style={{
               position: 'sticky', top: 0, zIndex: 9,
@@ -229,6 +245,13 @@ const FacturasIndexPage: React.FC = () => {
                 value={rangoFechas as any}
                 placeholder={['Desde', 'Hasta']}
                 allowClear
+              />
+              <Input
+                placeholder="Folio (Enter)"
+                style={{ width: 120 }}
+                onPressEnter={(e) => setFolio(e.currentTarget.value)}
+                allowClear
+                onChange={(e) => { if (!e.target.value) setFolio(''); }}
               />
             </Space>
           </div>
@@ -289,8 +312,8 @@ const FacturasIndexPage: React.FC = () => {
         ]}
         width="90%"
         style={{ top: 20 }}
-        bodyStyle={{ height: '80vh', padding: 0 }}
-        destroyOnClose
+        styles={{ body: { height: '80vh', padding: 0 } }}
+        destroyOnHidden
       >
         {previewPdfUrl && (
           <iframe

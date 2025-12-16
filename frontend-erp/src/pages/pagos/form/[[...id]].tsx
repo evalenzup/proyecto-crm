@@ -397,8 +397,8 @@ const PagoFormPage: React.FC = () => {
           ]}
         width="90%"
         style={{ top: 20 }}
-        bodyStyle={{ height: '80vh', padding: 0 }}
-        destroyOnClose
+        styles={{ body: { height: '80vh', padding: 0 } }}
+        destroyOnHidden
       >
         {previewPdfUrl && (
           <iframe

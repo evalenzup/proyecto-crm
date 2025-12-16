@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "http://158.97.12.153:3000",
-        "http://158.97.12.153:5173",
+        "http://192.168.68.136:3000",
+        "http://192.168.68.136:5173",
     ]
 
     # Configuración de Pydantic Settings
