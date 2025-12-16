@@ -82,6 +82,8 @@ proyecto-desarrollo-norton/
 3.  Python 3.10+
 4.  Node.js ≥ 16 y npm
 
+> **Nota para Despliegue**: Para instrucciones detalladas sobre cómo ejecutar ambientes de **Desarrollo** y **Producción** simultáneamente, consulta el [Manual de Despliegue](./MANUAL_DESPLIEGUE.md).
+
 ---
 
 ## Instalación y Configuración

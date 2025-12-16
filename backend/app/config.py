@@ -33,6 +33,8 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://192.168.68.136:3000",
         "http://192.168.68.136:5173",
+        "http://localhost:3001",
+        "http://192.168.68.136:3001",
     ]
 
     # Configuración de Pydantic Settings

@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:14
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_prod
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  backend:
+    build: .
+    ports:
+      - "8001:8000"
+    dns:
+      - 8.8.8.8
+    env_file:
+      - .env.prod
+    depends_on:
+      - db
+    volumes:
+      # Mount source code for optional hot-reload or just updates without rebuild
+      - ./:/app
+      # Mount data directory
+      - ./data:/data
+
+volumes:
+  pgdata_prod:
