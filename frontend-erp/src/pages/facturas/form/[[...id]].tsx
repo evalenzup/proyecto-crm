@@ -23,18 +23,17 @@ import {
   Table,
   Alert,
   message,
+  Popconfirm,
+  theme,
 } from 'antd';
 import {
+  SaveOutlined,
+  ArrowLeftOutlined,
   PlusOutlined,
   DeleteOutlined,
-  ThunderboltOutlined,
-  StopOutlined,
-  PlusCircleOutlined,
-  EditOutlined,
   FilePdfOutlined,
-  FileExcelOutlined,
-  FileOutlined,
   MailOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
@@ -657,17 +656,25 @@ const FacturaFormPage: React.FC = () => {
                 icon={<StopOutlined />}
                 onClick={abrirModalCancelacion}
                 loading={accionLoading.cancelar || cancelSubmitting}
-                disabled={!puedeCancelar}
-              >
-                Cancelar CFDI
               </Button>
 
-              {/* Ver/Descargar PDF y XML */}
-              <Button icon={<FilePdfOutlined />} onClick={verPDF} disabled={!id}>
-                Ver PDF
-              </Button>
-
-              {/* Botón para enviar vista previa por correo (solo en borrador) */}
+            <Space wrap>
+              {id && (
+                <Popconfirm
+                  title="¿Duplicar factura?"
+                  description="Se creará una copia en borrador con un nuevo folio."
+                  onConfirm={handleDuplicate}
+                  okText="Sí, duplicar"
+                  cancelText="Cancelar"
+                >
+                  <Button icon={<CopyOutlined />}>Duplicar</Button>
+                </Popconfirm>
+              )}
+              {id && (
+                <Button icon={<FilePdfOutlined />} onClick={verPDF}>
+                  Ver PDF
+                </Button>
+              )} {/* Botón para enviar vista previa por correo (solo en borrador) */}
               {estatusCFDI === 'BORRADOR' && (
                 <Button
                   icon={<MailOutlined />}
