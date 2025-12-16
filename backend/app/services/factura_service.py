@@ -288,7 +288,7 @@ def duplicar_factura(db: Session, factura_id: UUID) -> Factura:
     for c in original.conceptos:
          nueva_factura.conceptos.append(
             FacturaDetalle(
-                clave_prod_serv=c.clave_prod_serv,
+                clave_producto=c.clave_producto,
                 no_identificacion=c.no_identificacion,
                 cantidad=c.cantidad,
                 clave_unidad=c.clave_unidad,
@@ -298,16 +298,22 @@ def duplicar_factura(db: Session, factura_id: UUID) -> Factura:
                 importe=c.importe,
                 descuento=c.descuento,
                 objeto_imp=c.objeto_imp,
-                iva_traslado=c.iva_traslado, 
-                iva_retencion=c.iva_retencion,
-                isr_retencion=c.isr_retencion,
+                
+                # Impuestos
                 iva_tasa=c.iva_tasa,
-                ret_iva_tasa=c.ret_iva_tasa,
-                ret_isr_tasa=c.ret_isr_tasa,
                 iva_importe=c.iva_importe,
+                
+                ret_iva_tasa=c.ret_iva_tasa,
                 ret_iva_importe=c.ret_iva_importe,
+                
+                ret_isr_tasa=c.ret_isr_tasa,
                 ret_isr_importe=c.ret_isr_importe,
-                cuenta_predial=c.cuenta_predial,
+                
+                # Campos adicionales
+                tipo=c.tipo,
+                requiere_lote=c.requiere_lote,
+                lote=c.lote,
+                # cuenta_predial no existe en el modelo actual
             )
          )
 
