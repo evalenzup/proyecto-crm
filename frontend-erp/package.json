@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "dev": "next dev",
     "build": "next build",
-    "build:prod": "NEXT_PUBLIC_API_URL=http://localhost:8001/api NEXT_DIST_DIR=.next_prod next build",
+    "build:prod": "NEXT_PUBLIC_API_URL=https://api.sistemas-erp.com/api NEXT_DIST_DIR=.next_prod next build",
     "start": "next start",
     "start:prod": "NEXT_DIST_DIR=.next_prod next start -p 3001",
     "lint": "next lint"

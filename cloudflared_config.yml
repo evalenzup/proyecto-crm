@@ -1,0 +1,12 @@
+tunnel: 4635b9ed-bf62-40cb-91e7-bf413106722b
+credentials-file: /Users/alonso/.cloudflared/4635b9ed-bf62-40cb-91e7-bf413106722b.json
+
+ingress:
+  # Frontend
+  - hostname: app.sistemas-erp.com
+    service: http://localhost:3001
+  # Backend API
+  - hostname: api.sistemas-erp.com
+    service: http://localhost:8001
+  # Catch-all
+  - service: http_status:404

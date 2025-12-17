@@ -9,7 +9,7 @@ from app.models.cliente import Cliente
 from app.models.empresa import Empresa
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.repository.base import BaseRepository
-from app.catalogos_sat.regimenes_fiscales import obtener_clave_regimen_por_descripcion
+from app.catalogos_sat.regimenes_fiscales import obtener_clave_regimen_por_descripcion, validar_regimen_fiscal
 from app.catalogos_sat.codigos_postales import validar_codigo_postal
 from app.validators.rfc import validar_rfc_por_regimen
 
@@ -26,7 +26,13 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
         """Validaciones de negocio específicas para Cliente."""
         regimen_fiscal_clave = None
         if regimen_fiscal:
-            regimen_fiscal_clave = obtener_clave_regimen_por_descripcion(regimen_fiscal)
+            # Primero verificar si es una clave válida (ej: "612")
+            if validar_regimen_fiscal(regimen_fiscal):
+                regimen_fiscal_clave = regimen_fiscal
+            else:
+                # Si no, intentar obtener por descripción (legacy)
+                regimen_fiscal_clave = obtener_clave_regimen_por_descripcion(regimen_fiscal)
+            
             if not regimen_fiscal_clave:
                 raise HTTPException(status_code=400, detail="Régimen fiscal inválido.")
 
@@ -36,7 +42,12 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
         if rfc:
             regimen_clave_a_usar = regimen_fiscal_clave
             if not regimen_clave_a_usar and cliente_existente:
-                regimen_clave_a_usar = obtener_clave_regimen_por_descripcion(cliente_existente.regimen_fiscal)
+                # Intentar resolver el régimen del cliente existente
+                existing_reg = cliente_existente.regimen_fiscal
+                if validar_regimen_fiscal(existing_reg):
+                     regimen_clave_a_usar = existing_reg
+                else:
+                     regimen_clave_a_usar = obtener_clave_regimen_por_descripcion(existing_reg)
 
             if regimen_clave_a_usar and not validar_rfc_por_regimen(rfc, regimen_clave_a_usar):
                 raise HTTPException(

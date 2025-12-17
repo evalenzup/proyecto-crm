@@ -28,7 +28,7 @@ const ManualUsuarioPage: React.FC = () => {
                         <Panel header={<Title level={4} style={{ margin: 0 }}><LoginOutlined /> 1. Acceso al Sistema</Title>} key="1">
                             <Paragraph>
                                 <ol>
-                                    <li>Ingresa a la dirección web proporcionada por tu administrador (ej: <Text code>http://localhost:3001</Text> para Producción).</li>
+                                    <li>Ingresa a la dirección web proporcionada por tu administrador (ej: <Text code>https://app.sistemas-erp.com/</Text> para Producción).</li>
                                     <li>Introduce tu correo electrónico y contraseña.</li>
                                     <li>Haz clic en <strong>"Ingresar"</strong>.</li>
                                 </ol>

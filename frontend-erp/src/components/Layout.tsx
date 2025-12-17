@@ -20,7 +20,7 @@ import {
   FontSizeOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons';
-import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps } from 'antd';
+import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { Breadcrumbs } from './Breadcrumb';
 import { useAuth } from '@/context/AuthContext';
@@ -284,33 +284,43 @@ export const Layout: React.FC<{
         contentStyle={{ margin: 0, padding: 0, maxWidth: '100%' }}
         rightContentRender={false}
         // Render del header del sider para colocar el logo arriba del menú
-        menuHeaderRender={() => (
-          <div
-            style={{
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-            }}
-          >
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl}
-                alt="Logo empresa"
-                style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
-                onError={(e) => {
-                  const t = e.currentTarget as HTMLImageElement;
-                  if (t.src.endsWith('/vercel.svg')) return;
-                  t.src = '/vercel.svg';
-                }}
-              />
-            ) : (
-              <div style={{ width: '100%', height: 40, background: 'var(--ant-color-fill-tertiary)' }} />
-            )}
-          </div>
-        )}
+        menuHeaderRender={() => {
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          const screens = Grid.useBreakpoint();
+          // Ocultar logo en pantallas pequeñas (xs y sm)
+          // Si no es md (desktop), asumimos que es móvil o tablet vertical
+          if (!screens.md) {
+            return null;
+          }
+
+          return (
+            <div
+              style={{
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+              }}
+            >
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl}
+                  alt="Logo empresa"
+                  style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                  onError={(e) => {
+                    const t = e.currentTarget as HTMLImageElement;
+                    if (t.src.endsWith('/vercel.svg')) return;
+                    t.src = '/vercel.svg';
+                  }}
+                />
+              ) : (
+                <div style={{ width: '100%', height: 40, background: 'var(--ant-color-fill-tertiary)' }} />
+              )}
+            </div>
+          )
+        }}
         // Footer del menú lateral: switch de tema fijo al final del menú
         // Footer del menú lateral: Usuario + Switch tema + Font Size
         menuFooterRender={(props) => {

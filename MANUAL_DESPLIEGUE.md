@@ -107,149 +107,94 @@ docker compose -p crm_prod -f docker-compose.prod.yml down
 
 ---
 
-## 🌐 Exponer a Internet (Opcional)
+## 🔄 Ciclo de Trabajo: De Desarrollo a Producción
 
-Si deseas acceder a tu entorno de Producción desde internet (fuera de tu red local), la forma más segura y gratuita es usar **Cloudflare Tunnel**. Esto evita tener que abrir puertos en tu router.
+Este es el flujo recomendado para trabajar en nuevas funcionalidades y luego publicarlas.
 
-## 🌐 Exponer a Internet (Guía Paso a Paso con Cloudflare Tunnel)
+### 1. Desarrollo (Local)
+Trabaja en tu entorno de desarrollo (Puertos 3000/8000).
+*   Haz cambios en el código.
+*   Prueba que todo funcione.
 
-Esta guía te permitirá acceder a tu sistema desde cualquier lugar sin abrir puertos en tu router, utilizando un dominio propio y la herramienta gratuita de Cloudflare.
+### 2. Pasar a Producción
+Una vez que tus cambios estén listos y probados en Dev, sigue estos pasos para actualizar Producción.
 
-### Prerrequisitos
-1.  **Dominio**: Debes haber comprado un dominio (ej: `misistema.com`).
-2.  **Cuenta Cloudflare**: Tu dominio debe estar gestionado por Cloudflare (cambia los NS en tu registrador).
-
-### Paso 1: Instalar cloudflared
-En esta Mac (donde corre el sistema), abre una terminal y ejecuta:
-
-```bash
-brew install cloudflared
-```
-
-### Paso 2: Autenticación
-Vincula el agente con tu cuenta de Cloudflare:
-
-```bash
-cloudflared tunnel login
-```
-*Se abrirá una ventana del navegador. Selecciona tu dominio para autorizar.*
-
-### Paso 3: Crear el Túnel
-Crea un túnel con un nombre identificativo (ej: `crm-prod`):
-
-```bash
-cloudflared tunnel create crm-prod
-```
-*Copia el `Tunnel ID` que aparecerá en la salida (es una cadena larga tipo `UUID`).*
-
-### Paso 4: Configurar los Subdominios (DNS)
-Asigna subdominios a tu túnel. Ejecuta:
-
-```bash
-# Para el Frontend (lo que verán los usuarios)
-cloudflared tunnel route dns crm-prod app.misistema.com
-
-# Para el Backend (la API)
-cloudflared tunnel route dns crm-prod api.misistema.com
-```
-
-### Paso 5: Crear Archivo de Configuración
-Crea un archivo llamado `config.yml` en la carpeta `~/.cloudflared/` (o en tu carpeta de proyecto si prefieres invocarlo directamente):
-
-```yaml
-tunnel: <TU_TUNNEL_ID_DEL_PASO_3>
-credentials-file: /Users/alonso/.cloudflared/<TU_TUNNEL_ID_DEL_PASO_3>.json
-
-ingress:
-  # Frontend
-  - hostname: app.misistema.com
-    service: http://localhost:3001
-  # Backend
-  - hostname: api.misistema.com
-    service: http://localhost:8001
-  # Regla por defecto (404)
-  - service: http_status:404
-```
-
-### Paso 6: Ejecutar el Túnel
-Para iniciar la conexión:
-
-```bash
-cloudflared tunnel run crm-prod
-```
-
-### Paso 7: Actualizar Frontend
-Finalmente, como tu API ahora vivirá en `https://api.misistema.com`, debes reconstruir el Frontend de Producción:
-
-1.  Edita `frontend-erp/package.json` y cambia la URL en el script `build:prod`:
-    ```json
-    "build:prod": "NEXT_PUBLIC_API_URL=https://api.misistema.com/api NEXT_DIST_DIR=.next_prod next build"
-    ```
-2.  Despliega de nuevo:
+**A. Actualizar Backend**
+*   **Si solo cambiaste código (Python):**
     ```bash
-    npm run build:prod
-    npm run start:prod
+    cd backend
+    docker compose -p crm_prod -f docker-compose.prod.yml restart backend
+    ```
+*   **Si agregaste librerías (requirements.txt):**
+    ```bash
+    cd backend
+    docker compose -p crm_prod -f docker-compose.prod.yml up -d --build backend
     ```
 
-¡Listo! Ahora podrás entrar a `https://app.misistema.com` desde cualquier lugar.
+**B. Actualizar Frontend**
+Siempre debes reconstruir la aplicación para que incluya los cambios visuales y de lógica.
+```bash
+cd frontend-erp
+npm run build:prod
+npm run start:prod
+```
 
 ---
 
-## 🔒 Opción 2: Sin Dominio (Red Privada / Tailscale)
+## 🌐 Exponer a Internet (Cloudflare Tunnel)
 
-Si **NO** quieres comprar un dominio, puedes usar **Tailscale**. Esto crea una "red privada virtual" entre tus dispositivos.
+Para que el sistema sea accesible desde `https://app.sistemas-erp.com` sin abrir puertos.
 
-### ¿Cómo funciona?
-1.  Instalas Tailscale en esta Mac (Servidor).
-2.  Instalas Tailscale en tu celular o laptop remota.
-3.  Ambos dispositivos se "verán" como si estuvieran en la misma red WiFi, sin importar dónde estén.
+### Configuración (Ya realizada)
+Hemos creado un archivo de configuración `cloudflared_config.yml` y configurado los DNS para tu dominio.
 
-### Pasos:
-1.  Descarga e instala **Tailscale** (gratis para uso personal) en esta Mac desde `https://tailscale.com`.
-2.  Loguéate y verás que te asigna una **IP Privada** (ej: `100.x.y.z`) y un **MagicDNS** (ej: `mac-studio`).
-3.  En tu **Laptop Remota o Celular**, instala también Tailscale y usa la misma cuenta.
-4.  Ahora podrás acceder al sistema usando la IP de Tailscale de la Mac:
-    *   `http://100.x.y.z:3001` (o `http://mac-studio:3001`)
+### 🚀 Cómo Iniciar el Acceso Remoto
+Cada vez que reinicies tu computadora o quieras activar el acceso externo, abre una terminal en la carpeta del proyecto y ejecuta:
 
-*Ventaja*: Seguridad total (solo tus dispositivos acceden).
-*Desventaja*: Debes instalar la app en cada dispositivo que quiera entrar.
+```bash
+# Usa la ruta absoluta para evitar errores
+cloudflared tunnel --config /Users/alonso/Documents/Desarrollo/proyecto-crm/cloudflared_config.yml run
+```
+
+*Deberás ver logs indicando que las conexiones están activas.*
+
+### URLs de Acceso
+*   **Sistema (Usuarios):** `https://app.sistemas-erp.com`
+*   **API (Backend):** `https://api.sistemas-erp.com` (Uso interno del sistema)
 
 ---
 
-## ⚡ Opción 3: Rápido / Temporal (Tunnelmole)
+## ⚡ Opción 2: Sin Dominio (Solo Red Local/VPN)
 
-Si solo necesitas mostrar el proyecto a alguien rápidamente y no quieres configurar cuentas ni instalar apps en el celular.
+Si decides no usar el dominio, puedes usar **Tailscale**.
+1.  Instala Tailscale en el servidor y en tu celular/laptop.
+2.  Accede usando la IP de Tailscale del servidor: `http://100.x.y.z:3001`.
 
-1.  **Instalar** (usando Node.js):
+
+
+---
+
+## ❓ Solución de Problemas Comunes
+
+### 1. Error "Network Error" o "CORS" al hacer login
+*   **Causa**: El Backend rechazó la conexión porque el dominio público (ej: `app.sistemas-erp.com`) no está en la lista blanca.
+*   **Solución**:
+    1.  Edita `backend/app/config.py`.
+    2.  Agrega tu dominio (con `https://`) a la lista `ALLOWED_ORIGINS`.
+    3.  Reinicia el backend.
+
+### 2. Error 400 / Mixed Content / Redirecciones a HTTP
+*   **Causa**: El Backend (Uvicorn) no sabe que está detrás de Cloudflare (HTTPS) y trata las peticiones como inseguras (HTTP).
+*   **Solución**:
+    Asegúrate de que en `docker-compose.prod.yml` el comando de inicio incluya:
+    ```yaml
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
+    ```
+    Esto fuerza al servidor a confiar en los encabezados seguros del proxy.
+
+### 3. Error "ModuleNotFoundError" tras actualizar código
+*   **Causa**: Agregaste librerías nuevas al `requirements.txt` pero solo reiniciaste el contenedor.
+*   **Solución**: Reconstruye el contenedor:
     ```bash
-    npm install -g tunnelmole
+    docker compose -p crm_prod -f docker-compose.prod.yml up -d --build backend
     ```
-
-2.  **Exponer Backend** (Terminal 1):
-    ```bash
-    tmole 8001
-    # Copia la URL generada, ej: https://api-backend.tunnelmole.net
-    ```
-
-3.  **Exponer Frontend** (Terminal 2):
-    ```bash
-    tmole 3001
-    # Copia la URL generada, ej: https://mi-frontend.tunnelmole.net
-    ```
-
-4.  **Conectar**:
-    Para que funcione el login, debes reconstruir el frontend apuntando a la URL pública del backend (Paso 2):
-    
-    *Editar `frontend-erp/package.json`*:
-    ```json
-    "build:prod": "NEXT_PUBLIC_API_URL=https://api-backend.tunnelmole.net/api NEXT_DIST_DIR=.next_prod next build"
-    ```
-    
-    *Reconstruir*:
-    ```bash
-    npm run build:prod
-    npm run start:prod
-    ```
-
-Ahora entra a `https://mi-frontend.tunnelmole.net` desde cualquier navegador.
-
