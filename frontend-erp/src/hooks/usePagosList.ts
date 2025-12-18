@@ -81,6 +81,11 @@ export const usePagosList = () => {
     fetchPagos();
   }, [fetchPagos, router.asPath]);
 
+  // Reset page logic
+  useEffect(() => {
+    setPagination(p => ({ ...p, current: 1 }));
+  }, [empresaId, clienteId, estatus, rangoFechas]);
+
   // Ya no necesitamos fetchEmpresas, el hook lo hace
 
   const debouncedBuscarClientes = useMemo(() =>

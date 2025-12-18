@@ -56,6 +56,11 @@ export const useClienteList = (): UseClienteListResult => {
     return () => clearTimeout(timer);
   }, [rfcFiltro, nombreFiltro]);
 
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [empresaFiltro, debouncedRfc, debouncedNombre]);
+
   const fetchClientes = useCallback(async () => {
     if (!empresaFiltro) {
       setClientes([]);

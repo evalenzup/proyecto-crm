@@ -118,7 +118,12 @@ const EgresosListPage: React.FC = () => {
 
   useEffect(() => {
     fetchEgresos();
-  }, [filters, currentPage, pageSize, selectedEmpresaId]); // Agregar dependency
+  }, [filters, currentPage, pageSize, selectedEmpresaId]);
+
+  // Reset page logic for company change (others handled manually)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedEmpresaId]);
 
   const handleFilterChange = (key: string, value: any) => {
     // Empresa se maneja aparte

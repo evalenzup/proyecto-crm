@@ -17,8 +17,9 @@ import {
   Alert,
   Tag,
   Upload,
+  Popconfirm,
 } from 'antd';
-import { MinusCircleOutlined, PlusOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { MinusCircleOutlined, PlusOutlined, FilePdfOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
@@ -523,6 +524,28 @@ const ClienteFormPage: React.FC = () => {
 
             <Form.Item style={{ textAlign: 'right', marginTop: 16 }}>
               <Space>
+                {id && (
+                  <Popconfirm
+                    title="¿Estás seguro de eliminar este cliente?"
+                    onConfirm={async () => {
+                      try {
+                        const { clienteService } = await import('@/services/clienteService');
+                        await clienteService.deleteCliente(String(id));
+                        message.success('Cliente eliminado correctamente');
+                        router.push('/clientes');
+                      } catch (error) {
+                        console.error(error);
+                        message.error('Error al eliminar cliente');
+                      }
+                    }}
+                    okText="Sí"
+                    cancelText="No"
+                  >
+                    <Button danger icon={<DeleteOutlined />}>
+                      Eliminar
+                    </Button>
+                  </Popconfirm>
+                )}
                 <Button onClick={() => router.push('/clientes')}>Cancelar</Button>
                 <Button type="primary" htmlType="submit">
                   {id ? 'Actualizar' : 'Guardar'}

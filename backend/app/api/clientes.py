@@ -275,6 +275,9 @@ def eliminar_cliente(
         empresas_ids = [e.id for e in cliente.empresas]
         if current_user.empresa_id not in empresas_ids:
             raise HTTPException(status_code=404, detail="Cliente no encontrado")
+            
+    cliente_repo.remove(db, id=id)
+    return Response(status_code=204)
 
 @router.post("/{id}/vincular", status_code=200)
 def vincular_cliente(

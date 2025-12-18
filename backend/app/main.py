@@ -39,6 +39,10 @@ app = FastAPI(
 # Montar el directorio de datos como archivos estáticos
 app.mount("/data", StaticFiles(directory="data"), name="data")
 
+# Gzip Compression
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # CORS usando orígenes definidos en settings
 app.add_middleware(
     CORSMiddleware,

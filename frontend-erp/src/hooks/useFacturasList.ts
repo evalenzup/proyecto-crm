@@ -89,6 +89,11 @@ export const useFacturasList = () => {
     fetchFacturas();
   }, [fetchFacturas]);
 
+  // Reset page logic
+  useEffect(() => {
+    setPagination(p => ({ ...p, current: 1 }));
+  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas, folio]);
+
   // Ya no necesitamos fetchEmpresas, el hook lo hace
 
   const debouncedBuscarClientes = useMemo(() =>

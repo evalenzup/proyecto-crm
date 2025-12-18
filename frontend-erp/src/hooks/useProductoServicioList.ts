@@ -46,6 +46,11 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Reset page logic
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [empresaFiltro, debouncedSearchTerm]);
+
   const fetchDescripciones = useCallback(async (items: ProductoServicioOut[]) => {
     if (items.length === 0) return;
     const clavesProd = [...new Set(items.map(i => i.clave_producto))];
