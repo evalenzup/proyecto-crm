@@ -5,7 +5,7 @@ import { Card, Typography, Button, Modal, Divider, FloatButton } from 'antd';
 import { BookOutlined, FileTextOutlined, ArrowUpOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Layout } from '@/components/Layout';
+import { Breadcrumbs } from '@/components/Breadcrumb';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -36,17 +36,14 @@ export async function getStaticProps() {
 const ManualUsuarioPage: React.FC<ManualProps> = ({ manualOperativo, manualRapido }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-
-
     return (
-        <Layout title="Manual de Usuario" breadcrumbs={[{ path: '/ayuda', label: 'Ayuda' }]}>
-            <Card
-                style={{
-                    maxWidth: 1000,
-                    margin: '0 auto',
-                    marginBottom: 40
-                }}
-                extra={
+        <>
+            <div className="app-page-header">
+                <div className="app-page-header__left">
+                    <Breadcrumbs />
+                    <h1 className="app-title">Manual de Usuario</h1>
+                </div>
+                <div className="app-page-header__right">
                     <Button
                         type="primary"
                         icon={<BookOutlined />}
@@ -54,62 +51,72 @@ const ManualUsuarioPage: React.FC<ManualProps> = ({ manualOperativo, manualRapid
                     >
                         Ver Guía Rápida (Resumen)
                     </Button>
-                }
-            >
-                <div className="markdown-body">
-                    <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                            h1: ({ node, ...props }) => <Title level={1} style={{ marginTop: 0 }} {...props} />,
-                            h2: ({ node, ...props }) => <Title level={2} style={{ marginTop: 32, borderBottom: '1px solid #eee', paddingBottom: 8 }} {...props} />,
-                            h3: ({ node, ...props }) => <Title level={3} style={{ marginTop: 24 }} {...props} />,
-                            p: ({ node, ...props }) => <Paragraph style={{ marginBottom: 16 }} {...props} />,
-                            li: ({ node, ...props }) => (
-                                <li style={{ marginBottom: 8 }}>
-                                    <Text>{props.children}</Text>
-                                </li>
-                            ),
-                            blockquote: ({ node, ...props }) => (
-                                <blockquote style={{
-                                    borderLeft: '4px solid #1890ff',
-                                    paddingLeft: 16,
-                                    color: 'var(--ant-color-text-secondary)',
-                                    fontStyle: 'italic',
-                                    margin: '16px 0'
-                                }} {...props}>
-                                    <Paragraph style={{ margin: 0, color: 'inherit' }}>{props.children}</Paragraph>
-                                </blockquote>
-                            )
-                        }}
-                    >
-                        {manualOperativo}
-                    </ReactMarkdown>
                 </div>
-            </Card>
+            </div>
 
-            <FloatButton.BackTop />
+            <div className="app-content">
+                <Card
+                    style={{
+                        maxWidth: 1000,
+                        margin: '0 auto',
+                        marginBottom: 40
+                    }}
+                >
+                    <div className="markdown-body">
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                                h1: ({ node, ...props }) => <Title level={1} style={{ marginTop: 0 }} {...props} />,
+                                h2: ({ node, ...props }) => <Title level={2} style={{ marginTop: 32, borderBottom: '1px solid #eee', paddingBottom: 8 }} {...props} />,
+                                h3: ({ node, ...props }) => <Title level={3} style={{ marginTop: 24 }} {...props} />,
+                                p: ({ node, ...props }) => <Paragraph style={{ marginBottom: 16 }} {...props} />,
+                                li: ({ node, ...props }) => (
+                                    <li style={{ marginBottom: 8 }}>
+                                        <Text>{props.children}</Text>
+                                    </li>
+                                ),
+                                blockquote: ({ node, ...props }) => (
+                                    <blockquote style={{
+                                        borderLeft: '4px solid #1890ff',
+                                        paddingLeft: 16,
+                                        color: 'var(--ant-color-text-secondary)',
+                                        fontStyle: 'italic',
+                                        margin: '16px 0'
+                                    }} {...props}>
+                                        <Paragraph style={{ margin: 0, color: 'inherit' }}>{props.children}</Paragraph>
+                                    </blockquote>
+                                )
+                            }}
+                        >
+                            {manualOperativo}
+                        </ReactMarkdown>
+                    </div>
+                </Card>
 
-            {/* Modal para Guía Rápida */}
-            <Modal
-                title={<span><FileTextOutlined /> Guía Rápida de Referencia</span>}
-                open={isModalOpen}
-                onCancel={() => setIsModalOpen(false)}
-                footer={[
-                    <Button key="close" onClick={() => setIsModalOpen(false)}>
-                        Cerrar
-                    </Button>
-                ]}
-                width={800}
-                style={{ top: 20 }}
-                bodyStyle={{ maxHeight: '80vh', overflowY: 'auto' }}
-            >
-                <div className="markdown-body-modal">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {manualRapido}
-                    </ReactMarkdown>
-                </div>
-            </Modal>
-        </Layout>
+                <FloatButton.BackTop />
+
+                {/* Modal para Guía Rápida */}
+                <Modal
+                    title={<span><FileTextOutlined /> Guía Rápida de Referencia</span>}
+                    open={isModalOpen}
+                    onCancel={() => setIsModalOpen(false)}
+                    footer={[
+                        <Button key="close" onClick={() => setIsModalOpen(false)}>
+                            Cerrar
+                        </Button>
+                    ]}
+                    width={800}
+                    style={{ top: 20 }}
+                    bodyStyle={{ maxHeight: '80vh', overflowY: 'auto' }}
+                >
+                    <div className="markdown-body-modal">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {manualRapido}
+                        </ReactMarkdown>
+                    </div>
+                </Modal>
+            </div>
+        </>
     );
 };
 
