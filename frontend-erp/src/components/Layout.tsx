@@ -20,7 +20,7 @@ import {
   FontSizeOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons';
-import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid } from 'antd';
+import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { Breadcrumbs } from './Breadcrumb';
 import { useAuth } from '@/context/AuthContext';
@@ -370,8 +370,10 @@ export const Layout: React.FC<{
                     <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {user.nombre_completo || 'Usuario'}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--ant-color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {user.email}
+                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <Typography.Text type="secondary" style={{ fontSize: '0.85em' }}>
+                        {user.email}
+                      </Typography.Text>
                     </div>
                   </div>
                   <Tooltip title="Cerrar Sesión">
@@ -384,12 +386,12 @@ export const Layout: React.FC<{
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, opacity: 0.85 }}>Modo oscuro</span>
+                <Typography.Text style={{ fontSize: '0.9em', opacity: 0.85 }}>Modo oscuro</Typography.Text>
                 <ThemeSwitch mode={mode} onToggle={handleThemeChange} />
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, opacity: 0.85 }}>Tamaño de letra</span>
+                <Typography.Text style={{ fontSize: '0.9em', opacity: 0.85 }}>Tamaño de letra</Typography.Text>
                 <Space.Compact block>
                   {[
                     { label: 'A-', val: 12, title: 'Chico' },
@@ -405,7 +407,7 @@ export const Layout: React.FC<{
                           textAlign: 'center',
                           cursor: 'pointer',
                           padding: '4px 0',
-                          fontSize: 12,
+                          fontSize: '0.9em',
                           // Usar colores del tema actual si es posible, o fallback
                           backgroundColor: fontSize === opt.val ? (mode === 'dark' ? '#177ddc' : '#1890ff') : 'transparent',
                           color: fontSize === opt.val ? '#fff' : 'inherit',

@@ -1,136 +1,117 @@
-import React from 'react';
-import { Card, Typography, Divider, Steps, Collapse, Alert } from 'antd';
-import {
-    LoginOutlined,
-    ShopOutlined,
-    FileSyncOutlined,
-    BarChartOutlined,
-    SettingOutlined,
-    TableOutlined
-} from '@ant-design/icons';
+import React, { useState } from 'react';
+import fs from 'fs';
+import path from 'path';
+import { Card, Typography, Button, Modal, Divider, FloatButton } from 'antd';
+import { BookOutlined, FileTextOutlined, ArrowUpOutlined } from '@ant-design/icons';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Layout } from '@/components/Layout';
 
-const { Title, Paragraph, Text } = Typography;
-const { Panel } = Collapse;
+const { Title, Text, Paragraph } = Typography;
 
-const ManualUsuarioPage: React.FC = () => {
+interface ManualProps {
+    manualOperativo: string;
+    manualRapido: string;
+}
+
+export async function getStaticProps() {
+    const contentDir = path.join(process.cwd(), 'content');
+
+    // Leer Manual Operativo (Detallado)
+    const manualOperativoPath = path.join(contentDir, 'manual-operativo.md');
+    const manualOperativo = fs.readFileSync(manualOperativoPath, 'utf8');
+
+    // Leer Manual Rápido (Resumen)
+    const manualRapidoPath = path.join(contentDir, 'manual-rapido.md');
+    const manualRapido = fs.readFileSync(manualRapidoPath, 'utf8');
+
+    return {
+        props: {
+            manualOperativo,
+            manualRapido,
+        },
+    };
+}
+
+const ManualUsuarioPage: React.FC<ManualProps> = ({ manualOperativo, manualRapido }) => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+
+
     return (
         <Layout title="Manual de Usuario" breadcrumbs={[{ path: '/ayuda', label: 'Ayuda' }]}>
-            <Card style={{ maxWidth: 1000, margin: '0 auto', opacity: 0.95 }}>
-                <Typography>
-                    <Title level={2}>Sistema CRM/ERP - Manual Operativo</Title>
-                    <Paragraph>
-                        Bienvenido al manual operativo del sistema. Este documento describe las funciones principales para el uso diario de la plataforma.
-                    </Paragraph>
-
-                    <Collapse defaultActiveKey={['1']} ghost size='large'>
-                        {/* Sección 1: Acceso */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><LoginOutlined /> 1. Acceso al Sistema</Title>} key="1">
-                            <Paragraph>
-                                <ol>
-                                    <li>Ingresa a la dirección web proporcionada por tu administrador (ej: <Text code>https://app.sistemas-erp.com/</Text> para Producción).</li>
-                                    <li>Introduce tu correo electrónico y contraseña.</li>
-                                    <li>Haz clic en <strong>"Ingresar"</strong>.</li>
-                                </ol>
-                                <Alert message="Importante" type="info" description="Si no tienes cuenta o olvidaste tu contraseña, contacta al administrador del sistema." />
-                            </Paragraph>
-                        </Panel>
-
-                        {/* Sección 2: Catálogos */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><ShopOutlined /> 2. Gestión de Catálogos</Title>} key="2">
-                            <Paragraph>Para que el sistema funcione correctamente, es vital tener la información base completa y sin errores.</Paragraph>
-
-                            <Title level={5}>Clientes</Title>
-                            <ul>
-                                <li>Ve al menú <strong>Clientes</strong> y haz clic en <strong>"+ Nuevo Cliente"</strong>.</li>
-                                <li><strong>(Opcional) Importar CSF:</strong> Tienes el PDF de la Constancia? Usa el botón "Importar" para llenar los datos automáticamente.</li>
-                                <li><strong>Datos Fiscales:</strong>
-                                    <ul>
-                                        <li><strong>Razón Social:</strong> Sin régimen capital (ej: "Empresa S.A. de C.V." -{'>'} "Empresa").</li>
-                                        <li><strong>RFC:</strong> Verifica la homoclave.</li>
-                                        <li><strong>CP:</strong> Debe coincidir con la Constancia de Situación Fiscal.</li>
-                                    </ul>
+            <Card
+                style={{
+                    maxWidth: 1000,
+                    margin: '0 auto',
+                    marginBottom: 40
+                }}
+                extra={
+                    <Button
+                        type="primary"
+                        icon={<BookOutlined />}
+                        onClick={() => setIsModalOpen(true)}
+                    >
+                        Ver Guía Rápida (Resumen)
+                    </Button>
+                }
+            >
+                <div className="markdown-body">
+                    <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                            h1: ({ node, ...props }) => <Title level={1} style={{ marginTop: 0 }} {...props} />,
+                            h2: ({ node, ...props }) => <Title level={2} style={{ marginTop: 32, borderBottom: '1px solid #eee', paddingBottom: 8 }} {...props} />,
+                            h3: ({ node, ...props }) => <Title level={3} style={{ marginTop: 24 }} {...props} />,
+                            p: ({ node, ...props }) => <Paragraph style={{ marginBottom: 16 }} {...props} />,
+                            li: ({ node, ...props }) => (
+                                <li style={{ marginBottom: 8 }}>
+                                    <Text>{props.children}</Text>
                                 </li>
-                            </ul>
-
-                            <Title level={5}>Productos y Servicios</Title>
-                            <ul>
-                                <li>Ve al menú <strong>Productos</strong>.</li>
-                                <li><strong>Clave SAT:</strong> Es vital para la deducibilidad (ej: 80141605).</li>
-                                <li><strong>Clave Unidad:</strong> Usualmente E48 (Servicio) o H87 (Pieza).</li>
-                            </ul>
-                        </Panel>
-
-                        {/* Sección 3: Ciclo de Ventas */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><FileSyncOutlined /> 3. Ciclo de Ventas (Flujo Detallado)</Title>} key="3">
-                            <Paragraph>El flujo más común y seguro es: <strong>Facturar la venta → Registrar el cobro cuando ocurra</strong>.</Paragraph>
-
-                            <Steps direction="vertical" current={-1} items={[
-                                {
-                                    title: 'Paso 1: Emitir Factura',
-                                    description: (
-                                        <ul>
-                                            <li>Ve a <strong>Facturas</strong> {'>'} "+ Nueva".</li>
-                                            <li><em>Tip: Usa el botón <strong>Duplicar</strong> (icono copiar) en el listado para copiar una factura anterior.</em></li>
-                                            <li><strong>Encabezado:</strong>
-                                                <ul>
-                                                    <li><strong>Método de Pago:</strong> Usa <em>PUE</em> si ya pagaron, o <em>PPD</em> si es crédito.</li>
-                                                    <li><strong>Uso CFDI:</strong> Generalmente "G03 - Gastos en general".</li>
-                                                </ul>
-                                            </li>
-                                            <li><strong>Conceptos:</strong> Agrega tus productos.</li>
-                                            <li>Haz clic en <strong>"Timbrar ante el SAT"</strong> para enviar el correo al cliente.</li>
-                                        </ul>
-                                    )
-                                },
-                                {
-                                    title: 'Paso 2: Registrar Cobranza (Complemento de Pago)',
-                                    description: (
-                                        <ul>
-                                            <li><em>(Solo si la factura fue PPD)</em></li>
-                                            <li>Ve a <strong>Pagos</strong> {'>'} "+ Nuevo Pago".</li>
-                                            <li>Selecciona Cliente e ingresa el <strong>Monto Real</strong> recibido.</li>
-                                            <li>En la tabla, asigna el pago a la(s) factura(s) pendiente(s).</li>
-                                            <li>Clic en <strong>"Timbrar Pago"</strong> para generar el REP.</li>
-                                        </ul>
-                                    )
-                                }
-                            ]} />
-                        </Panel>
-
-                        {/* Sección 4: Egresos */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><TableOutlined /> 4. Gestión de Gastos (Egresos)</Title>} key="4">
-                            <Paragraph>Registra tus compras y gastos operativos.</Paragraph>
-                            <ul>
-                                <li>Ve al menú <strong>Egresos</strong> {'>'} "+ Nuevo Egreso".</li>
-                                <li><strong>Proveedor:</strong> Busca por nombre (min 3 letras).</li>
-                                <li><strong>Categoría:</strong> Vital para saber en qué gastas (ej: Renta, Nómina).</li>
-                                <li><strong>Evidencia:</strong> Puedes adjuntar el PDF/XML de tu compra.</li>
-                            </ul>
-                        </Panel>
-
-                        {/* Sección 5: Reportes */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><BarChartOutlined /> 5. Reportes y Consultas</Title>} key="5">
-                            <Paragraph>En el módulo de <strong>Facturas</strong>:</Paragraph>
-                            <ul>
-                                <li><strong>Buscador:</strong> Por nombre de cliente.</li>
-                                <li><strong>Filtro Folio:</strong> Escribe el folio exacto y presiona Enter.</li>
-                                <li><strong>Columnas:</strong> Visualiza Fecha Emisión vs Fecha Pago (Prog/Real).</li>
-                                <li><strong>Exportar:</strong> Botón "Exportar Excel" arriba a la derecha.</li>
-                            </ul>
-                        </Panel>
-
-                        {/* Sección 6: Admin */}
-                        <Panel header={<Title level={4} style={{ margin: 0 }}><SettingOutlined /> 6. Administración</Title>} key="6">
-                            <Paragraph>
-                                <em>(Solo Administradores)</em> Ve a <strong>Configuración {'>'} Usuarios</strong> para invitar colaboradores y asignar roles.
-                            </Paragraph>
-                        </Panel>
-                    </Collapse>
-                </Typography>
+                            ),
+                            blockquote: ({ node, ...props }) => (
+                                <blockquote style={{
+                                    borderLeft: '4px solid #1890ff',
+                                    paddingLeft: 16,
+                                    color: 'var(--ant-color-text-secondary)',
+                                    fontStyle: 'italic',
+                                    margin: '16px 0'
+                                }} {...props}>
+                                    <Paragraph style={{ margin: 0, color: 'inherit' }}>{props.children}</Paragraph>
+                                </blockquote>
+                            )
+                        }}
+                    >
+                        {manualOperativo}
+                    </ReactMarkdown>
+                </div>
             </Card>
+
+            <FloatButton.BackTop />
+
+            {/* Modal para Guía Rápida */}
+            <Modal
+                title={<span><FileTextOutlined /> Guía Rápida de Referencia</span>}
+                open={isModalOpen}
+                onCancel={() => setIsModalOpen(false)}
+                footer={[
+                    <Button key="close" onClick={() => setIsModalOpen(false)}>
+                        Cerrar
+                    </Button>
+                ]}
+                width={800}
+                style={{ top: 20 }}
+                bodyStyle={{ maxHeight: '80vh', overflowY: 'auto' }}
+            >
+                <div className="markdown-body-modal">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {manualRapido}
+                    </ReactMarkdown>
+                </div>
+            </Modal>
         </Layout>
     );
 };
 
 export default ManualUsuarioPage;
+

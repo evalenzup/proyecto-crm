@@ -7,7 +7,7 @@ Bienvenido al manual operativo del sistema. Este documento describe las funcione
 ## 🔑 1. Acceso al Sistema
 
 ### Iniciar Sesión
-1.  Ingresa a la dirección web proporcionada por tu administrador https://app.sistemas-erp.com/
+1.  Ingresa a la dirección web proporcionada por tu administrador (ej: `http://localhost:3001` para Producción).
 2.  Introduce tu correo electrónico y contraseña.
     *   *Solicita tus credenciales al administrador del sistema.*
 3.  Haz clic en **"Ingresar"**.
