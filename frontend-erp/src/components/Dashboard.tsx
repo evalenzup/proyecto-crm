@@ -16,8 +16,9 @@ const currency = (n: number, ccy: string) =>
 
 export const Dashboard: React.FC = () => {
   const [data, setData] = useState<IngresosEgresosOut | null>(null);
-  const [presupuestosData, setPresupuestosData] = useState<PresupuestosMetricsOut | null>(null);
-  const [loading, setLoading] = useState(false);
+  // const [presupuestosData, setPresupuestosData] = useState<PresupuestosMetricsOut | null>(null); // Disabled
+  const [loadingFinance, setLoadingFinance] = useState(false);
+  // const [loadingBudget, setLoadingBudget] = useState(false); // Disabled
 
   const [empresaId, setEmpresaId] = useState<string | undefined>(undefined);
   const [empresas, setEmpresas] = useState<EmpresaOut[]>([]);
@@ -33,22 +34,19 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!empresaId) return; // No cargar datos si no hay empresa seleccionada
+    if (!empresaId) return;
 
     let mounted = true;
-    setLoading(true);
 
-    Promise.all([
-      dashboardService.getIngresosEgresos({ months: 12, empresaId }),
-      dashboardService.getPresupuestosMetrics({ empresaId })
-    ])
-      .then(([ingresosRes, presupuestosRes]) => {
-        if (mounted) {
-          setData(ingresosRes);
-          setPresupuestosData(presupuestosRes);
-        }
+    // 2. Fetch Finance Metrics (Only)
+    setLoadingFinance(true);
+    dashboardService.getIngresosEgresos({ months: 12, empresaId })
+      .then((res) => {
+        if (mounted) setData(res);
       })
-      .finally(() => mounted && setLoading(false));
+      .finally(() => {
+        if (mounted) setLoadingFinance(false);
+      });
 
     return () => {
       mounted = false;
@@ -169,7 +167,7 @@ export const Dashboard: React.FC = () => {
       </Col>
 
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -187,7 +185,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -204,7 +202,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -221,7 +219,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -244,7 +242,7 @@ export const Dashboard: React.FC = () => {
       </Col>
 
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -262,7 +260,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -280,7 +278,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -297,7 +295,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -314,7 +312,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -330,7 +328,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -346,7 +344,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -362,7 +360,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       <Col xs={24} md={12} lg={6}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
@@ -379,7 +377,7 @@ export const Dashboard: React.FC = () => {
       </Col>
 
       <Col span={24}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Typography.Title level={5} style={{ marginBottom: 16 }}>
             Tendencia últimos 12 meses (MXN)
           </Typography.Title>
@@ -392,7 +390,7 @@ export const Dashboard: React.FC = () => {
       </Col>
 
       <Col span={24}>
-        <Card loading={loading}>
+        <Card loading={loadingFinance}>
           <Typography.Title level={5} style={{ marginBottom: 16 }}>
             Detalle mensual (MXN)
           </Typography.Title>

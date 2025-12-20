@@ -1,6 +1,6 @@
 import uuid
 import enum
-from sqlalchemy import Column, String, Numeric, Date, ForeignKey, Enum
+from sqlalchemy import Column, String, Numeric, Date, ForeignKey, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -59,3 +59,9 @@ class Egreso(Base):
     metodo_pago = Column(String, nullable=True)
 
     empresa = relationship("Empresa")
+
+    __table_args__ = (
+        Index("ix_egresos_fecha_egreso", "fecha_egreso"),
+        Index("ix_egresos_empresa_id", "empresa_id"),
+        Index("ix_egresos_estatus", "estatus"),
+    )

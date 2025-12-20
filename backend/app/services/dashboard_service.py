@@ -150,74 +150,142 @@ def ingresos_egresos_metrics(
     next_month_start = _next_month(month_start)
     year_start = _year_start(now)
 
-    q_ing_mtd = db.query(func.coalesce(func.sum(monto_mxn), 0)).filter(
+    # --- OPTIMIZATION START ---
+    # Consolidate MTD/YTD queries into single queries per table (Factura, Egreso) to reduce roundtrips.
+    
+    # 1. Facturas Aggregation (Ingresos + Por Cobrar for MTD & YTD)
+    # Filter common: estatus TIMBRADA, fecha >= year_start
+    q_facturas_agg = db.query(
+        # Ingresos MTD
+        func.sum(
+             case(
+                 (
+                     (Factura.status_pago == "PAGADA") & 
+                     (Factura.fecha_emision >= month_start) & 
+                     (Factura.fecha_emision < next_month_start), 
+                     monto_mxn
+                 ),
+                 else_=0
+             )
+        ).label("ingresos_mtd"),
+        # Ingresos YTD
+        func.sum(
+             case(
+                 (
+                     (Factura.status_pago == "PAGADA") &
+                     (Factura.fecha_emision >= year_start) &
+                     (Factura.fecha_emision < next_month_start),
+                     monto_mxn
+                 ),
+                 else_=0
+             )
+        ).label("ingresos_ytd"),
+        # Por Cobrar MTD
+        func.sum(
+             case(
+                 (
+                     (Factura.status_pago == "NO_PAGADA") &
+                     (Factura.fecha_emision >= month_start) &
+                     (Factura.fecha_emision < next_month_start),
+                     monto_mxn
+                 ),
+                 else_=0
+             )
+        ).label("por_cobrar_mtd"),
+        # Por Cobrar YTD
+        func.sum(
+             case(
+                 (
+                     (Factura.status_pago == "NO_PAGADA") &
+                     (Factura.fecha_emision >= year_start) &
+                     (Factura.fecha_emision < next_month_start),
+                     monto_mxn
+                 ),
+                 else_=0
+             )
+        ).label("por_cobrar_ytd"),
+    ).filter(
         Factura.estatus == "TIMBRADA",
-        Factura.status_pago == "PAGADA",
-        Factura.fecha_emision >= month_start,
-        Factura.fecha_emision < next_month_start,
+        Factura.fecha_emision >= year_start, # Base filter is YTD (since MTD is subset of YTD)
+        Factura.fecha_emision < next_month_start
     )
-    q_ing_ytd = db.query(func.coalesce(func.sum(monto_mxn), 0)).filter(
-        Factura.estatus == "TIMBRADA",
-        Factura.status_pago == "PAGADA",
-        Factura.fecha_emision >= year_start,
-        Factura.fecha_emision < next_month_start,
-    )
-    # Por cobrar MTD/YTD
-    q_pc_mtd = db.query(func.coalesce(func.sum(monto_mxn), 0)).filter(
-        Factura.estatus == "TIMBRADA",
-        Factura.status_pago == "NO_PAGADA",
-        Factura.fecha_emision >= month_start,
-        Factura.fecha_emision < next_month_start,
-    )
-    q_pc_ytd = db.query(func.coalesce(func.sum(monto_mxn), 0)).filter(
-        Factura.estatus == "TIMBRADA",
-        Factura.status_pago == "NO_PAGADA",
-        Factura.fecha_emision >= year_start,
-        Factura.fecha_emision < next_month_start,
-    )
+    
     if empresa_id:
-        q_ing_mtd = q_ing_mtd.filter(Factura.empresa_id == empresa_id)
-        q_ing_ytd = q_ing_ytd.filter(Factura.empresa_id == empresa_id)
-        q_pc_mtd = q_pc_mtd.filter(Factura.empresa_id == empresa_id)
-        q_pc_ytd = q_pc_ytd.filter(Factura.empresa_id == empresa_id)
+        q_facturas_agg = q_facturas_agg.filter(Factura.empresa_id == empresa_id)
 
-    q_egr_mtd = db.query(func.coalesce(func.sum(Egreso.monto), 0)).filter(
-        Egreso.estatus != EstatusEgreso.CANCELADO,
-        Egreso.fecha_egreso >= month_start,
-        Egreso.fecha_egreso < next_month_start,
-    )
-    q_egr_ytd = db.query(func.coalesce(func.sum(Egreso.monto), 0)).filter(
-        Egreso.estatus != EstatusEgreso.CANCELADO,
+    fact_agg = q_facturas_agg.one()
+    
+    ingresos_mtd = float(fact_agg.ingresos_mtd or 0)
+    ingresos_ytd = float(fact_agg.ingresos_ytd or 0)
+    por_cobrar_mtd = float(fact_agg.por_cobrar_mtd or 0)
+    por_cobrar_ytd = float(fact_agg.por_cobrar_ytd or 0)
+
+    # 2. Egresos Aggregation (Egresos + Por Pagar for MTD & YTD)
+    # Filter common: fecha >= year_start
+    q_egresos_agg = db.query(
+        # Egresos MTD (estatus != CANCELADO)
+        func.sum(
+             case(
+                 (
+                     (Egreso.estatus != EstatusEgreso.CANCELADO) & 
+                     (Egreso.fecha_egreso >= month_start) & 
+                     (Egreso.fecha_egreso < next_month_start), 
+                     Egreso.monto
+                 ),
+                 else_=0
+             )
+        ).label("egresos_mtd"),
+        # Egresos YTD
+        func.sum(
+             case(
+                 (
+                     (Egreso.estatus != EstatusEgreso.CANCELADO) & 
+                     (Egreso.fecha_egreso >= year_start) & 
+                     (Egreso.fecha_egreso < next_month_start), 
+                     Egreso.monto
+                 ),
+                 else_=0
+             )
+        ).label("egresos_ytd"),
+        # Por Pagar MTD (estatus == PENDIENTE)
+        func.sum(
+             case(
+                 (
+                     (Egreso.estatus == EstatusEgreso.PENDIENTE) & 
+                     (Egreso.fecha_egreso >= month_start) & 
+                     (Egreso.fecha_egreso < next_month_start), 
+                     Egreso.monto
+                 ),
+                 else_=0
+             )
+        ).label("por_pagar_mtd"),
+        # Por Pagar YTD
+        func.sum(
+             case(
+                 (
+                     (Egreso.estatus == EstatusEgreso.PENDIENTE) & 
+                     (Egreso.fecha_egreso >= year_start) & 
+                     (Egreso.fecha_egreso < next_month_start), 
+                     Egreso.monto
+                 ),
+                 else_=0
+             )
+        ).label("por_pagar_ytd"),
+    ).filter(
         Egreso.fecha_egreso >= year_start,
-        Egreso.fecha_egreso < next_month_start,
+        Egreso.fecha_egreso < next_month_start
     )
-    if empresa_id:
-        q_egr_mtd = q_egr_mtd.filter(Egreso.empresa_id == empresa_id)
-        q_egr_ytd = q_egr_ytd.filter(Egreso.empresa_id == empresa_id)
 
-    ingresos_mtd = float(q_ing_mtd.scalar() or 0)
-    ingresos_ytd = float(q_ing_ytd.scalar() or 0)
-    por_cobrar_mtd = float(q_pc_mtd.scalar() or 0)
-    por_cobrar_ytd = float(q_pc_ytd.scalar() or 0)
-
-    # Por pagar MTD/YTD: egresos en estatus PENDIENTE
-    q_pp_mtd = db.query(func.coalesce(func.sum(Egreso.monto), 0)).filter(
-        Egreso.estatus == EstatusEgreso.PENDIENTE,
-        Egreso.fecha_egreso >= month_start,
-        Egreso.fecha_egreso < next_month_start,
-    )
-    q_pp_ytd = db.query(func.coalesce(func.sum(Egreso.monto), 0)).filter(
-        Egreso.estatus == EstatusEgreso.PENDIENTE,
-        Egreso.fecha_egreso >= year_start,
-        Egreso.fecha_egreso < next_month_start,
-    )
     if empresa_id:
-        q_pp_mtd = q_pp_mtd.filter(Egreso.empresa_id == empresa_id)
-        q_pp_ytd = q_pp_ytd.filter(Egreso.empresa_id == empresa_id)
-    por_pagar_mtd = float(q_pp_mtd.scalar() or 0)
-    por_pagar_ytd = float(q_pp_ytd.scalar() or 0)
-    egresos_mtd = float(q_egr_mtd.scalar() or 0)
-    egresos_ytd = float(q_egr_ytd.scalar() or 0)
+        q_egresos_agg = q_egresos_agg.filter(Egreso.empresa_id == empresa_id)
+
+    egr_agg = q_egresos_agg.one()
+
+    egresos_mtd = float(egr_agg.egresos_mtd or 0)
+    egresos_ytd = float(egr_agg.egresos_ytd or 0)
+    por_pagar_mtd = float(egr_agg.por_pagar_mtd or 0)
+    por_pagar_ytd = float(egr_agg.por_pagar_ytd or 0)
+    # --- OPTIMIZATION END ---
 
     return {
         "mtd": {
@@ -243,54 +311,69 @@ def presupuestos_metrics(db: Session, *, empresa_id: Optional[str] = None) -> Di
     """
     from app.models.presupuestos import Presupuesto
 
-    base_query = db.query(Presupuesto)
+    # Base query filters
+    filters = [Presupuesto.estado != "ARCHIVADO"]
     if empresa_id:
-        base_query = base_query.filter(Presupuesto.empresa_id == empresa_id)
-    
-    # No queremos contar versiones archivadas para las sumas, solo la última versión activa
-    # Sin embargo, para simplificar y dado que ARCHIVADO no suma al pipeline activo, filtramos.
-    # Pero para tasa de cierre histórica, podríamos querer considerar todo.
-    # Por ahora, filtramos ARCHIVADO para tener una foto del estado actual.
-    base_query = base_query.filter(Presupuesto.estado != "ARCHIVADO")
+        filters.append(Presupuesto.empresa_id == empresa_id)
 
-    all_presupuestos = base_query.all()
+    # Expression for normalized amount (MXN)
+    # SUM(CASE WHEN moneda != 'MXN' AND tipo_cambio IS NOT NULL THEN total * tipo_cambio ELSE total END)
+    monto_mxn = case(
+        (
+            (Presupuesto.moneda != "MXN") & (Presupuesto.tipo_cambio.isnot(None)),
+            Presupuesto.total * Presupuesto.tipo_cambio,
+        ),
+        else_=Presupuesto.total,
+    )
 
-    total_count = len(all_presupuestos)
-    aceptados_count = 0
-    
-    pipeline_amount = Decimal(0)
-    lost_sales_amount = Decimal(0)
-    won_sales_amount = Decimal(0)
-    won_sales_count = 0
+    # Aggregations in a single query
+    q = db.query(
+        func.count().label("total_count"),
+        func.sum(
+            case(
+                (Presupuesto.estado.in_(["ACEPTADO", "FACTURADO"]), 1), else_=0
+            )
+        ).label("won_count"),
+        func.sum(
+            case(
+                (Presupuesto.estado.in_(["ACEPTADO", "FACTURADO"]), monto_mxn),
+                else_=0,
+            )
+        ).label("won_amount"),
+        func.sum(
+            case(
+                (Presupuesto.estado.in_(["BORRADOR", "ENVIADO"]), monto_mxn),
+                else_=0,
+            )
+        ).label("pipeline_amount"),
+        func.sum(
+            case(
+                (Presupuesto.estado.in_(["RECHAZADO", "CADUCADO"]), monto_mxn),
+                else_=0,
+            )
+        ).label("lost_amount"),
+    ).filter(*filters)
 
-    for p in all_presupuestos:
-        # Normalizar moneda si es necesario (asumimos MXN o conversión simple por ahora)
-        # Idealmente usaríamos p.tipo_cambio
-        monto = p.total or Decimal(0)
-        if p.moneda != "MXN" and p.tipo_cambio:
-            monto = monto * p.tipo_cambio
+    result = q.one()
 
-        if p.estado in ["ACEPTADO", "FACTURADO"]:
-            aceptados_count += 1
-            won_sales_amount += monto
-            won_sales_count += 1
-        elif p.estado in ["BORRADOR", "ENVIADO"]:
-            pipeline_amount += monto
-        elif p.estado in ["RECHAZADO", "CADUCADO"]:
-            lost_sales_amount += monto
+    total_count = result.total_count or 0
+    won_count = result.won_count or 0
+    won_sales_amount = float(result.won_amount or 0)
+    pipeline_amount = float(result.pipeline_amount or 0)
+    lost_sales_amount = float(result.lost_amount or 0)
 
     conversion_rate = 0.0
     if total_count > 0:
-        conversion_rate = (aceptados_count / total_count) * 100
+        conversion_rate = (won_count / total_count) * 100
 
     avg_ticket = 0.0
-    if won_sales_count > 0:
-        avg_ticket = float(won_sales_amount) / won_sales_count
+    if won_count > 0:
+        avg_ticket = won_sales_amount / won_count
 
     return {
         "conversion_rate": round(conversion_rate, 1),
-        "pipeline_amount": float(pipeline_amount),
-        "lost_sales_amount": float(lost_sales_amount),
+        "pipeline_amount": pipeline_amount,
+        "lost_sales_amount": lost_sales_amount,
         "avg_ticket": float(avg_ticket),
-        "currency": "MXN"
+        "currency": "MXN",
     }

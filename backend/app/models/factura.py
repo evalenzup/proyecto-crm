@@ -113,6 +113,8 @@ class Factura(Base):
         Index("ix_facturas_serie_folio", "serie", "folio"),
         Index("ix_facturas_status_pago", "status_pago"),
         Index("ix_facturas_fechas_pago", "fecha_pago", "fecha_cobro"),
+        Index("ix_facturas_fecha_emision", "fecha_emision"),
+        Index("ix_facturas_estatus", "estatus"),
     )
 
     def __repr__(self) -> str:
