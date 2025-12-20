@@ -11,13 +11,15 @@
 Ofrece módulos para:
 
 *   **Empresas** (multitenant con control de acceso por compañía)
-*   **Clientes** (con gestión de contactos, direcciones y datos fiscales)
-*   **Productos y Servicios**
-*   **Facturación Electrónica** (CFDI 4.0) - *En desarrollo*
-*   **Cotizaciones** y **Egresos** - *En desarrollo*
+*   **Clientes** (con gestión de contactos, datos fiscales y **Búsqueda Avanzada** por palabra clave)
+*   **Productos y Servicios** (Catálogos SAT integrados)
+*   **Facturación Electrónica 4.0** (Emisión, Timbrado, PDF/XML y Envío por correo) - *Operativo*
+*   **Pagos y Cobranza** (REP 2.0, conciliación de saldos) - *Operativo*
+*   **Egresos** (Control de gastos operativos) - *Operativo*
+*   **Centro de Ayuda** (Manuales interactivos y guías rápidas integradas) - *Nuevo*
+*   **Roles y Privilegios** (autenticación JWT, permisos por empresa y personalización de interfaz)
 *   **Inventarios** (entradas/salidas de stock y ajustes automáticos) - *En desarrollo*
 *   **Calendarización de Servicios** (rutas, alertas y asignación de técnicos) - *En desarrollo*
-*   **Roles y Privilegios** (autenticación JWT y permisos por empresa)
 
 ---
 
@@ -56,21 +58,35 @@ proyecto-desarrollo-norton/
 └── frontend-erp/
     ├── next.config.ts
     ├── package.json
+    ├── content/
+    │   ├── manual-operativo.md
+    │   └── manual-rapido.md
     ├── public/
     └── src/
+        ├── content/                       # Contenido estático (manuales, guías)
         ├── lib/axios.ts                   # Cliente HTTP
         ├── hooks/useDebouncedOptions.ts   # Autocompletado SAT
         ├── components/                    # Layout, Breadcrumb, FormRenderer…
         └── pages/
+            ├── _app.tsx
+            ├── index.tsx              # Dashboard
+            ├── login.tsx              # Login JWT
+            ├── ayuda/                 # Manuales (Operativo y Guía Rápida)
             ├── empresas/
             │   ├── index.tsx
-            │   └── form/[[...id]].tsx      # Crear/Editar empresas
+            │   └── form/[[...id]].tsx     
             ├── clientes/
             │   ├── index.tsx
-            │   └── form/[[...id]].tsx      # Crear/Editar clientes
-            └── productos-servicios/
-                ├── index.tsx
-                └── form/[[...id]].tsx      # Crear/Editar productos y servicios
+            │   └── form/[[...id]].tsx      
+            ├── productos-servicios/
+            │   ├── index.tsx
+            │   └── form/[[...id]].tsx      
+            ├── facturas/
+            │   ├── index.tsx
+            │   └── form/[[...id]].tsx      # Facturación 4.0
+            ├── pagos/                     # Complementos de Pago
+            ├── egresos/                   # Control de Gastos
+            └── usuarios/                  # Gestión de usuarios (Admin)
 ```
 
 ---
@@ -164,10 +180,10 @@ pytest
 ## Roadmap y Próximos Pasos
 
 *   **Inventario**: Finalizar endpoints de entradas/salidas y ajuste de stock.
-*   **Facturación CFDI 4.0**: Implementar la generación de comprobantes, timbrado y manejo de impuestos.
 *   **Calendarización**: Desarrollar el módulo de gestión de rutas, alertas y asignación de técnicos a servicios.
-*   **Seguridad Multitenant**: Refinar los roles y permisos para asegurar el aislamiento de datos por empresa.
-*   **Dashboard**: Crear un panel de control con métricas y KPIs relevantes.
+*   **Facturación Recurrente**: Automatización de envío de facturas periódicas (Suscripciones).
+*   **Dashboard**: Crear un panel de control avanzado con métricas y KPIs en tiempo real.
+*   **App Móvil**: Para técnicos en campo (consultar rutas y servicios).
 
 ---
 

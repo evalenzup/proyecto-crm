@@ -8,6 +8,7 @@ import 'dayjs/locale/es';
 import React from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { EmpresaProvider } from '@/context/EmpresaContext';
+import { FilterProvider } from '@/context/FilterContext';
 import { useRouter } from 'next/router';
 import { Layout as MainLayout } from '@/components/Layout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -76,10 +77,12 @@ export default function App({ Component, pageProps }: AppProps) {
           <EmpresaProvider>
             <AntApp>
               <AuthGuard>
-                {/* Si estamos en login, no usamos el MainLayout (que tiene sidebar, etc) */}
-                {/* Esto requiere verificar router.pathname. Para simplificar, asumimos que MainLayout maneja esto o Login es una pagina aparte */}
-                {/* Vamos a hacer render condicional del Layout */}
-                <RenderLayout Component={Component} pageProps={pageProps} />
+                <FilterProvider>
+                  {/* Si estamos en login, no usamos el MainLayout (que tiene sidebar, etc) */}
+                  {/* Esto requiere verificar router.pathname. Para simplificar, asumimos que MainLayout maneja esto o Login es una pagina aparte */}
+                  {/* Vamos a hacer render condicional del Layout */}
+                  <RenderLayout Component={Component} pageProps={pageProps} />
+                </FilterProvider>
               </AuthGuard>
             </AntApp>
           </EmpresaProvider>

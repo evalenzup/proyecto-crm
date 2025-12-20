@@ -10,6 +10,8 @@ import {
 } from '@/services/pagoService';
 import { searchClientes } from '@/services/facturaService';
 import { useEmpresaSelector } from './useEmpresaSelector';
+import { useFilterContext } from '@/context/FilterContext';
+import dayjs from 'dayjs';
 
 interface Opcion { label: string; value: string }
 
@@ -42,11 +44,34 @@ export const usePagosList = () => {
 
   const empresasOptions = (empresas || []).map((e: any) => ({ value: e.id, label: e.nombre_comercial || e.nombre }));
 
+  // Use Unified Filter Context
+  const { pagos: filters, setPagos: setFilters } = useFilterContext();
+  const clienteId = filters.clienteId;
+  const clienteQuery = filters.clienteQuery;
+  const estatus = filters.estatus as EstatusPagoCfdi | undefined;
+
+  // Convert string dates from context back to Dayjs for RangePicker
+  const rangoFechas: [Dayjs, Dayjs] | null = useMemo(() => {
+    if (filters.fechaInicio && filters.fechaFin) {
+      return [dayjs(filters.fechaInicio), dayjs(filters.fechaFin)];
+    }
+    return null;
+  }, [filters.fechaInicio, filters.fechaFin]);
+
+  // Setters wrappers
+  const setClienteId = (val: string | undefined) => setFilters(prev => ({ ...prev, clienteId: val }));
+  const setClienteQuery = (val: string) => setFilters(prev => ({ ...prev, clienteQuery: val }));
+  const setEstatus = (val: EstatusPagoCfdi | undefined) => setFilters(prev => ({ ...prev, estatus: val }));
+
+  const setRangoFechas = (dates: [Dayjs, Dayjs] | null) => {
+    setFilters(prev => ({
+      ...prev,
+      fechaInicio: dates ? dates[0].format('YYYY-MM-DD') : undefined,
+      fechaFin: dates ? dates[1].format('YYYY-MM-DD') : undefined
+    }));
+  };
+
   const [clienteOptions, setClienteOptions] = useState<Opcion[]>([]);
-  const [clienteId, setClienteId] = useState<string | undefined>(undefined);
-  const [clienteQuery, setClienteQuery] = useState<string>('');
-  const [estatus, setEstatus] = useState<EstatusPagoCfdi | undefined>(undefined);
-  const [rangoFechas, setRangoFechas] = useState<[Dayjs, Dayjs] | null>(null);
 
   const fetchPagos = useCallback(async (pag: TablePaginationConfig = pagination) => {
     if (!empresaId) {

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Popconfirm, Space, Select, Input, message, Tooltip, Card, theme } from 'antd';
+import { Table, Button, Popconfirm, Space, Select, Input, message, Tooltip, Card, theme, AutoComplete } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
@@ -166,27 +166,18 @@ const ClientesPage: React.FC = () => {
                 onChange={(e) => setRfcFiltro(e.target.value)}
                 style={{ width: 200 }}
               />
-              <Select
-                showSearch
+              <AutoComplete
+                style={{ width: 500 }}
                 placeholder="Nombre Comercial (min 3 letras)"
-                style={{ width: 280 }}
-                filterOption={false}
                 onSearch={handleSearchClientes}
-                onChange={(val) => setNombreFiltro(val)} // Al seleccionar, filtramos por ese nombre exacto o ID si el hook lo soportara
-                notFoundContent={fetchingClientes ? <Spin size="small" /> : null}
+                onChange={(val) => setNombreFiltro(val)}
+                value={nombreFiltro}
                 allowClear
-                value={nombreFiltro || undefined}
-                onClear={() => {
-                  setClienteOptions([]);
-                  setNombreFiltro('');
-                }}
-              >
-                {clienteOptions.map((c) => (
-                  <Option key={c.id} value={c.nombre_comercial}>
-                    {c.nombre_comercial} ({c.rfc})
-                  </Option>
-                ))}
-              </Select>
+                options={clienteOptions.map((c) => ({
+                  value: c.nombre_comercial,
+                  label: `${c.nombre_comercial} (${c.rfc})`,
+                }))}
+              />
             </Space>
           </div>
         </Card>

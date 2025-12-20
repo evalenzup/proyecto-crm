@@ -9,6 +9,8 @@ import {
   type FacturaRow,
 } from '@/services/facturaService';
 import { useEmpresaSelector } from './useEmpresaSelector';
+import { useFilterContext } from '@/context/FilterContext';
+import dayjs from 'dayjs';
 
 type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'CANCELADA';
 type EstatusPago = 'PAGADA' | 'NO_PAGADA';
@@ -42,13 +44,38 @@ export const useFacturasList = () => {
 
   const empresasOptions = (empresas || []).map((e: any) => ({ value: e.id, label: e.nombre_comercial || e.nombre }));
 
+  // Use Unified Filter Context
+  const { facturas: filters, setFacturas: setFilters } = useFilterContext();
+  const clienteId = filters.clienteId;
+  const clienteQuery = filters.clienteQuery;
+  const estatus = filters.estatus as EstatusCFDI | undefined;
+  const estatusPago = filters.estatusPago as EstatusPago | undefined;
+  const folio = filters.folio;
+
+  // Convert string dates from context back to Dayjs for RangePicker
+  const rangoFechas: [Dayjs, Dayjs] | null = useMemo(() => {
+    if (filters.fechaInicio && filters.fechaFin) {
+      return [dayjs(filters.fechaInicio), dayjs(filters.fechaFin)];
+    }
+    return null;
+  }, [filters.fechaInicio, filters.fechaFin]);
+
+  // Setters wrappers
+  const setClienteId = (val: string | undefined) => setFilters(prev => ({ ...prev, clienteId: val }));
+  const setClienteQuery = (val: string) => setFilters(prev => ({ ...prev, clienteQuery: val }));
+  const setEstatus = (val: EstatusCFDI | undefined) => setFilters(prev => ({ ...prev, estatus: val }));
+  const setEstatusPago = (val: EstatusPago | undefined) => setFilters(prev => ({ ...prev, estatusPago: val }));
+  const setFolio = (val: string) => setFilters(prev => ({ ...prev, folio: val }));
+
+  const setRangoFechas = (dates: [Dayjs, Dayjs] | null) => {
+    setFilters(prev => ({
+      ...prev,
+      fechaInicio: dates ? dates[0].format('YYYY-MM-DD') : undefined,
+      fechaFin: dates ? dates[1].format('YYYY-MM-DD') : undefined
+    }));
+  };
+
   const [clienteOptions, setClienteOptions] = useState<Opcion[]>([]);
-  const [clienteId, setClienteId] = useState<string | undefined>(undefined);
-  const [clienteQuery, setClienteQuery] = useState<string>('');
-  const [estatus, setEstatus] = useState<EstatusCFDI | undefined>(undefined);
-  const [estatusPago, setEstatusPago] = useState<EstatusPago | undefined>(undefined);
-  const [rangoFechas, setRangoFechas] = useState<[Dayjs, Dayjs] | null>(null);
-  const [folio, setFolio] = useState<string>('');
 
   const fetchFacturas = useCallback(async (pag: TablePaginationConfig = pagination) => {
     if (!empresaId) {

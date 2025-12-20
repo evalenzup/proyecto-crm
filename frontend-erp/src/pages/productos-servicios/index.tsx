@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Popconfirm, Space, Input, Select, Tooltip, Card, theme } from 'antd';
+import { Table, Button, Popconfirm, Space, Input, Select, Tooltip, Card, theme, AutoComplete } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
@@ -156,27 +156,18 @@ const ProductosServiciosPage: React.FC = () => {
                   </Option>
                 ))}
               </Select>
-              <Select
-                showSearch
+              <AutoComplete
+                style={{ width: 500 }}
                 placeholder="Descripción/Clave (min 3 letras)"
-                style={{ width: 280 }}
-                filterOption={false}
                 onSearch={handleSearchProducts}
-                onChange={(val) => setSearchTerm(val)}
-                notFoundContent={fetchingProducts ? <Spin size="small" /> : null}
+                onChange={(val: string) => setSearchTerm(val)}
+                value={searchTerm}
                 allowClear
-                value={searchTerm || undefined}
-                onClear={() => {
-                  setProductOptions([]);
-                  setSearchTerm('');
-                }}
-              >
-                {productOptions.map((p) => (
-                  <Option key={p.id} value={p.descripcion}>
-                    {p.clave_producto} - {p.descripcion}
-                  </Option>
-                ))}
-              </Select>
+                options={productOptions.map((p) => ({
+                  value: p.descripcion,
+                  label: `${p.clave_producto} - ${p.descripcion}`,
+                }))}
+              />
             </Space>
           </div>
         </Card>

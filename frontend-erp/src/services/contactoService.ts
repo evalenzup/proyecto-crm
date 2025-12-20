@@ -1,11 +1,12 @@
 
 import api from '../lib/axios';
-import { type Contacto } from '@/types/interfaces'; // Asumiremos que esta interfaz existe
+import { type Contacto } from '../types/interfaces';
 
 // Obtener todos los contactos de un cliente específico
 export const getContactosByCliente = async (clienteId: string): Promise<Contacto[]> => {
-  const response = await api.get<Contacto[]>(`/clientes/${clienteId}/contactos`);
-  return response.data;
+  // El backend retorna { items: [], total: ... }
+  const response = await api.get<{ items: Contacto[] }>(`/clientes/${clienteId}/contactos`);
+  return response.data.items;
 };
 
 // Crear un nuevo contacto para un cliente

@@ -26,6 +26,12 @@ Cuando entres a secciones como "Facturas" o "Clientes", verás tablas con inform
 *   Usa los botones **"<" (Anterior)** y **">" (Siguiente)** en la esquina inferior derecha de la tabla para ver más páginas.
 *   Puedes cambiar cuántas filas ver por página (10, 20 o 50) usando el selector junto a los números de página.
 
+### 🧠 1.1 Navegación Inteligente (Memoria de Filtros)
+Una de las funciones más poderosas del sistema es su "memoria".
+*   **¿Cómo funciona?**: Si estás buscando, por ejemplo, facturas del cliente "Juan Pérez" y entras a ver el detalle de una, **al regresar al listado el filtro seguirá ahí**. No tienes que volver a buscarlo.
+*   **¿Dónde aplica?**: Clientes, Productos, Facturas, Pagos y Egresos.
+*   **¿Cómo limpiar?**: Para borrar todo y empezar de cero, simplemente da clic en **"Cerrar Sesión"** o limpia los filtros manualmente con el botón "Limpiar" (cruz pequeña en los campos de búsqueda).
+
 ---
 
 ## 👥 2. Clientes: Cómo registrarlos sin errores

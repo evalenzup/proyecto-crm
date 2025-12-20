@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema CRM/ERP - Frontend
 
-## Getting Started
+Plataforma unificada para la gestión integral de Clientes, Facturación 4.0, Cobranza y Gastos.
 
-First, run the development server:
+## 🚀 Características Principales
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 👥 Gestión de Clientes
+- **Validación Fiscal**: Carga automática de datos mediante escaneo de Constancia de Situación Fiscal (PDF).
+- **Expediente Digital**: Historial completo de ventas y saldos por cliente.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 📦 Productos y Servicios
+- **Catálogo Inteligente**: Búsqueda por descripción, clave interna o clave SAT.
+- **Autocompletado**: Filtros rápidos tipo "Google" para encontrar items en segundos.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 🧾 Facturación 4.0 (CFDI)
+- **Timbrado Nativo**: Integración directa con PAC para generación de XML y PDF.
+- **Validación en Tiempo Real**: Prevención de errores fiscales antes de timbrar.
+- **Envío Automático**: Envío de facturas por correo a múltiples destinatarios.
+- **Duplicación**: "Clonado" de facturas previas para agilizar la captura recurrente.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 🧠 Navegación Inteligente (Filter Context)
+- **Persistencia de Búsquedas**: El sistema "recuerda" tus filtros (fechas, clientes, estatus) mientras navegas entre pantallas.
+- **Sesión Limpia**: Al cerrar sesión, todos los filtros se reinician automáticamente por seguridad y comodidad.
 
-## Learn More
+### 📊 Finanzas
+- **Cobranza (REP)**: Generación de complementos de pago (Recibo Electrónico de Pagos).
+- **Control de Gastos**: Registro de egresos con categorías y evidencias adjuntas.
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠 Tecnologías
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Framework**: Next.js 14 (React)
+- **UI Library**: Ant Design 5 (con ConfigProvider para temas dinámicos)
+- **Estado Global**: React Context API
+- **Cliente HTTP**: Axios (con interceptores para manejo de tokens)
+- **Estilos**: CSS Modules + Ant Design Token System
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📦 Instalación y Despliegue
 
-## Deploy on Vercel
+1. **Instalar dependencias**:
+   ```bash
+   npm install
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. **Modo Desarrollo**:
+   ```bash
+   npm run dev
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+3. **Producción**:
+   ```bash
+   npm run build
+   npm start
+   ```
+
+## 🌙 Personalización
+El sistema incluye un **selector de tema** en la barra lateral que permite:
+- Alternar entre **Modo Claro / Oscuro**.
+- Ajustar el **Tamaño de Fuente** globalmente (A-, A, A+, A++) para accesibilidad.
+
+---
+*Desarrollado para optimizar el flujo operativo y fiscal de la empresa.*

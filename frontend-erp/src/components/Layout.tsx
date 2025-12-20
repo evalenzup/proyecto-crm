@@ -27,6 +27,7 @@ import { useAuth } from '@/context/AuthContext';
 import { usuarioService } from '@/services/usuarioService';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { empresaService } from '@/services/empresaService';
+import { useFilterContext } from '@/context/FilterContext';
 import api from '@/lib/axios';
 
 // Carga ProLayout solo en cliente
@@ -37,7 +38,13 @@ const ProLayout = dynamic(
 
 // Componente para el contenido derecho (Usuario + Logout)
 const RightContent: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout: authLogout } = useAuth();
+  const { clearAllFilters } = useFilterContext();
+
+  const logout = () => {
+    clearAllFilters();
+    authLogout();
+  };
 
   const items: MenuProps['items'] = [
     {
@@ -106,7 +113,13 @@ export const Layout: React.FC<{
   extra?: React.ReactNode;
 }> = ({ children, title, breadcrumbs, extra }) => {
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout: authLogout } = useAuth();
+  const { clearAllFilters } = useFilterContext();
+
+  const logout = () => {
+    clearAllFilters();
+    authLogout();
+  };
 
   // Tema con persistencia
   const [mode, setMode] = useState<'light' | 'dark'>('light');

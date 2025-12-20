@@ -4,6 +4,7 @@ import { productoServicioService, ProductoServicioOut } from '../services/produc
 import { EmpresaOut } from '../services/empresaService';
 import api from '../lib/axios';
 import { useEmpresaSelector } from './useEmpresaSelector';
+import { useFilterContext } from '@/context/FilterContext';
 
 interface UseProductoServicioListResult {
   productosServicios: ProductoServicioOut[];
@@ -38,8 +39,12 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
     isAdmin
   } = useEmpresaSelector();
 
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  // Use Unified Filter Context
+  const { productos: filterState, setProductos: setFilterState } = useFilterContext();
+  const searchTerm = filterState.searchTerm;
+  const setSearchTerm = useCallback((term: string) => setFilterState(prev => ({ ...prev, searchTerm: term })), [setFilterState]);
+
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 500);
@@ -128,9 +133,8 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
   };
 
   const clearFilters = useCallback(() => {
-    // Solo limpiamos búsqueda, empresa se mantiene
-    setSearchTerm('');
-  }, []);
+    setFilterState(prev => ({ ...prev, searchTerm: '' }));
+  }, [setFilterState]);
 
   return {
     productosServicios,

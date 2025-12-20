@@ -14,6 +14,8 @@ const { RangePicker } = DatePicker;
 
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector'; // Importar hook
 import { useTableHeight } from '@/hooks/useTableHeight';
+import { useFilterContext } from '@/context/FilterContext';
+import dayjs from 'dayjs';
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
@@ -35,13 +37,17 @@ const EgresosListPage: React.FC = () => {
     isAdmin
   } = useEmpresaSelector();
 
-  const [filters, setFilters] = useState<any>({
-    proveedor: null,
-    categoria: null,
-    estatus: null,
-    fecha_desde: null,
-    fecha_hasta: null,
-  });
+  // Use Unified Filter Context
+  // Mapping context (fechaInicio/Fin) to local expectation (fecha_desde/hasta) for API calls
+  const { egresos: contextFilters, setEgresos: setContextFilters } = useFilterContext();
+
+  const filters = useMemo(() => ({
+    proveedor: contextFilters.proveedor,
+    categoria: contextFilters.categoria,
+    estatus: contextFilters.estatus,
+    fecha_desde: contextFilters.fechaInicio,
+    fecha_hasta: contextFilters.fechaFin,
+  }), [contextFilters]);
 
   // Data for filters
   // const [empresas, setEmpresas] = useState<{ label: string, value: string }[]>([]); // YA NO SE USA
@@ -127,15 +133,15 @@ const EgresosListPage: React.FC = () => {
 
   const handleFilterChange = (key: string, value: any) => {
     // Empresa se maneja aparte
-    setFilters((prev: any) => ({ ...prev, [key]: value }));
+    setContextFilters(prev => ({ ...prev, [key]: value }));
     setCurrentPage(1); // Reset page when filters change
   };
 
   const handleDateChange = (dates: any) => {
-    setFilters((prev: any) => ({
+    setContextFilters(prev => ({
       ...prev,
-      fecha_desde: dates ? dates[0].format('YYYY-MM-DD') : null,
-      fecha_hasta: dates ? dates[1].format('YYYY-MM-DD') : null,
+      fechaInicio: dates ? dates[0].format('YYYY-MM-DD') : undefined,
+      fechaFin: dates ? dates[1].format('YYYY-MM-DD') : undefined,
     }));
     setCurrentPage(1); // Reset page when filters change
   };
@@ -310,6 +316,7 @@ const EgresosListPage: React.FC = () => {
               />
               <RangePicker
                 onChange={handleDateChange}
+                value={filters.fecha_desde && filters.fecha_hasta ? [dayjs(filters.fecha_desde), dayjs(filters.fecha_hasta)] : null}
               />
             </Space>
           </div>

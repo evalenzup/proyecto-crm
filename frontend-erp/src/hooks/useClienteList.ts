@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { message } from 'antd';
+import { useFilterContext } from '@/context/FilterContext';
 import { clienteService, ClienteOut } from '../services/clienteService';
 import { EmpresaOut } from '../services/empresaService';
-import { useEmpresaSelector } from './useEmpresaSelector'; // Importar hook
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 interface UseClienteListResult {
   clientes: ClienteOut[];
@@ -20,17 +21,16 @@ interface UseClienteListResult {
   nombreFiltro: string;
   setNombreFiltro: (nombre: string) => void;
   clearFilters: () => void;
-  isAdmin: boolean; // Exponer para UI
+  isAdmin: boolean;
 }
 
 export const useClienteList = (): UseClienteListResult => {
-  const [clientes, setClientes] = useState<ClienteOut[]>([]);
-  const [loading, setLoading] = useState(false); // Inicialmente false, esperamos a tener empresa
+  const [clientes, setClientesList] = useState<ClienteOut[]>([]); // Renamed internal state to avoid conflict with context 'clientes'
+  const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Usar el hook de selector de empresa
   const {
     selectedEmpresaId: empresaFiltro,
     setSelectedEmpresaId: setEmpresaFiltro,
@@ -38,14 +38,23 @@ export const useClienteList = (): UseClienteListResult => {
     isAdmin
   } = useEmpresaSelector();
 
-  const [rfcFiltro, setRfcFiltro] = useState<string>('');
-  const [nombreFiltro, setNombreFiltro] = useState<string>('');
+  // Use Unified Filter Context
+  const { clientes: filterState, setClientes: setFilterState } = useFilterContext();
+  const rfcFiltro = filterState.rfc;
+  const nombreFiltro = filterState.nombre;
 
-  // Debounced filter values
-  const [debouncedRfc, setDebouncedRfc] = useState('');
-  const [debouncedNombre, setDebouncedNombre] = useState('');
+  const setRfcFiltro = useCallback((val: string) => setFilterState(prev => ({ ...prev, rfc: val })), [setFilterState]);
+  const setNombreFiltro = useCallback((val: string) => setFilterState(prev => ({ ...prev, nombre: val })), [setFilterState]);
 
-  // This effect debounces the text inputs
+  const clearFilters = useCallback(() => {
+    setFilterState({ rfc: '', nombre: '' });
+  }, [setFilterState]);
+
+  // Debounced local state
+  const [debouncedRfc, setDebouncedRfc] = useState(rfcFiltro);
+  const [debouncedNombre, setDebouncedNombre] = useState(nombreFiltro);
+
+  // Update debounced values when context changes
   useEffect(() => {
     const timer = setTimeout(() => {
       if (rfcFiltro.length === 0 || rfcFiltro.length >= 3) {
@@ -63,7 +72,7 @@ export const useClienteList = (): UseClienteListResult => {
 
   const fetchClientes = useCallback(async () => {
     if (!empresaFiltro) {
-      setClientes([]);
+      setClientesList([]);
       setTotal(0);
       return;
     }
@@ -78,7 +87,7 @@ export const useClienteList = (): UseClienteListResult => {
         nombre_comercial: debouncedNombre,
       };
       const data = await clienteService.getClientes(params);
-      setClientes(data.items);
+      setClientesList(data.items);
       setTotal(data.total);
     } catch (error) {
       console.error(error);
@@ -112,18 +121,14 @@ export const useClienteList = (): UseClienteListResult => {
     }
   };
 
-  const clearFilters = useCallback(() => {
-    // Si es admin, NO limpiamos la empresa a null, tal vez a undefined, pero useEmpresaSelector lo maneja?
-    // Mejor solo limpiar textos. El usuario puede cambiar empresa manualmente.
-    // Si limpiamos empresaFiltro a null, el hook useEmpresaSelector no re-selecciona automatico
-    // a menos que reiniciemos el componente.
-    // Para simplificar: Limpiar filtros de texto. El de empresa se cambia explicitamente.
-    setRfcFiltro('');
-    setNombreFiltro('');
-  }, []);
+  // clearFilters from context already exposed
+  // But if we need custom logic we can keep a wrapper.
+  // The original one set state to empty string. Context one does same.
+  // We can just return 'clearFilters' from the destructuring above and remove this Block if it matches.
+  // But wait, the return logic below uses 'clearFilters'. Let's ensure strict equivalence.
 
   return {
-    clientes,
+    clientes: clientes, // Renamed state variable
     loading,
     total,
     currentPage,
