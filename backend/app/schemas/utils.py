@@ -11,4 +11,4 @@ def make_optional(model: Type[BaseModel]) -> Type[BaseModel]:
         # Hacer el campo opcional
         fields[field_name] = (Optional[field_info.annotation], None)
 
-    return create_model(f"{model.__name__}Optional", **fields)
+    return create_model(f"{model.__name__}Optional", __base__=model, **fields)
