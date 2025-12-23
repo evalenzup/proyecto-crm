@@ -491,7 +491,8 @@ def _apply_attrs_pago_cfdi40_strict(
         attrs["MetodoPago"] = mp
 
         if mp == "PPD":
-            attrs.pop("FormaPago", None)  # no va
+            # Para PPD, la FormaPago DEBE ser '99'
+            attrs["FormaPago"] = "99"
         else:
             if not fp:
                 raise RuntimeError(
@@ -839,12 +840,7 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
                     "Impuesto": "002",
                     "TipoFactor": "Tasa",
                     "TasaOCuota": tasa6(tasa_usada),
-                    "Importe": qty_any(
-                        (base * tasa_usada).quantize(
-                            Decimal("0.01"), rounding=ROUND_HALF_UP
-                        ),
-                        6,
-                    ),
+                    "Importe": qty_any(base * tasa_usada, 6),
                 },
             )
             bases_para_resumen.append((base, tasa_usada))

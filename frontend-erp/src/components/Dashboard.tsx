@@ -1,13 +1,16 @@
 // src/components/Dashboard.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select } from 'antd';
+import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { useAuth } from '@/context/AuthContext';
 import dynamic from 'next/dynamic';
 
-const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
+const ReactECharts = dynamic(() => import('echarts-for-react'), {
+  ssr: false,
+  loading: () => <Skeleton active paragraph={{ rows: 8 }} style={{ height: 360, padding: 20 }} />,
+});
 
 const currency = (n: number, ccy: string) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: ccy || 'MXN', maximumFractionDigits: 2 }).format(
