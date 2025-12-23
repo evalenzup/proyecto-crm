@@ -268,7 +268,7 @@ export const useFacturaForm = () => {
           return;
         }
         try {
-          const data = await svc.searchClientes(q);
+          const data = await svc.searchClientes(q, empId);
           setClienteOpts(
             (data || []).map((c: any) => ({
               value: c.id,
