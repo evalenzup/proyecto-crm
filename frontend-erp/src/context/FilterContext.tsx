@@ -37,6 +37,10 @@ interface EgresoFilters {
     fechaFin?: string;
 }
 
+interface DashboardFilters {
+    empresaId?: string;
+}
+
 interface FilterContextType {
     clientes: ClienteFilters;
     setClientes: React.Dispatch<React.SetStateAction<ClienteFilters>>;
@@ -53,6 +57,9 @@ interface FilterContextType {
     egresos: EgresoFilters;
     setEgresos: React.Dispatch<React.SetStateAction<EgresoFilters>>;
 
+    dashboard: DashboardFilters;
+    setDashboard: React.Dispatch<React.SetStateAction<DashboardFilters>>;
+
     clearAllFilters: () => void;
 }
 
@@ -65,12 +72,14 @@ export const FilterProvider = ({ children }: { children: ReactNode }) => {
     const initialFacturas: FacturaFilters = { folio: '', clienteQuery: '' };
     const initialPagos: PagoFilters = { clienteQuery: '' };
     const initialEgresos: EgresoFilters = {};
+    const initialDashboard: DashboardFilters = {};
 
     const [clientes, setClientes] = useState<ClienteFilters>(initialClientes);
     const [productos, setProductos] = useState<ProductoFilters>(initialProductos);
     const [facturas, setFacturas] = useState<FacturaFilters>(initialFacturas);
     const [pagos, setPagos] = useState<PagoFilters>(initialPagos);
     const [egresos, setEgresos] = useState<EgresoFilters>(initialEgresos);
+    const [dashboard, setDashboard] = useState<DashboardFilters>(initialDashboard);
 
     const clearAllFilters = React.useCallback(() => {
         setClientes(initialClientes);
@@ -78,6 +87,7 @@ export const FilterProvider = ({ children }: { children: ReactNode }) => {
         setFacturas(initialFacturas);
         setPagos(initialPagos);
         setEgresos(initialEgresos);
+        setDashboard(initialDashboard);
     }, []);
 
     const contextValue = React.useMemo(() => ({
@@ -86,8 +96,9 @@ export const FilterProvider = ({ children }: { children: ReactNode }) => {
         facturas, setFacturas,
         pagos, setPagos,
         egresos, setEgresos,
+        dashboard, setDashboard,
         clearAllFilters,
-    }), [clientes, productos, facturas, pagos, egresos, clearAllFilters]);
+    }), [clientes, productos, facturas, pagos, egresos, dashboard, clearAllFilters]);
 
     return (
         <FilterContext.Provider value={contextValue}>

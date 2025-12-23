@@ -5,6 +5,7 @@ import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined } from '@ant-des
 import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { useAuth } from '@/context/AuthContext';
+import { useFilterContext } from '@/context/FilterContext';
 import dynamic from 'next/dynamic';
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), {
@@ -23,18 +24,21 @@ export const Dashboard: React.FC = () => {
   const [loadingFinance, setLoadingFinance] = useState(false);
   // const [loadingBudget, setLoadingBudget] = useState(false); // Disabled
 
-  const [empresaId, setEmpresaId] = useState<string | undefined>(undefined);
+  // Use centralized filter state
+  const { dashboard, setDashboard } = useFilterContext();
+  const empresaId = dashboard.empresaId;
   const [empresas, setEmpresas] = useState<EmpresaOut[]>([]);
 
-  // Cargar lista de empresas
+  // 1. Cargar lista de empresas
   useEffect(() => {
     empresaService.getEmpresas().then(data => {
       setEmpresas(data);
+      // Auto-select first if none in context
       if (data.length > 0 && !empresaId) {
-        setEmpresaId(data[0].id);
+        setDashboard(prev => ({ ...prev, empresaId: data[0].id }));
       }
     });
-  }, []);
+  }, [empresaId, setDashboard]);
 
   useEffect(() => {
     if (!empresaId) return;
@@ -158,7 +162,7 @@ export const Dashboard: React.FC = () => {
             style={{ width: 250 }}
             allowClear
             value={empresaId}
-            onChange={setEmpresaId}
+            onChange={(val) => setDashboard(prev => ({ ...prev, empresaId: val }))}
             options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
           />
         </Col>
