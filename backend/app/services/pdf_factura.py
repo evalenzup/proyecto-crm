@@ -497,6 +497,49 @@ def _draw_header(c: canvas.Canvas, f: Factura, logo_path: Optional[str]) -> floa
         c.drawString(CONTENT_X0 + x_space + 20, y_left, f.lugar_expedicion)
         y_left -= 12
 
+    if getattr(f, "cfdi_relacionados_tipo", None) and getattr(f, "cfdi_relacionados", None):
+        c.setFont(FONT_B, 8)
+        
+        # Obtener descripción del catálogo
+        raw_tipo = str(f.cfdi_relacionados_tipo).strip()
+        # Aseguramos formato 2 dígitos para display y búsqueda (ej. "4" -> "04")
+        tipo_code = raw_tipo.zfill(2)
+        
+        desc_tipo = tipo_code # Por defecto muestra "04"
+        
+        try:
+            cat_rel = obtener_todas_tipos_relacion() # devuelve list[dict]
+            # Busco match normalizando AMBOS lados a 2 dígitos
+            # Así "4" encuentra a "04" y viceversa
+            found = next(
+                (x for x in cat_rel if x["clave"].zfill(2) == tipo_code), 
+                None
+            )
+            if found:
+                desc_tipo = f"{tipo_code} - {found['descripcion']}"
+        except Exception:
+            pass
+
+        c.drawString(CONTENT_X0, y_left, f"Tipo Relación: {desc_tipo}")
+        y_left -= 12
+        
+        uuids = str(f.cfdi_relacionados).split(",")
+        first = True
+        for u in uuids:
+            u = u.strip()
+            if not u:
+                continue
+            if first:
+                c.setFont(FONT_B, 8)
+                c.drawString(CONTENT_X0, y_left, "Relacionado(s):")
+                c.setFont(FONT, 8)
+                c.drawString(CONTENT_X0 + x_space + 20, y_left, u)
+                first = False
+            else:
+                c.setFont(FONT, 8)
+                c.drawString(CONTENT_X0 + x_space + 20, y_left, u)
+            y_left -= 12
+
     # Dos columnas (Emisor / Receptor)
     MID_X = (CONTENT_X0 + CONTENT_X1) / 2.0
     GUTTER = 12
