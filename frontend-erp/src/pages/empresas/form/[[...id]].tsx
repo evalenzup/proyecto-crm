@@ -450,8 +450,11 @@ const EmpresaFormPage: React.FC = () => {
   // Orden: todos los campos normales primero; al final → CER, KEY, CONTRASEÑA, CertInfo
   const keysAll = Object.keys(schema.properties || {});
   const certKeys = ['archivo_cer', 'archivo_key', 'contrasena'];
-  const normalKeys = keysAll.filter(k => !certKeys.includes(k));
+  const bankKeys = ['nombre_banco', 'numero_cuenta', 'clabe', 'beneficiario'];
+
+  const normalKeys = keysAll.filter(k => !certKeys.includes(k) && !bankKeys.includes(k));
   const certKeysPresent = certKeys.filter(k => keysAll.includes(k));
+  const bankKeysPresent = bankKeys.filter(k => keysAll.includes(k));
 
   return (
     <>
@@ -495,6 +498,15 @@ const EmpresaFormPage: React.FC = () => {
           <Form form={form} layout="vertical" onFinish={onFinish}>
             {/* Campos normales primero */}
             {normalKeys.map((k) => renderField(k, (schema.properties as any)[k]))}
+
+            {/* Datos Bancarios */}
+            {bankKeysPresent.length > 0 && (
+              <Card size="small" style={{ marginTop: 16 }}>
+                <Text strong>Datos Bancarios</Text>
+                <div style={{ height: 8 }} />
+                {bankKeysPresent.map((k) => renderField(k, (schema.properties as any)[k]))}
+              </Card>
+            )}
 
             {/* Bloque de certificados al final */}
             <Card size="small" style={{ marginTop: 16 }}>

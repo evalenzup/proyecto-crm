@@ -73,5 +73,7 @@ El backend reside en `backend/app` y sigue una **Arquitectura en Capas (Layered 
 *   **Consistencia**: Cuando se te pida una nueva funcionalidad, primero verifica si existe un Hook existente que se pueda extender.
 *   Mantén la estética "Premium" y limpia de Ant Design.
 *   Si tocas lógica de filtros, asegúrate de no romper la persistencia global establecida.
-
+*   Antes de realizar los cambios muestra el plan al usuario para que pueda confirmar que es lo que se desea hacer.
+*   Los cambios se tienen que hacer en el ambiente de desarrollo, para primero validarlos y posteriormente pasarlos a produccion. 
+*   Los scripts que corras para realizar pruebas los tienes que correr en el ambiente de desarrollo del docker.
 **[FIN DEL PROMPT]**

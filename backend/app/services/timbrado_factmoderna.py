@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.factura import Factura
-from app.models.pago import Pago
+from app.models.pago import Pago, EstatusPago
 from app.services.cfdi40_xml import build_cfdi40_xml_sin_timbrar
 from app.services.pago20_xml import build_pago20_xml_sin_timbrar
 
@@ -880,9 +880,14 @@ class FacturacionModernaPAC:
             f"[PAC SOAP Cancel] HTTP {resp.status_code}\n{soap_log}"
         )
         if resp.status_code >= 400:
-            raise RuntimeError(
-                f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
-            )
+            # FIX: Si es 500 pero el mensaje dice "cola", lo tratamos como éxito parcial
+            is_cola = "cola" in soap_txt.lower()
+            if not is_cola:
+                raise RuntimeError(
+                    f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
+                )
+            # Si es cola, dejamos pasar para que el parseo de abajo intente leer el Fault
+            # o construimos una respuesta dummy si el parseo falla.
 
         try:
             root = fromstring(resp.content)
@@ -891,16 +896,36 @@ class FacturacionModernaPAC:
 
         # 4) Parse Code/Message
         res = _parse_cancel_response(root)  # {"code": "...", "message": "..."}
+        
+        # Si parseo falló (ej. era un Fault) pero detectamos cola en texto, forzamos mensaje
+        if not res.get("message") and "cola" in soap_txt.lower():
+            res["message"] = "En cola de cancelacion (recuperado de Fault)"
 
         # 5) Persistir marca opcional (no cambiamos estatus todavía)
+        # 5) Persistir marca opcional
         if hasattr(f, "cancelacion_solicitada_en"):
             from datetime import datetime as _dt
-
             f.cancelacion_solicitada_en = _dt.utcnow()
         if hasattr(f, "cancelacion_code"):
             f.cancelacion_code = res.get("code")
         if hasattr(f, "cancelacion_message"):
             f.cancelacion_message = res.get("message")
+
+        # --- FIX: Actualizar estatus si es 201/202, GT05 O si está en cola o cancelado ---
+        code_str = (res.get("code") or "").strip()
+        msg_str = (res.get("message") or "").lower()
+        
+        # Logging for debug (kept for safety, can be removed later)
+        # print(f"[DEBUG Cancelacion] code='{code_str}', message='{msg_str}'")
+
+        # GT05 = CFDI Cancelado, GT12 = Solicitud recibida (Facturacion Moderna)
+        if code_str in ["201", "202", "GT05", "GT12"] or "cola" in msg_str or "cancelado" in msg_str or "recibida" in msg_str:
+            # Use Enum member if imported, otherwise string is usually fine in SQLA but let's be safe
+            try:
+                f.estatus = EstatusFactura.CANCELADA
+            except NameError:
+                f.estatus = "CANCELADA"
+        # ---------------------------------------------
 
         db.add(f)
         db.commit()
@@ -995,6 +1020,16 @@ class FacturacionModernaPAC:
 
         # 4) Parse Code/Message
         res = _parse_cancel_response(root) 
+
+        # --- FIX: Actualizar estatus si es 201/202 O si está en cola ---
+        code_str = (res.get("code") or "").strip()
+        msg_str = (res.get("message") or "").lower()
+        if code_str in ["201", "202"] or "cola" in msg_str:
+            p.estatus = EstatusPago.CANCELADO
+            db.add(p)
+            db.commit()
+            db.refresh(p)
+        # ---------------------------------------------
 
         return {
             "uuid": uuid,

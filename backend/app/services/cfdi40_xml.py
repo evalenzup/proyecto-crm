@@ -741,10 +741,13 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
     if getattr(f, "cfdi_relacionados_tipo", None) and getattr(
         f, "cfdi_relacionados", None
     ):
+        # Fix robusto: forzar 2 dígitos al generar el XML por si la BD tiene "4"
+        tipo_rel = str(f.cfdi_relacionados_tipo).strip().zfill(2)
+        
         rel = SubElement(
             compro,
             f"{{{NS_CFDI}}}CfdiRelacionados",
-            {"TipoRelacion": f.cfdi_relacionados_tipo},
+            {"TipoRelacion": tipo_rel},
         )
         for uuid in str(f.cfdi_relacionados).split(","):
             uuid = uuid.strip()

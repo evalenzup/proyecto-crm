@@ -244,15 +244,30 @@ def _wrap_lines(
 
     out: List[str] = []
     line = ""
-    for token in text.split(" "):
-        test = token if not line else f"{line} {token}"
+    # Use split() without arguments to handle multiple spaces/newlines cleanly
+    tokens = text.split()
+    
+    for token in tokens:
+        # If line exists, we'd add a space before the token
+        test = f"{line} {token}" if line else token
+        
         if c.stringWidth(test, font, size) <= max_w:
             line = test
         else:
+            # Current line is full, push it
             if line:
                 out.append(line)
-                line = ""
-            out.extend(slice_to_fit(token))
+            
+            # Now handle the token that didn't fit
+            # Check if token itself fits on a new line
+            if c.stringWidth(token, font, size) <= max_w:
+                line = token
+            else:
+                # Token is effectively a huge word that needs slicing
+                sublines = slice_to_fit(token)
+                out.extend(sublines)
+                line = "" 
+
     if line:
         out.append(line)
     return out
@@ -855,12 +870,72 @@ def _draw_footer(c: canvas.Canvas, f: Factura, is_last_page: bool):
         c.setFont(FONT, 8)
         c.drawString(CONTENT_X0 + 90, base_y, str(tipo_cambio_lbl))
         base_y -= 12
+
     if f.observaciones:
         c.setFont(FONT_B, 8)
         c.drawString(CONTENT_X0, base_y, "Observaciones:")
         c.setFont(FONT, 8)
-        c.drawString(CONTENT_X0 + 90, base_y, str(f.observaciones))
+        
+        # Calc width relative to page width and totals column
+        # CONTENT_X1 is right margin. Totals column approx 180pt
+        # User requested "Double width" -> we reduce the reservation for totals significantly
+        totals_col_w = 20 
+        label_w = 90
+        # available width = (Total Width) - (Left Label) - (Right Totals)
+        # Note: CONTENT_X1 is X coordinate of right margin
+        max_w = (CONTENT_X1 - CONTENT_X0) - label_w - totals_col_w
+        if max_w < 50: max_w = 50
+
+        start_x = CONTENT_X0 + label_w
+        lines = _wrap_lines(c, str(f.observaciones), max_w, FONT, 8)
+        
+        # Limit to max 3 lines
+        lines = lines[:4]
+        
+        is_first = True
+        for ln in lines:
+            if is_first:
+                c.drawString(start_x, base_y, ln)
+                is_first = False
+            else:
+                base_y -= 10
+                c.drawString(start_x, base_y, ln)
+        
         base_y -= 12
+
+    # Datos bancarios (Empresa) - CENTRO
+    # Calculamos una posición central aproximada
+    # CONTENT_X0 es margen izquierdo. CONTENT_X1 es margen derecho.
+    # Queremos estar entre la columna izquierda (digamos ~250px ancho) y la derecha (totales)
+    CENTER_X = (CONTENT_X0 + CONTENT_X1) / 2.0 - 30 # Ajuste visual un poco a la izquierda
+    
+    emp = f.empresa
+    if emp:
+        banco = getattr(emp, "nombre_banco", None)
+        cuenta = getattr(emp, "numero_cuenta", None)
+        clabe = getattr(emp, "clabe", None)
+        benef = getattr(emp, "beneficiario", None)
+        
+        bank_y = FOOTER_TOP_Y - 12
+        
+        if banco or cuenta or clabe:
+             c.setFont(FONT_B, 8)
+             c.drawString(CENTER_X, bank_y, "Datos Bancarios:")
+             bank_y -= 10
+             c.setFont(FONT, 7)
+             
+             if banco:
+                 c.drawString(CENTER_X, bank_y, f"Banco: {banco}")
+                 bank_y -= 9
+             if benef:
+                 c.drawString(CENTER_X, bank_y, f"Beneficiario: {benef}")
+                 bank_y -= 9
+             if cuenta:
+                 c.drawString(CENTER_X, bank_y, f"Cuenta: {cuenta}")
+                 bank_y -= 9
+             if clabe:
+                 c.drawString(CENTER_X, bank_y, f"CLABE: {clabe}")
+                 bank_y -= 9
 
     # Totales (derecha) con desglose
     right_x = CONTENT_X1

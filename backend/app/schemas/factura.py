@@ -88,6 +88,10 @@ class FacturaBase(BaseModel):
     lugar_expedicion: Optional[constr(max_length=5)] = None
     condiciones_pago: Optional[str] = None
 
+    # Relacionados
+    cfdi_relacionados_tipo: Optional[constr(max_length=2)] = None
+    cfdi_relacionados: Optional[str] = None  # UUIDs separados por coma
+
     # Fechas de pago/cobro y status
     fecha_pago: Optional[datetime] = None  # programado
     fecha_cobro: Optional[datetime] = None  # real
@@ -119,6 +123,9 @@ class FacturaUpdate(BaseModel):
     conceptos: Optional[List[FacturaDetalleIn]] = None  # si llega, se reemplazan
     observaciones: Optional[str] = None
     rfc_proveedor_sat: Optional[constr(max_length=13)] = None
+    # Fix: Add missing related fields to Update schema
+    cfdi_relacionados_tipo: Optional[constr(max_length=2)] = None
+    cfdi_relacionados: Optional[str] = None
 
 
 class FacturaCancel(BaseModel):

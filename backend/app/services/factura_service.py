@@ -108,6 +108,14 @@ def crear_factura(db: Session, payload: FacturaCreate) -> Factura:
         lugar_expedicion=payload.lugar_expedicion,
         condiciones_pago=payload.condiciones_pago,
         rfc_proveedor_sat=payload.rfc_proveedor_sat,
+        # Relacionados
+        # Relacionados (Fix: pad to 2 digits, e.g. "4" -> "04")
+        cfdi_relacionados_tipo=(
+            payload.cfdi_relacionados_tipo.zfill(2)
+            if payload.cfdi_relacionados_tipo
+            else None
+        ),
+        cfdi_relacionados=payload.cfdi_relacionados,
     )
 
     subtotal_general = Decimal("0")
@@ -199,6 +207,14 @@ def actualizar_factura(
                 )
 
         for key, value in update_data.items():
+            if key in [
+                "cfdi_relacionados_tipo",
+                "cfdi_relacionados",
+            ]:  # Permitir update explícito si viene en payload
+                val = value
+                if key == "cfdi_relacionados_tipo" and isinstance(val, str):
+                    val = val.zfill(2)
+                setattr(factura, key, val)
             if key != "conceptos":
                 setattr(factura, key, value)
 

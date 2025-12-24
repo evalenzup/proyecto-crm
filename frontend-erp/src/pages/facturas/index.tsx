@@ -195,7 +195,10 @@ const FacturasIndexPage: React.FC = () => {
   ];
 
   const sumatoriaMostrada = useMemo(
-    () => rows.reduce((acc, r) => acc + (Number(r.total) || 0), 0),
+    () => rows.reduce((acc, r) => {
+      if (r.estatus === 'CANCELADA') return acc;
+      return acc + (Number(r.total) || 0);
+    }, 0),
     [rows]
   );
 

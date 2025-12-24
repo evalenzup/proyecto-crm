@@ -20,6 +20,12 @@ export interface EmpresaOut {
   archivo_cer?: string;
   archivo_key?: string;
   logo?: string;
+
+  // Datos Bancarios
+  nombre_banco?: string;
+  numero_cuenta?: string;
+  clabe?: string;
+  beneficiario?: string;
   creado_en: string;
   actualizado_en: string;
   clientes?: Array<{ id: string; nombre_comercial: string }>;

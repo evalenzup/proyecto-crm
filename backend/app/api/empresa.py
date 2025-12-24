@@ -282,7 +282,7 @@ def actualizar_empresa(
 def eliminar_empresa(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(deps.get_current_active_user)):
     if current_user.rol != RolUsuario.ADMIN:
         raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar empresas")
-    empresa = empresa_repo.remove(db, id)
+    empresa = empresa_repo.remove(db, id=id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     return

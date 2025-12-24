@@ -20,6 +20,12 @@ class EmpresaBase(BaseModel):
     archivo_cer: Optional[str] = Field(None, title="Archivo CER")
     archivo_key: Optional[str] = Field(None, title="Archivo KEY")
     logo: Optional[str] = Field(None, title="Logo")
+    
+    # Datos Bancarios
+    nombre_banco: Optional[str] = Field(None, title="Nombre del Banco")
+    numero_cuenta: Optional[str] = Field(None, title="Número de Cuenta")
+    clabe: Optional[str] = Field(None, title="CLABE")
+    beneficiario: Optional[str] = Field(None, title="Beneficiario")
 
 
 class EmpresaCreate(EmpresaBase):
