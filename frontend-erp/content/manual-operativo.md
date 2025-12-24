@@ -26,6 +26,12 @@ Cuando entres a secciones como "Facturas" o "Clientes", verás tablas con inform
 *   Usa los botones **"<" (Anterior)** y **">" (Siguiente)** en la esquina inferior derecha de la tabla para ver más páginas.
 *   Puedes cambiar cuántas filas ver por página (10, 20 o 50) usando el selector junto a los números de página.
 
+### 🧠 1.1 Navegación Inteligente (Memoria de Filtros)
+Una de las funciones más poderosas del sistema es su "memoria".
+*   **¿Cómo funciona?**: Si estás buscando, por ejemplo, facturas del cliente "Juan Pérez" y entras a ver el detalle de una, **al regresar al listado el filtro seguirá ahí**. No tienes que volver a buscarlo.
+*   **¿Dónde aplica?**: Clientes, Productos, Facturas, Pagos y Egresos.
+*   **¿Cómo limpiar?**: Para borrar todo y empezar de cero, simplemente da clic en **"Cerrar Sesión"** o limpia los filtros manualmente con el botón "Limpiar" (cruz pequeña en los campos de búsqueda).
+
 ---
 
 ## 👥 2. Clientes: Cómo registrarlos sin errores
@@ -100,6 +106,34 @@ Si vas a hacer una factura igual a la del mes pasado:
 2.  Abre la factura.
 3.  Busca el botón **"Duplicar"** (icono de dos hojas 📄📄).
 4.  Se creará una **nueva factura en borrador** con los mismos datos. Solo cambia la fecha y timbra. ¡Ahorraste 5 minutos!
+
+---
+
+## ❌ 4.1 Cancelación y Refacturación (Corrección de Errores)
+
+Si timbraste una factura (Factura A) y te diste cuenta de que tiene un error (ej. precio mal, RFC mal, etc.), sigue estos pasos para corregirlo cumpliendo con el SAT.
+
+### Paso 1: Cancelar la factura errónea (Factura A)
+1.  Abre la factura que tiene el error.
+2.  Presiona el botón **"Cancelar"**.
+3.  El sistema te pedirá el motivo. Selecciona:
+    *   **"02 - Comprobante emitido con errores sin relación"**.
+    *   *(Este es el método más directo y evita complicaciones).*
+4.  Confirma la cancelación. El estatus cambiará a "CANCELADA" (o "EN PROCESO..." si requiere aprobación, en cuyo caso espera a que el estatus final sea CANCELADA).
+
+### Paso 2: Crear la nueva factura (Factura B)
+1.  Puedes usar el botón **"Duplicar"** en la factura cancelada para no volver a escribir todo.
+2.  **Corrige el error** que tenía la anterior (ej. cambia el precio, corrige el RFC, etc.).
+
+### Paso 3: Relacionar (¡Muy Importante!)
+Para que el SAT sepa que esta nueva factura reemplaza a la anterior:
+1.  En la parte inferior del formulario de la nueva factura, activa la casilla **"¿Tiene relación CFDI?"**.
+2.  **Tipo relación**: Selecciona **"04 - Sustitución de los CFDI previos"**.
+3.  **CFDIs relacionados**: Escribe o pega el **UUID (Folio Fiscal)** de la factura que acabas de cancelar.
+
+### Paso 4: Timbrar
+1.  Presiona **"Timbrar"**.
+2.  ¡Listo! Has sustituido la factura correctamente.
 
 ---
 
