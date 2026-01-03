@@ -157,6 +157,7 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
         empresa_id: Optional[UUID] = None,
         rfc: Optional[str] = None,
         nombre_comercial: Optional[str] = None,
+        nombre_razon_social: Optional[str] = None,
     ) -> Tuple[List[Cliente], int]:
         query = db.query(self.model)
 
@@ -168,6 +169,9 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
 
         if nombre_comercial:
             query = query.filter(self.model.nombre_comercial.ilike(f"%{nombre_comercial}%"))
+
+        if nombre_razon_social:
+            query = query.filter(self.model.nombre_razon_social.ilike(f"%{nombre_razon_social}%"))
 
         total = query.count()
         items = (

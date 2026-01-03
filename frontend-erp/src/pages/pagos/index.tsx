@@ -76,7 +76,10 @@ const PagosIndexPage: React.FC = () => {
 
   const {
     empresaId, setEmpresaId, empresasOptions,
-    clienteId, setClienteId, clienteOptions, clienteQuery, setClienteQuery, debouncedBuscarClientes,
+    clienteId, setClienteId,
+    clienteOptionsComercial, clienteOptionsFiscal,
+    debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
+    setClienteQuery, // Ignoramos clienteQuery para lectura, usamos local
     estatus, setEstatus,
     rangoFechas, setRangoFechas, empresas,
   } = filters;
@@ -213,15 +216,26 @@ const PagosIndexPage: React.FC = () => {
                 disabled={!filters.isAdmin}
               />
               <Select
-                allowClear showSearch placeholder="Cliente (escribe ≥ 3 letras)" style={{ width: 280 }}
+                showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220 }}
                 filterOption={false}
-                onSearch={(val) => { setClienteQuery(val); debouncedBuscarClientes(val); }}
+                onSearch={(val) => { setClienteQuery(val); debouncedBuscarClientesComercial(val); }}
                 onChange={(val) => setClienteId(val)}
                 onClear={() => { setClienteQuery(''); setClienteId(undefined); }}
-                notFoundContent={clienteQuery && clienteQuery.length < 3 ? 'Escribe al menos 3 caracteres' : undefined}
-                options={clienteOptions}
+                options={clienteOptionsComercial}
                 suffixIcon={<SearchOutlined />}
                 value={clienteId}
+                notFoundContent={null}
+              />
+              <Select
+                showSearch allowClear placeholder="Razón Social" style={{ width: 220 }}
+                filterOption={false}
+                onSearch={(val) => { setClienteQuery(val); debouncedBuscarClientesFiscal(val); }}
+                onChange={(val) => setClienteId(val)}
+                onClear={() => { setClienteQuery(''); setClienteId(undefined); }}
+                options={clienteOptionsFiscal}
+                suffixIcon={<SearchOutlined />}
+                value={clienteId}
+                notFoundContent={null}
               />
               <Select
                 allowClear placeholder="Estatus" style={{ width: 180 }}

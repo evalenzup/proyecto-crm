@@ -116,6 +116,7 @@ def listar_clientes(
     empresa_id: Optional[UUID] = Query(None),
     rfc: Optional[str] = Query(None),
     nombre_comercial: Optional[str] = Query(None),
+    nombre_razon_social: Optional[str] = Query(None),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Obtiene una lista paginada y filtrada de todos los clientes."""
@@ -130,6 +131,7 @@ def listar_clientes(
         empresa_id=empresa_id,
         rfc=rfc,
         nombre_comercial=nombre_comercial,
+        nombre_razon_social=nombre_razon_social,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
@@ -140,6 +142,7 @@ def exportar_clientes_excel(
     empresa_id: Optional[UUID] = Query(None),
     rfc: Optional[str] = Query(None),
     nombre_comercial: Optional[str] = Query(None),
+    nombre_razon_social: Optional[str] = Query(None),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     if current_user.rol == RolUsuario.SUPERVISOR:
@@ -152,6 +155,7 @@ def exportar_clientes_excel(
         empresa_id=empresa_id,
         rfc=rfc,
         nombre_comercial=nombre_comercial,
+        nombre_razon_social=nombre_razon_social,
     )
 
     # Mapa de regimenes

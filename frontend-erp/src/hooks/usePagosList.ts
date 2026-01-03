@@ -71,7 +71,8 @@ export const usePagosList = () => {
     }));
   };
 
-  const [clienteOptions, setClienteOptions] = useState<Opcion[]>([]);
+  const [clienteOptionsComercial, setClienteOptionsComercial] = useState<Opcion[]>([]);
+  const [clienteOptionsFiscal, setClienteOptionsFiscal] = useState<Opcion[]>([]);
 
   const fetchPagos = useCallback(async (pag: TablePaginationConfig = pagination) => {
     if (!empresaId) {
@@ -111,32 +112,65 @@ export const usePagosList = () => {
     setPagination(p => ({ ...p, current: 1 }));
   }, [empresaId, clienteId, estatus, rangoFechas]);
 
-  // Ya no necesitamos fetchEmpresas, el hook lo hace
 
-  const debouncedBuscarClientes = useMemo(() =>
+  const debouncedBuscarClientesComercial = useMemo(() =>
     debounce(async (q: string) => {
       if (!q || q.trim().length < 3) {
-        setClienteOptions([]);
+        setClienteOptionsComercial([]);
         return;
       }
       try {
-        const list = await searchClientes(q, empresaId); // Filtrar por empresa
-        setClienteOptions(
+        const list = await searchClientes(q, empresaId, 'comercial');
+        setClienteOptionsComercial(
           (list || []).slice(0, 20).map((c: any) => ({
             value: c.id,
-            label: c.nombre_comercial || c.nombre || c.razon_social || 'Cliente',
+            label: `${c.nombre_comercial} (${c.nombre_razon_social})`,
           }))
         );
       } catch {
-        setClienteOptions([]);
+        setClienteOptionsComercial([]);
       }
     }, 300)
     , [empresaId]);
 
-  // useEffect(() => {
-  //   fetchEmpresas();
-  // }, [fetchEmpresas]);
-  // ELIMINADO
+  const debouncedBuscarClientesFiscal = useMemo(() =>
+    debounce(async (q: string) => {
+      if (!q || q.trim().length < 3) {
+        setClienteOptionsFiscal([]);
+        return;
+      }
+      try {
+        const list = await searchClientes(q, empresaId, 'fiscal');
+        setClienteOptionsFiscal(
+          (list || []).slice(0, 20).map((c: any) => ({
+            value: c.id,
+            label: `${c.nombre_razon_social} (${c.nombre_comercial})`,
+          }))
+        );
+      } catch {
+        setClienteOptionsFiscal([]);
+      }
+    }, 300)
+    , [empresaId]);
+
+  // Sync client options when clienteId changes
+  useEffect(() => {
+    if (clienteId) {
+      import('@/services/facturaService').then(({ getClienteById }) => {
+        getClienteById(clienteId).then(c => {
+          if (c) {
+            const labelCom = `${c.nombre_comercial} (${c.nombre_razon_social})`;
+            const labelFis = `${c.nombre_razon_social} (${c.nombre_comercial})`;
+            setClienteOptionsComercial([{ label: labelCom, value: c.id }]);
+            setClienteOptionsFiscal([{ label: labelFis, value: c.id }]);
+          }
+        }).catch(() => { });
+      });
+    } else {
+      setClienteOptionsComercial([]);
+      setClienteOptionsFiscal([]);
+    }
+  }, [clienteId]);
 
   // Preview Modal logic
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -204,8 +238,10 @@ export const usePagosList = () => {
     setPagination,
     filters: {
       empresaId, setEmpresaId, empresasOptions, empresas,
-      clienteId, setClienteId, clienteOptions,
-      clienteQuery, setClienteQuery, debouncedBuscarClientes,
+      clienteId, setClienteId,
+      clienteOptionsComercial, clienteOptionsFiscal,
+      debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
+      clienteQuery, setClienteQuery,
       estatus, setEstatus,
       rangoFechas, setRangoFechas,
       isAdmin,

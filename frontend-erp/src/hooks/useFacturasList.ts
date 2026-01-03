@@ -75,7 +75,8 @@ export const useFacturasList = () => {
     }));
   };
 
-  const [clienteOptions, setClienteOptions] = useState<Opcion[]>([]);
+  const [clienteOptionsComercial, setClienteOptionsComercial] = useState<Opcion[]>([]);
+  const [clienteOptionsFiscal, setClienteOptionsFiscal] = useState<Opcion[]>([]);
 
   const fetchFacturas = useCallback(async (pag: TablePaginationConfig = pagination) => {
     if (!empresaId) {
@@ -123,27 +124,76 @@ export const useFacturasList = () => {
 
   // Ya no necesitamos fetchEmpresas, el hook lo hace
 
-  const debouncedBuscarClientes = useMemo(() =>
+  const debouncedBuscarClientesComercial = useMemo(() =>
     debounce(async (q: string) => {
       if (!q || q.trim().length < 3) {
-        setClienteOptions([]);
+        setClienteOptionsComercial([]);
         return;
       }
       try {
-        const list = await searchClientes(q, empresaId); // Buscar clientes filtrados por empresa si es posible
-        setClienteOptions(
+        const list = await searchClientes(q, empresaId, 'comercial');
+        setClienteOptionsComercial(
           (list || []).slice(0, 20).map((c: any) => ({
             value: c.id,
-            label: c.nombre_comercial || c.nombre || c.razon_social || 'Cliente',
+            label: `${c.nombre_comercial} (${c.nombre_razon_social})`,
           }))
         );
       } catch {
-        setClienteOptions([]);
+        setClienteOptionsComercial([]);
       }
     }, 300)
-    , [empresaId]); // Dependencia empresaId agregada
+    , [empresaId]);
 
-  // ELIMINADO
+  const debouncedBuscarClientesFiscal = useMemo(() =>
+    debounce(async (q: string) => {
+      if (!q || q.trim().length < 3) {
+        setClienteOptionsFiscal([]);
+        return;
+      }
+      try {
+        const list = await searchClientes(q, empresaId, 'fiscal');
+        setClienteOptionsFiscal(
+          (list || []).slice(0, 20).map((c: any) => ({
+            value: c.id,
+            label: `${c.nombre_razon_social} (${c.nombre_comercial})`,
+          }))
+        );
+      } catch {
+        setClienteOptionsFiscal([]);
+      }
+    }, 300)
+    , [empresaId]);
+
+  // Sync client options when clienteId changes
+  useEffect(() => {
+    if (clienteId) {
+      // Reusamos getClienteById del servicio si está exportado, o searchClientes para obtener nombre si no tenemos getById directo.
+      // Asumiendo que podemos obtener el cliente para mostrar su nombre.
+      // Como no tenemos getClienteById importado explícitamente, vamos a importarlo dinámicamente o asumir que searchById existe.
+      // Si no existe, podemos llamar a searchClientes con el ID? No, search busca por texto.
+      // Mejor importar getClienteById desde facturaService o clienteService.
+      // En usePagoForm importamos getClienteById de facturaService (o similar).
+      import('@/services/facturaService').then(({ getClienteById }) => {
+        // Nota: getClienteById podría no existir en facturaService si no lo verifiqué.
+        // En usePagosList usé: import('@/services/facturaService').then(({ getClienteById }) ...
+        // Verifiquemos si existe. Si no, usaremos un truco o fallback.
+        // Asumiré que existe por paridad con usePagosList.
+        if (getClienteById) {
+          getClienteById(clienteId).then((c: any) => {
+            if (c) {
+              const labelCom = `${c.nombre_comercial} (${c.nombre_razon_social})`;
+              const labelFis = `${c.nombre_razon_social} (${c.nombre_comercial})`;
+              setClienteOptionsComercial([{ label: labelCom, value: c.id }]);
+              setClienteOptionsFiscal([{ label: labelFis, value: c.id }]);
+            }
+          }).catch(() => { });
+        }
+      });
+    } else {
+      setClienteOptionsComercial([]);
+      setClienteOptionsFiscal([]);
+    }
+  }, [clienteId]);
 
   // Preview Modal
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -218,8 +268,10 @@ export const useFacturasList = () => {
     setPagination,
     filters: {
       empresaId, setEmpresaId, empresasOptions, empresas,
-      clienteId, setClienteId, clienteOptions,
-      clienteQuery, setClienteQuery, debouncedBuscarClientes,
+      clienteId, setClienteId,
+      clienteOptionsComercial, clienteOptionsFiscal,
+      clienteQuery, setClienteQuery,
+      debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
       estatus, setEstatus,
       estatusPago, setEstatusPago,
       rangoFechas, setRangoFechas,

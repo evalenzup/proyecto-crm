@@ -35,24 +35,45 @@ const ClientesPage: React.FC = () => {
     setRfcFiltro,
     nombreFiltro,
     setNombreFiltro,
+    nombreFiscalFiltro,
+    setNombreFiscalFiltro,
     clearFilters,
     isAdmin, // Nuevo
   } = useClienteList();
 
-  const [clienteOptions, setClienteOptions] = React.useState<ClienteOut[]>([]);
+  const [clienteOptionsComercial, setClienteOptionsComercial] = React.useState<ClienteOut[]>([]);
+  const [clienteOptionsFiscal, setClienteOptionsFiscal] = React.useState<ClienteOut[]>([]);
   const [fetchingClientes, setFetchingClientes] = React.useState(false);
 
-  const handleSearchClientes = React.useMemo(() => {
+  const handleSearchClientesComercial = React.useMemo(() => {
     const loadOptions = async (value: string) => {
       if (value.length < 3) {
-        setClienteOptions([]);
+        setClienteOptionsComercial([]);
+        return;
+      }
+      setFetchingClientes(true);
+      try {
+        const results = await clienteService.buscarClientes(value, empresaFiltro || undefined, 'comercial');
+        setClienteOptionsComercial(results);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setFetchingClientes(false);
+      }
+    };
+    return debounce(loadOptions, 800);
+  }, [empresaFiltro]);
+
+  const handleSearchClientesFiscal = React.useMemo(() => {
+    const loadOptions = async (value: string) => {
+      if (value.length < 3) {
+        setClienteOptionsFiscal([]);
         return;
       }
       setFetchingClientes(true); // set loading state
       try {
-        // Buscamos clientes globalmente o por empresa seleccionada
-        const results = await clienteService.buscarClientes(value, empresaFiltro || undefined);
-        setClienteOptions(results);
+        const results = await clienteService.buscarClientes(value, empresaFiltro || undefined, 'fiscal');
+        setClienteOptionsFiscal(results);
       } catch (error) {
         console.error(error);
       } finally {
@@ -167,15 +188,27 @@ const ClientesPage: React.FC = () => {
                 style={{ width: 200 }}
               />
               <AutoComplete
-                style={{ width: 500 }}
-                placeholder="Nombre Comercial (min 3 letras)"
-                onSearch={handleSearchClientes}
+                style={{ width: 300 }}
+                placeholder="Nombre Comercial..."
+                onSearch={handleSearchClientesComercial}
                 onChange={(val) => setNombreFiltro(val)}
                 value={nombreFiltro}
                 allowClear
-                options={clienteOptions.map((c) => ({
+                options={clienteOptionsComercial.map((c) => ({
                   value: c.nombre_comercial,
                   label: `${c.nombre_comercial} (${c.rfc})`,
+                }))}
+              />
+              <AutoComplete
+                style={{ width: 300 }}
+                placeholder="Razón Social..."
+                onSearch={handleSearchClientesFiscal}
+                onChange={(val) => setNombreFiscalFiltro(val)}
+                value={nombreFiscalFiltro}
+                allowClear
+                options={clienteOptionsFiscal.map((c) => ({
+                  value: c.nombre_razon_social,
+                  label: `${c.nombre_razon_social} (${c.rfc})`,
                 }))}
               />
             </Space>

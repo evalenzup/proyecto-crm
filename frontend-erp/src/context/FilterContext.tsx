@@ -4,7 +4,8 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 // Interfaces for each module's filter state
 interface ClienteFilters {
     rfc: string;
-    nombre: string;
+    nombre: string; // nombre comercial
+    nombreFiscal: string; // nombre razon social
 }
 
 interface ProductoFilters {
@@ -67,7 +68,7 @@ const FilterContext = createContext<FilterContextType | undefined>(undefined);
 
 export const FilterProvider = ({ children }: { children: ReactNode }) => {
     // Initial States
-    const initialClientes: ClienteFilters = { rfc: '', nombre: '' };
+    const initialClientes: ClienteFilters = { rfc: '', nombre: '', nombreFiscal: '' };
     const initialProductos: ProductoFilters = { searchTerm: '' };
     const initialFacturas: FacturaFilters = { folio: '', clienteQuery: '' };
     const initialPagos: PagoFilters = { clienteQuery: '' };

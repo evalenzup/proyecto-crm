@@ -20,6 +20,8 @@ interface UseClienteListResult {
   setRfcFiltro: (rfc: string) => void;
   nombreFiltro: string;
   setNombreFiltro: (nombre: string) => void;
+  nombreFiscalFiltro: string;
+  setNombreFiscalFiltro: (nombre: string) => void;
   clearFilters: () => void;
   isAdmin: boolean;
 }
@@ -42,17 +44,20 @@ export const useClienteList = (): UseClienteListResult => {
   const { clientes: filterState, setClientes: setFilterState } = useFilterContext();
   const rfcFiltro = filterState.rfc;
   const nombreFiltro = filterState.nombre;
+  const nombreFiscalFiltro = filterState.nombreFiscal;
 
   const setRfcFiltro = useCallback((val: string) => setFilterState(prev => ({ ...prev, rfc: val })), [setFilterState]);
   const setNombreFiltro = useCallback((val: string) => setFilterState(prev => ({ ...prev, nombre: val })), [setFilterState]);
+  const setNombreFiscalFiltro = useCallback((val: string) => setFilterState(prev => ({ ...prev, nombreFiscal: val })), [setFilterState]);
 
   const clearFilters = useCallback(() => {
-    setFilterState({ rfc: '', nombre: '' });
+    setFilterState({ rfc: '', nombre: '', nombreFiscal: '' });
   }, [setFilterState]);
 
   // Debounced local state
   const [debouncedRfc, setDebouncedRfc] = useState(rfcFiltro);
   const [debouncedNombre, setDebouncedNombre] = useState(nombreFiltro);
+  const [debouncedNombreFiscal, setDebouncedNombreFiscal] = useState(nombreFiscalFiltro);
 
   // Update debounced values when context changes
   useEffect(() => {
@@ -61,14 +66,15 @@ export const useClienteList = (): UseClienteListResult => {
         setDebouncedRfc(rfcFiltro);
       }
       setDebouncedNombre(nombreFiltro);
+      setDebouncedNombreFiscal(nombreFiscalFiltro);
     }, 500);
     return () => clearTimeout(timer);
-  }, [rfcFiltro, nombreFiltro]);
+  }, [rfcFiltro, nombreFiltro, nombreFiscalFiltro]);
 
   // Reset page to 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [empresaFiltro, debouncedRfc, debouncedNombre]);
+  }, [empresaFiltro, debouncedRfc, debouncedNombre, debouncedNombreFiscal]);
 
   const fetchClientes = useCallback(async () => {
     if (!empresaFiltro) {
@@ -85,6 +91,7 @@ export const useClienteList = (): UseClienteListResult => {
         empresa_id: empresaFiltro,
         rfc: debouncedRfc,
         nombre_comercial: debouncedNombre,
+        nombre_razon_social: debouncedNombreFiscal,
       };
       const data = await clienteService.getClientes(params);
       setClientesList(data.items);
@@ -95,7 +102,7 @@ export const useClienteList = (): UseClienteListResult => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, empresaFiltro, debouncedRfc, debouncedNombre]);
+  }, [currentPage, pageSize, empresaFiltro, debouncedRfc, debouncedNombre, debouncedNombreFiscal]);
 
   // NO necesitamos cargar empresas manualmente aquí, el hook lo hace
 
@@ -142,6 +149,8 @@ export const useClienteList = (): UseClienteListResult => {
     setRfcFiltro,
     nombreFiltro,
     setNombreFiltro,
+    nombreFiscalFiltro,
+    setNombreFiscalFiltro,
     clearFilters,
     isAdmin
   };

@@ -73,8 +73,8 @@ export const clienteService = {
     return response.data;
   },
 
-  buscarClientes: async (q: string, empresaId?: string, limit: number = 10): Promise<ClienteOut[]> => {
-    const params: any = { q, limit };
+  buscarClientes: async (q: string, empresaId?: string, searchField: 'comercial' | 'fiscal' | 'both' = 'comercial', limit: number = 10): Promise<ClienteOut[]> => {
+    const params: any = { q, limit, search_field: searchField };
     if (empresaId) {
       params.empresa_id = empresaId;
     }
@@ -107,6 +107,7 @@ export const clienteService = {
     empresa_id?: string | null; // Ahora lo pasaremos explícitamente
     rfc?: string | null;
     nombre_comercial?: string | null;
+    nombre_razon_social?: string | null;
   }): Promise<ClientePageOut> => {
     const response = await api.get<ClientePageOut>("/clientes", { params });
     return response.data;
