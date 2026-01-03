@@ -59,19 +59,22 @@ def get_form_schema(db: Session = Depends(get_db)):
 @router.get("/busqueda", response_model=List[ClienteOut])
 def buscar_clientes(
     q: Optional[str] = Query(
-        None, description="Texto a buscar en nombre_comercial (min 3 chars)"
+        None, description="Texto a buscar (min 3 chars)"
     ),
     limit: int = Query(10, ge=1, le=50, description="Límite de resultados"),
     empresa_id: Optional[UUID] = Query(None, description="Filtrar por empresa"),
+    search_field: str = Query("comercial", description="'comercial', 'fiscal' o 'both'"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    """Busca clientes por nombre comercial para autocompletado; admite filtro por empresa."""
+    """Busca clientes por nombre comercial o razón social; admite filtro por empresa."""
     # Si es supervisor, forzar empresa_id
     if current_user.rol == RolUsuario.SUPERVISOR:
         empresa_id = current_user.empresa_id
 
-    return cliente_repo.search_by_name(db, name_query=q, limit=limit, empresa_id=empresa_id)
+    return cliente_repo.search_by_name(
+        db, name_query=q, limit=limit, empresa_id=empresa_id, search_field=search_field
+    )
 
 
 @router.get("/validar-rfc", response_model=List[str])

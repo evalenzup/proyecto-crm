@@ -51,8 +51,10 @@ const PagoFormPage: React.FC = () => {
     saving,
     accionLoading,
     empresas,
-    clientes,
-    buscarClientes,
+    clientesComercial,
+    clientesFiscal,
+    buscarClientesComercial,
+    buscarClientesFiscal,
     formasPago,
     facturasPendientes,
     paymentAllocation,
@@ -130,6 +132,7 @@ const PagoFormPage: React.FC = () => {
 
   const facturasColumns: ColumnsType<FacturaPendiente> = [
     { title: 'Folio', dataIndex: 'folio', render: (val: any, rec: any) => `${rec.serie}-${val}` },
+    { title: 'Sucursal / Cliente', dataIndex: 'cliente', render: (val: any) => val?.nombre_comercial || '—' },
     { title: 'Fecha Emisión', dataIndex: 'fecha_emision', render: (val: string) => new Date(val).toLocaleDateString() },
     { title: 'Total Factura', dataIndex: 'total', align: 'right', render: (val: number) => val.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) },
     {
@@ -191,14 +194,30 @@ const PagoFormPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item label="Cliente" name="cliente_id" rules={[{ required: true }]}>
+                <Form.Item label="Buscar por Nombre Comercial" name="cliente_id_comercial">
                   <Select
-                    options={clientes}
+                    options={clientesComercial}
                     showSearch
                     filterOption={false}
-                    onSearch={buscarClientes}
-                    placeholder="Escribe al menos 3 letras para buscar"
+                    onSearch={buscarClientesComercial}
+                    placeholder="Escribe al menos 3 letras..."
+                    onChange={(val) => form.setFieldValue('cliente_id', val)}
+                    value={form.getFieldValue('cliente_id')}
                   />
+                </Form.Item>
+                <Form.Item label="Buscar por Razón Social" name="cliente_id_fiscal">
+                  <Select
+                    options={clientesFiscal}
+                    showSearch
+                    filterOption={false}
+                    onSearch={buscarClientesFiscal}
+                    placeholder="Escribe al menos 3 letras..."
+                    onChange={(val) => form.setFieldValue('cliente_id', val)}
+                    value={form.getFieldValue('cliente_id')}
+                  />
+                </Form.Item>
+                <Form.Item name="cliente_id" hidden rules={[{ required: true, message: 'Seleccione un cliente' }]}>
+                  <Input />
                 </Form.Item>
               </Col>
             </Row>

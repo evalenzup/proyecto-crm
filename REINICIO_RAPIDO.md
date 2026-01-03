@@ -51,3 +51,12 @@ cd frontend-erp
 npm run build:prod
 npm run start:prod
 ```
+
+---
+
+## ⚠️ Solución de Problemas (Cloudflare)
+Si el túnel se desconecta seguido o marca errores como `Connection terminated` o `context canceled`, intenta forzar el protocolo **HTTP2** (es más estable que el default):
+
+```bash
+cloudflared tunnel --config cloudflared_config.yml --protocol http2 run
+```

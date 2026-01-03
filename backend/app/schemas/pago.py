@@ -14,9 +14,9 @@ from app.schemas.cliente import ClienteSimpleOut
 class PagoDocumentoRelacionadoBase(BaseModel):
     factura_id: uuid.UUID
     num_parcialidad: int = Field(..., gt=0)
-    imp_saldo_ant: Decimal = Field(..., ge=0, max_digits=18, decimal_places=2)
-    imp_pagado: Decimal = Field(..., gt=0, max_digits=18, decimal_places=2)
-    imp_saldo_insoluto: Decimal = Field(..., ge=0, max_digits=18, decimal_places=2)
+    imp_saldo_ant: Decimal = Field(..., ge=0, max_digits=18)
+    imp_pagado: Decimal = Field(..., gt=0, max_digits=18)
+    imp_saldo_insoluto: Decimal = Field(..., ge=0, max_digits=18)
 
 
 class PagoDocumentoRelacionadoCreate(PagoDocumentoRelacionadoBase):
@@ -45,7 +45,7 @@ class PagoBase(BaseModel):
     fecha_pago: datetime
     forma_pago_p: Annotated[str, StringConstraints(max_length=2)]
     moneda_p: Annotated[str, StringConstraints(max_length=3)]
-    monto: Decimal = Field(..., gt=0, max_digits=18, decimal_places=2)
+    monto: Decimal = Field(..., gt=0, max_digits=18)
     tipo_cambio_p: Optional[Decimal] = Field(None, gt=0, max_digits=18, decimal_places=6)
     serie: Optional[Annotated[str, StringConstraints(max_length=25)]] = None
     folio: Optional[Annotated[str, StringConstraints(max_length=40)]] = None
@@ -81,7 +81,7 @@ class PagoUpdate(BaseModel):
     fecha_pago: Optional[datetime] = None
     forma_pago_p: Optional[Annotated[str, StringConstraints(max_length=2)]] = None
     moneda_p: Optional[Annotated[str, StringConstraints(max_length=3)]] = None
-    monto: Optional[Decimal] = Field(None, gt=0, max_digits=18, decimal_places=2)
+    monto: Optional[Decimal] = Field(None, gt=0, max_digits=18)
     tipo_cambio_p: Optional[Decimal] = Field(None, gt=0, max_digits=18, decimal_places=6)
     documentos: Optional[List[PagoDocumentoRelacionadoCreate]] = None
 

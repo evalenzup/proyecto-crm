@@ -137,17 +137,33 @@ Para que el SAT sepa que esta nueva factura reemplaza a la anterior:
 
 ---
 
-## 💰 5. Cobranza (Pagos)
+## 💰 5. Cobranza (Complemento de Pagos)
 
-*Solo necesitas hacer esto si hiciste una factura PPD (Crédito).*
+*Solo necesitas hacer esto si hiciste una factura PPD (Pago en Parcialidades o Diferido) y ya recibiste el dinero.*
 
-Cuando el cliente te deposite:
-1.  Ve al menú **Pagos** > **"+ Nuevo Pago"**.
-2.  Selecciona al **Cliente**.
-3.  Pon la **Fecha** real del depósito y el **Monto** que recibiste.
-4.  En la parte de abajo, el sistema te mostrará las facturas que ese cliente te debe.
-5.  Haz clic en **"Agregar"** en la factura que quieres saldar.
-6.  Presiona **"Timbrar Pago"**. Esto genera el "Recibo Electrónico de Pago" (REP) que también es obligatorio.
+### Paso 1: Crear el Registro del Pago
+1.  Ve al menú **Pagos** y presiona el botón **"+ Nuevo Pago"**.
+2.  **Datos Generales**:
+    *   Selecciona la **Empresa** (tu razón social).
+    *   Selecciona al **Cliente** que te pagó.
+    *   **Fecha de Pago**: El día real que cayó el dinero.
+    *   **Forma de Pago**: ¿Cómo te pagaron? (Transferencia, Cheque, Efectivo, etc.).
+    *   **Moneda**: Generalmente MXN.
+    *   *(Nota: El campo "Monto" aparacerá bloqueado en gris, es normal. Se calculará solo en el siguiente paso).*
+
+### Paso 2: Asignar el Pago a las Facturas
+En la parte inferior verás una tabla llamada **"Facturas a Pagar"**:
+1.  Busca la factura o facturas que te están liquidando.
+2.  En la columna **"Monto a Pagar"**, escribe cuánto dinero estás aplicando a esa factura.
+    *   *Ejemplo: Si te deben $10,000 y te pagaron todo, escribe 10,000.*
+    *   *Ejemplo: Si solo te abonaron $5,000, escribe 5,000.*
+3.  Verás que el campo **"Monto"** (arriba) se actualiza automáticamente con la suma de lo que escribiste.
+
+### Paso 3: Guardar y Timbrar
+1.  Haz clic en **"Guardar Borrador"** (icono de disquete 💾). Esto guarda el registro en el sistema.
+2.  Revisa que todo esté bien.
+3.  Presiona el botón **"Timbrar"** (icono de rayo ⚡).
+4.  El sistema generará el **REP (Recibo Electrónico de Pago)**, lo enviará al SAT y al correo de tu cliente.
 
 --- 
 

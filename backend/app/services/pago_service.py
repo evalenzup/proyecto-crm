@@ -125,22 +125,46 @@ def set_pago_to_borrador(db: Session, pago_id: UUID) -> Pago:
 
 
 def listar_facturas_pendientes_por_cliente(
-    db: Session, cliente_id: UUID
+    db: Session, cliente_id: UUID, empresa_id: Optional[UUID] = None
 ) -> List[Factura]:
     """
-    Obtiene todas las facturas de un cliente que tienen estatus de pago 'NO_PAGADA'
-    y que han sido timbradas.
+    Obtiene todas las facturas pendientes de pago.
+    Si el cliente tiene un RFC específico (no genérico), busca facturas de CUALQUIER cliente con ese RFC (multi-sucursal).
+    Si se proporciona empresa_id, filtra por empresa.
     """
-    facturas = (
+    from app.models.cliente import Cliente
+
+    # 1. Obtener el cliente objetivo para saber su RFC
+    target_client = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not target_client:
+        return []
+
+    # RFC Genérico: XAXX010101000
+    RFC_GENERICO = "XAXX010101000"
+
+    query = (
         db.query(Factura)
+        .join(Factura.cliente)
+        .options(selectinload(Factura.cliente))
         .filter(
-            Factura.cliente_id == cliente_id,
             Factura.status_pago == "NO_PAGADA",
             Factura.estatus == "TIMBRADA",
         )
-        .order_by(Factura.fecha_emision.desc())
-        .all()
     )
+
+    # 2. Aplicar filtro por RFC o ID
+    if target_client.rfc and target_client.rfc != RFC_GENERICO:
+        # Búsqueda amplia por RFC (Multi-sucursal)
+        query = query.filter(Cliente.rfc == target_client.rfc)
+    else:
+        # Búsqueda estricta por ID (Genérico o sin RFC)
+        query = query.filter(Factura.cliente_id == cliente_id)
+
+    # 3. Filtrar por empresa si se proporciona (CRÍTICO para seguridad/tenant)
+    if empresa_id:
+        query = query.filter(Factura.empresa_id == empresa_id)
+
+    facturas = query.order_by(Factura.fecha_emision.desc()).all()
 
     return facturas
 

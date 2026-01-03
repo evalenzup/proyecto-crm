@@ -34,8 +34,8 @@ export const cancelarPagoSat = (id: string, motivo: string, folioSustituto?: str
   getData(api.post(`/pagos/${id}/cancelar-sat`, { motivo, folio_sustituto: folioSustituto }));
 
 // This is the key function for the form
-export const getFacturasPendientes = (clienteId: string) =>
-  getData<FacturaPendiente[]>(api.get(`/pagos/clientes/${clienteId}/facturas-pendientes`));
+export const getFacturasPendientes = (clienteId: string, empresaId?: string) =>
+  getData<FacturaPendiente[]>(api.get(`/pagos/clientes/${clienteId}/facturas-pendientes`, { params: { empresa_id: empresaId } }));
 
 export const getPagoPdf = (id: string) =>
   getBlob(api.get(`/pagos/${id}/pdf`, { responseType: 'blob' }));

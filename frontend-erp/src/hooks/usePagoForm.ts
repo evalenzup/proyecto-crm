@@ -30,7 +30,8 @@ export const usePagoForm = () => {
 
   // Data para selects
   const [empresas, setEmpresas] = useState<{ label: string; value: string }[]>([]);
-  const [clientes, setClientes] = useState<{ label: string; value: string }[]>([]);
+  const [clientesComercial, setClientesComercial] = useState<{ label: string; value: string }[]>([]); // New
+  const [clientesFiscal, setClientesFiscal] = useState<{ label: string; value: string }[]>([]); // New
   const [formasPago, setFormasPago] = useState<{ label: string; value: string }[]>([]);
   const [clienteEmail, setClienteEmail] = useState<string>('');
   const [currentEmpresa, setCurrentEmpresa] = useState<any | null>(null);
@@ -95,10 +96,12 @@ export const usePagoForm = () => {
             // Siempre traer datos frescos del cliente para tener el email
             try {
               const clienteData = await facturaService.getClienteById(pagoData.cliente_id);
-              const label = clienteData.nombre_comercial || clienteData.razon_social || clienteData.nombre || 'Cliente';
+              const labelCom = `${clienteData.nombre_comercial} (${clienteData.nombre_razon_social})`;
+              const labelFis = `${clienteData.nombre_razon_social} (${clienteData.nombre_comercial})`;
               const email = clienteData.email || '';
 
-              setClientes([{ label, value: clienteData.id }]);
+              setClientesComercial([{ label: labelCom, value: clienteData.id }]);
+              setClientesFiscal([{ label: labelFis, value: clienteData.id }]);
               // Setear email en el form (oculto) y en estado
               form.setFieldValue(['cliente', 'email'], email);
               setClienteEmail(email);
@@ -131,7 +134,8 @@ export const usePagoForm = () => {
             forma_pago_p: '03', // 03 = Transferencia electrónica de fondos
             moneda_p: 'MXN',
           });
-          setClientes([]);
+          setClientesComercial([]);
+          setClientesFiscal([]);
         }
       } catch (error) {
         message.error(normalizeHttpError(error) || 'Error al cargar datos iniciales.');
@@ -148,7 +152,8 @@ export const usePagoForm = () => {
     if (!id && empresaId) {
       const fetchFolio = async () => {
         try {
-          const nextFolio = await pagoService.getSiguienteFolioPago(empresaId, '');
+          // Default series is 'P' in backend, so we must ask for 'P' to get the correct consecutive
+          const nextFolio = await pagoService.getSiguienteFolioPago(empresaId, 'P');
           form.setFieldsValue({ folio: nextFolio.toString() });
         } catch (error) {
           message.error(normalizeHttpError(error) || 'Error al obtener el siguiente folio.');
@@ -161,13 +166,15 @@ export const usePagoForm = () => {
   // Cambio de empresa -> para edición no limpiamos; para nuevo pago sí
   useEffect(() => {
     if (!empresaId) {
-      setClientes([]);
+      setClientesComercial([]);
+      setClientesFiscal([]);
       form.setFieldsValue({ cliente_id: null });
       return;
     }
     // Si estamos editando, no tocar el cliente
     if (id) return;
-    setClientes([]);
+    setClientesComercial([]);
+    setClientesFiscal([]);
     form.setFieldsValue({ cliente_id: null });
   }, [empresaId, form, id]);
 
@@ -182,24 +189,50 @@ export const usePagoForm = () => {
     }
   }, [empresaId]);
 
-  // Búsqueda de clientes por nombre (3+ letras) filtrando por empresa
-  const buscarClientes = useMemo(() =>
+  // Búsqueda de clientes por nombre comercial
+  const buscarClientesComercial = useMemo(() =>
     debounce(async (q: string) => {
       const empId = form.getFieldValue('empresa_id');
       if (!empId) return;
       if (!q || q.trim().length < 3) {
-        setClientes([]);
+        setClientesComercial([]);
         return;
       }
       try {
-        const data = await facturaService.searchClientes(q, empId);
+        const data = await facturaService.searchClientes(q, empId, 'comercial');
         const arr = Array.isArray(data) ? data : (data?.items || []);
-        setClientes(arr.map((c: any) => ({
+        // Si el usuario busca por nombre comercial, le mostramos "Comercial (Fiscal)" para confirmar
+        setClientesComercial(arr.map((c: any) => ({
           value: c.id,
-          label: c.nombre_comercial ?? c.razon_social ?? c.nombre ?? 'Cliente',
+          label: `${c.nombre_comercial} (${c.nombre_razon_social})`,
         })));
       } catch (e) {
-        setClientes([]);
+        setClientesComercial([]);
+      }
+    }, 350)
+    , [form]);
+
+  // Búsqueda de clientes por nombre fiscal
+  const buscarClientesFiscal = useMemo(() =>
+    debounce(async (q: string) => {
+      const empId = form.getFieldValue('empresa_id');
+      if (!empId) return;
+      if (!q || q.trim().length < 3) {
+        setClientesFiscal([]);
+        return;
+      }
+      try {
+        const data = await facturaService.searchClientes(q, empId, 'fiscal');
+        const arr = Array.isArray(data) ? data : (data?.items || []);
+        // Si busca por fiscal, mostramos "Fiscal (Comercial)" o similar, 
+        // pero para consistencia visual, mantengamos "Comercial (Fiscal)" o invirtamos según convenga.
+        // El usuario pidió inputs separados, así que en el input "Fiscal", tendría sentido ver primero la razón social.
+        setClientesFiscal(arr.map((c: any) => ({
+          value: c.id,
+          label: `${c.nombre_razon_social} (${c.nombre_comercial})`,
+        })));
+      } catch (e) {
+        setClientesFiscal([]);
       }
     }, 350)
     , [form]);
@@ -229,7 +262,7 @@ export const usePagoForm = () => {
 
     // Caso nuevo pago o el usuario cambió el cliente: consultar facturas pendientes
     pagoService
-      .getFacturasPendientes(clienteId)
+      .getFacturasPendientes(clienteId, empresaId)
       .then((pendingInvoicesData) => {
         const finalFacturas = pendingInvoicesData || [];
         setFacturasPendientes(finalFacturas);
@@ -245,10 +278,17 @@ export const usePagoForm = () => {
           const email = c.email || '';
           setClienteEmail(email);
           form.setFieldValue(['cliente', 'email'], email);
+
+          const labelCom = `${c.nombre_comercial} (${c.nombre_razon_social})`;
+          const labelFis = `${c.nombre_razon_social} (${c.nombre_comercial})`;
+          setClientesComercial([{ label: labelCom, value: c.id }]);
+          setClientesFiscal([{ label: labelFis, value: c.id }]);
         }
       }).catch(() => { });
     } else {
       setClienteEmail('');
+      setClientesComercial([]);
+      setClientesFiscal([]);
     }
   }, [clienteId, id, pago]);
 
@@ -465,8 +505,10 @@ export const usePagoForm = () => {
     saving,
     accionLoading,
     empresas,
-    clientes,
-    buscarClientes,
+    clientesComercial,
+    clientesFiscal,
+    buscarClientesComercial,
+    buscarClientesFiscal,
     formasPago,
     facturasPendientes,
     paymentAllocation,

@@ -85,8 +85,8 @@ export const getEmpresaById = async (id: string) =>
 export const getClientesByEmpresa = async (empresaId: string) =>
   (await api.get(`/clientes/?empresa_id=${empresaId}`)).data;
 
-export const searchClientes = async (query: string, empresaId?: string) => {
-  const params: any = { q: query, limit: 10 };
+export const searchClientes = async (query: string, empresaId?: string, searchField: 'comercial' | 'fiscal' | 'both' = 'comercial') => {
+  const params: any = { q: query, limit: 10, search_field: searchField };
   if (empresaId) params.empresa_id = empresaId;
   return (await api.get(`/clientes/busqueda`, { params })).data;
 };

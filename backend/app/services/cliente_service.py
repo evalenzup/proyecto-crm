@@ -180,22 +180,44 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
         return items, total
 
     def search_by_name(
-        self, db: Session, *, name_query: str, limit: int = 10, empresa_id: Optional[UUID] = None
+        self,
+        db: Session,
+        *,
+        name_query: str,
+        limit: int = 10,
+        empresa_id: Optional[UUID] = None,
+        search_field: str = "comercial",  # 'comercial', 'fiscal', 'both'
     ) -> List[Cliente]:
-        """Busca clientes por nombre comercial, opcionalmente filtrando por empresa."""
+        """Busca clientes por nombre comercial o razón social."""
+        from sqlalchemy import or_
+
         if not name_query or len(name_query.strip()) < 3:
             return []
         texto = f"%{name_query.strip()}%"
         query = db.query(self.model)
+
         if empresa_id:
             from app.models.empresa import Empresa
+
             query = query.join(self.model.empresas).filter(Empresa.id == empresa_id)
-        return (
-            query.filter(self.model.nombre_comercial.ilike(texto))
-            .order_by(self.model.nombre_comercial.asc())
-            .limit(limit)
-            .all()
-        )
+
+        if search_field == "fiscal":
+            query = query.filter(self.model.nombre_razon_social.ilike(texto))
+            query = query.order_by(self.model.nombre_razon_social.asc())
+        elif search_field == "both":
+            query = query.filter(
+                or_(
+                    self.model.nombre_comercial.ilike(texto),
+                    self.model.nombre_razon_social.ilike(texto),
+                )
+            )
+            query = query.order_by(self.model.nombre_comercial.asc())
+        else:
+            # Default: 'comercial'
+            query = query.filter(self.model.nombre_comercial.ilike(texto))
+            query = query.order_by(self.model.nombre_comercial.asc())
+
+        return query.limit(limit).all()
 
     def validar_rfc_global(self, db: Session, rfc: str, exclude_cliente_id: Optional[UUID] = None) -> List[str]:
         """
