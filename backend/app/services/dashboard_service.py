@@ -31,9 +31,14 @@ def _to_period_key(dt: datetime) -> str:
 
 
 def ingresos_egresos_metrics(
-    db: Session, *, empresa_id: Optional[str] = None, months: int = 12
+    db: Session, *, empresa_id: Optional[str] = None, months: int = 12, year: Optional[int] = None, month: Optional[int] = None
 ) -> Dict[str, Any]:
-    now = datetime.utcnow()
+    if year and month:
+        now = datetime(year, month, 1)
+        # Advance to end of month efficiently or just use day=1 logic which works with _next_month helper
+    else:
+        now = datetime.utcnow()
+
     # Generar exactamente `months` periodos incluyendo el mes actual, en orden ascendente
     periods: List[datetime] = []
     cursor = _month_start(now)

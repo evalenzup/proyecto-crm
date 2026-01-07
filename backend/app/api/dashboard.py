@@ -16,13 +16,15 @@ router = APIRouter()
 def get_ingresos_egresos(
     empresa_id: Optional[str] = Query(default=None),
     months: int = Query(default=12, ge=1, le=24),
+    year: Optional[int] = Query(default=None, ge=2000, le=2100),
+    month: Optional[int] = Query(default=None, ge=1, le=12),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     if current_user.rol == RolUsuario.SUPERVISOR:
         empresa_id = str(current_user.empresa_id) if current_user.empresa_id else None
         
-    return ingresos_egresos_metrics(db, empresa_id=empresa_id, months=months)
+    return ingresos_egresos_metrics(db, empresa_id=empresa_id, months=months, year=year, month=month)
 
 
 @router.get("/presupuestos")

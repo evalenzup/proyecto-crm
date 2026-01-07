@@ -25,11 +25,13 @@ export interface PresupuestosMetricsOut {
 }
 
 export const dashboardService = {
-  async getIngresosEgresos(params?: { empresaId?: string; months?: number }): Promise<IngresosEgresosOut> {
+  async getIngresosEgresos(params?: { empresaId?: string; months?: number; year?: number; month?: number }): Promise<IngresosEgresosOut> {
     const response = await api.get<IngresosEgresosOut>('/dashboard/ingresos-egresos', {
       params: {
         empresa_id: params?.empresaId,
         months: params?.months ?? 12,
+        year: params?.year,
+        month: params?.month,
       },
     });
     return response.data;

@@ -1,7 +1,7 @@
 // src/components/Dashboard.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton, DatePicker } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined } from '@ant-design/icons';
 import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { useAuth } from '@/context/AuthContext';
@@ -13,16 +13,21 @@ const ReactECharts = dynamic(() => import('echarts-for-react'), {
   loading: () => <Skeleton active paragraph={{ rows: 8 }} style={{ height: 360, padding: 20 }} />,
 });
 
+import dayjs, { Dayjs } from 'dayjs';
+
 const currency = (n: number, ccy: string) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: ccy || 'MXN', maximumFractionDigits: 2 }).format(
     Number.isFinite(n) ? n : 0
   );
 
 export const Dashboard: React.FC = () => {
-  const [data, setData] = useState<IngresosEgresosOut | null>(null);
+  const [cardsData, setCardsData] = useState<IngresosEgresosOut | null>(null);
+  const [trendData, setTrendData] = useState<IngresosEgresosOut | null>(null);
   // const [presupuestosData, setPresupuestosData] = useState<PresupuestosMetricsOut | null>(null); // Disabled
   const [loadingFinance, setLoadingFinance] = useState(false);
   // const [loadingBudget, setLoadingBudget] = useState(false); // Disabled
+
+  const [selectedMonth, setSelectedMonth] = useState<Dayjs | null>(dayjs());
 
   // Use centralized filter state
   const { dashboard, setDashboard } = useFilterContext();
@@ -40,16 +45,20 @@ export const Dashboard: React.FC = () => {
     });
   }, [empresaId, setDashboard]);
 
+  // 2. Fetch Finance Metrics (Cards - Filtered by Date)
   useEffect(() => {
     if (!empresaId) return;
 
     let mounted = true;
-
-    // 2. Fetch Finance Metrics (Only)
     setLoadingFinance(true);
-    dashboardService.getIngresosEgresos({ months: 12, empresaId })
+
+    const date = selectedMonth || dayjs();
+    const year = date.year();
+    const month = date.month() + 1;
+
+    dashboardService.getIngresosEgresos({ months: 12, empresaId, year, month })
       .then((res) => {
-        if (mounted) setData(res);
+        if (mounted) setCardsData(res);
       })
       .finally(() => {
         if (mounted) setLoadingFinance(false);
@@ -58,25 +67,43 @@ export const Dashboard: React.FC = () => {
     return () => {
       mounted = false;
     };
+  }, [empresaId, selectedMonth]);
+
+  // 3. Fetch Finance Trend (Chart/Table - Always last 12 months relative to NOW)
+  useEffect(() => {
+    if (!empresaId) return;
+
+    let mounted = true;
+    // We can share loading state or have separate. Sharing is fine for now.
+
+    dashboardService.getIngresosEgresos({ months: 12, empresaId }) // No year/month params = current time window
+      .then((res) => {
+        if (mounted) setTrendData(res);
+      })
+      .catch(console.error);
+
+    return () => {
+      mounted = false;
+    };
   }, [empresaId]);
 
-  const ccy = data?.currency || 'MXN';
+  const ccy = trendData?.currency || 'MXN';
 
   const chartSeries = useMemo(() => {
-    return (data?.series || []).map((s) => ({
+    return (trendData?.series || []).map((s) => ({
       period: s.period,
       ingresos: s.ingresos || 0,
       egresos: s.egresos || 0,
       diff: (s.ingresos || 0) - (s.egresos || 0),
     }));
-  }, [data]);
+  }, [trendData]);
 
   const chartOption = useMemo(() => {
     const categories = chartSeries.map((s) => s.period);
     const ingresos = chartSeries.map((s) => s.ingresos);
     const egresos = chartSeries.map((s) => s.egresos);
-    const porCobrar = (data?.series || []).map((s) => (s.por_cobrar ?? 0));
-    const porPagar = (data?.series || []).map((s) => (s.por_pagar ?? 0));
+    const porCobrar = (trendData?.series || []).map((s) => (s.por_cobrar ?? 0));
+    const porPagar = (trendData?.series || []).map((s) => (s.por_pagar ?? 0));
     const diff = chartSeries.map((s) => s.diff);
     return {
       animation: true,
@@ -147,16 +174,16 @@ export const Dashboard: React.FC = () => {
         { type: 'slider', height: 16, bottom: 6 },
       ],
     } as const;
-  }, [chartSeries, ccy, data?.series]);
+  }, [chartSeries, ccy, trendData?.series]);
 
   // auth hook
   const { user } = useAuth();
 
   return (
     <Row gutter={[16, 16]}>
-      {/* Filtro de Empresa (Solo Admin) */}
-      {user?.rol === 'admin' && (
-        <Col span={24} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {/* Filtros */}
+      <Col span={24} style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        {user?.rol === 'admin' && (
           <Select
             placeholder="Filtrar por Empresa"
             style={{ width: 250 }}
@@ -165,8 +192,18 @@ export const Dashboard: React.FC = () => {
             onChange={(val) => setDashboard(prev => ({ ...prev, empresaId: val }))}
             options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
           />
-        </Col>
-      )}
+        )}
+        <DatePicker
+          picker="month"
+          value={selectedMonth}
+          onChange={(val) => setSelectedMonth(val)}
+          format="MMMM YYYY"
+          allowClear={false}
+          style={{ width: 200 }}
+          placeholder="Seleccionar Mes"
+          suffixIcon={<CalendarOutlined />}
+        />
+      </Col>
 
       {/* Sección de Ventas y Presupuestos - COMENTADA POR SOLICITUD
       <Col span={24}>
@@ -259,7 +296,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.mtd?.ingresos ?? 0}
+            value={cardsData?.mtd?.ingresos ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
             valueStyle={{ color: '#3f8600' }}
             prefix={<ArrowUpOutlined />}
@@ -277,7 +314,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.mtd?.egresos ?? 0}
+            value={cardsData?.mtd?.egresos ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
             valueStyle={{ color: '#cf1322' }}
             prefix={<ArrowDownOutlined />}
@@ -295,7 +332,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.mtd?.por_cobrar ?? 0}
+            value={cardsData?.mtd?.por_cobrar ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
             valueStyle={{ color: '#faad14' }}
           />
@@ -312,7 +349,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.mtd?.por_pagar ?? 0}
+            value={cardsData?.mtd?.por_pagar ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
             valueStyle={{ color: '#722ed1' }}
           />
@@ -329,7 +366,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.ytd?.ingresos ?? 0}
+            value={cardsData?.ytd?.ingresos ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
           />
         </Card>
@@ -345,7 +382,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.ytd?.egresos ?? 0}
+            value={cardsData?.ytd?.egresos ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
           />
         </Card>
@@ -361,7 +398,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.ytd?.por_cobrar ?? 0}
+            value={cardsData?.ytd?.por_cobrar ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
           />
         </Card>
@@ -377,7 +414,7 @@ export const Dashboard: React.FC = () => {
                 </Tooltip>
               </Space>
             }
-            value={data?.ytd?.por_pagar ?? 0}
+            value={cardsData?.ytd?.por_pagar ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
           />
         </Card>
@@ -404,7 +441,7 @@ export const Dashboard: React.FC = () => {
           <Table
             size="small"
             pagination={false}
-            dataSource={(data?.series || []).map((r) => ({ key: r.period, ...r }))}
+            dataSource={(trendData?.series || []).map((r) => ({ key: r.period, ...r }))}
             columns={[
               { title: 'Periodo', dataIndex: 'period', key: 'period' },
               {
