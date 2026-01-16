@@ -55,7 +55,13 @@ class Egreso(Base):
     proveedor = Column(String)  # Nombre del proveedor (simple por ahora)
 
     # Ruta a un archivo de comprobante (factura, recibo, etc.)
-    path_documento = Column(String)
+    # Ruta a un archivo de comprobante (factura, recibo, etc.)
+    path_documento = Column(String)  # Deprecated or Legacy? We will keep it for compatibility or migrate later.
+    
+    # Nuevas columnas para XML y PDF específicos
+    archivo_xml = Column(String, nullable=True)
+    archivo_pdf = Column(String, nullable=True)
+    
     metodo_pago = Column(String, nullable=True)
 
     empresa = relationship("Empresa")

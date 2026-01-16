@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton, DatePicker } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined } from '@ant-design/icons';
-import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut } from '@/services/dashboardService';
+import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut, EgresoCategoriaMetric } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { useAuth } from '@/context/AuthContext';
 import { useFilterContext } from '@/context/FilterContext';
@@ -22,6 +22,7 @@ const currency = (n: number, ccy: string) =>
 
 export const Dashboard: React.FC = () => {
   const [cardsData, setCardsData] = useState<IngresosEgresosOut | null>(null);
+  const [egresosCatData, setEgresosCatData] = useState<EgresoCategoriaMetric[]>([]);
   const [trendData, setTrendData] = useState<IngresosEgresosOut | null>(null);
   // const [presupuestosData, setPresupuestosData] = useState<PresupuestosMetricsOut | null>(null); // Disabled
   const [loadingFinance, setLoadingFinance] = useState(false);
@@ -63,6 +64,12 @@ export const Dashboard: React.FC = () => {
       .finally(() => {
         if (mounted) setLoadingFinance(false);
       });
+
+    dashboardService.getEgresosPorCategoria({ year, month, empresaId })
+      .then(res => {
+        if (mounted) setEgresosCatData(res);
+      })
+      .catch(console.error);
 
     return () => {
       mounted = false;
@@ -175,6 +182,49 @@ export const Dashboard: React.FC = () => {
       ],
     } as const;
   }, [chartSeries, ccy, trendData?.series]);
+
+  const pieOption = useMemo(() => {
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: any) => {
+          return `${params.name}: ${currency(params.value, ccy)} (${params.percent}%)`;
+        }
+      },
+      legend: {
+        top: '5%',
+        left: 'center'
+      },
+      series: [
+        {
+          name: 'Egresos por Categoría',
+          type: 'pie',
+          radius: ['40%', '70%'],
+          avoidLabelOverlap: false,
+          itemStyle: {
+            borderRadius: 10,
+            borderColor: '#fff',
+            borderWidth: 2
+          },
+          label: {
+            show: false,
+            position: 'center'
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 16,
+              fontWeight: 'bold'
+            }
+          },
+          labelLine: {
+            show: false
+          },
+          data: egresosCatData.map(item => ({ value: item.value, name: item.name }))
+        }
+      ]
+    };
+  }, [egresosCatData, ccy]);
 
   // auth hook
   const { user } = useAuth();
@@ -430,6 +480,46 @@ export const Dashboard: React.FC = () => {
           ) : (
             <Typography.Text type="secondary">Sin datos para graficar</Typography.Text>
           )}
+        </Card>
+      </Col>
+
+      <Col span={24} md={12}>
+        <Card loading={loadingFinance}>
+          <Typography.Title level={5} style={{ marginBottom: 16 }}>
+            Egresos por Categoría ({selectedMonth?.format('MMMM') || 'Mes Actual'})
+          </Typography.Title>
+          {egresosCatData.length ? (
+            <ReactECharts option={pieOption} style={{ width: '100%', height: 360 }} notMerge lazyUpdate />
+          ) : (
+            <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Typography.Text type="secondary">Sin datos</Typography.Text>
+            </div>
+          )}
+        </Card>
+      </Col>
+
+      <Col span={24} md={12}>
+        <Card loading={loadingFinance}>
+          <Typography.Title level={5} style={{ marginBottom: 16 }}>
+            Desglose ({ccy})
+          </Typography.Title>
+          <Table
+            size="small"
+            pagination={{ pageSize: 5 }}
+            dataSource={egresosCatData.map((d, i) => ({ key: i, ...d }))}
+            columns={[
+              { title: 'Categoría', dataIndex: 'name', key: 'name' },
+              {
+                title: 'Monto',
+                dataIndex: 'value',
+                key: 'value',
+                align: 'right',
+                render: (v) => currency(v, ccy),
+                sorter: (a, b) => a.value - b.value,
+                defaultSortOrder: 'descend'
+              }
+            ]}
+          />
         </Card>
       </Col>
 

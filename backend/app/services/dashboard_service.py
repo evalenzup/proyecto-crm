@@ -382,3 +382,47 @@ def presupuestos_metrics(db: Session, *, empresa_id: Optional[str] = None) -> Di
         "avg_ticket": float(avg_ticket),
         "currency": "MXN",
     }
+
+
+def egresos_por_categoria_metrics(
+    db: Session, *, empresa_id: Optional[str] = None, year: Optional[int] = None, month: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Agrupa egresos por categoría para un mes/año específico.
+    """
+    
+    query = db.query(
+        Egreso.categoria,
+        func.sum(Egreso.monto).label("total")
+    ).filter(Egreso.estatus != EstatusEgreso.CANCELADO)
+
+    if empresa_id:
+        query = query.filter(Egreso.empresa_id == empresa_id)
+
+    if year and month:
+        start_date = datetime(year, month, 1)
+        # Calculate end_date (start of next month)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+        
+        query = query.filter(Egreso.fecha_egreso >= start_date, Egreso.fecha_egreso < end_date)
+    elif year:
+         start_date = datetime(year, 1, 1)
+         end_date = datetime(year + 1, 1, 1)
+         query = query.filter(Egreso.fecha_egreso >= start_date, Egreso.fecha_egreso < end_date)
+
+    result = query.group_by(Egreso.categoria).all()
+
+    # Format result: [{name: "Categoria", value: 1000}, ...]
+    output = []
+    for row in result:
+        output.append({
+            "name": row.categoria.value if hasattr(row.categoria, 'value') else str(row.categoria),
+            "value": float(row.total or 0)
+        })
+    
+    # Sort by value desc
+    output.sort(key=lambda x: x["value"], reverse=True)
+    return output

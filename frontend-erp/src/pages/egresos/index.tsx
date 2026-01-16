@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Card, Pagination, Tooltip, theme, Grid } from 'antd';
-import { PlusOutlined, EditOutlined, PaperClipOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, PaperClipOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { getEgresos, Egreso, getEgresoEnums, exportEgresosExcel, searchProveedores } from '@/services/egresoService';
 import { debounce } from 'lodash';
@@ -232,6 +232,30 @@ const EgresosListPage: React.FC = () => {
           <Tooltip title="Editar">
             <Button icon={<EditOutlined />} onClick={() => router.push(`/egresos/form/${record.id}`)} />
           </Tooltip>
+          {record.archivo_xml && (
+            <Tooltip title="Ver XML">
+              <Button
+                icon={<FileExcelOutlined />} // Usar icono apropiado
+                onClick={() => {
+                  const apiUrl = api.defaults.baseURL || '';
+                  const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+                  window.open(`${baseUrl}/data/${record.archivo_xml}`, '_blank');
+                }}
+              />
+            </Tooltip>
+          )}
+          {record.archivo_pdf && (
+            <Tooltip title="Ver PDF">
+              <Button
+                icon={<FilePdfOutlined style={{ color: 'red' }} />} // Icono PDF en rojo (estilo Acrobat)
+                onClick={() => {
+                  const apiUrl = api.defaults.baseURL || '';
+                  const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+                  window.open(`${baseUrl}/data/${record.archivo_pdf}`, '_blank');
+                }}
+              />
+            </Tooltip>
+          )}
           {record.path_documento && (
             <Tooltip title="Ver Documento">
               <Button

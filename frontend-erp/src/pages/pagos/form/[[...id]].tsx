@@ -225,17 +225,22 @@ const PagoFormPage: React.FC = () => {
 
           <Card size="small" title="Datos del Pago" style={{ marginBottom: 16 }}>
             <Row gutter={16}>
-              <Col xs={24} md={8}>
-                <Form.Item label="Fecha de Pago" name="fecha_pago" rules={[{ required: true }]}>
-                  <DatePicker style={{ width: '100%' }} />
+              <Col xs={24} md={6}>
+                <Form.Item label="Fecha de Pago (Real)" name="fecha_pago" rules={[{ required: true }]}>
+                  <DatePicker style={{ width: '100%' }} showTime format="YYYY-MM-DD HH:mm:ss" />
                 </Form.Item>
               </Col>
-              <Col xs={24} md={8}>
+              <Col xs={24} md={6}>
+                <Form.Item label="Fecha Emisión (CFDI)" name="fecha_emision" tooltip="Fecha legal del comprobante. Máximo 72h hacia el pasado. Si vacío, se usa fecha actual.">
+                  <DatePicker style={{ width: '100%' }} showTime format="YYYY-MM-DD HH:mm:ss" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={6}>
                 <Form.Item label="Forma de Pago" name="forma_pago_p" rules={[{ required: true }]}>
                   <Select placeholder="Seleccione una forma de pago" options={formasPago} />
                 </Form.Item>
               </Col>
-              <Col xs={24} md={8}>
+              <Col xs={24} md={6}>
                 <Form.Item label="Monto" name="monto" rules={[{ required: true }]}>
                   <InputNumber min={0} style={{ width: '100%' }} addonBefore="$" disabled />
                 </Form.Item>

@@ -38,3 +38,18 @@ def get_presupuestos_metrics(
 
     from app.services.dashboard_service import presupuestos_metrics
     return presupuestos_metrics(db, empresa_id=empresa_id)
+
+
+@router.get("/egresos-categoria")
+def get_egresos_por_categoria(
+    empresa_id: Optional[str] = Query(default=None),
+    year: Optional[int] = Query(default=None, ge=2000, le=2100),
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = str(current_user.empresa_id) if current_user.empresa_id else None
+
+    from app.services.dashboard_service import egresos_por_categoria_metrics
+    return egresos_por_categoria_metrics(db, empresa_id=empresa_id, year=year, month=month)

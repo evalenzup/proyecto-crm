@@ -1,7 +1,7 @@
-// src/pages/egresos/form/[[...id]].tsx
 'use client';
 
 import React, { useState } from 'react';
+import dayjs from 'dayjs';
 import { useRouter } from 'next/router';
 import {
   Form,
@@ -151,12 +151,78 @@ const EgresoFormPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col xs={24} md={8}>
-                <Form.Item label="Documento" name="path_documento">
-                  <Space>
-                    <Upload {...uploadProps}>
-                      <Button icon={<UploadOutlined />}>Click to Upload</Button>
-                    </Upload>
-                  </Space>
+                <Form.Item label="Archivo XML" name="archivo_xml">
+                  <Upload
+                    name="file"
+                    action={`${api.defaults.baseURL}/egresos/upload-documento/`}
+                    maxCount={1}
+                    defaultFileList={egreso?.archivo_xml ? [{ uid: '-1', name: egreso.archivo_xml.split('/').pop() || 'xml', status: 'done', url: `${getBaseUrl()}/data/${egreso.archivo_xml}` }] : []}
+                    onChange={async (info) => {
+                      if (info.file.status === 'done') {
+                        message.success(`${info.file.name} subido correctamente`);
+                        form.setFieldsValue({ archivo_xml: info.file.response.path_documento });
+
+                        // Auto-llenado
+                        if (info.file.originFileObj) {
+                          try {
+                            const formData = new FormData();
+                            formData.append('file', info.file.originFileObj);
+                            const { data } = await api.post('/egresos/parse-xml', formData);
+                            if (data) {
+                              const updates: any = {};
+                              if (data.fecha_egreso) updates.fecha_egreso = dayjs(data.fecha_egreso);
+                              if (data.monto) updates.monto = data.monto;
+                              if (data.moneda) updates.moneda = data.moneda;
+                              if (data.proveedor) updates.proveedor = data.proveedor;
+                              if (data.metodo_pago) updates.metodo_pago = data.metodo_pago; // Asumiendo que el método venga como clave compatible
+
+                              form.setFieldsValue(updates);
+                              message.info('Datos auto-completados desde XML');
+                            }
+                          } catch (e) {
+                            console.error('Error auto-llenado XML', e);
+                          }
+                        }
+                      } else if (info.file.status === 'error') {
+                        message.error(`${info.file.name} error al subir.`);
+                      } else if (info.file.status === 'removed') {
+                        form.setFieldsValue({ archivo_xml: null });
+                      }
+                    }}
+                  >
+                    <Button icon={<UploadOutlined />}>Subir XML</Button>
+                  </Upload>
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <Form.Item label="Archivo PDF" name="archivo_pdf">
+                  <Upload
+                    name="file"
+                    action={`${api.defaults.baseURL}/egresos/upload-documento/`}
+                    maxCount={1}
+                    defaultFileList={egreso?.archivo_pdf ? [{ uid: '-2', name: egreso.archivo_pdf.split('/').pop() || 'pdf', status: 'done', url: `${getBaseUrl()}/data/${egreso.archivo_pdf}` }] : []}
+                    onChange={(info) => {
+                      if (info.file.status === 'done') {
+                        message.success(`${info.file.name} subido correctamente`);
+                        form.setFieldsValue({ archivo_pdf: info.file.response.path_documento });
+                      } else if (info.file.status === 'error') {
+                        message.error(`${info.file.name} error al subir.`);
+                      } else if (info.file.status === 'removed') {
+                        form.setFieldsValue({ archivo_pdf: null });
+                      }
+                    }}
+                  >
+                    <Button icon={<UploadOutlined />}>Subir PDF</Button>
+                  </Upload>
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <Form.Item label="Otro Documento" name="path_documento">
+                  <Upload {...uploadProps}>
+                    <Button icon={<UploadOutlined />}>Subir Otro</Button>
+                  </Upload>
                 </Form.Item>
               </Col>
             </Row>

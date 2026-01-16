@@ -85,7 +85,7 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
         "Version": "4.0",
         "Serie": pago.serie or "P",
         "Folio": pago.folio or "1",
-        "Fecha": _fmt_cfdi_fecha_local(pago.fecha_pago),
+        "Fecha": _fmt_cfdi_fecha_local(pago.fecha_emision),
         "SubTotal": "0",
         "Moneda": "XXX",
         "Total": "0",

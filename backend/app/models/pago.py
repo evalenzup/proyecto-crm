@@ -41,6 +41,7 @@ class Pago(Base):
     moneda_p = Column(String(3), nullable=False)  # Catálogo SAT c_Moneda
     monto = Column(Numeric(18, 4), nullable=False)
     tipo_cambio_p = Column(Numeric(18, 6), nullable=True)
+    fecha_emision = Column(DateTime, nullable=True)
 
     estatus = Column(
         SQLAlchemyEnum(EstatusPago), nullable=False, default=EstatusPago.BORRADOR

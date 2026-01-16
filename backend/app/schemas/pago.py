@@ -47,6 +47,7 @@ class PagoBase(BaseModel):
     moneda_p: Annotated[str, StringConstraints(max_length=3)]
     monto: Decimal = Field(..., gt=0, max_digits=18)
     tipo_cambio_p: Optional[Decimal] = Field(None, gt=0, max_digits=18, decimal_places=6)
+    fecha_emision: Optional[datetime] = None
     serie: Optional[Annotated[str, StringConstraints(max_length=25)]] = None
     folio: Optional[Annotated[str, StringConstraints(max_length=40)]] = None
 
@@ -82,7 +83,9 @@ class PagoUpdate(BaseModel):
     forma_pago_p: Optional[Annotated[str, StringConstraints(max_length=2)]] = None
     moneda_p: Optional[Annotated[str, StringConstraints(max_length=3)]] = None
     monto: Optional[Decimal] = Field(None, gt=0, max_digits=18)
+    monto: Optional[Decimal] = Field(None, gt=0, max_digits=18)
     tipo_cambio_p: Optional[Decimal] = Field(None, gt=0, max_digits=18, decimal_places=6)
+    fecha_emision: Optional[datetime] = None
     documentos: Optional[List[PagoDocumentoRelacionadoCreate]] = None
 
     @field_validator("forma_pago_p", mode="before")

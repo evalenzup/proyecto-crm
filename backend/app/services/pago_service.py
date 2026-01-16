@@ -90,7 +90,13 @@ def listar_pagos(
     total = query.count()
 
     # Apply ordering
-    if hasattr(Pago, order_by):
+    if order_by == "folio":
+        column = cast(Pago.folio, Integer)
+        if order_dir == "desc":
+            query = query.order_by(column.desc())
+        else:
+            query = query.order_by(column.asc())
+    elif hasattr(Pago, order_by):
         column = getattr(Pago, order_by)
         if order_dir == "desc":
             query = query.order_by(column.desc())

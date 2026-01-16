@@ -14,6 +14,8 @@ class EgresoBase(BaseModel):
     estatus: EstatusEgreso
     proveedor: Optional[str] = None
     path_documento: Optional[str] = None
+    archivo_xml: Optional[str] = None
+    archivo_pdf: Optional[str] = None
     metodo_pago: Optional[str] = None
 
 
@@ -30,6 +32,8 @@ class EgresoUpdate(BaseModel):
     estatus: Optional[EstatusEgreso] = None
     proveedor: Optional[str] = None
     path_documento: Optional[str] = None
+    archivo_xml: Optional[str] = None
+    archivo_pdf: Optional[str] = None
     metodo_pago: Optional[str] = None
 
 

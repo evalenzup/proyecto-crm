@@ -90,6 +90,7 @@ export const usePagoForm = () => {
             ...pagoData,
             forma_pago_p: fp,
             fecha_pago: pagoData?.fecha_pago ? dayjs(pagoData.fecha_pago) : null,
+            fecha_emision: pagoData?.fecha_emision ? dayjs(pagoData.fecha_emision) : null,
           });
 
           if (pagoData.cliente_id) {
@@ -131,6 +132,7 @@ export const usePagoForm = () => {
           // Valores por defecto para un nuevo pago
           form.setFieldsValue({
             fecha_pago: dayjs(),
+            fecha_emision: dayjs(),
             forma_pago_p: '03', // 03 = Transferencia electrónica de fondos
             moneda_p: 'MXN',
           });
@@ -333,6 +335,7 @@ export const usePagoForm = () => {
       const payload = {
         ...values,
         fecha_pago: values?.fecha_pago ? dayjs(values.fecha_pago).toISOString() : null,
+        fecha_emision: values?.fecha_emision ? dayjs(values.fecha_emision).toISOString() : null,
         documentos,
       };
 

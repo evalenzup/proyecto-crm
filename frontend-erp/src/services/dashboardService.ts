@@ -45,4 +45,20 @@ export const dashboardService = {
     });
     return response.data;
   },
+
+  async getEgresosPorCategoria(params?: { empresaId?: string; year?: number; month?: number }): Promise<EgresoCategoriaMetric[]> {
+    const response = await api.get<EgresoCategoriaMetric[]>('/dashboard/egresos-categoria', {
+      params: {
+        empresa_id: params?.empresaId,
+        year: params?.year,
+        month: params?.month,
+      },
+    });
+    return response.data;
+  },
 };
+
+export interface EgresoCategoriaMetric {
+  name: string; // Category name
+  value: number; // Total amount
+}

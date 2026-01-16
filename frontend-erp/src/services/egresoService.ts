@@ -50,6 +50,8 @@ export interface EgresoCreate {
   proveedor?: string;
   metodo_pago?: string;
   path_documento?: string;
+  archivo_xml?: string;
+  archivo_pdf?: string;
 }
 
 export interface EgresoUpdate extends Partial<EgresoCreate> { }
@@ -65,6 +67,8 @@ export interface Egreso {
   estatus: string;
   proveedor?: string;
   path_documento?: string;
+  archivo_xml?: string;
+  archivo_pdf?: string;
   metodo_pago?: string;
 }
 

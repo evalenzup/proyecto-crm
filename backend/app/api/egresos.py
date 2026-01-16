@@ -35,11 +35,29 @@ async def upload_documento(file: UploadFile = File(...)):
         file_extension = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_extension}"
         file_path = os.path.join(upload_dir, unique_filename)
+        # Leer contenido para guardar
+        content = await file.read()
         with open(file_path, "wb") as buffer:
-            buffer.write(await file.read())
+            buffer.write(content)
+        
         return {"path_documento": os.path.join("egresos", unique_filename)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al subir el archivo: {e}")
+
+
+@router.post("/parse-xml", response_model=dict)
+async def parse_xml_endpoint(file: UploadFile = File(...)):
+    """
+    Recibe un XML y retorna datos extraidos (fecha, monto, prov, etc).
+    No guarda el archivo, solo lo procesa en memoria.
+    """
+    try:
+        from app.services.egreso_service import parse_egreso_xml
+        content = await file.read()
+        data = parse_egreso_xml(content)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar XML: {e}")
 
 @router.get("/enums", response_model=dict)
 def get_egreso_enums():
