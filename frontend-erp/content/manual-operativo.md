@@ -215,6 +215,35 @@ Dales acceso a tus empleados sin compartir tu contraseña.
 
 ---
 
+## 📊 9. Cobranza: Recupera tu Dinero
+
+Gestiona de forma proactiva a los clientes que te deben dinero para mejorar tu flujo de efectivo.
+
+### 9.1 Dashboard (Tu Tablero de Control)
+Al entrar a "Cobranza", verás indicadores clave:
+*   **KPIs**: Cuánto te deben en total, cuánto está vencido (urgente) y cuánto está vigente.
+*   **Gráfico de Antigüedad**: Te muestra visualmente qué tan vieja es la cartera.
+*   **Top Deudores**: Lista rápida de quiénes te deben más dinereo.
+
+### 9.2 Reporte de Antigüedad (Antigüedad de Saldos)
+Es la tabla principal donde ves cliente por cliente.
+*   **Colores de Alerta**:
+    *   **Verde**: Saldo Vigente (aún no vence).
+    *   **Amarillo**: Vencido de 1-30 días (primer aviso).
+    *   **Naranja**: Vencido de 31-60 días y 61-90 días (atención media).
+    *   **Rojo**: Vencido más de 90 días (crítico).
+*   **Acciones Rápidas**:
+    1.  **Estado de Cuenta (PDF)**: Da clic en el icono de **PDF** el cual te mostrará la vista previa del documento para descargarlo.
+    2.  **Enviar por Correo**: Da clic en el icono de **Sobre (✉️)**.
+        *   Se abrirá una ventana para confirmar los destinatarios.
+        *   Se adjunta el PDF automáticamente.
+        *   Se envía un mensaje cordial invitando al pago.
+    3.  **Bitácora (Notas)**: Da clic en el icono de **Libreta**.
+        *   Aquí puedes anotar: "Hablé con contabilidad, prometen pago el viernes".
+        *   También verás el **historial automático** de cuándo les enviaste el estado de cuenta por correo.
+
+---
+
 ## ⚠️ Glosario Rápido
 *   **Timbrar**: Avisarle al SAT que hiciste una factura. Es irreversible (tienes que cancelar si te equivocas).
 *   **UUID**: Es el "Folio Fiscal". Un código largo extraño que es la verdadera identificación de la factura.
