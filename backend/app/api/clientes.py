@@ -151,7 +151,7 @@ def exportar_clientes_excel(
     items, _ = cliente_repo.get_multi(
         db,
         skip=0,
-        limit=5000,
+        limit=1000000,
         empresa_id=empresa_id,
         rfc=rfc,
         nombre_comercial=nombre_comercial,

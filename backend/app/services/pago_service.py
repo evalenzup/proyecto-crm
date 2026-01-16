@@ -427,6 +427,7 @@ def timbrar_pago(db: Session, pago_id: UUID) -> dict:
             if factura_a_actualizar:
                 if doc.imp_saldo_insoluto == 0:
                     factura_a_actualizar.status_pago = "PAGADA"
+                    factura_a_actualizar.fecha_cobro = pago.fecha_pago
 
         db.commit()
         db.refresh(pago)

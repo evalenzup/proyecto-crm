@@ -145,7 +145,7 @@ def exportar_facturas_excel(
         fecha_hasta=fecha_hasta,
         order_by="fecha",
         order_dir="desc",
-        limit=5000, # Límite razonable para exportación
+        limit=1000000, # Límite aumentado para exportar todo
         offset=0,
     )
 

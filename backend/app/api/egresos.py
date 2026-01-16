@@ -144,7 +144,7 @@ def exportar_egresos_excel(
     items, _ = egreso_repo.get_multi(
         db,
         skip=0,
-        limit=5000,
+        limit=1000000,
         empresa_id=empresa_id,
         proveedor=proveedor,
         categoria=categoria,

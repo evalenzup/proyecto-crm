@@ -126,7 +126,7 @@ def exportar_pagos_excel(
     items, _ = pago_service.listar_pagos(
         db,
         offset=0,
-        limit=5000,
+        limit=1000000,
         order_by=order_by,
         order_dir=order_dir,
         empresa_id=empresa_id,
