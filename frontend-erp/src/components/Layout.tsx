@@ -19,6 +19,7 @@ import {
   DownOutlined,
   FontSizeOutlined,
   QuestionCircleOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography } from 'antd';
 import esES from 'antd/locale/es_ES';
@@ -82,6 +83,7 @@ const baseMenuData = [
   { path: '/facturas', name: 'Facturación', icon: <ContainerOutlined /> },
   // { path: '/presupuestos', name: 'Presupuestos', icon: <FileTextOutlined /> },
   { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
+  { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
   { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
   // { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
   { path: '/ayuda', name: 'Ayuda', icon: <QuestionCircleOutlined /> },

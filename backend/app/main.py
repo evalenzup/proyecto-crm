@@ -25,6 +25,7 @@ from app.api.contactos import router as contactos_router
 from app.api.presupuestos import router as presupuestos_router
 from app.api.login import router as login_router
 from app.api.users import router as users_router
+from app.api.cobranza import router as cobranza_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -144,6 +145,13 @@ app.include_router(
     users_router,
     prefix="/api/users",
     tags=["users"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    cobranza_router,
+    prefix="/api/cobranza",
+    tags=["cobranza"],
     responses={404: {"description": "No encontrado"}},
 )
 

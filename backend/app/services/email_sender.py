@@ -13,7 +13,6 @@ from app import models
 from app.core.security import decrypt_data
 from app.config import settings
 
-
 class EmailSendingError(Exception):
     pass
 
@@ -471,6 +470,97 @@ def send_presupuesto_email(
 
     # 5. Adjuntar PDF desde memoria
     pdf_filename = f"Presupuesto-{presupuesto.folio}.pdf"
+    part_pdf = MIMEBase("application", "octet-stream")
+    part_pdf.set_payload(pdf_bytes)
+    encoders.encode_base64(part_pdf)
+    part_pdf.add_header(
+        "Content-Disposition",
+        f'attachment; filename="{pdf_filename}"',
+    )
+    msg.attach(part_pdf)
+
+    # 6. Enviar correo
+    try:
+        server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
+        if email_config.use_tls:
+            server.starttls()
+        server.login(email_config.smtp_user, smtp_password)
+        server.send_message(msg)
+        server.quit()
+    except smtplib.SMTPAuthenticationError:
+        raise EmailSendingError(
+            "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+        )
+    except Exception as e:
+        raise EmailSendingError(f"Error al enviar el correo: {e}")
+
+
+def send_estado_cuenta_email(
+    db: Session,
+    empresa_id: uuid.UUID,
+    cliente_id: uuid.UUID,
+    recipients: list[str],
+    body: str = None
+):
+    # 1. Obtener la configuración de email de la empresa
+    email_config = (
+        db.query(models.EmailConfig)
+        .filter(models.EmailConfig.empresa_id == empresa_id)
+        .first()
+    )
+    if not email_config:
+        raise EmailSendingError(
+            "La empresa no tiene una configuración de correo electrónico."
+        )
+
+    # 2. Obtener cliente y empresa para el asunto/cuerpo
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    
+    if not cliente or not empresa:
+         raise EmailSendingError("Cliente o Empresa no encontrados.")
+
+    # 3. Generar PDF en memoria
+    try:
+        from app.services.pdf_estado_cuenta import generate_account_statement_pdf
+        pdf_buffer = generate_account_statement_pdf(db, empresa_id, cliente_id)
+        pdf_bytes = pdf_buffer.getvalue()
+    except Exception as e:
+        raise EmailSendingError(f"No se pudo generar el Estado de Cuenta para el envío: {e}")
+
+    # 4. Desencriptar contraseña
+    try:
+        smtp_password = decrypt_data(email_config.smtp_password)
+    except Exception:
+        raise EmailSendingError(
+            "No se pudo desencriptar la contraseña del correo. Verifique la configuración."
+        )
+
+    msg = MIMEMultipart()
+    msg["From"] = (
+        f"{email_config.from_name} <{email_config.from_address}>"
+        if email_config.from_name
+        else email_config.from_address
+    )
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = f"Estado de Cuenta - {empresa.nombre_comercial}"
+
+    if not body:
+        body = f"""
+        <html>
+          <body>
+            <p>Estimado cliente <strong>{cliente.nombre_razon_social or cliente.nombre_comercial}</strong>,</p>
+            <p>Esperamos que esté teniendo un excelente día.</p>
+            <p>Le hacemos llegar su <strong>Estado de Cuenta actualizado</strong> para su revisión. Agradecemos de antemano su apoyo con el seguimiento de los saldos pendientes.</p>
+            <p>Quedamos a su entera disposición para cualquier duda o aclaración que pueda tener al respecto.</p>
+            <p>Atentamente,<br/>{empresa.nombre_comercial}</p>
+          </body>
+        </html>
+        """
+    msg.attach(MIMEText(body, "html"))
+
+    # 5. Adjuntar PDF
+    pdf_filename = f"EstadoCuenta-{cliente.rfc or 'CLIENTE'}.pdf"
     part_pdf = MIMEBase("application", "octet-stream")
     part_pdf.set_payload(pdf_bytes)
     encoders.encode_base64(part_pdf)
