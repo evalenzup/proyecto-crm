@@ -137,95 +137,62 @@ Para que el SAT sepa que esta nueva factura reemplaza a la anterior:
 
 ---
 
-## 💰 5. Cobranza (Complemento de Pagos)
+## 💰 5. Complemento de Pagos
 
 *Solo necesitas hacer esto si hiciste una factura PPD (Pago en Parcialidades o Diferido) y ya recibiste el dinero.*
 
 ### Paso 1: Crear el Registro del Pago
 1.  Ve al menú **Pagos** y presiona el botón **"+ Nuevo Pago"**.
-2.  **Datos Generales**:
+2.  **Datos del Emisor y Receptor**:
     *   Selecciona la **Empresa** (tu razón social).
-    *   Selecciona al **Cliente** que te pagó.
-    *   **Fecha de Pago**: El día real que cayó el dinero.
-    *   **Forma de Pago**: ¿Cómo te pagaron? (Transferencia, Cheque, Efectivo, etc.).
-    *   **Moneda**: Generalmente MXN.
-    *   *(Nota: El campo "Monto" aparacerá bloqueado en gris, es normal. Se calculará solo en el siguiente paso).*
+    *   Busca y selecciona al **Cliente** (puedes buscar por Nombre Comercial o Razón Social).
+3.  **Datos del Pago**:
+    *   **Fecha de Pago (Real)**: El día y hora exacta que cayó el dinero.
+    *   **Forma de Pago**: ¿Cómo te pagaron? (03-Transferencia, 02-Cheque, 01-Efectivo, etc.).
+    *   **Moneda**: MXN o USD.
+    *   *(Nota: El campo "Monto" está bloqueado. Se calculará automáticamente en el siguiente paso).*
 
-### Paso 2: Asignar el Pago a las Facturas
-En la parte inferior verás una tabla llamada **"Facturas a Pagar"**:
-1.  Busca la factura o facturas que te están liquidando.
-2.  En la columna **"Monto a Pagar"**, escribe cuánto dinero estás aplicando a esa factura.
-    *   *Ejemplo: Si te deben $10,000 y te pagaron todo, escribe 10,000.*
-    *   *Ejemplo: Si solo te abonaron $5,000, escribe 5,000.*
-3.  Verás que el campo **"Monto"** (arriba) se actualiza automáticamente con la suma de lo que escribiste.
+### Paso 2: Asignar el Pago a las Facturas (Saldar Deuda)
+Una vez seleccionado el cliente, aparecerá abajo la tabla **"Facturas a Pagar"** con todas sus facturas pendientes.
+1.  Busca la factura que te están pagando.
+2.  En la columna **"Monto a Pagar"** (casilla blanca), escribe cuánto dinero estás aplicando a esa factura.
+    *   *Ejemplo: Si la factura es de $10,000 y te pagaron todo, escribe 10000.*
+    *   *Ejemplo: Si solo es un abono parcial, escribe la cantidad abonada.*
+3.  Verás que el campo **"Monto"** (total general arriba) se actualiza solo con la suma de todo lo que escribiste.
 
 ### Paso 3: Guardar y Timbrar
-1.  Haz clic en **"Guardar Borrador"** (icono de disquete 💾). Esto guarda el registro en el sistema.
-2.  Revisa que todo esté bien.
+1.  Haz clic en **"Guardar Borrador"** (icono de disquete 💾). Esto guarda el registro en tu sistema interna pero aún no avisa al SAT.
+2.  Revisa que los datos sean correctos.
 3.  Presiona el botón **"Timbrar"** (icono de rayo ⚡).
-4.  El sistema generará el **REP (Recibo Electrónico de Pago)**, lo enviará al SAT y al correo de tu cliente.
+4.  El sistema generará el **REP (Recibo Electrónico de Pago)** oficial, obteniendo su Folio Fiscal (UUID).
+
+### Paso 4: Enviar al Cliente
+Una vez timbrado, se habilitarán los botones de acción:
+*   **Enviar por Correo**: Da clic en el botón con el icono de sobre (✉️). Se pre-llenará el correo del cliente y se adjuntarán el PDF y XML.
+*   **Ver PDF**: Para descargarlo tú mismo.
+
+### ❌ Cancelación de Pagos
+Si te equivocaste al hacer el recibo de pago (ej. fecha incorrecta o asignaste mal el dinero):
+1.  Abre el pago timbrado.
+2.  Presiona el botón de **"Papelera" (Borrar/Cancelar)** 🗑️.
+3.  Selecciona el motivo:
+    *   **"01 - Comprobante emitido con errores CON relación"**: Si vas a hacer uno nuevo para sustituirlo. (Te pedirá el UUID del nuevo, así que primero haz el nuevo y luego cancela este, o usa la opción 02 si se te complica).
+    *   **"02 - Comprobante emitido con errores SIN relación"**: La opción más sencilla para anularlo y volver a empezar.
+4.  Confirma la cancelación.
 
 --- 
 
-## 💸 6. Control de Gastos (Egresos)
-
-Registra tus compras para saber en qué se va el dinero y mantener ordenado tu flujo de caja.
-
-1.  Ve al menú **Egresos** y presiona **"+ Nuevo Egreso"**.
-2.  **Llenado de Datos**:
-    *   **Proveedor**: A quién le pagaste (ej. CFE, Papelería SA de CV).
-    *   **Fecha**: El día que salió el dinero de tu cuenta.
-    *   **Monto**: Total pagado (incluyendo IVA).
-    *   **Categoría**: Clasifícalo para tus reportes (ej. Servicios, Nómina, Renta, Viáticos).
-3.  **Adjuntar Evidencia (Obligatorio para Contabilidad)**:
-    *   Haz clic en el botón de subir archivo (icono de flecha hacia arriba).
-    *   Sube el **PDF** o **XML** de la factura que te dio el proveedor.
-4.  Haz clic en **Guardar**.
-
----
-
-## ⚙️ 7. Administración de Empresas (Solo Gerentes)
-
-### Agregar Nueva Empresa
-Si tienes varias razones sociales, regístralas aquí para mantenerlas separadas.
-
-1.  Ve a **Empresas** > **"+ Nueva Empresa"**.
-2.  **Llenado de Datos**:
-    *   Puedes usar el botón **"Subir PDF Constancia"** para ahorrar tiempo (igual que en Clientes).
-    *   **Certificados Digitales (CSD)**: En la parte inferior, sube los archivos `.cer` y `.key` que te dio el SAT, y escribe la **Contraseña** de la llave privada. Sin esto, no podrás timbrar.
-    *   **Logo**: Sube tu logo para que salga en los PDFs.
-3.  **Correo Electrónico**:
-    *   Una vez guardada la empresa, busca el botón **"Configurar Correo Electrónico"**.
-    *   Aquí pones los datos de tu servidor SMTP (ej. Gmail, Outlook) para que las facturas se envíen automáticamente desde tu cuenta.
-
----
-
-## 👥 8. Gestión de Usuarios
-Dales acceso a tus empleados sin compartir tu contraseña.
-
-1.  Ve al menú **Usuarios** (es posible que solo lo vean los Administradores).
-2.  Presiona **"+ Nuevo Usuario"**.
-3.  **Roles**:
-    *   **Administrador**: Tiene acceso a TODO.
-    *   **Supervisor**: Puede ver y crear facturas, pero solo de la empresa que le asignes.
-4.  Si eliges "Supervisor", selecciona la **Empresa Asignada**.
-5.  Crea su contraseña inicial (ellos no la verán, tú se las entregas).
-
-
-
----
-
-## 📊 9. Cobranza: Recupera tu Dinero
+## 💰 6. Cobranza: Recupera tu Dinero
 
 Gestiona de forma proactiva a los clientes que te deben dinero para mejorar tu flujo de efectivo.
 
-### 9.1 Dashboard (Tu Tablero de Control)
+### 6.1 Dashboard (Tu Tablero de Control)
 Al entrar a "Cobranza", verás indicadores clave:
 *   **KPIs**: Cuánto te deben en total, cuánto está vencido (urgente) y cuánto está vigente.
 *   **Gráfico de Antigüedad**: Te muestra visualmente qué tan vieja es la cartera.
 *   **Top Deudores**: Lista rápida de quiénes te deben más dinereo.
 
-### 9.2 Reporte de Antigüedad (Antigüedad de Saldos)
+### 6.2 Reporte de Antigüedad (Antigüedad de Saldos)
 Es la tabla principal donde ves cliente por cliente.
 *   **Colores de Alerta**:
     *   **Verde**: Saldo Vigente (aún no vence).
@@ -243,6 +210,76 @@ Es la tabla principal donde ves cliente por cliente.
         *   También verás el **historial automático** de cuándo les enviaste el estado de cuenta por correo.
 
 ---
+
+## 💸 7. Control de Gastos (Egresos)
+
+Registra tus compras para saber en qué se va el dinero. El sistema tiene una función inteligente para ahorrarte tiempo.
+
+### Opción A: Carga Inteligente (XML) - ¡La más rápida! ⚡
+Usa esta opción si tu proveedor te dio factura (XML).
+
+1.  Ve al menú **Egresos** y presiona **"+ Nuevo Egreso"**.
+2.  Selecciona la **Empresa** (quien pagó).
+3.  Busca el botón **"Subir XML"** y selecciona el archivo `.xml` de tu factura.
+4.  **¡Magia!** ✨ El sistema leerá el archivo y llenará automáticamente:
+    *   Fecha.
+    *   Monto y Moneda.
+    *   Proveedor.
+    *   Método de Pago.
+5.  Solo te falta completar:
+    *   **Categoría**: ¿En qué concepto entra este gasto? (Nómina, Renta, Viáticos, etc.).
+    *   **Descripción**: Una nota breve para ti.
+6.  (Opcional) Sube el **PDF** para tener el expediente completo.
+7.  Haz clic en **Guardar**.
+
+### Opción B: Registro Manual
+Si no hay factura (ej. recibo simple, taxi, propina):
+
+1.  Ve a **Egresos > + Nuevo Egreso**.
+2.  Llena todos los campos manualmente:
+    *   **Proveedor**: A quién le pagaste.
+    *   **Fecha**: Cuándo salió el dinero.
+    *   **Monto**: Total pagado.
+    *   **Categoría** y **Descripción**.
+3.  Sube cualquier comprobante (foto o PDF) en "Subir Otro" o "Subir PDF".
+4.  Haz clic en **Guardar**.
+
+El archivo adjunto puede servir para subir una foto de evidencia del egreso o el comprobante de pago.
+
+---
+
+## ⚙️ 8. Administración de Empresas (Solo Gerentes)
+
+### Agregar Nueva Empresa
+Si tienes varias razones sociales, regístralas aquí para mantenerlas separadas.
+
+1.  Ve a **Empresas** > **"+ Nueva Empresa"**.
+2.  **Llenado de Datos**:
+    *   Puedes usar el botón **"Subir PDF Constancia"** para ahorrar tiempo (igual que en Clientes).
+    *   **Certificados Digitales (CSD)**: En la parte inferior, sube los archivos `.cer` y `.key` que te dio el SAT, y escribe la **Contraseña** de la llave privada. Sin esto, no podrás timbrar.
+    *   **Logo**: Sube tu logo para que salga en los PDFs.
+3.  **Correo Electrónico**:
+    *   Una vez guardada la empresa, busca el botón **"Configurar Correo Electrónico"**.
+    *   Aquí pones los datos de tu servidor SMTP (ej. Gmail, Outlook) para que las facturas se envíen automáticamente desde tu cuenta.
+
+---
+
+## 👥 9. Gestión de Usuarios
+Dales acceso a tus empleados sin compartir tu contraseña.
+
+1.  Ve al menú **Usuarios** (es posible que solo lo vean los Administradores).
+2.  Presiona **"+ Nuevo Usuario"**.
+3.  **Roles**:
+    *   **Administrador**: Tiene acceso a TODO.
+    *   **Supervisor**: Puede ver y crear facturas, pero solo de la empresa que le asignes.
+4.  Si eliges "Supervisor", selecciona la **Empresa Asignada**.
+5.  Crea su contraseña inicial (ellos no la verán, tú se las entregas).
+
+
+
+---
+
+
 
 ## ⚠️ Glosario Rápido
 *   **Timbrar**: Avisarle al SAT que hiciste una factura. Es irreversible (tienes que cancelar si te equivocas).
