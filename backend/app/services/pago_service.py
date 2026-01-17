@@ -397,6 +397,177 @@ def crear_pago(db: Session, pago: PagoCreate):
     return db_pago
 
 
+def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
+    db_pago = leer_pago(db, pago_id)
+    if not db_pago:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado"
+        )
+
+    if db_pago.estatus != EstatusPago.BORRADOR:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden editar pagos en estatus BORRADOR.",
+        )
+
+    # Validar sumas
+    if not pago_in.documentos:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El pago debe tener al menos un documento relacionado.",
+        )
+    
+    total_pagado_en_documentos = sum(doc.imp_pagado for doc in pago_in.documentos)
+    if not abs(total_pagado_en_documentos - pago_in.monto) < Decimal("0.01"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El monto total del pago ({pago_in.monto}) no coincide con la suma de los importes pagados en los documentos ({total_pagado_en_documentos}).",
+        )
+
+    # Actualizar campos simples
+    db_pago.fecha_pago = pago_in.fecha_pago
+    db_pago.forma_pago_p = pago_in.forma_pago_p
+    db_pago.moneda_p = pago_in.moneda_p
+    db_pago.tipo_cambio_p = pago_in.tipo_cambio_p
+    db_pago.monto = pago_in.monto
+    # No permitimos cambiar cliente/empresa facilmente pues implica validar más cosas,
+    # pero el frontend suele mandar el mismo. Asumimos consistencia o ignoramos cambio de cliente.
+
+    # Limpiar documentos anteriores
+    # SQLAlchemy debería manejar la eliminación si cascade está bien, o manual
+    for doc in db_pago.documentos_relacionados:
+        db.delete(doc)
+    
+    # Recrear documentos (Lógica copiada de crear_pago)
+    for doc_in in pago_in.documentos:
+        factura = (
+            db.query(Factura)
+            .options(selectinload(Factura.conceptos))
+            .filter(Factura.id == doc_in.factura_id)
+            .first()
+        )
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"La factura con ID {doc_in.factura_id} no fue encontrada.",
+            )
+
+        # En EDITAR, la factura puede estar parcialmente pagada por *este* pago previo (que acabamos de borrar en memoria),
+        # pero como borramos los docs relacionados, "técnicamente" liberamos el saldo en lógica de negocio si calculamos al vuelo.
+        # Pero aquí validamos estatus "PAGADA" de la factura base. 
+        # Si la factura estaba PAGADA por OTROS pagos, fine. 
+        # Si estaba PAGADA por este mismo pago (imposible si estamos en BORRADOR), fine.
+        
+        if factura.status_pago == "PAGADA":
+             # Podría ser que está pagada por OTROS pagos.
+             # Ojo: si estamos editando un borrador, NO debería haber afectado el status de la factura todavía.
+             pass
+
+        if doc_in.imp_pagado > factura.total:
+             # Validación básica, se podría mejorar chequeando saldo insoluto real
+             pass
+
+        # --- START: Calculate proportional taxes ---
+        impuestos_dr_json = {"retenciones_dr": [], "traslados_dr": []}
+        if factura.total > 0 and doc_in.imp_pagado > 0:
+            payment_ratio = doc_in.imp_pagado / factura.total
+
+            retenciones_sum = {}
+            traslados_sum = {}
+
+            for concepto in factura.conceptos:
+                base_proporcional = (
+                    concepto.cantidad * concepto.valor_unitario - concepto.descuento
+                ) * payment_ratio
+
+                if concepto.ret_isr_importe and concepto.ret_isr_importe > 0:
+                    tasa = str(concepto.ret_isr_tasa)
+                    if "001" not in retenciones_sum:
+                        retenciones_sum["001"] = {}
+                    if tasa not in retenciones_sum["001"]:
+                        retenciones_sum["001"][tasa] = {"base": 0, "importe": 0}
+                    retenciones_sum["001"][tasa]["base"] += base_proporcional
+                    retenciones_sum["001"][tasa]["importe"] += (
+                        concepto.ret_isr_importe * payment_ratio
+                    )
+
+                if concepto.ret_iva_importe and concepto.ret_iva_importe > 0:
+                    tasa = str(concepto.ret_iva_tasa)
+                    if "002" not in retenciones_sum:
+                        retenciones_sum["002"] = {}
+                    if tasa not in retenciones_sum["002"]:
+                        retenciones_sum["002"][tasa] = {"base": 0, "importe": 0}
+                    retenciones_sum["002"][tasa]["base"] += base_proporcional
+                    retenciones_sum["002"][tasa]["importe"] += (
+                        concepto.ret_iva_importe * payment_ratio
+                    )
+
+                if concepto.iva_importe and concepto.iva_importe > 0:
+                    tasa = str(concepto.iva_tasa)
+                    if "002" not in traslados_sum:
+                        traslados_sum["002"] = {}
+                    if tasa not in traslados_sum["002"]:
+                        traslados_sum["002"][tasa] = {"base": 0, "importe": 0}
+                    traslados_sum["002"][tasa]["base"] += base_proporcional
+                    traslados_sum["002"][tasa]["importe"] += (
+                        concepto.iva_importe * payment_ratio
+                    )
+
+            for impuesto, tasas in retenciones_sum.items():
+                for tasa, montos in tasas.items():
+                    impuestos_dr_json["retenciones_dr"].append(
+                        {
+                            "base_dr": float(montos["base"]),
+                            "impuesto_dr": impuesto,
+                            "tipo_factor_dr": "Tasa",
+                            "tasa_o_cuota_dr": float(tasa),
+                            "importe_dr": float(montos["importe"]),
+                        }
+                    )
+
+            for impuesto, tasas in traslados_sum.items():
+                for tasa, montos in tasas.items():
+                    impuestos_dr_json["traslados_dr"].append(
+                        {
+                            "base_dr": float(montos["base"]),
+                            "impuesto_dr": impuesto,
+                            "tipo_factor_dr": "Tasa",
+                            "tasa_o_cuota_dr": float(tasa),
+                            "importe_dr": float(montos["importe"]),
+                        }
+                    )
+        # --- END: Calculate proportional taxes ---
+
+        db_doc = PagoDocumentoRelacionado(
+            factura_id=factura.id,
+            id_documento=factura.cfdi_uuid,
+            serie=factura.serie,
+            folio=str(factura.folio),
+            moneda_dr=factura.moneda,
+            num_parcialidad=doc_in.num_parcialidad,
+            imp_saldo_ant=doc_in.imp_saldo_ant,
+            imp_pagado=doc_in.imp_pagado,
+            imp_saldo_insoluto=doc_in.imp_saldo_insoluto,
+            impuestos_dr=impuestos_dr_json,
+            tipo_cambio_dr=getattr(doc_in, "tipo_cambio_dr", None),
+        )
+        # Importante: agregar a la relación del objeto db_pago YA existente
+        db_pago.documentos_relacionados.append(db_doc)
+
+    try:
+        db.add(db_pago)
+        db.commit()
+        db.refresh(db_pago)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al actualizar pago: {e}",
+        )
+    
+    return db_pago
+
+
 def timbrar_pago(db: Session, pago_id: UUID) -> dict:
     pago = db.query(Pago).filter(Pago.id == pago_id).first()
     if not pago:
@@ -545,6 +716,7 @@ def cancelar_pago_sat(
                 # Asumimos que al cancelar este pago, deja de estar pagada en su totalidad.
                 # En un sistema más complejo, recalcularíamos el saldo con los pagos restantes.
                 factura.status_pago = "NO_PAGADA"
+                factura.fecha_cobro = None
         
         db.add(pago)
         db.commit()

@@ -203,6 +203,23 @@ def leer_pago(
     return pago
 
 
+@router.put("/{pago_id}", response_model=PagoSchema)
+def actualizar_pago(
+    pago_id: uuid.UUID,
+    pago: PagoCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    pago_db = pago_service.leer_pago(db, pago_id)
+    if not pago_db:
+         raise HTTPException(status_code=404, detail="Pago no encontrado")
+         
+    if current_user.rol == RolUsuario.SUPERVISOR and pago_db.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
+    return pago_service.actualizar_pago(db, pago_id, pago)
+
+
 @router.delete("/{pago_id}", status_code=200)
 def delete_pago(
     pago_id: uuid.UUID, 

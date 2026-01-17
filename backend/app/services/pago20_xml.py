@@ -91,7 +91,7 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
         "Total": "0",
         "TipoDeComprobante": "P",
         "Exportacion": "01",
-        "LugarExpedicion": empresa.codigo_postal,
+        "LugarExpedicion": (str(empresa.codigo_postal or "").strip()[:5]).zfill(5),
     }
 
     comprobante = Element("cfdi:Comprobante", comprobante_attrs)
@@ -118,7 +118,7 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
         {
             "Rfc": cliente.rfc,
             "Nombre": cliente.nombre_razon_social,
-            "DomicilioFiscalReceptor": cliente.codigo_postal,
+            "DomicilioFiscalReceptor": (str(cliente.codigo_postal or "").strip()[:5]).zfill(5),
             "RegimenFiscalReceptor": cliente.regimen_fiscal,
             "UsoCFDI": "CP01",
         },

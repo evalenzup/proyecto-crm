@@ -23,7 +23,7 @@ from app.models.factura import Factura
 from app.models.cliente import Cliente
 from app.models.empresa import Empresa
 from app.config import settings
-from app.services.pdf_factura import _money, _draw_label_wrap, _wrap_lines
+from app.services.pdf_factura import _money, _draw_label_wrap, _wrap_lines, _to_tijuana
 
 # Layout constants
 PAGE_W, PAGE_H = letter
@@ -124,7 +124,7 @@ def generate_account_statement_pdf(db: Session, empresa_id: UUID, cliente_id: UU
     c.setFont(FONT, 10)
     c.drawRightString(PAGE_W - MARGIN, y - 30, "ESTADO DE CUENTA")
     c.setFont(FONT, 9)
-    c.drawRightString(PAGE_W - MARGIN, y - 42, f"Fecha de corte: {datetime.now().strftime('%d/%m/%Y')}")
+    c.drawRightString(PAGE_W - MARGIN, y - 42, f"Fecha de corte: {_to_tijuana(datetime.now()).strftime('%d/%m/%Y')}")
 
     y -= (LOGO_H + 20)
 
@@ -177,14 +177,19 @@ def generate_account_statement_pdf(db: Session, empresa_id: UUID, cliente_id: UU
         
         for f in cli_invoices:
             folio = f"{f.serie or ''} {f.folio or ''}".strip()
-            fecha = f.fecha_emision.strftime("%d/%m/%Y") if f.fecha_emision else "-"
-            
             # Use same logic as aging report for due date base
-            fecha_base = f.fecha_pago if f.fecha_pago else f.fecha_emision
-            if isinstance(fecha_base, datetime): fecha_base = fecha_base.date()
-            today = datetime.now().date()
-            days_overdue = (today - fecha_base).days
-            vence = fecha_base.strftime("%d/%m/%Y")
+            # Convert dates to Tijuana for accurate aging
+            dt_emision = _to_tijuana(f.fecha_emision)
+            fecha = dt_emision.strftime("%d/%m/%Y") if dt_emision else "-"
+
+            raw_base = f.fecha_pago if f.fecha_pago else f.fecha_emision
+            dt_base = _to_tijuana(raw_base)
+            
+            fecha_base_date = dt_base.date() if dt_base else datetime.now().date()
+            vence = dt_base.strftime("%d/%m/%Y") if dt_base else "-"
+
+            today_tj = _to_tijuana(datetime.now()).date()
+            days_overdue = (today_tj - fecha_base_date).days
             
             saldo = Decimal(f.total or 0)
             

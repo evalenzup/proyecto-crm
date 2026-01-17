@@ -643,9 +643,8 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
         "TipoDeComprobante": (getattr(f, "tipo_comprobante", None) or "I").upper(),
         "Exportacion": getattr(f, "exportacion", None) or "01",
         "LugarExpedicion": (
-            getattr(f, "lugar_expedicion", None)
-            or (getattr(emp, "codigo_postal", None) or "")
-        )[:5],
+            str(getattr(f, "lugar_expedicion", None) or (getattr(emp, "codigo_postal", None) or "")).strip()[:5]
+        ).zfill(5),
         f"{{{NS_XSI}}}schemaLocation": schema_loc,
     }
 
@@ -775,9 +774,8 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
             "Rfc": "XAXX010101000",
             "Nombre": "PUBLICO EN GENERAL",
             "DomicilioFiscalReceptor": (
-                getattr(f, "lugar_expedicion", None)
-                or (getattr(emp, "codigo_postal", None) or "")
-            )[:5],
+                str(getattr(f, "lugar_expedicion", None) or (getattr(emp, "codigo_postal", None) or "")).strip()[:5]
+            ).zfill(5),
             "RegimenFiscalReceptor": "616",
             "UsoCFDI": "S01",
         }
@@ -791,10 +789,9 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
         receptor_attrs = {
             "Rfc": getattr(cli, "rfc", "") or "",
             **({"Nombre": cli_nombre} if cli_nombre else {}),
-            "DomicilioFiscalReceptor": (
-                getattr(cli, "codigo_postal", None)
-                or (getattr(f, "lugar_expedicion", None) or "")
-            )[:5],
+            "DomicilioFiscalReceptor": pad2(
+                (getattr(cli, "codigo_postal", None) or (getattr(f, "lugar_expedicion", None) or ""))[:5]
+            ).zfill(5),
             "RegimenFiscalReceptor": getattr(cli, "regimen_fiscal", None) or "",
             "UsoCFDI": getattr(f, "uso_cfdi", None) or "G01",
         }

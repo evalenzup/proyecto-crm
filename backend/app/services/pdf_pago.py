@@ -30,6 +30,7 @@ from .pdf_factura import (
     p_center_6,
     p_left_6,
     p_right_6,
+    _to_tijuana,
     FONT,
     FONT_B,
     MARGIN,
@@ -74,7 +75,10 @@ def _tfd_cadena_original_11_pago(p: Pago) -> str | None:
     if not (uuid and sello_cfd and rfc_pac and nocer_sat and ft):
         return None
     try:
-        fecha_iso = ft.strftime("%Y-%m-%dT%H:%M:%S")
+        dt = _to_tijuana(ft)
+        if not dt:
+             return None
+        fecha_iso = dt.strftime("%Y-%m-%dT%H:%M:%S")
     except Exception:
         return None
     return f"||1.1|{uuid}|{fecha_iso}|{rfc_pac}|{sello_cfd}|{nocer_sat}||"
@@ -165,7 +169,7 @@ def _draw_pago_header(c: canvas.Canvas, p: Pago, logo_path: Optional[str]) -> fl
         c.drawString(CONTENT_X0, y_left, "Fecha Timbrado:")
         c.setFont(FONT, 8)
         c.drawString(
-            CONTENT_X0 + x_space, y_left, p.fecha_timbrado.strftime("%Y-%m-%d %H:%M:%S")
+            CONTENT_X0 + x_space, y_left, _to_tijuana(p.fecha_timbrado).strftime("%Y-%m-%d %H:%M:%S")
         )
         y_left -= 12
     if p.empresa and p.empresa.codigo_postal:
@@ -374,7 +378,7 @@ def render_pago_pdf_bytes_from_model(
     pago_details = [
         (
             "Fecha de Pago:",
-            p.fecha_pago.strftime("%Y-%m-%d %H:%M:%S") if p.fecha_pago else "",
+            _to_tijuana(p.fecha_pago).strftime("%Y-%m-%d %H:%M:%S") if p.fecha_pago else "",
         ),
         ("Forma de Pago:", _forma_label(p.forma_pago_p)),
         ("Moneda:", p.moneda_p),

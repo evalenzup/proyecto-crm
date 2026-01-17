@@ -6,7 +6,11 @@ from io import BytesIO
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional, Tuple
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 from functools import lru_cache
 from urllib.parse import urlencode
 from collections import defaultdict
@@ -115,6 +119,17 @@ def _tt_param_17_6(total: Decimal | float | int) -> str:
     s = f"{d}"
     ent, frac = s.split(".")
     return f"{ent.zfill(17)}.{frac[:6].ljust(6, '0')}"
+
+
+def _to_tijuana(dt: datetime | None) -> datetime | None:
+    if not dt:
+        return None
+    # Si no tiene tzinfo, asumimos UTC (o lo asignamos)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    
+    # Convertir a Tijuana
+    return dt.astimezone(ZoneInfo("America/Tijuana"))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -461,7 +476,7 @@ def _draw_header(c: canvas.Canvas, f: Factura, logo_path: Optional[str]) -> floa
     c.drawString(
         CONTENT_X0 + x_space,
         y_left,
-        (f.fecha_emision or datetime.utcnow()).strftime("%Y-%m-%d %H:%M:%S"),
+        (_to_tijuana(f.fecha_emision or datetime.utcnow())).strftime("%Y-%m-%d %H:%M:%S"),
     )
     y_left -= 12
     if f.serie:
@@ -487,7 +502,7 @@ def _draw_header(c: canvas.Canvas, f: Factura, logo_path: Optional[str]) -> floa
         c.drawString(CONTENT_X0, y_left, "Fecha timbrado:")
         c.setFont(FONT, 8)
         c.drawString(
-            CONTENT_X0 + x_space, y_left, f.fecha_timbrado.strftime("%Y-%m-%d %H:%M:%S")
+            CONTENT_X0 + x_space, y_left, _to_tijuana(f.fecha_timbrado).strftime("%Y-%m-%d %H:%M:%S")
         )
         y_left -= 12
     if f.lugar_expedicion:
