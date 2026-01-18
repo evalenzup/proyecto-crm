@@ -187,7 +187,12 @@ const EgresosListPage: React.FC = () => {
       title: 'Fecha',
       dataIndex: 'fecha_egreso',
       key: 'fecha_egreso',
-      render: (text: string) => new Date(text).toLocaleDateString(),
+      render: (text: string) => {
+        if (!text) return '-';
+        // Assuming text is 'YYYY-MM-DD'. Split to avoid timezone shifts.
+        const [year, month, day] = text.split('-');
+        return `${day}/${month}/${year}`;
+      },
     },
     {
       title: 'Proveedor',

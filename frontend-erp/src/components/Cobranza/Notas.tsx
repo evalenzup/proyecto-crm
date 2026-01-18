@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatDate } from '@/utils/formatDate';
 import { Modal, List, Input, Button, DatePicker, message, Timeline, Typography, Empty, Avatar } from 'antd';
 import { UserOutlined, ClockCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { CobranzaNota, CobranzaNotaCreate } from '@/types/cobranza';
@@ -128,7 +129,7 @@ const Notas: React.FC<NotasProps> = ({ visible, onClose, clienteId, clienteNombr
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, paddingTop: 4 }}>
                                     <Text type="secondary" style={{ fontSize: 12 }}>
-                                        {dayjs(nota.creado_en).subtract(8, 'hour').format('DD/MM/YYYY HH:mm')}
+                                        {formatDate(nota.creado_en)}
                                     </Text>
                                     <Text strong style={{ fontSize: 13 }}>
                                         {nota.nombre_creador || "Usuario"}

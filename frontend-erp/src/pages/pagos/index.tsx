@@ -15,15 +15,7 @@ const { RangePicker } = DatePicker;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
-const formatDateTijuana = (iso: string) => {
-  if (!iso) return '';
-  const utc = iso.endsWith('Z') ? iso : `${iso}Z`;
-  return new Date(utc).toLocaleString('es-MX', {
-    timeZone: 'America/Tijuana',
-    dateStyle: 'short',
-    timeStyle: 'medium',
-  });
-};
+import { formatDate } from '@/utils/formatDate';
 
 const PagosIndexPage: React.FC = () => {
   const router = useRouter();
@@ -122,7 +114,7 @@ const PagosIndexPage: React.FC = () => {
 
   const columns: ColumnsType<PagoRow> = [
     { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.folio ?? ''}`, width: 110 },
-    { title: 'Fecha Pago', dataIndex: 'fecha_pago', key: 'fecha_pago', render: (v: string) => formatDateTijuana(v), width: 180 },
+    { title: 'Fecha Pago', dataIndex: 'fecha_pago', key: 'fecha_pago', render: (v: string) => formatDate(v), width: 180 },
     { title: 'Cliente', key: 'cliente', render: (_: any, r) => r.cliente?.nombre_comercial || '—' },
     { title: 'Estatus', dataIndex: 'estatus', key: 'estatus', width: 130 },
     {

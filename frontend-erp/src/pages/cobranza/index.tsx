@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Card, Row, Col, Typography, Statistic, Tag, Button, Tooltip, message, Select, Modal, Form, Input } from 'antd';
 import { DollarOutlined, SolutionOutlined, CommentOutlined, WarningOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
-import { Layout } from '@/components/Layout';
 import { AgingReportResponse, ClienteAging } from '@/types/cobranza';
 import { getAgingReport, fetchEstadoCuentaBlob, sendEstadoCuentaEmail } from '@/services/cobranzaService';
 import Notas from '@/components/Cobranza/Notas';
@@ -196,122 +195,120 @@ const CobranzaPage: React.FC = () => {
     ];
 
     return (
-        <Layout>
-            <div style={{ padding: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                    <Title level={2} style={{ margin: 0 }}>
-                        <WarningOutlined style={{ marginRight: 10 }} />
-                        Cobranza y Antigüedad de Saldos
-                    </Title>
-                    {isAdmin && (
-                        <Select
-                            value={selectedEmpresaId}
-                            onChange={setSelectedEmpresaId}
-                            style={{ width: 250 }}
-                            placeholder="Seleccionar Empresa"
-                            options={empresas.map(e => ({
-                                label: e.nombre_comercial || e.nombre,
-                                value: e.id
-                            }))}
-                        />
-                    )}
-                </div>
-
-                <CobranzaDashboard data={data} loading={loading} />
-
-                <Card title="Detalle por Cliente" bordered={false}>
-
-                    <Table
-                        columns={columns}
-                        dataSource={data?.items || []}
-                        rowKey="cliente_id"
-                        loading={loading}
-                        pagination={{
-                            defaultPageSize: 20,
-                            showSizeChanger: true,
-                            pageSizeOptions: ['10', '20', '50', '100'],
-                            showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} clientes`,
-                        }}
-                        bordered
-                    />
-                </Card>
-
-                {selectedCliente && (
-                    <Notas
-                        visible={notasVisible}
-                        onClose={() => setNotasVisible(false)}
-                        clienteId={selectedCliente.id}
-                        clienteNombre={selectedCliente.nombre}
-                        empresaId={selectedEmpresaId}
+        <div style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                <Title level={2} style={{ margin: 0 }}>
+                    <WarningOutlined style={{ marginRight: 10 }} />
+                    Cobranza y Antigüedad de Saldos
+                </Title>
+                {isAdmin && (
+                    <Select
+                        value={selectedEmpresaId}
+                        onChange={setSelectedEmpresaId}
+                        style={{ width: 250 }}
+                        placeholder="Seleccionar Empresa"
+                        options={empresas.map(e => ({
+                            label: e.nombre_comercial || e.nombre,
+                            value: e.id
+                        }))}
                     />
                 )}
-
-                <Modal
-                    title="Vista Previa de Estado de Cuenta"
-                    open={previewOpen}
-                    onCancel={() => {
-                        setPreviewOpen(false);
-                        // Optional: release blob URL if needed
-                    }}
-                    footer={[
-                        <Button key="close" onClick={() => setPreviewOpen(false)}>Cerrar</Button>,
-                        <Button
-                            key="download"
-                            type="primary"
-                            icon={<FilePdfOutlined />}
-                            onClick={() => {
-                                if (previewUrl) {
-                                    const a = document.createElement('a');
-                                    a.href = previewUrl;
-                                    a.download = `estado_cuenta_${previewCliente?.nombre || 'cliente'}.pdf`;
-                                    a.click();
-                                }
-                            }}
-                        >
-                            Descargar
-                        </Button>
-                    ]}
-                    width="80%"
-                    style={{ top: 20 }}
-                    styles={{ body: { height: '80vh', padding: 0 } }}
-                    destroyOnHidden
-                >
-                    {previewUrl && (
-                        <iframe
-                            src={previewUrl}
-                            style={{ width: '100%', height: '100%', border: 'none' }}
-                            title="Estado de Cuenta"
-                        />
-                    )}
-                </Modal>
-
-                <Modal
-                    title={`Enviar Estado de Cuenta - ${emailRow?.nombre_cliente || ''}`}
-                    open={emailModalOpen}
-                    onCancel={() => {
-                        setEmailModalOpen(false);
-                        emailForm.resetFields();
-                    }}
-                    onOk={() => emailForm.submit()}
-                    confirmLoading={emailLoading}
-                    okText="Enviar"
-                    cancelText="Cancelar"
-                >
-                    <Form form={emailForm} layout="vertical" onFinish={handleEmailSubmit}>
-                        <Form.Item
-                            label="Correos del Destinatario (separados por coma)"
-                            name="recipient_emails"
-                            rules={[{ required: true, message: 'Ingrese al menos un destinatario' }]}
-                        >
-                            <Input.TextArea rows={4} placeholder="cliente@empresa.com, pagos@empresa.com" />
-                        </Form.Item>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            Se adjuntará automáticamente el PDF del Estado de Cuenta.
-                        </Typography.Text>
-                    </Form>
-                </Modal>
             </div>
-        </Layout>
+
+            <CobranzaDashboard data={data} loading={loading} />
+
+            <Card title="Detalle por Cliente" bordered={false}>
+
+                <Table
+                    columns={columns}
+                    dataSource={data?.items || []}
+                    rowKey="cliente_id"
+                    loading={loading}
+                    pagination={{
+                        defaultPageSize: 20,
+                        showSizeChanger: true,
+                        pageSizeOptions: ['10', '20', '50', '100'],
+                        showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} clientes`,
+                    }}
+                    bordered
+                />
+            </Card>
+
+            {selectedCliente && (
+                <Notas
+                    visible={notasVisible}
+                    onClose={() => setNotasVisible(false)}
+                    clienteId={selectedCliente.id}
+                    clienteNombre={selectedCliente.nombre}
+                    empresaId={selectedEmpresaId}
+                />
+            )}
+
+            <Modal
+                title="Vista Previa de Estado de Cuenta"
+                open={previewOpen}
+                onCancel={() => {
+                    setPreviewOpen(false);
+                    // Optional: release blob URL if needed
+                }}
+                footer={[
+                    <Button key="close" onClick={() => setPreviewOpen(false)}>Cerrar</Button>,
+                    <Button
+                        key="download"
+                        type="primary"
+                        icon={<FilePdfOutlined />}
+                        onClick={() => {
+                            if (previewUrl) {
+                                const a = document.createElement('a');
+                                a.href = previewUrl;
+                                a.download = `estado_cuenta_${previewCliente?.nombre || 'cliente'}.pdf`;
+                                a.click();
+                            }
+                        }}
+                    >
+                        Descargar
+                    </Button>
+                ]}
+                width="80%"
+                style={{ top: 20 }}
+                styles={{ body: { height: '80vh', padding: 0 } }}
+                destroyOnHidden
+            >
+                {previewUrl && (
+                    <iframe
+                        src={previewUrl}
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        title="Estado de Cuenta"
+                    />
+                )}
+            </Modal>
+
+            <Modal
+                title={`Enviar Estado de Cuenta - ${emailRow?.nombre_cliente || ''}`}
+                open={emailModalOpen}
+                onCancel={() => {
+                    setEmailModalOpen(false);
+                    emailForm.resetFields();
+                }}
+                onOk={() => emailForm.submit()}
+                confirmLoading={emailLoading}
+                okText="Enviar"
+                cancelText="Cancelar"
+            >
+                <Form form={emailForm} layout="vertical" onFinish={handleEmailSubmit}>
+                    <Form.Item
+                        label="Correos del Destinatario (separados por coma)"
+                        name="recipient_emails"
+                        rules={[{ required: true, message: 'Ingrese al menos un destinatario' }]}
+                    >
+                        <Input.TextArea rows={4} placeholder="cliente@empresa.com, pagos@empresa.com" />
+                    </Form.Item>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        Se adjuntará automáticamente el PDF del Estado de Cuenta.
+                    </Typography.Text>
+                </Form>
+            </Modal>
+        </div>
     );
 };
 
