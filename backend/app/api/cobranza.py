@@ -136,3 +136,21 @@ def enviar_estado_cuenta(
         return {"message": "Correo enviado correctamente"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/notas/{nota_id}")
+def eliminar_nota(
+    nota_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+    empresa_id: UUID = Query(None),
+):
+    try:
+        is_admin = current_user.rol == RolUsuario.ADMIN
+        success = cobranza_service.delete_nota(db, nota_id, current_user.id, is_admin)
+        if not success:
+            raise HTTPException(status_code=404, detail="Nota no encontrada")
+        return {"message": "Nota eliminada correctamente"}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { formatDate } from '@/utils/formatDate';
-import { Modal, List, Input, Button, DatePicker, message, Timeline, Typography, Empty, Avatar } from 'antd';
-import { UserOutlined, ClockCircleOutlined, SaveOutlined } from '@ant-design/icons';
+import { Modal, List, Input, Button, DatePicker, message, Timeline, Typography, Empty, Avatar, Popconfirm } from 'antd';
+import { UserOutlined, ClockCircleOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { CobranzaNota, CobranzaNotaCreate } from '@/types/cobranza';
-import { createNota, getNotasByCliente } from '@/services/cobranzaService';
+import { createNota, getNotasByCliente, deleteNota } from '@/services/cobranzaService';
+import { useAuth } from '@/context/AuthContext';
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
@@ -20,6 +21,7 @@ interface NotasProps {
 const Notas: React.FC<NotasProps> = ({ visible, onClose, clienteId, clienteNombre, empresaId }) => {
     const [notas, setNotas] = useState<CobranzaNota[]>([]);
     const [loading, setLoading] = useState(false);
+    const { user } = useAuth();
 
     // Form states
     const [newNota, setNewNota] = useState('');
@@ -73,6 +75,27 @@ const Notas: React.FC<NotasProps> = ({ visible, onClose, clienteId, clienteNombr
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const handleDelete = (notaId: string) => {
+        Modal.confirm({
+            title: '¿Eliminar nota?',
+            icon: <ExclamationCircleOutlined />,
+            content: 'Esta acción no se puede deshacer.',
+            okText: 'Eliminar',
+            okType: 'danger',
+            cancelText: 'Cancelar',
+            onOk: async () => {
+                try {
+                    await deleteNota(notaId);
+                    message.success('Nota eliminada');
+                    fetchNotas();
+                } catch (error) {
+                    console.error(error);
+                    message.error('Error al eliminar nota');
+                }
+            }
+        });
     };
 
     return (
@@ -134,6 +157,16 @@ const Notas: React.FC<NotasProps> = ({ visible, onClose, clienteId, clienteNombr
                                     <Text strong style={{ fontSize: 13 }}>
                                         {nota.nombre_creador || "Usuario"}
                                     </Text>
+                                    {(user?.rol === 'admin' || user?.id === nota.creado_po) && (
+                                        <Button
+                                            type="text"
+                                            danger
+                                            size="small"
+                                            icon={<DeleteOutlined />}
+                                            onClick={() => handleDelete(nota.id)}
+                                            style={{ marginLeft: 8 }}
+                                        />
+                                    )}
                                 </div>
 
                                 <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>

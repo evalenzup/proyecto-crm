@@ -225,4 +225,18 @@ class CobranzaService:
         db.add(nota)
         db.commit()
 
+    @staticmethod
+    def delete_nota(db: Session, nota_id: UUID, user_id: UUID, is_admin: bool) -> bool:
+        nota = db.query(CobranzaNota).filter(CobranzaNota.id == nota_id).first()
+        if not nota:
+            return False
+            
+        # Check permissions: Creator or Admin
+        if not is_admin and nota.creado_po != user_id:
+            raise PermissionError("No tienes permiso para eliminar esta nota.")
+            
+        db.delete(nota)
+        db.commit()
+        return True
+
 cobranza_service = CobranzaService()

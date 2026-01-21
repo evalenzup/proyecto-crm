@@ -50,3 +50,7 @@ export const sendEstadoCuentaEmail = async (clienteId: string, recipients: strin
         { params }
     );
 };
+
+export const deleteNota = async (notaId: string): Promise<void> => {
+    await api.delete(`/cobranza/notas/${notaId}`);
+};
