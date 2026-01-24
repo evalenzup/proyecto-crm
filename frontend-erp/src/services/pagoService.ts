@@ -89,7 +89,6 @@ export interface Pago {
 // Represents a pending invoice for the payment form
 // This is based on the FacturaOut schema from the backend
 export interface FacturaPendiente extends FacturaOut {
-  // The backend doesn't calculate this yet, the UI will have to assume
-  // for a NO_PAGADA invoice, saldo_pendiente is the total.
   saldo_pendiente?: number;
+  parcialidad_actual?: number;
 }

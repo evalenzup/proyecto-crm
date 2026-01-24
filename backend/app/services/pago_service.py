@@ -172,6 +172,27 @@ def listar_facturas_pendientes_por_cliente(
 
     facturas = query.order_by(Factura.fecha_emision.desc()).all()
 
+    # Calcular saldo pendiente y parcialidad para cada factura
+    for f in facturas:
+        pagos_rels = (
+            db.query(PagoDocumentoRelacionado)
+            .join(Pago)
+            .filter(
+                PagoDocumentoRelacionado.factura_id == f.id,
+                Pago.estatus == EstatusPago.TIMBRADO
+            )
+            .all()
+        )
+        total_pagado = sum(rel.imp_pagado for rel in pagos_rels)
+        f.saldo_pendiente = f.total - total_pagado
+        
+        # Parcialidad actual es el número de pagos previos + 1
+        # Usamos max() por si hay saltos, o count() + 1
+        max_parc = 0
+        if pagos_rels:
+            max_parc = max(rel.num_parcialidad for rel in pagos_rels)
+        f.parcialidad_actual = max_parc + 1
+
     return facturas
 
 

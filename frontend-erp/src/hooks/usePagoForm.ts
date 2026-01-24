@@ -44,6 +44,12 @@ export const usePagoForm = () => {
     setPaymentAllocation((prev) => ({ ...prev, [facturaId]: amount }));
   };
 
+  const handleMetadataChange = (facturaId: string, field: 'saldo_pendiente' | 'parcialidad_actual', value: number) => {
+    setFacturasPendientes((prev) =>
+      prev.map(f => f.id === facturaId ? { ...f, [field]: value } : f)
+    );
+  };
+
   const empresaId = Form.useWatch('empresa_id', form);
   const clienteId = Form.useWatch('cliente_id', form);
 
@@ -122,7 +128,15 @@ export const usePagoForm = () => {
 
           // Mostrar inmediatamente las facturas del pago (sin esperar pendientes)
           const facturasDelPago = (pagoData.documentos_relacionados || [])
-            .map((d: any) => d?.factura)
+            .map((d: any) => {
+              if (!d?.factura) return null;
+              return {
+                ...d.factura,
+                // Inject values from the saved document to preserve them during edit
+                saldo_pendiente: d.imp_saldo_ant,
+                parcialidad_actual: d.num_parcialidad,
+              };
+            })
             .filter(Boolean);
           const map = new Map<string, any>();
           facturasDelPago.forEach((f: any) => { if (f?.id) map.set(f.id, f); });
@@ -254,7 +268,14 @@ export const usePagoForm = () => {
     // Si estamos editando y el cliente es el mismo del pago: mostrar sólo las facturas del pago
     if (isEditing && pago && clienteId === pago.cliente_id) {
       const facturasDelPago = (pago.documentos_relacionados || [])
-        .map((doc: any) => doc.factura)
+        .map((doc: any) => {
+          if (!doc.factura) return null;
+          return {
+            ...doc.factura,
+            saldo_pendiente: doc.imp_saldo_ant,
+            parcialidad_actual: doc.num_parcialidad
+          };
+        })
         .filter(Boolean);
       const map = new Map<string, any>();
       facturasDelPago.forEach((f: any) => { if (f?.id) map.set(f.id, f); });
@@ -304,11 +325,16 @@ export const usePagoForm = () => {
           const f = facturasPendientes.find((x) => x.id === facturaId);
           if (!f) return null;
           const imp_pagado = Number(amount || 0);
-          const saldoAnt = Number(f.total || 0); // Ajusta si tu API devuelve otro campo
+
+          // Usar valores calculados por el backend
+          // Si es el primer pago, saldo_pendiente será igual al total y parcialidad será 1 (o undefined -> 1)
+          const saldoAnt = f.saldo_pendiente !== undefined ? Number(f.saldo_pendiente) : Number(f.total || 0);
+          const parc = f.parcialidad_actual !== undefined ? Number(f.parcialidad_actual) : 1;
+
           return {
             factura_id: f.id,
             imp_pagado,
-            num_parcialidad: 1, // Ajusta si tu backend requiere otro valor
+            num_parcialidad: parc,
             imp_saldo_ant: saldoAnt,
             imp_saldo_insoluto: Math.max(saldoAnt - imp_pagado, 0),
           };
@@ -516,6 +542,7 @@ export const usePagoForm = () => {
     facturasPendientes,
     paymentAllocation,
     handleAllocationChange,
+    handleMetadataChange,
     onFinish,
     generarComplemento,
     enviarComplemento,

@@ -168,6 +168,10 @@ class FacturaOut(FacturaBase):
     pdf_path: Optional[str] = None
     fecha_emision: Optional[datetime] = None
     rfc_proveedor_sat: Optional[str] = None
+    
+    # Campos calculados para pagos
+    saldo_pendiente: Optional[condecimal(ge=0, max_digits=18, decimal_places=6)] = None
+    parcialidad_actual: Optional[int] = None
 
     # Totales
     subtotal: condecimal(ge=0, max_digits=18, decimal_places=6)

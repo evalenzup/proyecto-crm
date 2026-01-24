@@ -59,6 +59,7 @@ const PagoFormPage: React.FC = () => {
     facturasPendientes,
     paymentAllocation,
     handleAllocationChange,
+    handleMetadataChange,
     onFinish,
     generarComplemento,
     enviarComplemento,
@@ -132,9 +133,44 @@ const PagoFormPage: React.FC = () => {
 
   const facturasColumns: ColumnsType<FacturaPendiente> = [
     { title: 'Folio', dataIndex: 'folio', render: (val: any, rec: any) => `${rec.serie}-${val}` },
-    { title: 'Sucursal / Cliente', dataIndex: 'cliente', render: (val: any) => val?.nombre_comercial || '—' },
-    { title: 'Fecha Emisión', dataIndex: 'fecha_emision', render: (val: string) => new Date(val).toLocaleDateString() },
-    { title: 'Total Factura', dataIndex: 'total', align: 'right', render: (val: number) => val.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) },
+    { title: 'Fecha Em.', dataIndex: 'fecha_emision', render: (val: string) => new Date(val).toLocaleDateString() },
+    {
+      title: 'Saldo Anterior',
+      dataIndex: 'saldo_pendiente',
+      width: 140,
+      render: (val: number, rec: FacturaPendiente) => (
+        <InputNumber
+          min={0}
+          step={0.01}
+          value={val}
+          onChange={(v) => handleMetadataChange(rec.id, 'saldo_pendiente', Number(v))}
+          disabled={!!pago?.timbrado_at}
+          controls={false}
+        />
+      )
+    },
+    {
+      title: 'Parcialidad',
+      dataIndex: 'parcialidad_actual',
+      width: 80,
+      render: (val: number, rec: FacturaPendiente) => (
+        <InputNumber
+          min={1}
+          step={1}
+          value={val}
+          onChange={(v) => handleMetadataChange(rec.id, 'parcialidad_actual', Number(v))}
+          disabled={!!pago?.timbrado_at}
+          style={{ width: '100%' }}
+          controls={false}
+        />
+      )
+    },
+    {
+      title: 'Total Fact.',
+      dataIndex: 'total',
+      align: 'right',
+      render: (val: number) => <Text type="secondary" style={{ fontSize: '0.85em' }}>{val.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}</Text>
+    },
     {
       title: 'Monto a Pagar',
       dataIndex: 'id',
