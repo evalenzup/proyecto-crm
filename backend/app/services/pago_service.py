@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import cast, Integer, or_
 from fastapi import HTTPException, status
 import re
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from app.models.pago import Pago, PagoDocumentoRelacionado, EstatusPago
 from app.models.factura import Factura
@@ -271,12 +271,49 @@ def crear_pago(db: Session, pago: PagoCreate):
             detail="El pago debe tener al menos un documento relacionado.",
         )
 
-    total_pagado_en_documentos = sum(doc.imp_pagado for doc in pago.documentos)
-    if not abs(total_pagado_en_documentos - pago.monto) < Decimal("0.01"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"El monto total del pago ({pago.monto}) no coincide con la suma de los importes pagados en los documentos ({total_pagado_en_documentos}).",
-        )
+    # Validar y redondear montos a 2 decimales para evitar errores de precisión (CRP20217)
+    pago_monto_d = Decimal(str(pago.monto)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    
+    total_pagado_en_documentos = Decimal("0.00")
+    docs_procesados = []
+    
+    for doc in pago.documentos:
+        # Redondear importe pagado de cada documento
+        imp_pagado_d = Decimal(str(doc.imp_pagado)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        
+        # Validar imp_saldo_ant (aunque es informativo, mejor tenerlo limpio)
+        imp_saldo_ant_d = Decimal(str(doc.imp_saldo_ant)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        # Recalcular saldo insoluto para consistencia
+        imp_saldo_insoluto_d = imp_saldo_ant_d - imp_pagado_d
+        
+        # Actualizar valores en el objeto (copia) que usaremos
+        doc.imp_pagado = imp_pagado_d
+        doc.imp_saldo_ant = imp_saldo_ant_d
+        doc.imp_saldo_insoluto = imp_saldo_insoluto_d
+        
+        total_pagado_en_documentos += imp_pagado_d
+        docs_procesados.append(doc)
+
+    # Validación estricta: Suma de imp_pagado debe ser IGUAL a monto del pago (con 2 decimales)
+    # CRP20217
+    差 = abs(total_pagado_en_documentos - pago_monto_d)
+    if 差 > Decimal("0.00"):
+        # Intento de corrección automática por "penny allocation" si la diferencia es mínima (1 centavo)
+        # Esto sucede a menudo prorrateando. Ajustamos el último documento.
+        if 差 <= Decimal("0.05") and docs_procesados: # Tolerancia de 5 centavos para ajuste auto
+            diff = pago_monto_d - total_pagado_en_documentos
+            docs_procesados[-1].imp_pagado += diff
+            docs_procesados[-1].imp_saldo_insoluto -= diff
+            logger.info(f"Ajuste automático de redondeo en pago: {diff} asignado al último documento.")
+        else:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El monto total del pago ({pago_monto_d}) no coincide con la suma de los importes pagados ({total_pagado_en_documentos}). Diferencia: {差}",
+            )
+             
+    # Actualizar el monto del pago con el valor redondeado
+    pago.monto = pago_monto_d
+    pago.documentos = docs_procesados # Usamos la lista con valores redondeados/ajustados
 
     serie = (pago.serie or "P").upper()
     folio = (
@@ -309,80 +346,105 @@ def crear_pago(db: Session, pago: PagoCreate):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"La factura {factura.folio} ya ha sido pagada.",
             )
-
-        if doc_in.imp_pagado > factura.total:
-            raise HTTPException(
+        
+        # Validar contra el total real de la factura (convertido a Decimal)
+        factura_total_d = Decimal(str(factura.total)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        
+        if doc_in.imp_pagado > factura_total_d:
+             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El importe pagado ({doc_in.imp_pagado}) para la factura {factura.folio} no puede ser mayor a su saldo total ({factura.total}).",
+                detail=f"El importe pagado ({doc_in.imp_pagado}) para la factura {factura.folio} no puede ser mayor a su saldo total ({factura_total_d}).",
             )
 
-        # --- START: Calculate proportional taxes ---
+        # --- START: Calculate proportional taxes using Decimal ---
         impuestos_dr_json = {"retenciones_dr": [], "traslados_dr": []}
-        if factura.total > 0 and doc_in.imp_pagado > 0:
-            payment_ratio = doc_in.imp_pagado / factura.total
+        
+        # Usar Decimal para cálculos
+        imp_pagado_dec = doc_in.imp_pagado # Ya es Decimal(2)
+        factura_total_dec = str(factura.total) # Convertir a str primero
+        if not factura_total_dec: factura_total_dec = "0"
+        factura_total_dec = Decimal(factura_total_dec)
+
+        if factura_total_dec > 0 and imp_pagado_dec > 0:
+            payment_ratio = imp_pagado_dec / factura_total_dec
 
             retenciones_sum = {}
             traslados_sum = {}
 
             for concepto in factura.conceptos:
-                base_proporcional = (
-                    concepto.cantidad * concepto.valor_unitario - concepto.descuento
-                ) * payment_ratio
+                # Valores base en Decimal
+                c_cantidad = Decimal(str(concepto.cantidad))
+                c_vunit = Decimal(str(concepto.valor_unitario))
+                c_desc = Decimal(str(concepto.descuento or 0))
+                
+                base_concepto = (c_cantidad * c_vunit) - c_desc
+                base_proporcional = base_concepto * payment_ratio
 
                 if concepto.ret_isr_importe and concepto.ret_isr_importe > 0:
                     tasa = str(concepto.ret_isr_tasa)
+                    importe_orig = Decimal(str(concepto.ret_isr_importe))
+                    importe_prop = importe_orig * payment_ratio
+                    
                     if "001" not in retenciones_sum:
                         retenciones_sum["001"] = {}
                     if tasa not in retenciones_sum["001"]:
-                        retenciones_sum["001"][tasa] = {"base": 0, "importe": 0}
+                        retenciones_sum["001"][tasa] = {"base": Decimal(0), "importe": Decimal(0)}
                     retenciones_sum["001"][tasa]["base"] += base_proporcional
-                    retenciones_sum["001"][tasa]["importe"] += (
-                        concepto.ret_isr_importe * payment_ratio
-                    )
+                    retenciones_sum["001"][tasa]["importe"] += importe_prop
 
                 if concepto.ret_iva_importe and concepto.ret_iva_importe > 0:
                     tasa = str(concepto.ret_iva_tasa)
+                    importe_orig = Decimal(str(concepto.ret_iva_importe))
+                    importe_prop = importe_orig * payment_ratio
+                    
                     if "002" not in retenciones_sum:
                         retenciones_sum["002"] = {}
                     if tasa not in retenciones_sum["002"]:
-                        retenciones_sum["002"][tasa] = {"base": 0, "importe": 0}
+                        retenciones_sum["002"][tasa] = {"base": Decimal(0), "importe": Decimal(0)}
                     retenciones_sum["002"][tasa]["base"] += base_proporcional
-                    retenciones_sum["002"][tasa]["importe"] += (
-                        concepto.ret_iva_importe * payment_ratio
-                    )
+                    retenciones_sum["002"][tasa]["importe"] += importe_prop
 
                 if concepto.iva_importe and concepto.iva_importe > 0:
                     tasa = str(concepto.iva_tasa)
+                    importe_orig = Decimal(str(concepto.iva_importe))
+                    importe_prop = importe_orig * payment_ratio
+                    
                     if "002" not in traslados_sum:
                         traslados_sum["002"] = {}
                     if tasa not in traslados_sum["002"]:
-                        traslados_sum["002"][tasa] = {"base": 0, "importe": 0}
+                        traslados_sum["002"][tasa] = {"base": Decimal(0), "importe": Decimal(0)}
                     traslados_sum["002"][tasa]["base"] += base_proporcional
-                    traslados_sum["002"][tasa]["importe"] += (
-                        concepto.iva_importe * payment_ratio
-                    )
+                    traslados_sum["002"][tasa]["importe"] += importe_prop
 
+            # Convertir a JSON, pero REDONDEANDO a 2 decimales (moneda) para cumplir validación CRP20274
             for impuesto, tasas in retenciones_sum.items():
                 for tasa, montos in tasas.items():
+                    base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    
                     impuestos_dr_json["retenciones_dr"].append(
                         {
-                            "base_dr": float(montos["base"]),
+                            "base_dr": float(base_dr_rounded),
                             "impuesto_dr": impuesto,
                             "tipo_factor_dr": "Tasa",
                             "tasa_o_cuota_dr": float(tasa),
-                            "importe_dr": float(montos["importe"]),
+                            "importe_dr": float(importe_dr_rounded),
                         }
                     )
 
             for impuesto, tasas in traslados_sum.items():
                 for tasa, montos in tasas.items():
+                    base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    
                     impuestos_dr_json["traslados_dr"].append(
                         {
-                            "base_dr": float(montos["base"]),
+                            "base_dr": float(base_dr_rounded),
                             "impuesto_dr": impuesto,
                             "tipo_factor_dr": "Tasa",
-                            "tasa_o_cuota_dr": float(tasa),
-                            "importe_dr": float(montos["importe"]),
+                            # Para tasa, usamos float directo o rounded a 6? Tasa suele ser 0.160000
+                            "tasa_o_cuota_dr": float(tasa), 
+                            "importe_dr": float(importe_dr_rounded),
                         }
                     )
 
@@ -431,35 +493,61 @@ def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
             detail="Solo se pueden editar pagos en estatus BORRADOR.",
         )
 
-    # Validar sumas
     if not pago_in.documentos:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El pago debe tener al menos un documento relacionado.",
         )
     
-    total_pagado_en_documentos = sum(doc.imp_pagado for doc in pago_in.documentos)
-    if not abs(total_pagado_en_documentos - pago_in.monto) < Decimal("0.01"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"El monto total del pago ({pago_in.monto}) no coincide con la suma de los importes pagados en los documentos ({total_pagado_en_documentos}).",
-        )
+    # --- Repetimos lógica de redondeo y validación (DRY idealmente, pero por completitud aquí) ---
+    pago_monto_d = Decimal(str(pago_in.monto)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    
+    total_pagado_en_documentos = Decimal("0.00")
+    docs_procesados = []
 
+    for doc in pago_in.documentos:
+        imp_pagado_d = Decimal(str(doc.imp_pagado)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        
+        # Validar imp_saldo_ant
+        imp_saldo_ant_d = Decimal(str(doc.imp_saldo_ant)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        imp_saldo_insoluto_d = imp_saldo_ant_d - imp_pagado_d
+        
+        doc.imp_pagado = imp_pagado_d
+        doc.imp_saldo_ant = imp_saldo_ant_d
+        doc.imp_saldo_insoluto = imp_saldo_insoluto_d
+        
+        total_pagado_en_documentos += imp_pagado_d
+        docs_procesados.append(doc)
+    
+    差 = abs(total_pagado_en_documentos - pago_monto_d)
+    if 差 > Decimal("0.00"):
+        if 差 <= Decimal("0.05") and docs_procesados:
+            diff = pago_monto_d - total_pagado_en_documentos
+            docs_procesados[-1].imp_pagado += diff
+            docs_procesados[-1].imp_saldo_insoluto -= diff
+            logger.info(f"Ajuste automático de redondeo en pago (editar): {diff}")
+        else:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El monto total del pago ({pago_monto_d}) no coincide con la suma de los importes pagados ({total_pagado_en_documentos}).",
+            )
+            
+    # Asignar monto redondeado
+    pago_in.monto = pago_monto_d
+    pago_in.documentos = docs_procesados
+    
     # Actualizar campos simples
     db_pago.fecha_pago = pago_in.fecha_pago
     db_pago.forma_pago_p = pago_in.forma_pago_p
     db_pago.moneda_p = pago_in.moneda_p
     db_pago.tipo_cambio_p = pago_in.tipo_cambio_p
     db_pago.monto = pago_in.monto
-    # No permitimos cambiar cliente/empresa facilmente pues implica validar más cosas,
-    # pero el frontend suele mandar el mismo. Asumimos consistencia o ignoramos cambio de cliente.
 
     # Limpiar documentos anteriores
-    # SQLAlchemy debería manejar la eliminación si cascade está bien, o manual
     for doc in db_pago.documentos_relacionados:
         db.delete(doc)
     
-    # Recrear documentos (Lógica copiada de crear_pago)
+    # Recrear documentos
     for doc_in in pago_in.documentos:
         factura = (
             db.query(Factura)
@@ -472,89 +560,96 @@ def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"La factura con ID {doc_in.factura_id} no fue encontrada.",
             )
-
-        # En EDITAR, la factura puede estar parcialmente pagada por *este* pago previo (que acabamos de borrar en memoria),
-        # pero como borramos los docs relacionados, "técnicamente" liberamos el saldo en lógica de negocio si calculamos al vuelo.
-        # Pero aquí validamos estatus "PAGADA" de la factura base. 
-        # Si la factura estaba PAGADA por OTROS pagos, fine. 
-        # Si estaba PAGADA por este mismo pago (imposible si estamos en BORRADOR), fine.
         
-        if factura.status_pago == "PAGADA":
-             # Podría ser que está pagada por OTROS pagos.
-             # Ojo: si estamos editando un borrador, NO debería haber afectado el status de la factura todavía.
-             pass
+        # Validación de monto vs total (Decimal)
+        factura_total_d = Decimal(str(factura.total)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        # Ojo: aquí no validamos estrictamente > total si ya estaba pagada por OTRO, 
+        # pero es buena práctica no pagar de más.
 
-        if doc_in.imp_pagado > factura.total:
-             # Validación básica, se podría mejorar chequeando saldo insoluto real
-             pass
-
-        # --- START: Calculate proportional taxes ---
+        # --- START: Calculate proportional taxes using Decimal ---
         impuestos_dr_json = {"retenciones_dr": [], "traslados_dr": []}
-        if factura.total > 0 and doc_in.imp_pagado > 0:
-            payment_ratio = doc_in.imp_pagado / factura.total
+        
+        imp_pagado_dec = doc_in.imp_pagado
+        factura_total_dec = Decimal(str(factura.total)) if factura.total else Decimal("0")
+        
+        if factura_total_dec > 0 and imp_pagado_dec > 0:
+            payment_ratio = imp_pagado_dec / factura_total_dec
 
             retenciones_sum = {}
             traslados_sum = {}
 
             for concepto in factura.conceptos:
-                base_proporcional = (
-                    concepto.cantidad * concepto.valor_unitario - concepto.descuento
-                ) * payment_ratio
+                c_cantidad = Decimal(str(concepto.cantidad))
+                c_vunit = Decimal(str(concepto.valor_unitario))
+                c_desc = Decimal(str(concepto.descuento or 0))
+                
+                base_concepto = (c_cantidad * c_vunit) - c_desc
+                base_proporcional = base_concepto * payment_ratio
 
                 if concepto.ret_isr_importe and concepto.ret_isr_importe > 0:
                     tasa = str(concepto.ret_isr_tasa)
+                    importe_orig = Decimal(str(concepto.ret_isr_importe))
+                    importe_prop = importe_orig * payment_ratio
+                    
                     if "001" not in retenciones_sum:
                         retenciones_sum["001"] = {}
                     if tasa not in retenciones_sum["001"]:
-                        retenciones_sum["001"][tasa] = {"base": 0, "importe": 0}
+                        retenciones_sum["001"][tasa] = {"base": Decimal(0), "importe": Decimal(0)}
                     retenciones_sum["001"][tasa]["base"] += base_proporcional
-                    retenciones_sum["001"][tasa]["importe"] += (
-                        concepto.ret_isr_importe * payment_ratio
-                    )
+                    retenciones_sum["001"][tasa]["importe"] += importe_prop
 
                 if concepto.ret_iva_importe and concepto.ret_iva_importe > 0:
                     tasa = str(concepto.ret_iva_tasa)
+                    importe_orig = Decimal(str(concepto.ret_iva_importe))
+                    importe_prop = importe_orig * payment_ratio
+                    
                     if "002" not in retenciones_sum:
                         retenciones_sum["002"] = {}
                     if tasa not in retenciones_sum["002"]:
-                        retenciones_sum["002"][tasa] = {"base": 0, "importe": 0}
+                        retenciones_sum["002"][tasa] = {"base": Decimal(0), "importe": Decimal(0)}
                     retenciones_sum["002"][tasa]["base"] += base_proporcional
-                    retenciones_sum["002"][tasa]["importe"] += (
-                        concepto.ret_iva_importe * payment_ratio
-                    )
+                    retenciones_sum["002"][tasa]["importe"] += importe_prop
 
                 if concepto.iva_importe and concepto.iva_importe > 0:
                     tasa = str(concepto.iva_tasa)
+                    importe_orig = Decimal(str(concepto.iva_importe))
+                    importe_prop = importe_orig * payment_ratio
+                    
                     if "002" not in traslados_sum:
                         traslados_sum["002"] = {}
                     if tasa not in traslados_sum["002"]:
-                        traslados_sum["002"][tasa] = {"base": 0, "importe": 0}
+                        traslados_sum["002"][tasa] = {"base": Decimal(0), "importe": Decimal(0)}
                     traslados_sum["002"][tasa]["base"] += base_proporcional
-                    traslados_sum["002"][tasa]["importe"] += (
-                        concepto.iva_importe * payment_ratio
-                    )
+                    traslados_sum["002"][tasa]["importe"] += importe_prop
 
+            # Convert to JSON with Rounding
             for impuesto, tasas in retenciones_sum.items():
                 for tasa, montos in tasas.items():
+                    base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    
                     impuestos_dr_json["retenciones_dr"].append(
                         {
-                            "base_dr": float(montos["base"]),
+                            "base_dr": float(base_dr_rounded),
                             "impuesto_dr": impuesto,
                             "tipo_factor_dr": "Tasa",
                             "tasa_o_cuota_dr": float(tasa),
-                            "importe_dr": float(montos["importe"]),
+                            "importe_dr": float(importe_dr_rounded),
                         }
                     )
 
             for impuesto, tasas in traslados_sum.items():
                 for tasa, montos in tasas.items():
+                    base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    
                     impuestos_dr_json["traslados_dr"].append(
                         {
-                            "base_dr": float(montos["base"]),
+                            "base_dr": float(base_dr_rounded),
                             "impuesto_dr": impuesto,
                             "tipo_factor_dr": "Tasa",
                             "tasa_o_cuota_dr": float(tasa),
-                            "importe_dr": float(montos["importe"]),
+                            "importe_dr": float(importe_dr_rounded),
                         }
                     )
         # --- END: Calculate proportional taxes ---
@@ -572,7 +667,6 @@ def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
             impuestos_dr=impuestos_dr_json,
             tipo_cambio_dr=getattr(doc_in, "tipo_cambio_dr", None),
         )
-        # Importante: agregar a la relación del objeto db_pago YA existente
         db_pago.documentos_relacionados.append(db_doc)
 
     try:

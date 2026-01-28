@@ -136,7 +136,15 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
             )
             if len(empresas) != len(update_data["empresa_id"]):
                 raise HTTPException(404, "Alguna empresa no existe")
-            db_obj.empresas = empresas
+            
+            # CORRECCIÓN: Lógica aditiva (Merge).
+            # No reemplazamos la lista completa para evitar desasignar al cliente de otras empresas
+            # que el usuario actual podría no ver o no haber enviado.
+            existing_ids = {e.id for e in db_obj.empresas}
+            for emp in empresas:
+                if emp.id not in existing_ids:
+                    db_obj.empresas.append(emp)
+            
             del update_data["empresa_id"]  # No es un campo directo del modelo
 
         # Convertir listas a strings

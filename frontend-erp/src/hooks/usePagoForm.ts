@@ -324,7 +324,10 @@ export const usePagoForm = () => {
         .map(([facturaId, amount]) => {
           const f = facturasPendientes.find((x) => x.id === facturaId);
           if (!f) return null;
-          const imp_pagado = Number(amount || 0);
+
+          // Enforce 2 decimal rounding explicitly on frontend too
+          const rawAmount = Number(amount || 0);
+          const imp_pagado = Number(rawAmount.toFixed(2));
 
           // Usar valores calculados por el backend
           // Si es el primer pago, saldo_pendiente será igual al total y parcialidad será 1 (o undefined -> 1)
@@ -348,9 +351,13 @@ export const usePagoForm = () => {
       }
 
       const totalAplicado = documentos.reduce((sum, d) => sum + Number(d.imp_pagado || 0), 0);
-      const monto = Number(values.monto || 0);
+      // Enforce rounding on total amount input
+      const rawMonto = Number(values.monto || 0);
+      const monto = Number(rawMonto.toFixed(2));
 
-      if (Math.abs(totalAplicado - monto) > 0.01) {
+      // Use a slightly larger epsilon for float comparison safety in JS, 
+      // but essentially we are comparing rounded values now.
+      if (Math.abs(totalAplicado - monto) > 0.001) {
         message.error(
           `El monto total (${monto.toFixed(2)}) no coincide con el total aplicado (${totalAplicado.toFixed(2)}).`,
         );
@@ -360,6 +367,7 @@ export const usePagoForm = () => {
 
       const payload = {
         ...values,
+        monto, // Send rounded amount
         fecha_pago: values?.fecha_pago ? dayjs(values.fecha_pago).toISOString() : null,
         fecha_emision: values?.fecha_emision ? dayjs(values.fecha_emision).toISOString() : null,
         documentos,

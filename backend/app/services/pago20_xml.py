@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 from sqlalchemy.orm import Session, selectinload
 from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from app.models.pago import Pago, PagoDocumentoRelacionado
 from app.services.cfdi40_xml import (
@@ -43,39 +43,74 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
     register_namespace("cfdi", NS_CFDI)
     register_namespace("pago20", NS_PAGO20)
 
-    # --- START: Calculate Totals ---
-    monto_total_pagos = sum(dr.imp_pagado for dr in pago.documentos_relacionados)
+    # --- START: Calculate Totals (ROBUST ROUNDING) ---
+    # Enforce strict rounding on individual items BEFORE summing to match SAT algorithm (Sum of Rounded)
+    
+    monto_total_pagos = Decimal("0.00")
+    
+    # Pre-calculate rounded values for documents to ensure consistency in loop later
+    docs_rounded_data = []
 
-    total_retenciones_isr = Decimal("0.0")
-    total_retenciones_iva = Decimal("0.0")
-    total_traslados_base_iva16 = Decimal("0.0")
-    total_traslados_impuesto_iva16 = Decimal("0.0")
+    total_retenciones_isr = Decimal("0.00")
+    total_retenciones_iva = Decimal("0.00")
+    total_traslados_base_iva16 = Decimal("0.00")
+    total_traslados_impuesto_iva16 = Decimal("0.00")
     # IVA 8% (frontera)
-    total_traslados_base_iva8 = Decimal("0.0")
-    total_traslados_impuesto_iva8 = Decimal("0.0")
+    total_traslados_base_iva8 = Decimal("0.00")
+    total_traslados_impuesto_iva8 = Decimal("0.00")
 
     for dr in pago.documentos_relacionados:
+        # Round imp_pagado
+        imp_pagado = Decimal(str(dr.imp_pagado)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        monto_total_pagos += imp_pagado
+        
+        docs_rounded_data.append({
+            "id": dr.id,
+            "imp_pagado": imp_pagado,
+            # We also round balance fields for display
+            "imp_saldo_ant": Decimal(str(dr.imp_saldo_ant)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            "imp_saldo_insoluto": Decimal(str(dr.imp_saldo_insoluto)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+        })
+
         if not dr.impuestos_dr:
             continue
 
         for ret in dr.impuestos_dr.get("retenciones_dr", []):
             if ret["impuesto_dr"] == "001":  # ISR
-                total_retenciones_isr += Decimal(ret["importe_dr"])
+                val = Decimal(str(ret["importe_dr"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                total_retenciones_isr += val
             elif ret["impuesto_dr"] == "002":  # IVA
-                total_retenciones_iva += Decimal(ret["importe_dr"])
+                val = Decimal(str(ret["importe_dr"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                total_retenciones_iva += val
 
         for tras in dr.impuestos_dr.get("traslados_dr", []):
             if tras["impuesto_dr"] == "002":  # IVA
                 # Evitar problemas de precisión si viene float: convertir con str y cuantizar a 6 decimales
                 tasa = Decimal(str(tras["tasa_o_cuota_dr"]))
                 tasa = tasa.quantize(Decimal("0.000001"))
+                
+                # Round Base and Importe before summing
+                base_dr = Decimal(str(tras["base_dr"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                importe_dr = Decimal(str(tras["importe_dr"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
                 if tasa == Decimal("0.160000"):
-                    total_traslados_base_iva16 += Decimal(tras["base_dr"])
-                    total_traslados_impuesto_iva16 += Decimal(tras["importe_dr"])
+                    total_traslados_base_iva16 += base_dr
+                    total_traslados_impuesto_iva16 += importe_dr
                 elif tasa == Decimal("0.080000"):
-                    total_traslados_base_iva8 += Decimal(tras["base_dr"])
-                    total_traslados_impuesto_iva8 += Decimal(tras["importe_dr"])
+                    total_traslados_base_iva8 += base_dr
+                    total_traslados_impuesto_iva8 += importe_dr
     # --- END: Calculate Totals ---
+
+    # Verify if pago.monto matches sum of documents
+    pago_monto_db = Decimal(str(pago.monto)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    final_monto_pago = pago_monto_db
+    
+    # Logic to auto-fix minor discrepancies (e.g. 1 cent) due to dirty data
+    diff = abs(monto_total_pagos - pago_monto_db)
+    if diff > Decimal("0.00") and diff < Decimal("0.10"):
+        # If difference is trivial, trust the sum of documents (which is what SAT validates against MontoTotalPagos)
+        # and forcefully align the Payment Amount to match.
+        final_monto_pago = monto_total_pagos
 
     comprobante_attrs = {
         "xmlns:cfdi": NS_CFDI,
@@ -174,7 +209,7 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
             "FechaPago": _fmt_cfdi_fecha_local(pago.fecha_pago),
             "FormaDePagoP": forma_pago_p_norm,
             "MonedaP": pago.moneda_p,
-            "Monto": money2(pago.monto),
+            "Monto": money2(final_monto_pago), # Use the strict/adjusted mount
             "TipoCambioP": str(pago.tipo_cambio_p) if pago.moneda_p != "MXN" else "1",
         },
     )

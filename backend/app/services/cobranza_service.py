@@ -104,7 +104,10 @@ class CobranzaService:
             
             last_note = (
                 db.query(CobranzaNota)
-                .filter(CobranzaNota.cliente_id.in_(client_ids))
+                .filter(
+                    CobranzaNota.cliente_id.in_(client_ids),
+                    CobranzaNota.empresa_id == empresa_id
+                )
                 .order_by(CobranzaNota.creado_en.desc())
                 .first()
             )
