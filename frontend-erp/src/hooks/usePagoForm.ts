@@ -484,6 +484,7 @@ export const usePagoForm = () => {
   // Modal preview
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState("Vista Previa");
 
   const verPdf = async () => {
     if (!id) return;
@@ -492,9 +493,29 @@ export const usePagoForm = () => {
       const blob = await pagoService.getPagoPdf(id);
       const url = window.URL.createObjectURL(blob);
       setPreviewPdfUrl(url);
+      setPreviewTitle("Vista Previa de Pago");
       setPreviewModalOpen(true);
     } catch (error: any) {
       message.error(normalizeHttpError(error) || 'Error al generar el PDF.');
+    } finally {
+      setAccionLoading((s) => ({ ...s, visualizando: false }));
+    }
+  };
+
+  const verFacturaPdf = async (facturaId: string, folio?: string) => {
+    setAccionLoading((s) => ({ ...s, visualizando: true }));
+    try {
+      // Usamos el servicio de facturas para obtener el PDF
+      // Si la factura es TIMBRADA se suele usar getPdf, si es borrador getPdfPreview.
+      // Asumiremos que si está en "Pagos" es porque ya existe, probamos getPdf primero o getPdfPreview genérico.
+      // Revisando facturaService, getPdfPreview existe.
+      const blob = await facturaService.getPdfPreview(facturaId);
+      const url = window.URL.createObjectURL(blob);
+      setPreviewPdfUrl(url);
+      setPreviewTitle(`Vista Previa Factura ${folio || ''}`);
+      setPreviewModalOpen(true);
+    } catch (error: any) {
+      message.error(normalizeHttpError(error) || 'Error al obtener el PDF de la factura.');
     } finally {
       setAccionLoading((s) => ({ ...s, visualizando: false }));
     }
@@ -506,6 +527,7 @@ export const usePagoForm = () => {
       URL.revokeObjectURL(previewPdfUrl);
       setPreviewPdfUrl(null);
     }
+    setPreviewTitle("Vista Previa");
   };
 
   const descargarPdf = async () => {
@@ -560,10 +582,12 @@ export const usePagoForm = () => {
     cerrarCancelacion,
     confirmarCancelacion,
     verPdf,
+    verFacturaPdf,
     descargarPdf,
     descargarXml,
     previewModalOpen,
     previewPdfUrl,
+    previewTitle,
     cerrarPreview,
     // Email
     emailModalOpen,

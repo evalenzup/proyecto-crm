@@ -451,13 +451,87 @@ def render_pago_pdf_bytes_from_model(
 
     rows = [header] + [_doc_rel_row(doc) for doc in docs]
     table = _build_pago_table(rows)
-    table.wrapOn(c, CONTENT_X1 - CONTENT_X0, y_table_start - AVAILABLE_BOTTOM_Y)
-    table.drawOn(c, CONTENT_X0, y_table_start - table._height)
+    
+    # --- Lógica de Paginación ---
+    # Width total disponible
+    avail_width = CONTENT_X1 - CONTENT_X0
+    
+    # Height disponible en la primera página
+    # Desde donde empieza la tabla hasta el tope del footer
+    avail_height_first_page = y_table_start - AVAILABLE_BOTTOM_Y
+    
+    # Height disponible en páginas subsecuentes (margen superior - margen inferior footer)
+    avail_height_subsequent = CONTENT_Y1 - AVAILABLE_BOTTOM_Y - 20 # -20 para dar aire al título
+    
+    # Intentar partir la tabla
+    parts = table.split(avail_width, avail_height_first_page)
+    
+    # Dibujar primera parte
+    if parts:
+        part0 = parts[0]
+        w, h = part0.wrapOn(c, avail_width, avail_height_first_page)
+        part0.drawOn(c, CONTENT_X0, y_table_start - h)
+        
+        # --- Footer Página 1 ---
+        # Debe dibujarse ANTES de cualquier showPage()
+        _draw_pago_footer(c, p)
+        c.setFont(FONT, 6)
+        c.drawCentredString(PAGE_W / 2, MARGIN / 2, f"Página 1")
 
-    # --- Footer ---
-    _draw_pago_footer(c, p)
-    c.setFont(FONT, 6)
-    c.drawCentredString(PAGE_W / 2, MARGIN / 2, f"Página {c.getPageNumber()}")
+        # Si hay más partes, necesitamos nuevas páginas
+        if len(parts) > 1:
+            remaining_data = rows[len(part0._cellvalues):] 
+            
+            # Loop para páginas subsecuentes
+            current_rows = remaining_data
+            
+            while current_rows:
+                c.showPage() # Nueva página
+                
+                # Footer en nueva página
+                _draw_pago_footer(c, p)
+                c.setFont(FONT, 6)
+                c.drawCentredString(PAGE_W / 2, MARGIN / 2, f"Página {c.getPageNumber()}")
+                
+                # Header simplificado en nuevas páginas
+                c.setFont(FONT_B, 8)
+                c.drawString(CONTENT_X0, CONTENT_Y1, "Documentos Relacionados (Cont.)")
+                y_curr = CONTENT_Y1 - 15
+                
+                # Reconstruir tabla con header + filas pendientes
+                next_rows = [header] + current_rows
+                next_table = _build_pago_table(next_rows)
+                
+                # Split para esta nueva página
+                parts_sub = next_table.split(avail_width, avail_height_subsequent)
+                
+                if not parts_sub:
+                     # Safety break
+                     break
+
+                # Dibujar lo que quepa
+                part_sub_0 = parts_sub[0]
+                w, h = part_sub_0.wrapOn(c, avail_width, avail_height_subsequent)
+                part_sub_0.drawOn(c, CONTENT_X0, y_curr - h)
+                
+                # Calcular filas restantes
+                rows_drawn_count = len(part_sub_0._cellvalues)
+                data_rows_drawn = rows_drawn_count - 1 # Descontar header
+                
+                if data_rows_drawn >= len(current_rows):
+                    current_rows = [] # Terminamos
+                else:
+                    current_rows = current_rows[data_rows_drawn:]
+                    
+    else:
+        # Caso raro: no cabe ni una fila (header)
+        c.showPage()
+        _draw_pago_footer(c, p)
+        c.setFont(FONT, 6)
+        c.drawCentredString(PAGE_W / 2, MARGIN / 2, f"Página {c.getPageNumber()}")
+        
+        table.wrapOn(c, avail_width, avail_height_subsequent)
+        table.drawOn(c, CONTENT_X0, CONTENT_Y1 - 20 - table._height)
 
     c.save()
     return buf.getvalue()

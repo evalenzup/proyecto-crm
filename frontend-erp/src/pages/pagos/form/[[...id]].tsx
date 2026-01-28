@@ -36,6 +36,7 @@ import {
   DownloadOutlined,
   FileTextOutlined,
   DeleteOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -64,10 +65,12 @@ const PagoFormPage: React.FC = () => {
     generarComplemento,
     enviarComplemento,
     verPdf,
+    verFacturaPdf,
     descargarPdf,
     descargarXml,
     previewModalOpen,
     previewPdfUrl,
+    previewTitle,
     cerrarPreview,
     // Cancelacion
     cancelacionModalOpen,
@@ -132,7 +135,20 @@ const PagoFormPage: React.FC = () => {
   if (loading) return <Spin style={{ margin: 48 }} />;
 
   const facturasColumns: ColumnsType<FacturaPendiente> = [
-    { title: 'Folio', dataIndex: 'folio', render: (val: any, rec: any) => `${rec.serie}-${val}` },
+    {
+      title: 'Folio',
+      dataIndex: 'folio',
+      render: (val: any, rec: any) => (
+        <Button
+          type="link"
+          size="small"
+          onClick={() => verFacturaPdf(rec.id, `${rec.serie}-${val}`)}
+          style={{ padding: 0 }}
+        >
+          {`${rec.serie}-${val}`}
+        </Button>
+      )
+    },
     { title: 'Fecha Em.', dataIndex: 'fecha_emision', render: (val: string) => new Date(val).toLocaleDateString() },
     {
       title: 'Saldo Anterior',
@@ -142,9 +158,10 @@ const PagoFormPage: React.FC = () => {
         <InputNumber
           min={0}
           step={0.01}
+          precision={2}
           value={val}
           onChange={(v) => handleMetadataChange(rec.id, 'saldo_pendiente', Number(v))}
-          disabled={!!pago?.timbrado_at}
+          disabled={isTimbrado || isCancelado}
           controls={false}
         />
       )
@@ -157,9 +174,10 @@ const PagoFormPage: React.FC = () => {
         <InputNumber
           min={1}
           step={1}
+          precision={0}
           value={val}
           onChange={(v) => handleMetadataChange(rec.id, 'parcialidad_actual', Number(v))}
-          disabled={!!pago?.timbrado_at}
+          disabled={isTimbrado || isCancelado}
           style={{ width: '100%' }}
           controls={false}
         />
@@ -175,18 +193,28 @@ const PagoFormPage: React.FC = () => {
       title: 'Monto a Pagar',
       dataIndex: 'id',
       key: 'monto_a_pagar',
-      width: 180,
+      width: 200,
       render: (facturaId: string, record: FacturaPendiente) => (
-        <InputNumber
-          min={0}
-          max={record.total} // A real saldo would be better
-          value={paymentAllocation[facturaId]}
-          onChange={(value) => handleAllocationChange(facturaId, value)}
-          style={{ width: '100%' }}
-          addonBefore="$"
-          controls={false}
-          disabled={!!pago?.timbrado_at}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <InputNumber
+            min={0}
+            max={record.total} // A real saldo would be better
+            precision={2}
+            value={paymentAllocation[facturaId]}
+            onChange={(value) => handleAllocationChange(facturaId, value)}
+            style={{ width: '100%' }}
+            addonBefore="$"
+            controls={false}
+            disabled={isTimbrado || isCancelado}
+          />
+          <Button
+            icon={<CopyOutlined />}
+            size="small"
+            onClick={() => handleAllocationChange(facturaId, record.saldo_pendiente || 0)}
+            disabled={isTimbrado || isCancelado}
+            title="Copiar Saldo"
+          />
+        </div>
       ),
     },
   ];
@@ -443,7 +471,7 @@ const PagoFormPage: React.FC = () => {
 
       {/* Modal: Vista Previa PDF */}
       < Modal
-        title="Vista Previa de Pago"
+        title={previewTitle}
         open={previewModalOpen}
         onCancel={cerrarPreview}
         footer={
