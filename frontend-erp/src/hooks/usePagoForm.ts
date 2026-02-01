@@ -339,7 +339,7 @@ export const usePagoForm = () => {
             imp_pagado,
             num_parcialidad: parc,
             imp_saldo_ant: saldoAnt,
-            imp_saldo_insoluto: Math.max(saldoAnt - imp_pagado, 0),
+            imp_saldo_insoluto: Number(Math.max(saldoAnt - imp_pagado, 0).toFixed(2)),
           };
         })
         .filter((x): x is NonNullable<typeof x> => Boolean(x));
@@ -351,15 +351,16 @@ export const usePagoForm = () => {
       }
 
       const totalAplicado = documentos.reduce((sum, d) => sum + Number(d.imp_pagado || 0), 0);
-      // Enforce rounding on total amount input
+
+      // Enforce 2 decimal rounding explicitly on frontend too
       const rawMonto = Number(values.monto || 0);
       const monto = Number(rawMonto.toFixed(2));
+      const totalAplicadoRounded = Number(totalAplicado.toFixed(2));
 
-      // Use a slightly larger epsilon for float comparison safety in JS, 
-      // but essentially we are comparing rounded values now.
-      if (Math.abs(totalAplicado - monto) > 0.001) {
+      // Use a larger tolerance (e.g. 1.0) because backend now auto-fixes small drifts.
+      if (Math.abs(totalAplicadoRounded - monto) > 1.0) {
         message.error(
-          `El monto total (${monto.toFixed(2)}) no coincide con el total aplicado (${totalAplicado.toFixed(2)}).`,
+          `El monto total (${monto.toFixed(2)}) no coincide con el total aplicado (${totalAplicadoRounded.toFixed(2)}).`,
         );
         setSaving(false);
         return;
@@ -385,7 +386,13 @@ export const usePagoForm = () => {
       }
     } catch (err: any) {
       applyFormErrors(err, form);
-      message.error(normalizeHttpError(err) || 'Error al guardar el pago.');
+      // Debug: If 422, show the specific message because documents list errors are hidden
+      if (err?.response?.status === 422 && Array.isArray(err?.response?.data?.detail)) {
+        const details = err.response.data.detail.map((d: any) => `${d.loc.slice(-1)}: ${d.msg}`).join(', ');
+        message.error(`Validación fallida: ${details}`);
+      } else {
+        message.error(normalizeHttpError(err) || 'Error al guardar el pago.');
+      }
     } finally {
       setSaving(false);
     }

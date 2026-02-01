@@ -300,7 +300,7 @@ def crear_pago(db: Session, pago: PagoCreate):
     if 差 > Decimal("0.00"):
         # Intento de corrección automática por "penny allocation" si la diferencia es mínima (1 centavo)
         # Esto sucede a menudo prorrateando. Ajustamos el último documento.
-        if 差 <= Decimal("0.05") and docs_procesados: # Tolerancia de 5 centavos para ajuste auto
+        if 差 <= Decimal("1.0") and docs_procesados: # Tolerancia de 1.0 para ajuste auto y coincidencia PAC
             diff = pago_monto_d - total_pagado_en_documentos
             docs_procesados[-1].imp_pagado += diff
             docs_procesados[-1].imp_saldo_insoluto -= diff

@@ -22,13 +22,13 @@ class FacturaDetalleIn(BaseModel):
     valor_unitario: condecimal(ge=0, max_digits=18, decimal_places=6) = Decimal("0")
     descuento: condecimal(ge=0, max_digits=18, decimal_places=6) = Decimal("0")
 
-    iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=6, decimal_places=4)] = (
-        None  # ej 0.1600
+    iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=18, decimal_places=6)] = (
+        None  # ej 0.160000
     )
-    ret_iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=6, decimal_places=4)] = (
+    ret_iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=18, decimal_places=6)] = (
         None
     )
-    ret_isr_tasa: Optional[condecimal(ge=0, le=1, max_digits=6, decimal_places=4)] = (
+    ret_isr_tasa: Optional[condecimal(ge=0, le=1, max_digits=18, decimal_places=6)] = (
         None
     )
 
@@ -53,13 +53,13 @@ class FacturaDetalleOut(BaseModel):
     importe: condecimal(ge=0, max_digits=18, decimal_places=6)
 
     # Impuestos
-    iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=6, decimal_places=4)] = None
+    iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=18, decimal_places=6)] = None
     iva_importe: Optional[condecimal(ge=0, max_digits=18, decimal_places=6)] = None
-    ret_iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=6, decimal_places=4)] = (
+    ret_iva_tasa: Optional[condecimal(ge=0, le=1, max_digits=18, decimal_places=6)] = (
         None
     )
     ret_iva_importe: Optional[condecimal(ge=0, max_digits=18, decimal_places=6)] = None
-    ret_isr_tasa: Optional[condecimal(ge=0, le=1, max_digits=6, decimal_places=4)] = (
+    ret_isr_tasa: Optional[condecimal(ge=0, le=1, max_digits=18, decimal_places=6)] = (
         None
     )
     ret_isr_importe: Optional[condecimal(ge=0, max_digits=18, decimal_places=6)] = None

@@ -122,3 +122,16 @@ export function normalizeHttpError(err: unknown): string {
   const byText = (error?.response as any)?.statusText || (error as any)?.message;
   return byText || fallback;
 }
+
+export async function parseBlobError(err: any): Promise<string | null> {
+  if (err?.response?.data instanceof Blob) {
+    try {
+      const text = await err.response.data.text();
+      const json = JSON.parse(text);
+      return normalizeHttpError({ response: { ...err.response, data: json } });
+    } catch {
+      return null;
+    }
+  }
+  return normalizeHttpError(err);
+}

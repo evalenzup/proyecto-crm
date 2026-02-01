@@ -105,12 +105,36 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
     pago_monto_db = Decimal(str(pago.monto)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     final_monto_pago = pago_monto_db
     
-    # Logic to auto-fix minor discrepancies (e.g. 1 cent) due to dirty data
+    # Logic to fix discrepancies between Sum(ImpPagado) and Pago.Monto
+    # SAT Rule: Totals.MontoTotalPagos MUST EQUAL Sum(ImpPagado).
+    # SAT Rule: Pago.Monto MUST be >= Totals.MontoTotalPagos.
+    # We prioritize Sum(ImpPagado) as the 'truth' for the Totals node.
+    # Then we align Pago.Monto if it's invalid (less than Sum) or drifted slightly.
+    
     diff = abs(monto_total_pagos - pago_monto_db)
-    if diff > Decimal("0.00") and diff < Decimal("0.10"):
-        # If difference is trivial, trust the sum of documents (which is what SAT validates against MontoTotalPagos)
-        # and forcefully align the Payment Amount to match.
+    
+    # CASE 1: Pago.Monto < Sum(Docs). This is physically impossible/invalid.
+    # We MUST bump Pago.Monto to match Sum(Docs).
+    if pago_monto_db < monto_total_pagos:
         final_monto_pago = monto_total_pagos
+        
+    # CASE 2: Slight drift (e.g. 100.04 vs 100.00). User likely intended 100.00 but docs sum to 100.04.
+    # Since we can't change docs here, we must set Pago.Monto = Sum(Docs) to keep XML valid.
+    # Note: If strict < 0.10 check fails, we previously kept mismatches. Now we match them to avoid PAC errors.
+    elif diff > Decimal("0"):
+        # We allow a larger tolerance (e.g. always match) or keep surplus.
+        # But "Monto que no coincide" usually implies PAC expects match or rejects the declared structure.
+        # If user purposely overpaid (Surplus), Monto > Sum. This is valid.
+        # But if Monto > Sum by a tiny fraction (0.01), it's likely a bug, so we sync it.
+        if diff < Decimal("1.0"): 
+             final_monto_pago = monto_total_pagos
+        else:
+             # Surplus (Saldo a Favor) scenario. Keep final_monto_pago = pago_monto_db
+             pass
+             
+    # Update computed totals to use the Sum of Docs (monto_total_pagos)
+    # This ensures Totals.MontoTotalPagos is correct per the documents.
+    # And Pago.Monto is now >= Totals.MontoTotalPagos.
 
     comprobante_attrs = {
         "xmlns:cfdi": NS_CFDI,

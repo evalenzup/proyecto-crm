@@ -481,25 +481,40 @@ export const useFacturaForm = () => {
 
   // -------- Totales (como en tu render actual: strings formateadas) --------
   const resumen = useMemo(() => {
-    let subtotal = 0, traslados = 0, retenciones = 0;
-    conceptos.forEach(c => {
+    let subtotal = 0;
+    let traslados = 0;
+    let retencionesList = 0;
+
+    conceptos.forEach((c) => {
       const cantidad = Number(c.cantidad || 0);
       const valor_unitario = Number(c.valor_unitario || 0);
       const descuento = Number(c.descuento || 0);
       const iva_tasa = Number(c.iva_tasa || 0);
       const ret_iva_tasa = Number(c.ret_iva_tasa || 0);
       const ret_isr_tasa = Number(c.ret_isr_tasa || 0);
+
+      // Base calculation
       const base = Math.max(cantidad * valor_unitario - descuento, 0);
+
+      // Taxes
       const iva = base * iva_tasa;
       const ret_iva = base * ret_iva_tasa;
       const ret_isr = base * ret_isr_tasa;
+
       subtotal += base;
       traslados += iva;
-      retenciones += ret_iva + ret_isr;
+      retencionesList += ret_iva + ret_isr;
     });
-    const total = subtotal + traslados - retenciones;
+
+    const total = subtotal + traslados - retencionesList;
     const fmt = (n: number) => n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-    return { subtotal: fmt(subtotal), traslados: fmt(traslados), retenciones: fmt(retenciones), total: fmt(total) };
+
+    return {
+      subtotal: fmt(subtotal),
+      traslados: fmt(traslados),
+      retenciones: fmt(retencionesList),
+      total: fmt(total),
+    };
   }, [conceptos]);
 
   // -------- Guardar --------
@@ -663,7 +678,10 @@ export const useFacturaForm = () => {
   const descargarPDF = async () => {
     if (!id) return;
     try {
-      const blob = await svc.downloadPdf(id);
+      const blob =
+        estatusCFDI === 'BORRADOR'
+          ? await svc.getPdfPreview(id)
+          : await svc.downloadPdf(id);
       const url = window.URL.createObjectURL(blob);
       const rfc = (rfcEmisor || 'RFC').toUpperCase().replace(/\s+/g, '');
       const serie = (form.getFieldValue('serie') || 'S/N').toString().replace(/\s+/g, '');
@@ -678,7 +696,8 @@ export const useFacturaForm = () => {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e: any) {
-      message.error(normalizeHttpError(e) || 'No se pudo descargar el PDF');
+      const msg = await import('@/utils/httpError').then((m) => m.parseBlobError(e));
+      message.error(msg || 'No se pudo descargar el PDF');
     }
   };
 

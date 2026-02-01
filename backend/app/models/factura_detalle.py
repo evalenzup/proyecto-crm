@@ -65,18 +65,18 @@ class FacturaDetalle(Base):
     # ───────── Impuestos trasladados (IVA) ─────────
     base_iva = Column(Numeric(18, 6), nullable=True)  # Base usada para el cálculo
     iva_tipo_factor = Column(String(10), nullable=True)  # 'Tasa' | 'Cuota' | 'Exento'
-    iva_tasa = Column(Numeric(6, 4), nullable=True)  # p.ej. 0.1600
+    iva_tasa = Column(Numeric(18, 6), nullable=True)  # p.ej. 0.160000
     iva_importe = Column(Numeric(18, 6), nullable=True)
 
     # ───────── Retenciones ─────────
     ret_iva_base = Column(Numeric(18, 6), nullable=True)
     ret_iva_tipo_factor = Column(String(10), nullable=True)  # normalmente 'Tasa'
-    ret_iva_tasa = Column(Numeric(6, 4), nullable=True)
+    ret_iva_tasa = Column(Numeric(18, 6), nullable=True)
     ret_iva_importe = Column(Numeric(18, 6), nullable=True)
 
     ret_isr_base = Column(Numeric(18, 6), nullable=True)
     ret_isr_tipo_factor = Column(String(10), nullable=True)  # normalmente 'Tasa'
-    ret_isr_tasa = Column(Numeric(6, 4), nullable=True)
+    ret_isr_tasa = Column(Numeric(18, 6), nullable=True)
     ret_isr_importe = Column(Numeric(18, 6), nullable=True)
 
     # ───────── IEPS (opcional) ─────────
