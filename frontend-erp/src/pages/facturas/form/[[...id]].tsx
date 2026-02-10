@@ -392,7 +392,7 @@ const FacturaFormPage: React.FC = () => {
                 </Col>
                 <Col xs={24} md={6}>
                   <Form.Item label="Fecha pago (programada)" name="fecha_pago">
-                    <DatePicker style={{ width: '100%' }} disabled={fieldDisabled(false)} />
+                    <DatePicker style={{ width: '100%' }} disabled={fieldAlwaysEditable('fecha_pago')} />
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={6}>
@@ -827,7 +827,11 @@ const FacturaFormPage: React.FC = () => {
                 <Select
                   options={[
                     { value: 0, label: '0%' },
-                    { value: 0.106667, label: '10.6667% (2/3 del IVA)' },
+                    { value: 0.106667, label: '10.6667% (2/3 del IVA 16%)' },
+                    { value: 0.053333, label: '5.3333% (2/3 del IVA 8%)' },
+                    { value: 0.04, label: '4% (Fletes)' },
+                    { value: 0.16, label: '16% (100% del IVA 16%)' },
+                    { value: 0.08, label: '8% (100% del IVA 8%)' },
                   ]}
                   disabled={isFormDisabled}
                 />

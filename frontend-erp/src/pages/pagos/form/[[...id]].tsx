@@ -198,7 +198,7 @@ const PagoFormPage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <InputNumber
             min={0}
-            max={record.total} // A real saldo would be better
+            // max constraint removed to allow rounding differences (e.g. 215.68 vs 215.676)
             precision={2}
             value={paymentAllocation[facturaId]}
             onChange={(value) => handleAllocationChange(facturaId, value)}

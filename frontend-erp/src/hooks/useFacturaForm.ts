@@ -87,8 +87,10 @@ export const useFacturaForm = () => {
   // helpers bloqueo
   const isFormDisabled = estatusCFDI === 'TIMBRADA' || estatusCFDI === 'CANCELADA';
   const fieldDisabled = (defaultDisabled: boolean) => (isFormDisabled ? true : defaultDisabled);
-  const fieldAlwaysEditable = (name: string) =>
-    ['status_pago', 'fecha_cobro', 'observaciones'].includes(name) ? false : isFormDisabled;
+  const fieldAlwaysEditable = (name: string) => {
+    if (name === 'fecha_pago') return estatusCFDI === 'CANCELADA';
+    return ['status_pago', 'fecha_cobro', 'observaciones'].includes(name) ? false : isFormDisabled;
+  };
 
   const puedeTimbrar = Boolean(id) && estatusCFDI === 'BORRADOR';
   const puedeCancelar = Boolean(id) && estatusCFDI === 'TIMBRADA';
