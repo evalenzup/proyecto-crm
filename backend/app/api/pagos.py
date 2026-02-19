@@ -263,9 +263,10 @@ def set_pago_to_borrador(
 def listar_facturas_pendientes_por_cliente(
     cliente_id: uuid.UUID, 
     empresa_id: Optional[uuid.UUID] = Query(None),
+    match_rfc: bool = Query(False),
     db: Session = Depends(get_db)
 ):
-    return pago_service.listar_facturas_pendientes_por_cliente(db, cliente_id, empresa_id)
+    return pago_service.listar_facturas_pendientes_por_cliente(db, cliente_id, empresa_id, match_rfc=match_rfc)
 
 
 @router.post("/{pago_id}/timbrar", summary="Timbrar un complemento de pago")

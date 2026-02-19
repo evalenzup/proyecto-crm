@@ -39,6 +39,7 @@ export const usePagoForm = () => {
   // Datos principales
   const [facturasPendientes, setFacturasPendientes] = useState<pagoService.FacturaPendiente[]>([]);
   const [paymentAllocation, setPaymentAllocation] = useState<Record<string, number | null>>({});
+  const [crossCompanyMode, setCrossCompanyMode] = useState(false); // New state for RFC filtering
 
   const handleAllocationChange = (facturaId: string, amount: number | null) => {
     setPaymentAllocation((prev) => ({ ...prev, [facturaId]: amount }));
@@ -285,7 +286,7 @@ export const usePagoForm = () => {
 
     // Caso nuevo pago o el usuario cambió el cliente: consultar facturas pendientes
     pagoService
-      .getFacturasPendientes(clienteId, empresaId)
+      .getFacturasPendientes(clienteId, empresaId, crossCompanyMode)
       .then((pendingInvoicesData) => {
         const finalFacturas = pendingInvoicesData || [];
         setFacturasPendientes(finalFacturas);
@@ -294,7 +295,12 @@ export const usePagoForm = () => {
       })
       .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar facturas pendientes.'));
 
-    // Fetch cliente details to get email for current user
+    // Re-fetch when crossCompanyMode changes
+    // Re-fetch when crossCompanyMode changes
+  }, [clienteId, empresaId, crossCompanyMode, id, pago]);
+
+  // Fetch cliente details to get email for current user
+  useEffect(() => {
     if (clienteId) {
       facturaService.getClienteById(clienteId).then(c => {
         if (c) {
@@ -313,7 +319,7 @@ export const usePagoForm = () => {
       setClientesComercial([]);
       setClientesFiscal([]);
     }
-  }, [clienteId, id, pago]);
+  }, [clienteId]);
 
   const onFinish = async (values: any) => {
     setSaving(true);
@@ -603,5 +609,7 @@ export const usePagoForm = () => {
     confirmarEnvioCorreo,
     clienteEmail,
     currentEmpresa,
+    crossCompanyMode,
+    setCrossCompanyMode,
   };
 };

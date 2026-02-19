@@ -131,14 +131,20 @@ def set_pago_to_borrador(db: Session, pago_id: UUID) -> Pago:
 
 
 def listar_facturas_pendientes_por_cliente(
-    db: Session, cliente_id: UUID, empresa_id: Optional[UUID] = None
+    db: Session,
+    cliente_id: UUID,
+    empresa_id: Optional[UUID] = None,
+    match_rfc: bool = False,
 ) -> List[Factura]:
     """
     Obtiene todas las facturas pendientes de pago.
     Si el cliente tiene un RFC específico (no genérico), busca facturas de CUALQUIER cliente con ese RFC (multi-sucursal).
-    Si se proporciona empresa_id, filtra por empresa.
+    Si se proporciona empresa_id:
+      - Si match_rfc=True: Filtra facturas de CUALQUIER empresa que tenga el mismo RFC que la empresa_id dada.
+      - Si match_rfc=False: Filtra estrictamente por empresa_id (comportamiento default).
     """
     from app.models.cliente import Cliente
+    from app.models.empresa import Empresa
 
     # 1. Obtener el cliente objetivo para saber su RFC
     target_client = db.query(Cliente).filter(Cliente.id == cliente_id).first()
@@ -158,17 +164,30 @@ def listar_facturas_pendientes_por_cliente(
         )
     )
 
-    # 2. Aplicar filtro por RFC o ID
+    # 2. Aplicar filtro por RFC o ID de Cliente
     if target_client.rfc and target_client.rfc != RFC_GENERICO:
-        # Búsqueda amplia por RFC (Multi-sucursal)
+        # Búsqueda amplia por RFC (Multi-sucursal cliente)
         query = query.filter(Cliente.rfc == target_client.rfc)
     else:
         # Búsqueda estricta por ID (Genérico o sin RFC)
         query = query.filter(Factura.cliente_id == cliente_id)
 
-    # 3. Filtrar por empresa si se proporciona (CRÍTICO para seguridad/tenant)
+    # 3. Filtrar por empresa (Emisor)
     if empresa_id:
-        query = query.filter(Factura.empresa_id == empresa_id)
+        if match_rfc:
+            # Buscar el RFC de la empresa solicitada
+            source_empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+            if source_empresa and source_empresa.rfc:
+                # Buscar IDs de todas las empresas con ese mismo RFC
+                same_rfc_companies = db.query(Empresa.id).filter(Empresa.rfc == source_empresa.rfc).all()
+                company_ids = [c.id for c in same_rfc_companies]
+                query = query.filter(Factura.empresa_id.in_(company_ids))
+            else:
+                # Fallback: si no se encuentra empresa o RFC, filtro estricto
+                query = query.filter(Factura.empresa_id == empresa_id)
+        else:
+            # Filtro estricto por ID (Sucursal específica)
+            query = query.filter(Factura.empresa_id == empresa_id)
 
     facturas = query.order_by(Factura.fecha_emision.desc()).all()
 

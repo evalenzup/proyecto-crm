@@ -19,6 +19,7 @@ import {
   Table,
   Tag,
   Modal,
+  Radio,
 } from 'antd';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePagoForm } from '@/hooks/usePagoForm';
@@ -84,6 +85,8 @@ const PagoFormPage: React.FC = () => {
     confirmarEnvioCorreo,
     clienteEmail,
     currentEmpresa,
+    crossCompanyMode,
+    setCrossCompanyMode,
   } = usePagoForm();
 
   // Formulario para email
@@ -337,6 +340,19 @@ const PagoFormPage: React.FC = () => {
           </Card>
 
           <Card size="small" title="Facturas a Pagar">
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+              <span>Mostrar facturas de:</span>
+              <Radio.Group
+                value={crossCompanyMode}
+                onChange={(e) => setCrossCompanyMode(e.target.value)}
+                buttonStyle="solid"
+                size="small"
+                disabled={!!id} // Disable in edit mode to avoid confusion? Or allow? Logic says reload replaces list. Let's allow if not timbrado.
+              >
+                <Radio.Button value={false}>Solo esta Sucursal</Radio.Button>
+                <Radio.Button value={true}>Todas (Mismo RFC)</Radio.Button>
+              </Radio.Group>
+            </div>
             <Table
               rowKey="id"
               dataSource={facturasPendientes}
