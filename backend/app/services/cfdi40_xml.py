@@ -845,29 +845,124 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
             )
             bases_para_resumen.append((base, tasa_usada))
 
+        # ───────── NUEVO: Retenciones por Concepto ─────────
+        ret_iva_tasa = D(getattr(cpt, "ret_iva_tasa", 0) or 0)
+        ret_isr_tasa = D(getattr(cpt, "ret_isr_tasa", 0) or 0)
+
+        # Si hay alguna retención, necesitamos el nodo Impuestos (si no se creó arriba por traslados)
+        if (ret_iva_tasa > 0 or ret_isr_tasa > 0) and base > 0:
+            # Buscar si ya existe nodo Impuestos en este concepto
+            impuestos_c = concepto.find(f"{{{NS_CFDI}}}Impuestos")
+            if impuestos_c is None:
+                impuestos_c = SubElement(concepto, f"{{{NS_CFDI}}}Impuestos")
+            
+            # Nodo Retenciones dentro de Impuestos
+            retenciones_c = SubElement(impuestos_c, f"{{{NS_CFDI}}}Retenciones")
+
+            # Retención IVA
+            if ret_iva_tasa > 0:
+                imp_ret = (base * ret_iva_tasa).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                SubElement(
+                    retenciones_c,
+                    f"{{{NS_CFDI}}}Retencion",
+                    {
+                        "Base": qty_any(base, 6),
+                        "Impuesto": "002",
+                        "TipoFactor": "Tasa",
+                        "TasaOCuota": tasa6(ret_iva_tasa),
+                        "Importe": qty_any(imp_ret, 6),
+                    },
+                )
+
+            # Retención ISR
+            if ret_isr_tasa > 0:
+                imp_ret = (base * ret_isr_tasa).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                SubElement(
+                    retenciones_c,
+                    f"{{{NS_CFDI}}}Retencion",
+                    {
+                        "Base": qty_any(base, 6),
+                        "Impuesto": "001",
+                        "TipoFactor": "Tasa",
+                        "TasaOCuota": tasa6(ret_isr_tasa),
+                        "Importe": qty_any(imp_ret, 6),
+                    },
+                )
+
     # Impuestos resumen
-    total_tras, filas = _group_traslados_por_tasa(bases_para_resumen)
-    if total_tras > 0:
-        impuestos_node = SubElement(
-            compro,
-            f"{{{NS_CFDI}}}Impuestos",
-            {
-                "TotalImpuestosTrasladados": money2(total_tras),
-            },
-        )
-        traslados_res = SubElement(impuestos_node, f"{{{NS_CFDI}}}Traslados")
-        for imp_clave, tipo_factor, tasa, base_sum, imp_sum in filas:
-            SubElement(
-                traslados_res,
-                f"{{{NS_CFDI}}}Traslado",
-                {
-                    "Base": money2(base_sum),
-                    "Impuesto": imp_clave,
-                    "TipoFactor": tipo_factor,
-                    "TasaOCuota": tasa,
-                    "Importe": money2(imp_sum),
-                },
-            )
+    total_tras, filas_tras = _group_traslados_por_tasa(bases_para_resumen)
+
+    # ───────── NUEVO: Lógica de Retenciones Globales ─────────
+    # Agrupar por Impuesto (001, 002) -> suma de importes
+    ret_map: Dict[str, Decimal] = {}
+
+    for cpt in conceptos:
+        # Retención IVA
+        r_iva_tasa = D(getattr(cpt, "ret_iva_tasa", 0) or 0)
+        if r_iva_tasa > 0:
+            # Base es (importe - descuento)
+            # Nota: Algunos PACs/reglas usan la base, otros calculan directo.
+            # Usaremos la lógica estándar: Base * Tasa
+            c_cantidad = D(getattr(cpt, "cantidad", 0) or 0)
+            c_vunit = D(getattr(cpt, "valor_unitario", 0) or 0)
+            c_desc = D(getattr(cpt, "descuento", 0) or 0)
+            c_base = (c_cantidad * c_vunit) - c_desc
+            if c_base > 0:
+                imp_ret = (c_base * r_iva_tasa).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ret_map["002"] = ret_map.get("002", Decimal(0)) + imp_ret
+
+        # Retención ISR
+        r_isr_tasa = D(getattr(cpt, "ret_isr_tasa", 0) or 0)
+        if r_isr_tasa > 0:
+            c_cantidad = D(getattr(cpt, "cantidad", 0) or 0)
+            c_vunit = D(getattr(cpt, "valor_unitario", 0) or 0)
+            c_desc = D(getattr(cpt, "descuento", 0) or 0)
+            c_base = (c_cantidad * c_vunit) - c_desc
+            if c_base > 0:
+                imp_ret = (c_base * r_isr_tasa).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ret_map["001"] = ret_map.get("001", Decimal(0)) + imp_ret
+
+    total_ret = sum(ret_map.values())
+
+    # Construir nodo Impuestos (Global)
+    if total_tras > 0 or total_ret > 0:
+        imp_attrs = {}
+        if total_ret > 0:
+            imp_attrs["TotalImpuestosRetenidos"] = money2(total_ret)
+        if total_tras > 0:
+            imp_attrs["TotalImpuestosTrasladados"] = money2(total_tras)
+
+        impuestos_node = SubElement(compro, f"{{{NS_CFDI}}}Impuestos", imp_attrs)
+
+        # Nodo Retenciones Globales
+        if total_ret > 0:
+            retenciones_res = SubElement(impuestos_node, f"{{{NS_CFDI}}}Retenciones")
+            # Ordenar por impuesto si se desea, aunque no estricto. 001 antes de 002 suele ser ordenado.
+            for imp_clave in sorted(ret_map.keys()):
+                SubElement(
+                    retenciones_res,
+                    f"{{{NS_CFDI}}}Retencion",
+                    {
+                        "Impuesto": imp_clave,
+                        "Importe": money2(ret_map[imp_clave]),
+                    },
+                )
+
+        # Nodo Traslados Globales
+        if total_tras > 0:
+            traslados_res = SubElement(impuestos_node, f"{{{NS_CFDI}}}Traslados")
+            for imp_clave, tipo_factor, tasa, base_sum, imp_sum in filas_tras:
+                SubElement(
+                    traslados_res,
+                    f"{{{NS_CFDI}}}Traslado",
+                    {
+                        "Base": money2(base_sum),
+                        "Impuesto": imp_clave,
+                        "TipoFactor": tipo_factor,
+                        "TasaOCuota": tasa,
+                        "Importe": money2(imp_sum),
+                    },
+                )
 
     # ── Cadena Original y Firma ──────────────────────────────────────────────
     xml_tmp = tostring(compro, encoding="UTF-8", xml_declaration=False)
