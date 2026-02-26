@@ -268,23 +268,6 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
         if doc.impuestos_dr:
             impuestos_dr_node = SubElement(docto_relacionado_node, "pago20:ImpuestosDR")
 
-            # --- START: TrasladosDR (Level: Document) ---
-            if "traslados_dr" in doc.impuestos_dr and doc.impuestos_dr["traslados_dr"]:
-                traslados_dr_node = SubElement(impuestos_dr_node, "pago20:TrasladosDR")
-                for tras in doc.impuestos_dr["traslados_dr"]:
-                    SubElement(
-                        traslados_dr_node,
-                        "pago20:TrasladoDR",
-                        {
-                            "BaseDR": money2(Decimal(tras["base_dr"])),
-                            "ImpuestoDR": tras["impuesto_dr"],
-                            "TipoFactorDR": tras["tipo_factor_dr"],
-                            "TasaOCuotaDR": tasa6(Decimal(str(tras["tasa_o_cuota_dr"]))),
-                            "ImporteDR": money2(Decimal(tras["importe_dr"])),
-                        },
-                    )
-            # --- END: TrasladosDR ---
-
             if (
                 "retenciones_dr" in doc.impuestos_dr
                 and doc.impuestos_dr["retenciones_dr"]
@@ -305,6 +288,23 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
                         },
                     )
 
+            # --- START: TrasladosDR (Level: Document) ---
+            if "traslados_dr" in doc.impuestos_dr and doc.impuestos_dr["traslados_dr"]:
+                traslados_dr_node = SubElement(impuestos_dr_node, "pago20:TrasladosDR")
+                for tras in doc.impuestos_dr["traslados_dr"]:
+                    SubElement(
+                        traslados_dr_node,
+                        "pago20:TrasladoDR",
+                        {
+                            "BaseDR": money2(Decimal(tras["base_dr"])),
+                            "ImpuestoDR": tras["impuesto_dr"],
+                            "TipoFactorDR": tras["tipo_factor_dr"],
+                            "TasaOCuotaDR": tasa6(Decimal(str(tras["tasa_o_cuota_dr"]))),
+                            "ImporteDR": money2(Decimal(tras["importe_dr"])),
+                        },
+                    )
+            # --- END: TrasladosDR ---
+
     # --- START: ImpuestosP (DESPUÉS de DoctoRelacionado, según XSD) ---
     has_impuestos_p = (
         total_retenciones_isr > 0
@@ -314,6 +314,27 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
     )
     if has_impuestos_p:
         impuestos_p_node = SubElement(pago_node, "pago20:ImpuestosP")
+
+        if total_retenciones_isr > 0 or total_retenciones_iva > 0:
+            retenciones_p_node = SubElement(impuestos_p_node, "pago20:RetencionesP")
+            if total_retenciones_isr > 0:
+                SubElement(
+                    retenciones_p_node,
+                    "pago20:RetencionP",
+                    {
+                        "ImpuestoP": "001",  # ISR
+                        "ImporteP": money2(total_retenciones_isr),
+                    },
+                )
+            if total_retenciones_iva > 0:
+                SubElement(
+                    retenciones_p_node,
+                    "pago20:RetencionP",
+                    {
+                        "ImpuestoP": "002",  # IVA
+                        "ImporteP": money2(total_retenciones_iva),
+                    },
+                )
 
         if total_traslados_impuesto_iva16 > 0 or total_traslados_impuesto_iva8 > 0:
             traslados_p_node = SubElement(impuestos_p_node, "pago20:TrasladosP")
@@ -339,27 +360,6 @@ def build_pago20_xml_sin_timbrar(db: Session, pago_id: UUID) -> bytes:
                         "TipoFactorP": "Tasa",
                         "TasaOCuotaP": tasa6(Decimal("0.08")),
                         "ImporteP": money2(total_traslados_impuesto_iva8),
-                    },
-                )
-
-        if total_retenciones_isr > 0 or total_retenciones_iva > 0:
-            retenciones_p_node = SubElement(impuestos_p_node, "pago20:RetencionesP")
-            if total_retenciones_isr > 0:
-                SubElement(
-                    retenciones_p_node,
-                    "pago20:RetencionP",
-                    {
-                        "ImpuestoP": "001",  # ISR
-                        "ImporteP": money2(total_retenciones_isr),
-                    },
-                )
-            if total_retenciones_iva > 0:
-                SubElement(
-                    retenciones_p_node,
-                    "pago20:RetencionP",
-                    {
-                        "ImpuestoP": "002",  # IVA
-                        "ImporteP": money2(total_retenciones_iva),
                     },
                 )
     # --- END: ImpuestosP ---

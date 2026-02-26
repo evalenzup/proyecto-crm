@@ -435,11 +435,20 @@ def crear_pago(db: Session, pago: PagoCreate):
                     traslados_sum["002"][tasa]["base"] += base_proporcional
                     traslados_sum["002"][tasa]["importe"] += importe_prop
 
-            # Convertir a JSON, pero REDONDEANDO a 2 decimales (moneda) para cumplir validación CRP20274
+            # Balanceador de centavos para que la suma matemática coincida con imp_pagado_dec
+            # La regla CFDI40119 (aplicada por algunos PACs) y PAGO20119 exige que Base + Traslados - Retenciones = Monto Pagado
+            # (Asumiendo que toda la factura es objeto de impuesto)
+            
+            # 1. Convertimos y redondeamos, sumando para ver la discrepancia
+            sum_bases = Decimal("0.00")
+            sum_traslados = Decimal("0.00")
+            sum_retenciones = Decimal("0.00")
+            
             for impuesto, tasas in retenciones_sum.items():
                 for tasa, montos in tasas.items():
                     base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    sum_retenciones += importe_dr_rounded
                     
                     impuestos_dr_json["retenciones_dr"].append(
                         {
@@ -455,17 +464,35 @@ def crear_pago(db: Session, pago: PagoCreate):
                 for tasa, montos in tasas.items():
                     base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    sum_bases += base_dr_rounded
+                    sum_traslados += importe_dr_rounded
                     
                     impuestos_dr_json["traslados_dr"].append(
                         {
                             "base_dr": float(base_dr_rounded),
                             "impuesto_dr": impuesto,
                             "tipo_factor_dr": "Tasa",
-                            # Para tasa, usamos float directo o rounded a 6? Tasa suele ser 0.160000
-                            "tasa_o_cuota_dr": float(tasa), 
+                            "tasa_o_cuota_dr": float(tasa),
                             "importe_dr": float(importe_dr_rounded),
                         }
                     )
+            
+            # Aplicar ajuste de centavo (Penny Drop) si hay un DR para absorberlo
+            if impuestos_dr_json["traslados_dr"]:
+                calculated_total = sum_bases + sum_traslados - sum_retenciones
+                diff = imp_pagado_dec - calculated_total
+                
+                if diff != Decimal("0.00") and abs(diff) <= Decimal("0.99"):
+                    # Ajustamos la base del primer traslado (o el más grande) para balancear la ecuación matemática
+                    adj_base = Decimal(str(impuestos_dr_json["traslados_dr"][0]["base_dr"])) + diff
+                    impuestos_dr_json["traslados_dr"][0]["base_dr"] = float(adj_base)
+                    
+                    # Sincronizamos con retenciones para que las bases coincidan (regla común del SAT)
+                    for ret in impuestos_dr_json.get("retenciones_dr", []):
+                        # Si la base de la retención era la misma originalmente, la ajustamos
+                        orig_ret_base = Decimal(str(ret["base_dr"]))
+                        if abs(orig_ret_base - (adj_base - diff)) < Decimal("0.05"):
+                             ret["base_dr"] = float(adj_base)
 
         # --- END: Calculate proportional taxes ---
 
@@ -641,11 +668,16 @@ def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
                     traslados_sum["002"][tasa]["base"] += base_proporcional
                     traslados_sum["002"][tasa]["importe"] += importe_prop
 
-            # Convert to JSON with Rounding
+            # Convertir a JSON, pero REDONDEANDO a 2 decimales y Ajuste de Centavo
+            sum_bases = Decimal("0.00")
+            sum_traslados = Decimal("0.00")
+            sum_retenciones = Decimal("0.00")
+
             for impuesto, tasas in retenciones_sum.items():
                 for tasa, montos in tasas.items():
                     base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    sum_retenciones += importe_dr_rounded
                     
                     impuestos_dr_json["retenciones_dr"].append(
                         {
@@ -661,6 +693,8 @@ def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
                 for tasa, montos in tasas.items():
                     base_dr_rounded = montos["base"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     importe_dr_rounded = montos["importe"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    sum_bases += base_dr_rounded
+                    sum_traslados += importe_dr_rounded
                     
                     impuestos_dr_json["traslados_dr"].append(
                         {
@@ -671,6 +705,20 @@ def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
                             "importe_dr": float(importe_dr_rounded),
                         }
                     )
+
+            if impuestos_dr_json["traslados_dr"]:
+                calculated_total = sum_bases + sum_traslados - sum_retenciones
+                diff = imp_pagado_dec - calculated_total
+                
+                if diff != Decimal("0.00") and abs(diff) <= Decimal("0.99"):
+                    adj_base = Decimal(str(impuestos_dr_json["traslados_dr"][0]["base_dr"])) + diff
+                    impuestos_dr_json["traslados_dr"][0]["base_dr"] = float(adj_base)
+                    
+                    for ret in impuestos_dr_json.get("retenciones_dr", []):
+                        orig_ret_base = Decimal(str(ret["base_dr"]))
+                        if abs(orig_ret_base - (adj_base - diff)) < Decimal("0.05"):
+                             ret["base_dr"] = float(adj_base)
+
         # --- END: Calculate proportional taxes ---
 
         db_doc = PagoDocumentoRelacionado(

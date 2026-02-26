@@ -121,21 +121,22 @@ def crear_factura(db: Session, payload: FacturaCreate) -> Factura:
     subtotal_general = Decimal("0")
     traslados_general = Decimal("0")
     retenciones_general = Decimal("0")
+    
+    # Track the exact sum of individual rounded importes to ensure Comprobante.Total matches Sum(Concepto.Importe + Impuestos)
+    total_exacto = Decimal("0")
 
     for c in payload.conceptos:
-        base_calculo = (c.cantidad or Decimal("0")) * c.valor_unitario - (
-            c.descuento or Decimal("0")
-        )
-        iva_importe = base_calculo * (c.iva_tasa or Decimal("0"))
-        ret_iva_importe = base_calculo * (c.ret_iva_tasa or Decimal("0"))
-        ret_isr_importe = base_calculo * (c.ret_isr_tasa or Decimal("0"))
-        importe_concepto = (
-            base_calculo + iva_importe - ret_iva_importe - ret_isr_importe
-        )
+        base_calculo = ((c.cantidad or Decimal("0")) * c.valor_unitario - (c.descuento or Decimal("0"))).quantize(Decimal("0.01"))
+        iva_importe = (base_calculo * (c.iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
+        ret_iva_importe = (base_calculo * (c.ret_iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
+        ret_isr_importe = (base_calculo * (c.ret_isr_tasa or Decimal("0"))).quantize(Decimal("0.01"))
+        
+        importe_concepto = base_calculo + iva_importe - ret_iva_importe - ret_isr_importe
 
         subtotal_general += base_calculo
         traslados_general += iva_importe
         retenciones_general += ret_iva_importe + ret_isr_importe
+        total_exacto += importe_concepto
 
         factura.conceptos.append(
             FacturaDetalle(
@@ -147,10 +148,25 @@ def crear_factura(db: Session, payload: FacturaCreate) -> Factura:
             )
         )
 
+    # Penny balancing for Factura Total
     factura.subtotal = subtotal_general
     factura.impuestos_trasladados = traslados_general
     factura.impuestos_retenidos = retenciones_general
-    factura.total = subtotal_general + traslados_general - retenciones_general
+    
+    # El Total CFDI debe ser estrictamente Subtotal - Descuento + Traslados - Retenciones
+    calculated_total = subtotal_general + traslados_general - retenciones_general
+    
+    if diff := total_exacto - calculated_total:
+         if abs(diff) <= Decimal("0.99") and factura.conceptos:
+               # Ajustar el último traslado general para cuadrar el total
+               factura.impuestos_trasladados += diff
+               traslados_general += diff
+               calculated_total += diff
+               # También ajustamos el último concepto
+               factura.conceptos[-1].iva_importe += diff
+               factura.conceptos[-1].importe += diff
+
+    factura.total = calculated_total
 
     db.add(factura)
     try:
@@ -222,25 +238,23 @@ def actualizar_factura(
             db.query(FacturaDetalle).where(
                 FacturaDetalle.factura_id == factura.id
             ).delete()
-            # Recalculate totals
             subtotal_general = Decimal("0")
             traslados_general = Decimal("0")
             retenciones_general = Decimal("0")
+            total_exacto = Decimal("0")
 
             for c in payload.conceptos:
-                base_calculo = (c.cantidad or Decimal("0")) * c.valor_unitario - (
-                    c.descuento or Decimal("0")
-                )
-                iva_importe = base_calculo * (c.iva_tasa or Decimal("0"))
-                ret_iva_importe = base_calculo * (c.ret_iva_tasa or Decimal("0"))
-                ret_isr_importe = base_calculo * (c.ret_isr_tasa or Decimal("0"))
-                importe_concepto = (
-                    base_calculo + iva_importe - ret_iva_importe - ret_isr_importe
-                )
+                base_calculo = ((c.cantidad or Decimal("0")) * c.valor_unitario - (c.descuento or Decimal("0"))).quantize(Decimal("0.01"))
+                iva_importe = (base_calculo * (c.iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
+                ret_iva_importe = (base_calculo * (c.ret_iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
+                ret_isr_importe = (base_calculo * (c.ret_isr_tasa or Decimal("0"))).quantize(Decimal("0.01"))
+                
+                importe_concepto = base_calculo + iva_importe - ret_iva_importe - ret_isr_importe
 
                 subtotal_general += base_calculo
                 traslados_general += iva_importe
                 retenciones_general += ret_iva_importe + ret_isr_importe
+                total_exacto += importe_concepto
 
                 factura.conceptos.append(
                     FacturaDetalle(
@@ -256,7 +270,18 @@ def actualizar_factura(
             factura.subtotal = subtotal_general
             factura.impuestos_trasladados = traslados_general
             factura.impuestos_retenidos = retenciones_general
-            factura.total = subtotal_general + traslados_general - retenciones_general
+            
+            calculated_total = subtotal_general + traslados_general - retenciones_general
+            
+            if diff := total_exacto - calculated_total:
+                 if abs(diff) <= Decimal("0.99") and factura.conceptos:
+                       factura.impuestos_trasladados += diff
+                       traslados_general += diff
+                       calculated_total += diff
+                       factura.conceptos[-1].iva_importe += diff
+                       factura.conceptos[-1].importe += diff
+
+            factura.total = calculated_total
 
     db.commit()
     db.refresh(factura)
