@@ -309,7 +309,7 @@ const PagoFormPage: React.FC = () => {
               </Col>
               <Col xs={24} md={6}>
                 <Form.Item label="Monto" name="monto" rules={[{ required: true }]}>
-                  <InputNumber min={0} style={{ width: '100%' }} addonBefore="$" disabled />
+                  <InputNumber min={0} style={{ width: '100%' }} addonBefore="$" disabled={isTimbrado || isCancelado} />
                 </Form.Item>
               </Col>
             </Row>

@@ -310,29 +310,38 @@ def crear_pago(db: Session, pago: PagoCreate):
         doc.imp_saldo_ant = imp_saldo_ant_d
         doc.imp_saldo_insoluto = imp_saldo_insoluto_d
         
-        total_pagado_en_documentos += imp_pagado_d
-        docs_procesados.append(doc)
+    # Opción C (Smart Tolerance para pagos con diferencias de centavos):
+    # El usuario envía un Monto (ej. 5888.92 depositado en el banco).
+    # Las facturas redondeadas suman un total (ej. 5888.90).
+    # SAT permite que Monto >= sum(imp_pagado).
+    
+    diff_positiva = pago_monto_d - total_pagado_en_documentos
+    diff_negativa = total_pagado_en_documentos - pago_monto_d
+    
+    if diff_positiva > Decimal("0.00") and diff_positiva <= Decimal("1.00"):
+        # El cliente depositó hasta $1.00 más que la suma de sus facturas.
+        # Es totalmente válido. No alteramos las facturas ni el monto.
+        logger.info(f"Diferencia a favor detectada (pago mayor a documentos) de {diff_positiva}. Se acepta el monto {pago_monto_d} intacto.")
+        pago.monto = pago_monto_d
+    elif diff_negativa > Decimal("0.00") and diff_negativa <= Decimal("1.00") and docs_procesados:
+        # El cliente depositó hasta $1.00 MENOS que la suma estricta de sus facturas.
+        # Ajustamos ESA pequeña diferencia restándola a la última factura para respetar: sum(imp_pagado) <= Monto.
+        docs_procesados[-1].imp_pagado -= diff_negativa
+        docs_procesados[-1].imp_saldo_insoluto += diff_negativa
+        logger.info(f"Diferencia en contra detectada (pago menor a documentos) de {diff_negativa}. Ajustado al último documento factura_id {docs_procesados[-1].factura_id}.")
+        pago.monto = pago_monto_d
+    elif abs(pago_monto_d - total_pagado_en_documentos) > Decimal("1.00"):
+        # La diferencia es mayor a $1.00 peso, esto ya no es redondeo, es un error de captura real.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El monto total del pago ({pago_monto_d}) difiere por más de $1.00 de la suma de facturas ({total_pagado_en_documentos}).",
+        )
+    else:
+        # Son exactamente iguales
+        pago.monto = pago_monto_d
 
-    # Validación estricta: Suma de imp_pagado debe ser IGUAL a monto del pago (con 2 decimales)
-    # CRP20217
-    差 = abs(total_pagado_en_documentos - pago_monto_d)
-    if 差 > Decimal("0.00"):
-        # Intento de corrección automática por "penny allocation" si la diferencia es mínima (1 centavo)
-        # Esto sucede a menudo prorrateando. Ajustamos el último documento.
-        if 差 <= Decimal("1.0") and docs_procesados: # Tolerancia de 1.0 para ajuste auto y coincidencia PAC
-            diff = pago_monto_d - total_pagado_en_documentos
-            docs_procesados[-1].imp_pagado += diff
-            docs_procesados[-1].imp_saldo_insoluto -= diff
-            logger.info(f"Ajuste automático de redondeo en pago: {diff} asignado al último documento.")
-        else:
-             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El monto total del pago ({pago_monto_d}) no coincide con la suma de los importes pagados ({total_pagado_en_documentos}). Diferencia: {差}",
-            )
-             
-    # Actualizar el monto del pago con el valor redondeado
-    pago.monto = pago_monto_d
-    pago.documentos = docs_procesados # Usamos la lista con valores redondeados/ajustados
+    # Usamos la lista de documentos (ajustada o no)
+    pago.documentos = docs_procesados
 
     serie = (pago.serie or "P").upper()
     folio = (
@@ -565,21 +574,26 @@ def actualizar_pago(db: Session, pago_id: UUID, pago_in: PagoCreate) -> Pago:
         total_pagado_en_documentos += imp_pagado_d
         docs_procesados.append(doc)
     
-    差 = abs(total_pagado_en_documentos - pago_monto_d)
-    if 差 > Decimal("0.00"):
-        if 差 <= Decimal("0.05") and docs_procesados:
-            diff = pago_monto_d - total_pagado_en_documentos
-            docs_procesados[-1].imp_pagado += diff
-            docs_procesados[-1].imp_saldo_insoluto -= diff
-            logger.info(f"Ajuste automático de redondeo en pago (editar): {diff}")
-        else:
-             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El monto total del pago ({pago_monto_d}) no coincide con la suma de los importes pagados ({total_pagado_en_documentos}).",
-            )
+    # Opción C (Smart Tolerance):
+    diff_positiva = pago_monto_d - total_pagado_en_documentos
+    diff_negativa = total_pagado_en_documentos - pago_monto_d
+    
+    if diff_positiva > Decimal("0.00") and diff_positiva <= Decimal("1.00"):
+        logger.info(f"Diferencia a favor (editar) de {diff_positiva}. Se acepta el monto {pago_monto_d}.")
+        pago_in.monto = pago_monto_d
+    elif diff_negativa > Decimal("0.00") and diff_negativa <= Decimal("1.00") and docs_procesados:
+        docs_procesados[-1].imp_pagado -= diff_negativa
+        docs_procesados[-1].imp_saldo_insoluto += diff_negativa
+        logger.info(f"Diferencia en contra (editar) de {diff_negativa}. Ajustado al último documento.")
+        pago_in.monto = pago_monto_d
+    elif abs(pago_monto_d - total_pagado_en_documentos) > Decimal("1.00"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El monto total del pago ({pago_monto_d}) difiere por más de $1.00 de la suma de facturas ({total_pagado_en_documentos}).",
+        )
+    else:
+        pago_in.monto = pago_monto_d
             
-    # Asignar monto redondeado
-    pago_in.monto = pago_monto_d
     pago_in.documentos = docs_procesados
     
     # Actualizar campos simples
