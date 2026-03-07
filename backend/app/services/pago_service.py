@@ -310,6 +310,9 @@ def crear_pago(db: Session, pago: PagoCreate):
         doc.imp_saldo_ant = imp_saldo_ant_d
         doc.imp_saldo_insoluto = imp_saldo_insoluto_d
         
+        total_pagado_en_documentos += imp_pagado_d
+        docs_procesados.append(doc)
+
     # Opción C (Smart Tolerance para pagos con diferencias de centavos):
     # El usuario envía un Monto (ej. 5888.92 depositado en el banco).
     # Las facturas redondeadas suman un total (ej. 5888.90).
