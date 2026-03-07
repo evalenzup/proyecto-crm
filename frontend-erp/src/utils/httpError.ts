@@ -73,11 +73,13 @@ export function normalizeHttpError(err: unknown): string {
     // 2. Intentar parsear si parece JSON
     try {
       const parsed = JSON.parse(data);
-      if (parsed && (parsed.detail || parsed.message)) {
+      if (parsed) {
         // Recursión o asignación manual
-        const d = parsed.detail || parsed.message;
-        const msg = formatDetail(d);
-        if (msg) return msg;
+        const d = parsed.detail || parsed.message || parsed.error?.detail || parsed.error?.message;
+        if (d) {
+          const msg = formatDetail(d);
+          if (msg) return msg;
+        }
       }
     } catch {
       // No es JSON, usar el string tal cual
@@ -92,9 +94,20 @@ export function normalizeHttpError(err: unknown): string {
     if (msg) return msg;
   }
 
+  // Si está anidado en data.error.detail
+  if (data?.error?.detail) {
+    const msg = formatDetail(data.error.detail);
+    if (msg) return msg;
+  }
+
   // Algunos errores se devuelven en data.message
   if (typeof data?.message === 'string') {
     return translate(data.message);
+  }
+
+  // O anidado en data.error.message
+  if (typeof data?.error?.message === 'string') {
+    return translate(data.error.message);
   }
 
   // Mensajes por status comunes
