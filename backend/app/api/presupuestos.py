@@ -1,6 +1,6 @@
 # app/api/presupuestos.py
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, File, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -212,45 +212,43 @@ def descargar_presupuesto_pdf(
         headers={"Content-Disposition": f"attachment; filename=presupuesto_{presupuesto.folio}.pdf"}
     )
 
-@router.post("/{id}/enviar", status_code=200)
+@router.post("/{id}/enviar", status_code=202)
 def enviar_presupuesto_email(
     id: UUID,
     payload: EmailSchema,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     # TODO: Get user from token
     # current_user: models.Usuario = Depends(get_current_user),
 ):
     """
-    Envía el presupuesto por correo electrónico a un destinatario.
+    Programa el envío del presupuesto por correo electrónico en segundo plano.
     """
     presupuesto = presupuesto_repo.get(db, id=id)
     if not presupuesto:
         raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
 
-    try:
-        send_presupuesto_email(
-            db,
-            empresa_id=presupuesto.empresa_id,
-            presupuesto_id=id,
-            recipient_email=payload.recipient_email,
-        )
+    # Actualizar estado y registrar evento de forma síncrona (intención queda registrada)
+    presupuesto.estado = "ENVIADO"
+    evento = PresupuestoEvento(
+        presupuesto_id=id,
+        # TODO: Usar el ID del usuario autenticado
+        usuario_id=presupuesto.responsable_id,
+        accion="ENVIADO",
+        comentario=f"Enviado a {payload.recipient_email}",
+    )
+    db.add(evento)
+    db.commit()
 
-        # Actualizar estado y registrar evento
-        presupuesto.estado = "ENVIADO"
-        evento = PresupuestoEvento(
-            presupuesto_id=id,
-            # TODO: Usar el ID del usuario autenticado
-            usuario_id=presupuesto.responsable_id, # Placeholder
-            accion="ENVIADO",
-            comentario=f"Enviado a {payload.recipient_email}",
-        )
-        db.add(evento)
-        db.commit()
+    background_tasks.add_task(
+        send_presupuesto_email,
+        db,
+        empresa_id=presupuesto.empresa_id,
+        presupuesto_id=id,
+        recipient_email=payload.recipient_email,
+    )
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    return {"message": "Presupuesto enviado con éxito"}
+    return {"message": f"Presupuesto programado para envío a: {payload.recipient_email}"}
 
 @router.get("/historial/{folio}", response_model=List[PresupuestoOut])
 def obtener_historial_presupuesto(

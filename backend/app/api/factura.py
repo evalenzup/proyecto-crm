@@ -6,7 +6,7 @@ from uuid import UUID
 from typing import List, Optional, Literal
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session, selectinload
@@ -28,6 +28,8 @@ from app.services import factura_service as srv
 # Importaciones para el envío de correo
 from app.services import email_sender
 from app.services.email_sender import EmailSendingError
+from app.models.email_config import EmailConfig
+from app.core.limiter import limiter
 
 # Catálogos para exportación
 from app.catalogos_sat.facturacion import (
@@ -338,8 +340,10 @@ def obtener_por_folio_endpoint(
 
 
 @router.post("/{id}/timbrar", summary="Timbrar factura con PAC")
+@limiter.limit("10/minute")
 def timbrar_endpoint(
-    id: UUID, 
+    request: Request,
+    id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -423,10 +427,30 @@ def descargar_xml_timbrado(id: UUID, db: Session = Depends(get_db)):
 
 # --- Endpoint de Envío de Correo ---
 
+def _send_emails_background(
+    db: Session,
+    empresa_id: UUID,
+    factura_id: UUID,
+    recipient_emails: list[str],
+    send_function: callable,
+    email_type: str,
+):
+    """Tarea de fondo: envía correos a cada destinatario y registra resultados en el log."""
+    for email in recipient_emails:
+        try:
+            send_function(db=db, empresa_id=empresa_id, factura_id=factura_id, recipient_email=email)
+            logger.info("Correo de %s para factura %s enviado a %s", email_type, factura_id, email)
+        except EmailSendingError as e:
+            logger.error("Error al enviar %s para factura %s a %s: %s", email_type, factura_id, email, e)
+        except Exception as e:
+            logger.error("Error inesperado al enviar %s para factura %s a %s: %s", email_type, factura_id, email, e)
+
+
 def _handle_send_email(
     id: UUID,
     payload: FlexibleSendEmailIn,
     db: Session,
+    background_tasks: BackgroundTasks,
     send_function: callable,
     email_type: str,
 ):
@@ -441,60 +465,47 @@ def _handle_send_email(
             detail="No se encontraron correos electrónicos válidos para enviar.",
         )
 
-    sent_to = []
-    failed_to_send = []
-
-    for email in recipient_emails:
-        try:
-            send_function(
-                db=db,
-                empresa_id=factura.empresa_id,
-                factura_id=id,
-                recipient_email=email,
-            )
-            sent_to.append(email)
-        except EmailSendingError as e:
-            failed_to_send.append(f"{email}: {e}")
-        except Exception as e:
-            logger.error(
-                f"Error inesperado al enviar correo de {email_type} para factura {id} a {email}: {e}"
-            )
-            failed_to_send.append(f"{email}: Error inesperado en el servidor.")
-
-    if failed_to_send:
+    # Validar configuración de email antes de encolar (feedback inmediato)
+    email_config = db.query(EmailConfig).filter(EmailConfig.empresa_id == factura.empresa_id).first()
+    if not email_config:
         raise HTTPException(
             status_code=400,
-            detail=f"Errores al enviar a algunos destinatarios: {'; '.join(failed_to_send)}. Enviado a: {', '.join(sent_to) if sent_to else 'ninguno'}.",
+            detail="La empresa no tiene una configuración de correo electrónico.",
         )
 
+    background_tasks.add_task(
+        _send_emails_background,
+        db, factura.empresa_id, id, recipient_emails, send_function, email_type,
+    )
+
     return {
-        "message": f"{email_type.capitalize()} enviada correctamente a: {', '.join(sent_to)}"
+        "message": f"Correo programado para envío a: {', '.join(recipient_emails)}"
     }
 
 
 @router.post(
     "/{id}/send-preview-email",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_202_ACCEPTED,
     summary="Enviar vista previa de factura por correo electrónico",
 )
 def send_preview_factura_by_email(
-    id: UUID, payload: FlexibleSendEmailIn, db: Session = Depends(get_db)
+    id: UUID, payload: FlexibleSendEmailIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
 ):
-    """Envía la vista previa de la factura (PDF) a los correos especificados por el usuario."""
+    """Programa el envío de la vista previa de la factura (PDF) en segundo plano."""
     return _handle_send_email(
-        id, payload, db, email_sender.send_preview_invoice_email, "Vista previa de factura"
+        id, payload, db, background_tasks, email_sender.send_preview_invoice_email, "Vista previa de factura"
     )
 
 
 @router.post(
     "/{id}/send-email",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_202_ACCEPTED,
     summary="Enviar factura por correo electrónico",
 )
 def send_factura_by_email(
-    id: UUID, payload: FlexibleSendEmailIn, db: Session = Depends(get_db)
+    id: UUID, payload: FlexibleSendEmailIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
 ):
-    """Envía la factura (PDF y XML) a los correos especificados por el usuario."""
+    """Programa el envío de la factura (PDF y XML) en segundo plano."""
     return _handle_send_email(
-        id, payload, db, email_sender.send_invoice_email, "Factura"
+        id, payload, db, background_tasks, email_sender.send_invoice_email, "Factura"
     )

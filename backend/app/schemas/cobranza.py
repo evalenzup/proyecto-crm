@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from uuid import UUID
+from app.utils.datetime_utils import TijuanaDatetime
 
 # --- Schemas para Notas de Cobranza ---
 
@@ -18,7 +19,7 @@ class CobranzaNotaOut(CobranzaNotaBase):
     empresa_id: UUID
     cliente_id: UUID
     creado_po: Optional[UUID]
-    creado_en: datetime
+    creado_en: TijuanaDatetime
     nombre_creador: Optional[str] = None # Para mostrar quién creó la nota
 
     class Config:

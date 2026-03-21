@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
 
@@ -37,7 +37,7 @@ def ingresos_egresos_metrics(
         now = datetime(year, month, 1)
         # Advance to end of month efficiently or just use day=1 logic which works with _next_month helper
     else:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
     # Generar exactamente `months` periodos incluyendo el mes actual, en orden ascendente
     periods: List[datetime] = []

@@ -53,6 +53,7 @@ import {
   duplicarFactura,
 } from '@/services/facturaService';
 import { Breadcrumbs } from '@/components/Breadcrumb';
+import { formatDate } from '@/utils/formatDate';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
 import { TipoProductoServicio } from '@/services/productoServicioService';
 import api from '@/lib/axios';
@@ -272,7 +273,7 @@ const FacturaFormPage: React.FC = () => {
           {metadata && (
             <div style={{ marginBottom: 16 }}>
               <Text type="secondary" style={{ fontSize: '0.85em' }}>
-                Creada: {metadata.creado_en} &nbsp;|&nbsp; Actualizada: {metadata.actualizado_en}
+                Creada: {formatDate(metadata.creado_en)} &nbsp;|&nbsp; Actualizada: {formatDate(metadata.actualizado_en)}
               </Text>
             </div>
           )}

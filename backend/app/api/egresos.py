@@ -14,6 +14,7 @@ from app.schemas.egreso import Egreso, EgresoCreate, EgresoUpdate
 from app.models.egreso import CategoriaEgreso, EstatusEgreso
 from app.config import settings
 from app.services.egreso_service import egreso_repo
+from app.services import notificacion_service as notif_svc
 from app.models.usuario import Usuario, RolUsuario
 from app.api import deps
 # Catálogos
@@ -76,7 +77,19 @@ def create_egreso(
         if not current_user.empresa_id:
              raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
         egreso.empresa_id = current_user.empresa_id
-    return egreso_repo.create(db, obj_in=egreso)
+    nuevo_egreso = egreso_repo.create(db, obj_in=egreso)
+    try:
+        notif_svc.crear_notificacion(
+            db=db,
+            empresa_id=nuevo_egreso.empresa_id,
+            tipo=notif_svc.INFO,
+            titulo="Egreso registrado",
+            mensaje=f"Egreso de ${nuevo_egreso.monto:,.2f} a {nuevo_egreso.proveedor} registrado.",
+            metadata={"egreso_id": str(nuevo_egreso.id)},
+        )
+    except Exception:
+        pass
+    return nuevo_egreso
 
 @router.get("/", response_model=EgresoPageOut)
 def read_egresos(

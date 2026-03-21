@@ -1,4 +1,5 @@
 # app/api/deps.py
+import uuid as _uuid
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -38,7 +39,11 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-    user = db.query(Usuario).filter(Usuario.id == token_data.sub).first()
+    try:
+        user_id = _uuid.UUID(str(token_data.sub))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Could not validate credentials")
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user

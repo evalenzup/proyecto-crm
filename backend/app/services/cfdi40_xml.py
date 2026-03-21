@@ -6,7 +6,7 @@ import re
 import base64
 from typing import Optional, List, Tuple, Dict
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
 from zoneinfo import ZoneInfo
@@ -105,7 +105,7 @@ def _fmt_cfdi_fecha_local(dt: Optional[datetime]) -> str:
     quedar en el futuro respecto al reloj del servidor (evita error del PAC por expedición > certificación).
     Reglas:
       - Si dt es None → usar ahora (Tijuana).
-      - Si dt es naive → asumir que ya está en hora local (Tijuana) y asignar tz.
+      - Si dt es naive → asumir UTC (consistente con el resto del sistema y con _to_tijuana).
       - Si dt es aware → convertir a Tijuana.
       - Aplicar skew de seguridad: si dt_local > now_local - 120s, recortar a now_local - 120s.
     """
@@ -114,8 +114,8 @@ def _fmt_cfdi_fecha_local(dt: Optional[datetime]) -> str:
         dt_local = now_local
     else:
         if dt.tzinfo is None:
-            # interpretar como hora local ya (evita suposiciones de UTC)
-            dt_local = dt.replace(tzinfo=TIJUANA_TZ)
+            # Naive datetime → asumir UTC (como hace _to_tijuana en pdf_factura.py)
+            dt_local = dt.replace(tzinfo=timezone.utc).astimezone(TIJUANA_TZ)
         else:
             dt_local = dt.astimezone(TIJUANA_TZ)
 
@@ -714,7 +714,7 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
                     dt_local = _dt.now(TIJUANA_TZ)
                 else:
                     dt_local = (
-                        dt.replace(tzinfo=TIJUANA_TZ)
+                        dt.replace(tzinfo=timezone.utc).astimezone(TIJUANA_TZ)
                         if dt.tzinfo is None
                         else dt.astimezone(TIJUANA_TZ)
                     )

@@ -1,10 +1,12 @@
 # app/schemas/empresa.py
-from pydantic import BaseModel, Field, EmailStr, constr
+from pydantic import BaseModel, Field, EmailStr, constr, field_validator
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 from app.schemas.common import ClienteSimpleOut
 from app.schemas.utils import make_optional  # Importamos la utilidad
+from app.utils.rfc_validator import validate_rfc
+from app.utils.datetime_utils import TijuanaDatetime
 
 
 class EmpresaBase(BaseModel):
@@ -12,6 +14,11 @@ class EmpresaBase(BaseModel):
     nombre_comercial: constr(max_length=255) = Field(..., title="Nombre Comercial")
     rfc: constr(max_length=13) = Field(..., title="RFC")
     ruc: constr(max_length=20) = Field(..., title="RUC")
+
+    @field_validator("rfc", mode="before")
+    @classmethod
+    def rfc_valido(cls, v: str) -> str:
+        return validate_rfc(v)
     direccion: Optional[str] = Field(None, title="Dirección")
     telefono: Optional[constr(max_length=50)] = Field(None, title="Teléfono")
     email: Optional[EmailStr] = Field(None, title="Correo electrónico")
@@ -38,8 +45,8 @@ EmpresaUpdate = make_optional(EmpresaCreate)
 
 class EmpresaOut(EmpresaBase):
     id: UUID = Field(..., title="ID")
-    creado_en: datetime = Field(..., title="Creado en")
-    actualizado_en: datetime = Field(..., title="Actualizado en")
+    creado_en: TijuanaDatetime = Field(..., title="Creado en")
+    actualizado_en: TijuanaDatetime = Field(..., title="Actualizado en")
     clientes: Optional[List[ClienteSimpleOut]] = Field(None, title="Clientes")
     contrasena: Optional[str] = Field(None, title="Contraseña del CSD (.key)")
     tiene_config_email: bool = Field(False, title="¿Tiene configuración de email?")

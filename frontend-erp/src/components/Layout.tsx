@@ -24,6 +24,7 @@ import {
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { Breadcrumbs } from './Breadcrumb';
+import { NotificationBell } from './NotificationBell';
 import { useAuth } from '@/context/AuthContext';
 import { usuarioService } from '@/services/usuarioService';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
@@ -342,6 +343,7 @@ export const Layout: React.FC<{
           if (props?.collapsed) {
             return (
               <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <NotificationBell collapsed />
                 <Tooltip title="Cerrar Sesión">
                   <LogoutOutlined
                     style={{ fontSize: 16, cursor: 'pointer', color: 'var(--ant-color-error)' }}
@@ -391,12 +393,15 @@ export const Layout: React.FC<{
                       </Typography.Text>
                     </div>
                   </div>
-                  <Tooltip title="Cerrar Sesión">
-                    <LogoutOutlined
-                      style={{ cursor: 'pointer', color: 'var(--ant-color-text-description)' }}
-                      onClick={logout}
-                    />
-                  </Tooltip>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <NotificationBell />
+                    <Tooltip title="Cerrar Sesión">
+                      <LogoutOutlined
+                        style={{ cursor: 'pointer', color: 'var(--ant-color-text-description)' }}
+                        onClick={logout}
+                      />
+                    </Tooltip>
+                  </div>
                 </div>
               )}
 

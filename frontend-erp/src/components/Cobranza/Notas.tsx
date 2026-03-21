@@ -6,6 +6,7 @@ import { CobranzaNota, CobranzaNotaCreate } from '@/types/cobranza';
 import { createNota, getNotasByCliente, deleteNota } from '@/services/cobranzaService';
 import { useAuth } from '@/context/AuthContext';
 import dayjs from 'dayjs';
+import { normalizeISOToUTC } from '@/utils/formatDate';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -176,7 +177,7 @@ const Notas: React.FC<NotasProps> = ({ visible, onClose, clienteId, clienteNombr
                                 {nota.fecha_promesa_pago && (
                                     <div style={{ marginTop: 4 }}>
                                         <Text type="success" style={{ fontSize: 12 }}>
-                                            <ClockCircleOutlined /> Promesa de Pago: {dayjs(nota.fecha_promesa_pago).format('DD/MM/YYYY')}
+                                            <ClockCircleOutlined /> Promesa de Pago: {dayjs(normalizeISOToUTC(nota.fecha_promesa_pago)).format('DD/MM/YYYY')}
                                         </Text>
                                     </div>
                                 )}

@@ -22,3 +22,6 @@ backend/data/
 *.bak
 debug_catalogos.py
 backend/mantenimiento/
+
+# Documentacion
+documentacion/

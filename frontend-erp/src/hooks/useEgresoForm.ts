@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Form, message } from 'antd';
 import dayjs from 'dayjs';
+import { normalizeISOToUTC } from '@/utils/formatDate';
 import * as egresoService from '@/services/egresoService';
 import * as facturaService from '@/services/facturaService'; // for getEmpresas
 
@@ -54,7 +55,7 @@ export const useEgresoForm = () => {
           setEgreso(egresoData);
           form.setFieldsValue({
             ...egresoData,
-            fecha_egreso: egresoData.fecha_egreso ? dayjs(egresoData.fecha_egreso) : null,
+            fecha_egreso: egresoData.fecha_egreso ? dayjs(normalizeISOToUTC(egresoData.fecha_egreso)) : null,
           });
         } else {
           let defaultEmpresaId = localStorage.getItem('selectedEmpresaId') || null;

@@ -1,6 +1,9 @@
 # backend/app/services/email_sender.py
 
+import asyncio
+import logging
 import smtplib
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -12,9 +15,57 @@ import os
 from app import models
 from app.core.security import decrypt_data
 from app.config import settings
+from app.services import notificacion_service as notif_svc
+
+logger = logging.getLogger("app")
+
+_SMTP_MAX_RETRIES = 3
+_SMTP_RETRY_BACKOFF = [1, 2]  # segundos entre intentos 1→2 y 2→3
+
 
 class EmailSendingError(Exception):
     pass
+
+
+def _smtp_send(server: str, port: int, use_tls: bool, user: str, password: str, msg):
+    """Envía un mensaje MIME via SMTP con reintentos ante errores transitorios.
+
+    Realiza hasta _SMTP_MAX_RETRIES intentos con backoff exponencial.
+    Los errores de autenticación fallan inmediatamente sin reintentar.
+    """
+    last_error: Exception | None = None
+
+    for attempt in range(1, _SMTP_MAX_RETRIES + 1):
+        try:
+            smtp = smtplib.SMTP(server, port)
+            if use_tls:
+                smtp.starttls()
+            smtp.login(user, password)
+            smtp.send_message(msg)
+            smtp.quit()
+            return  # éxito
+        except smtplib.SMTPAuthenticationError:
+            # Error de credenciales: no tiene sentido reintentar
+            raise EmailSendingError(
+                "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+            )
+        except Exception as e:
+            last_error = e
+            if attempt < _SMTP_MAX_RETRIES:
+                wait = _SMTP_RETRY_BACKOFF[attempt - 1]
+                logger.warning(
+                    "SMTP intento %d/%d falló (%s). Reintentando en %ds...",
+                    attempt, _SMTP_MAX_RETRIES, e, wait,
+                )
+                time.sleep(wait)
+            else:
+                logger.error(
+                    "SMTP falló tras %d intentos: %s", _SMTP_MAX_RETRIES, e
+                )
+
+    raise EmailSendingError(
+        f"Error al enviar el correo tras {_SMTP_MAX_RETRIES} intentos: {last_error}"
+    )
 
 
 def send_invoice_email(
@@ -103,9 +154,6 @@ def send_invoice_email(
             msg.attach(part)
         else:
             # Log a warning if XML path exists but file is not found for non-cancelled invoice
-            import logging
-
-            logger = logging.getLogger("app")
             logger.warning(
                 f"XML path found for factura {factura.id} but file does not exist: {xml_full_path}"
             )
@@ -124,18 +172,23 @@ def send_invoice_email(
 
     # 7. Enviar correo
     try:
-        server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
-        if email_config.use_tls:
-            server.starttls()
-        server.login(email_config.smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
-    except smtplib.SMTPAuthenticationError:
-        raise EmailSendingError(
-            "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+        _smtp_send(
+            email_config.smtp_server, email_config.smtp_port, email_config.use_tls,
+            email_config.smtp_user, smtp_password, msg,
         )
-    except Exception as e:
-        raise EmailSendingError(f"Error al enviar el correo: {e}")
+    except EmailSendingError as e:
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=empresa_id,
+                tipo=notif_svc.ERROR,
+                titulo="Error al enviar correo",
+                mensaje=f"No se pudo enviar la factura {factura.serie}-{factura.folio} a {recipient_email}: {e}",
+                metadata={"factura_id": str(factura_id), "destinatario": recipient_email},
+            )
+        except Exception:
+            pass
+        raise
 
 
 def send_preview_invoice_email(
@@ -219,18 +272,23 @@ def send_preview_invoice_email(
 
     # 6. Enviar correo
     try:
-        server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
-        if email_config.use_tls:
-            server.starttls()
-        server.login(email_config.smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
-    except smtplib.SMTPAuthenticationError:
-        raise EmailSendingError(
-            "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+        _smtp_send(
+            email_config.smtp_server, email_config.smtp_port, email_config.use_tls,
+            email_config.smtp_user, smtp_password, msg,
         )
-    except Exception as e:
-        raise EmailSendingError(f"Error al enviar el correo: {e}")
+    except EmailSendingError as e:
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=empresa_id,
+                tipo=notif_svc.ERROR,
+                titulo="Error al enviar correo",
+                mensaje=f"No se pudo enviar la vista previa de factura {factura.serie}-{factura.folio} a {recipient_email}: {e}",
+                metadata={"factura_id": str(factura_id), "destinatario": recipient_email},
+            )
+        except Exception:
+            pass
+        raise
 
 
 async def send_pago_email(
@@ -361,22 +419,28 @@ async def send_pago_email(
             # Si falla generar PDF aquí, lo omitimos o logueamos, pero no detenemos si ya tenemos XML
              pass
 
-    # 6. Enviar correo (usando SMTP sincrono, pero envuelto en funcion async si fuera necesario bloquear,
-    # aqui smtplib es bloqueante, asi que bloqueara el thread. Para hacerlo verdaderamente async se requiere aiosmtplib.
-    # Por ahora mantenemos smtplib pero la definicion es async para complacer al caller)
+    # 6. Enviar correo — se ejecuta en un thread pool para no bloquear el event loop
+    loop = asyncio.get_event_loop()
     try:
-        server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
-        if email_config.use_tls:
-            server.starttls()
-        server.login(email_config.smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
-    except smtplib.SMTPAuthenticationError:
-        raise EmailSendingError(
-            "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+        await loop.run_in_executor(
+            None,
+            _smtp_send,
+            email_config.smtp_server, email_config.smtp_port, email_config.use_tls,
+            email_config.smtp_user, smtp_password, msg,
         )
-    except Exception as e:
-        raise EmailSendingError(f"Error al enviar el correo: {e}")
+    except EmailSendingError as e:
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=empresa_id,
+                tipo=notif_svc.ERROR,
+                titulo="Error al enviar correo",
+                mensaje=f"No se pudo enviar el complemento de pago {pago.serie}-{pago.folio} a {', '.join(recipients)}: {e}",
+                metadata={"pago_id": str(pago_id), "destinatarios": recipients},
+            )
+        except Exception:
+            pass
+        raise
 
 
 def test_smtp_connection(
@@ -481,18 +545,23 @@ def send_presupuesto_email(
 
     # 6. Enviar correo
     try:
-        server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
-        if email_config.use_tls:
-            server.starttls()
-        server.login(email_config.smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
-    except smtplib.SMTPAuthenticationError:
-        raise EmailSendingError(
-            "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+        _smtp_send(
+            email_config.smtp_server, email_config.smtp_port, email_config.use_tls,
+            email_config.smtp_user, smtp_password, msg,
         )
-    except Exception as e:
-        raise EmailSendingError(f"Error al enviar el correo: {e}")
+    except EmailSendingError as e:
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=empresa_id,
+                tipo=notif_svc.ERROR,
+                titulo="Error al enviar correo",
+                mensaje=f"No se pudo enviar el presupuesto {presupuesto.folio} a {recipient_email}: {e}",
+                metadata={"presupuesto_id": str(presupuesto_id), "destinatario": recipient_email},
+            )
+        except Exception:
+            pass
+        raise
 
 
 def send_estado_cuenta_email(
@@ -572,15 +641,20 @@ def send_estado_cuenta_email(
 
     # 6. Enviar correo
     try:
-        server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
-        if email_config.use_tls:
-            server.starttls()
-        server.login(email_config.smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
-    except smtplib.SMTPAuthenticationError:
-        raise EmailSendingError(
-            "Error de autenticación SMTP. Verifique el usuario y la contraseña."
+        _smtp_send(
+            email_config.smtp_server, email_config.smtp_port, email_config.use_tls,
+            email_config.smtp_user, smtp_password, msg,
         )
-    except Exception as e:
-        raise EmailSendingError(f"Error al enviar el correo: {e}")
+    except EmailSendingError as e:
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=empresa_id,
+                tipo=notif_svc.ERROR,
+                titulo="Error al enviar correo",
+                mensaje=f"No se pudo enviar el estado de cuenta de {cliente.nombre_razon_social or cliente.rfc} a {', '.join(recipients)}: {e}",
+                metadata={"cliente_id": str(cliente_id), "destinatarios": recipients},
+            )
+        except Exception:
+            pass
+        raise

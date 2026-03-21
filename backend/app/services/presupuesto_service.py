@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 from app.repository.base import BaseRepository
 from app.models.presupuestos import Presupuesto, PresupuestoDetalle, PresupuestoEvento
 from app.models.factura import Factura
@@ -37,7 +37,7 @@ class PresupuestoRepository(BaseRepository[Presupuesto, PresupuestoCreate, Presu
             # Empezar desde 1 si no hay folios este año
             new_sequence = 1
             
-        year = datetime.utcnow().year
+        year = datetime.now(timezone.utc).year
         
         return f"PRE-{year}-{new_sequence:04d}"
 

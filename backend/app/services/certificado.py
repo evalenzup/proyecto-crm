@@ -313,7 +313,7 @@ class CertificadoService:
                 )
 
             _, nva = _utc_pair(cert)
-            now = datetime.utcnow().replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
             if nva < now:
                 return {
                     "valido": False,

@@ -10,9 +10,10 @@ from app.schemas.pago import PagoCreate
 from app.services.timbrado_factmoderna import FacturacionModernaPAC
 from app.services.pdf_pago import render_pago_pdf_bytes_from_model
 from app.services.email_sender import send_pago_email, EmailSendingError
+from app.services import notificacion_service as notif_svc
 import os
 from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Optional, Tuple
 
 import logging
@@ -238,26 +239,21 @@ def get_pago_pdf(db: Session, pago_id: UUID) -> tuple[bytes, str]:
         )
 
 
-async def enviar_pago_por_email(
+async def enviar_pago_por_email_bg(
     db: Session, pago_id: UUID, recipients: List[str], subject: Optional[str], body: Optional[str]
 ):
+    """Tarea de fondo: genera PDF/XML del pago y envía correo. Los errores se registran en el log."""
     try:
-        # Generar el PDF del pago
         pdf_bytes, pdf_filename = get_pago_pdf(db, pago_id)
 
-        # Obtener el XML del pago
         xml_path, xml_filename = obtener_ruta_xml_pago(db, pago_id)
-        xml_content = None
         if not os.path.exists(xml_path):
-            raise HTTPException(
-                status_code=404,
-                detail="XML para el pago no encontrado, no se puede enviar el correo.",
-            )
+            logger.error("XML para el pago %s no encontrado en %s, correo no enviado.", pago_id, xml_path)
+            return
 
         with open(xml_path, "rb") as f:
             xml_content = f.read()
 
-        # Enviar correo
         await send_pago_email(
             db=db,
             pago_id=pago_id,
@@ -269,17 +265,11 @@ async def enviar_pago_por_email(
             xml_content=xml_content,
             xml_filename=xml_filename,
         )
-        return {
-            "message": "Complemento de pago enviado por correo electrónico exitosamente."
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        logger.info("Complemento de pago %s enviado a %s", pago_id, recipients)
     except EmailSendingError as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error al enviar el correo electrónico: {e}"
-        )
+        logger.error("Error SMTP al enviar pago %s: %s", pago_id, e)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {e}")
+        logger.error("Error inesperado al enviar pago %s: %s", pago_id, e)
 
 
 def crear_pago(db: Session, pago: PagoCreate):
@@ -787,7 +777,7 @@ def timbrar_pago(db: Session, pago_id: UUID) -> dict:
 
         pago.estatus = "TIMBRADO"
         pago.uuid = result["uuid"]
-        pago.fecha_timbrado = datetime.utcnow()
+        pago.fecha_timbrado = datetime.now(timezone.utc)
         pago.xml_path = result.get("xml_path")
 
         for doc in pago.documentos_relacionados:
@@ -801,6 +791,18 @@ def timbrar_pago(db: Session, pago_id: UUID) -> dict:
 
         db.commit()
         db.refresh(pago)
+
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=pago.empresa_id,
+                tipo=notif_svc.EXITO,
+                titulo="Complemento de pago timbrado",
+                mensaje=f"Complemento de pago {pago.serie}-{pago.folio} timbrado exitosamente.",
+                metadata={"pago_id": str(pago_id)},
+            )
+        except Exception:
+            pass
 
         return {"ok": True, "uuid": pago.uuid, "message": "Pago timbrado exitosamente."}
 
@@ -920,6 +922,18 @@ def cancelar_pago_sat(
         db.add(pago)
         db.commit()
         db.refresh(pago)
+
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=pago.empresa_id,
+                tipo=notif_svc.ADVERTENCIA,
+                titulo="Complemento de pago cancelado",
+                mensaje=f"Complemento de pago {pago.serie}-{pago.folio} cancelado ante el SAT.",
+                metadata={"pago_id": str(pago_id), "motivo": motivo},
+            )
+        except Exception:
+            pass
 
         return {
             "message": "Solicitud de cancelación enviada exitosamente.",

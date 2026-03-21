@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 from typing import Optional, List, Tuple
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from app.models.empresa import Empresa
 from app.schemas.empresa import EmpresaCreate, EmpresaUpdate
@@ -111,7 +111,8 @@ class EmpresaRepository(BaseRepository[Empresa, EmpresaCreate, EmpresaUpdate]):
             )
         if (
             resultado.get("valido_hasta")
-            and datetime.fromisoformat(resultado["valido_hasta"]).date() < date.today()
+            and datetime.fromisoformat(resultado["valido_hasta"]).date()
+            < datetime.now(timezone.utc).date()
         ):
             raise HTTPException(status_code=400, detail="El certificado está vencido.")
 
@@ -226,7 +227,7 @@ class EmpresaRepository(BaseRepository[Empresa, EmpresaCreate, EmpresaUpdate]):
             if (
                 resultado.get("valido_hasta")
                 and datetime.fromisoformat(resultado["valido_hasta"]).date()
-                < date.today()
+                < datetime.now(timezone.utc).date()
             ):
                 raise HTTPException(
                     status_code=400, detail="El certificado está vencido."

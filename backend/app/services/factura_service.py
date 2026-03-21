@@ -9,7 +9,7 @@ from sqlalchemy import func, asc, desc
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from app.models.factura import Factura
 from app.models.factura_detalle import FacturaDetalle
@@ -17,6 +17,7 @@ from app.schemas.factura import FacturaCreate, FacturaUpdate
 from app.models.associations import cliente_empresa as cliente_empresa_association
 from app.services.timbrado_factmoderna import FacturacionModernaPAC
 from app.services.cfdi40_xml import build_cfdi40_xml_sin_timbrar
+from app.services import notificacion_service as notif_svc
 from app.services.pdf_factura import (
     render_factura_pdf_bytes_from_model,
     load_factura_full,
@@ -312,7 +313,7 @@ def duplicar_factura(db: Session, factura_id: UUID) -> Factura:
         forma_pago=original.forma_pago,
         metodo_pago=original.metodo_pago,
         uso_cfdi=original.uso_cfdi,
-        fecha_emision=datetime.now(), # Fecha actual
+        fecha_emision=datetime.now(timezone.utc), # Fecha actual en UTC
         lugar_expedicion=original.lugar_expedicion,
         condiciones_pago=original.condiciones_pago,
         rfc_proveedor_sat=original.rfc_proveedor_sat,
@@ -388,6 +389,17 @@ def timbrar_factura(db: Session, factura_id: UUID) -> dict:
         if not result.get("timbrada"):
             detalle = result.get("detalle") or "No se pudo timbrar"
             raise HTTPException(status_code=409, detail=detalle)
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=factura.empresa_id,
+                tipo=notif_svc.EXITO,
+                titulo="Factura timbrada",
+                mensaje=f"Factura {factura.serie}-{factura.folio} timbrada exitosamente.",
+                metadata={"factura_id": str(factura_id)},
+            )
+        except Exception:
+            pass  # La notificación no debe interrumpir el flujo principal
         return {"ok": True, **result}
     except HTTPException:
         raise
@@ -444,6 +456,17 @@ def solicitar_cancelacion_cfdi(
             motivo=motivo,
             folio_sustitucion=folio_sustitucion,
         )
+        try:
+            notif_svc.crear_notificacion(
+                db=db,
+                empresa_id=factura.empresa_id,
+                tipo=notif_svc.ADVERTENCIA,
+                titulo="Factura cancelada",
+                mensaje=f"Factura {factura.serie}-{factura.folio} cancelada ante el SAT.",
+                metadata={"factura_id": str(factura_id), "motivo": motivo},
+            )
+        except Exception:
+            pass
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -9,6 +9,7 @@ from app.config import settings
 from app.exception_handlers import (
     http_exception_handler,
     validation_exception_handler,
+    sqlalchemy_exception_handler,
     generic_exception_handler,
 )
 from app.api import clientes
@@ -26,9 +27,15 @@ from app.api.presupuestos import router as presupuestos_router
 from app.api.login import router as login_router
 from app.api.users import router as users_router
 from app.api.cobranza import router as cobranza_router
+from app.api.notificaciones import router as notificaciones_router
+from app.api.health import router as health_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy.exc import SQLAlchemyError
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
 
 
 app = FastAPI(
@@ -36,6 +43,10 @@ app = FastAPI(
     description="Un ERP/CRM para fumigaciones, jardinería y extintores.",
     version="1.0.0",
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Montar el directorio de datos como archivos estáticos
 app.mount("/data", StaticFiles(directory="data"), name="data")
@@ -155,10 +166,20 @@ app.include_router(
     responses={404: {"description": "No encontrado"}},
 )
 
-# Registrar manejadores globales de excepción
+app.include_router(
+    notificaciones_router,
+    prefix="/api/notificaciones",
+    tags=["notificaciones"],
+    responses={404: {"description": "No encontrado"}},
+)
 
+app.include_router(health_router, prefix="/health", tags=["health"])
+
+# Registrar manejadores globales de excepción
+# Orden importa: los más específicos primero
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
 logger.info("Arrancando aplicación FastAPI")

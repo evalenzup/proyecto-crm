@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { Form, message } from 'antd';
 import dayjs from 'dayjs';
+import { normalizeISOToUTC } from '@/utils/formatDate';
 import debounce from 'lodash/debounce';
 import * as pagoService from '@/services/pagoService';
 import * as facturaService from '@/services/facturaService';
@@ -96,8 +97,8 @@ export const usePagoForm = () => {
           form.setFieldsValue({
             ...pagoData,
             forma_pago_p: fp,
-            fecha_pago: pagoData?.fecha_pago ? dayjs(pagoData.fecha_pago) : null,
-            fecha_emision: pagoData?.fecha_emision ? dayjs(pagoData.fecha_emision) : null,
+            fecha_pago: pagoData?.fecha_pago ? dayjs(normalizeISOToUTC(pagoData.fecha_pago)) : null,
+            fecha_emision: pagoData?.fecha_emision ? dayjs(normalizeISOToUTC(pagoData.fecha_emision)) : null,
           });
 
           if (pagoData.cliente_id) {

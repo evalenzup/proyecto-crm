@@ -6,7 +6,7 @@ import re
 import base64
 from typing import Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from xml.etree.ElementTree import Element, SubElement, tostring, fromstring
@@ -543,7 +543,7 @@ class FacturacionModernaPAC:
         # 8) Persistir en DB
         f.cfdi_uuid = tfd.get("uuid")
 
-        # FechaTimbrado → datetime
+        # FechaTimbrado → datetime (siempre UTC-aware)
         fecha_timbrado_iso = tfd.get("fecha_timbrado")
         fecha_timbrado_dt: Optional[datetime] = None
         if fecha_timbrado_iso:
@@ -553,9 +553,10 @@ class FacturacionModernaPAC:
                 )
             except Exception:
                 try:
+                    # Fallback: sin timezone → asumir UTC explícitamente
                     fecha_timbrado_dt = datetime.fromisoformat(
                         fecha_timbrado_iso.split(".")[0]
-                    )
+                    ).replace(tzinfo=timezone.utc)
                 except Exception:
                     fecha_timbrado_dt = None
         f.fecha_timbrado = fecha_timbrado_dt
@@ -746,7 +747,7 @@ class FacturacionModernaPAC:
         # 8) Persistir en DB
         p.uuid = tfd.get("uuid")
 
-        # FechaTimbrado → datetime
+        # FechaTimbrado → datetime (siempre UTC-aware)
         fecha_timbrado_iso = tfd.get("fecha_timbrado")
         fecha_timbrado_dt: Optional[datetime] = None
         if fecha_timbrado_iso:
@@ -756,9 +757,10 @@ class FacturacionModernaPAC:
                 )
             except Exception:
                 try:
+                    # Fallback: sin timezone → asumir UTC explícitamente
                     fecha_timbrado_dt = datetime.fromisoformat(
                         fecha_timbrado_iso.split(".")[0]
-                    )
+                    ).replace(tzinfo=timezone.utc)
                 except Exception:
                     fecha_timbrado_dt = None
         p.fecha_timbrado = fecha_timbrado_dt

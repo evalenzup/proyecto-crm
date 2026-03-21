@@ -7,6 +7,7 @@ from datetime import datetime
 from app.models.pago import EstatusPago
 from app.schemas.factura import FacturaSimpleOut
 from app.schemas.cliente import ClienteSimpleOut
+from app.utils.datetime_utils import TijuanaDatetime
 
 # --- Documento Relacionado ---
 
@@ -107,9 +108,9 @@ class Pago(PagoBase):
     empresa_id: uuid.UUID
     estatus: EstatusPago
     uuid: Optional[str] = None
-    fecha_timbrado: Optional[datetime] = None
-    creado_en: datetime
-    actualizado_en: datetime
+    fecha_timbrado: Optional[TijuanaDatetime] = None
+    creado_en: TijuanaDatetime
+    actualizado_en: TijuanaDatetime
     documentos_relacionados: List[PagoDocumentoRelacionado] = []
     cliente: Optional[ClienteSimpleOut] = None
 

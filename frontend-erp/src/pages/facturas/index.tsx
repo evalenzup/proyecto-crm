@@ -15,7 +15,7 @@ const { RangePicker } = DatePicker;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
-import { formatDate } from '@/utils/formatDate';
+import { formatDate, formatDateOnly } from '@/utils/formatDate';
 
 
 const FacturasIndexPage: React.FC = () => {
@@ -124,7 +124,7 @@ const FacturasIndexPage: React.FC = () => {
 
   const columns: ColumnsType<FacturaRow> = [
     { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.serie ?? ''}-${r.folio ?? ''}`, width: 110 },
-    { title: 'Fecha', dataIndex: 'creado_en', key: 'creado_en', render: (v: string) => formatDate(v).split(',')[0], width: 120 },
+    { title: 'Fecha', dataIndex: 'creado_en', key: 'creado_en', render: (v: string) => formatDateOnly(v), width: 120 },
     { title: 'Cliente', key: 'cliente', render: (_: any, r) => r.cliente?.nombre_comercial || '—' },
     { title: 'Estatus CFDI', dataIndex: 'estatus', key: 'estatus', width: 130 },
     { title: 'Estatus Pago', dataIndex: 'status_pago', key: 'status_pago', width: 130 },

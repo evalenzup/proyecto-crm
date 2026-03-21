@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from uuid import UUID
 from typing import List, Optional
 
@@ -13,7 +13,7 @@ from app.models.usuario import Usuario
 class CobranzaService:
     @staticmethod
     def get_aging_report(db: Session, empresa_id: UUID) -> AgingReportResponse:
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         
         # 1. Obtener todas las facturas NO PAGADAS y TIMBRADAS
         facturas = (

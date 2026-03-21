@@ -7,6 +7,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import debounce from 'lodash/debounce';
 import * as svc from '@/services/facturaService';
 import { normalizeHttpError } from '@/utils/httpError';
+import { normalizeISOToUTC } from '@/utils/formatDate';
 import { applyFormErrors } from '@/utils/formErrors';
 
 type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'CANCELADA';
@@ -175,10 +176,10 @@ export const useFacturaForm = () => {
           tiene_relacion: !!(data.cfdi_relacionados_tipo || data.cfdi_relacionados),
           status_pago: data.status_pago,
           folio_fiscal: data.folio_fiscal ?? (data as any).cfdi_uuid ?? undefined,
-          fecha_emision: data.fecha_emision ? dayjs(data.fecha_emision) : dayjs(),
-          fecha_timbrado: data.fecha_timbrado ? dayjs(data.fecha_timbrado) : null,
-          fecha_pago: data.fecha_pago ? dayjs(data.fecha_pago) : null,
-          fecha_cobro: data.fecha_cobro ? dayjs(data.fecha_cobro) : null,
+          fecha_emision: data.fecha_emision ? dayjs(normalizeISOToUTC(data.fecha_emision)) : dayjs(),
+          fecha_timbrado: data.fecha_timbrado ? dayjs(normalizeISOToUTC(data.fecha_timbrado)) : null,
+          fecha_pago: data.fecha_pago ? dayjs(normalizeISOToUTC(data.fecha_pago)) : null,
+          fecha_cobro: data.fecha_cobro ? dayjs(normalizeISOToUTC(data.fecha_cobro)) : null,
           observaciones: data.observaciones ?? undefined,
         });
 

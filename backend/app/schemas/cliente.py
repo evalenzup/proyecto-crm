@@ -9,6 +9,8 @@ import re
 from app.schemas.common import EmpresaSimpleOut
 from app.schemas.contacto import ContactoOut
 from app.schemas.utils import make_optional  # Importamos la utilidad
+from app.utils.rfc_validator import validate_rfc
+from app.utils.datetime_utils import TijuanaDatetime
 
 
 class ClienteBase(BaseModel):
@@ -18,6 +20,11 @@ class ClienteBase(BaseModel):
     # Datos fiscales
     rfc: Annotated[str, StringConstraints(max_length=13)] = Field(..., title="RFC")
     regimen_fiscal: Annotated[str, StringConstraints(max_length=100)] = Field(..., title="Régimen Fiscal")
+
+    @field_validator("rfc", mode="before")
+    @classmethod
+    def rfc_valido(cls, v: str) -> str:
+        return validate_rfc(v)
     # Dirección
     calle: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Calle")
     numero_exterior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(
@@ -95,8 +102,8 @@ ClienteUpdate = make_optional(ClienteCreate)
 
 class ClienteOut(ClienteBase):
     id: UUID = Field(..., title="ID")
-    creado_en: datetime = Field(..., title="Creado en")
-    actualizado_en: datetime = Field(..., title="Actualizado en")
+    creado_en: TijuanaDatetime = Field(..., title="Creado en")
+    actualizado_en: TijuanaDatetime = Field(..., title="Actualizado en")
     empresas: Optional[List[EmpresaSimpleOut]] = Field(None, title="Empresas")
     contactos: List[ContactoOut] = Field([], title="Contactos")
 

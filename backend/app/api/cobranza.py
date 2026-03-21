@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -107,9 +107,10 @@ def descargar_estado_cuenta(
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
-@router.post("/enviar-estado-cuenta")
+@router.post("/enviar-estado-cuenta", status_code=202)
 def enviar_estado_cuenta(
     payload: CobranzaEmailRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
     empresa_id: UUID = Query(None),
@@ -124,18 +125,16 @@ def enviar_estado_cuenta(
 
     if not effective_empresa_id:
          raise HTTPException(status_code=400, detail="Se requiere contexto de empresa (empresa_id).")
-         
-    try:
-        cobranza_service.process_email_estado_cuenta(
-            db, 
-            effective_empresa_id, 
-            payload.cliente_id, 
-            payload.recipients, 
-            current_user.id
-        )
-        return {"message": "Correo enviado correctamente"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+    background_tasks.add_task(
+        cobranza_service.process_email_estado_cuenta,
+        db,
+        effective_empresa_id,
+        payload.cliente_id,
+        payload.recipients,
+        current_user.id,
+    )
+    return {"message": f"Estado de cuenta programado para envío a: {', '.join(payload.recipients)}"}
 
 @router.delete("/notas/{nota_id}")
 def eliminar_nota(

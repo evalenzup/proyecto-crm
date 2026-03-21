@@ -5,6 +5,7 @@ from typing import Optional, List, Literal
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
+from app.utils.datetime_utils import TijuanaDatetime
 
 # --- Detalle ---
 
@@ -146,7 +147,7 @@ class FacturaSimpleOut(BaseModel):
     id: UUID
     serie: Optional[constr(max_length=10)] = None
     folio: Optional[int] = None
-    fecha_emision: Optional[datetime] = None
+    fecha_emision: Optional[TijuanaDatetime] = None
     total: condecimal(ge=0, max_digits=18, decimal_places=6)
     cfdi_uuid: Optional[str] = None
     moneda: Literal["MXN", "USD"] = "MXN"
@@ -161,12 +162,12 @@ class FacturaOut(FacturaBase):
     motivo_cancelacion: Optional[str] = None
     folio_fiscal_sustituto: Optional[str] = None
     cfdi_uuid: Optional[str] = None
-    fecha_timbrado: Optional[datetime] = None
+    fecha_timbrado: Optional[TijuanaDatetime] = None
     no_certificado: Optional[str] = None
     no_certificado_sat: Optional[str] = None
     xml_path: Optional[str] = None
     pdf_path: Optional[str] = None
-    fecha_emision: Optional[datetime] = None
+    fecha_emision: Optional[TijuanaDatetime] = None
     rfc_proveedor_sat: Optional[str] = None
     
     # Campos calculados para pagos
@@ -180,8 +181,8 @@ class FacturaOut(FacturaBase):
     impuestos_retenidos: condecimal(ge=0, max_digits=18, decimal_places=6)
     total: condecimal(ge=0, max_digits=18, decimal_places=6)
 
-    creado_en: datetime
-    actualizado_en: datetime
+    creado_en: TijuanaDatetime
+    actualizado_en: TijuanaDatetime
 
     conceptos: List[FacturaDetalleOut]
     cliente: Optional[ClienteSimpleOut] = None

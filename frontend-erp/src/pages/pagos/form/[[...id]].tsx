@@ -22,6 +22,7 @@ import {
   Radio,
 } from 'antd';
 import { Breadcrumbs } from '@/components/Breadcrumb';
+import { formatDate, formatDateOnly } from '@/utils/formatDate';
 import { usePagoForm } from '@/hooks/usePagoForm';
 import { FacturaPendiente } from '@/services/pagoService';
 import {
@@ -123,7 +124,7 @@ const PagoFormPage: React.FC = () => {
     if (pago) {
       form.setFieldsValue({
         uuid_cfdi: pago.uuid,
-        timbrado_at: pago.fecha_timbrado ? new Date(pago.fecha_timbrado).toLocaleString('es-MX') : undefined,
+        timbrado_at: pago.fecha_timbrado ? formatDate(pago.fecha_timbrado) : undefined,
       });
     }
   }, [pago, form]);
@@ -152,7 +153,7 @@ const PagoFormPage: React.FC = () => {
         </Button>
       )
     },
-    { title: 'Fecha Em.', dataIndex: 'fecha_emision', render: (val: string) => new Date(val).toLocaleDateString() },
+    { title: 'Fecha Em.', dataIndex: 'fecha_emision', render: (val: string) => formatDateOnly(val) },
     {
       title: 'Saldo Anterior',
       dataIndex: 'saldo_pendiente',

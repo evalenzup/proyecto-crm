@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, FileResponse, StreamingResponse
 import os
 from sqlalchemy.orm import Session, selectinload
@@ -29,6 +29,7 @@ from app.services.pdf_pago import render_pago_pdf_bytes_from_model
 from app.services.email_sender import send_pago_email, EmailSendingError
 from app.schemas.factura import SendEmailIn
 from app.config import settings
+from app.core.limiter import limiter
 
 # Catálogos
 from app.catalogos_sat.facturacion import FORMA_PAGO
@@ -270,8 +271,10 @@ def listar_facturas_pendientes_por_cliente(
 
 
 @router.post("/{pago_id}/timbrar", summary="Timbrar un complemento de pago")
+@limiter.limit("10/minute")
 def timbrar_pago_endpoint(
-    pago_id: uuid.UUID, 
+    request: Request,
+    pago_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -319,18 +322,29 @@ def get_pago_xml(pago_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.post(
     "/{pago_id}/enviar-email",
+    status_code=202,
     summary="Enviar complemento de pago por correo electrónico",
 )
-async def enviar_pago_por_email(
-    pago_id: uuid.UUID, email_data: SendEmailIn, db: Session = Depends(get_db)
+def enviar_pago_por_email(
+    pago_id: uuid.UUID,
+    email_data: SendEmailIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
 ):
-    return await pago_service.enviar_pago_por_email(
-        db,
-        pago_id,
+    pago = pago_service.leer_pago(db, pago_id)
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if not email_data.recipients:
+        raise HTTPException(status_code=400, detail="Se requiere al menos un destinatario.")
+
+    background_tasks.add_task(
+        pago_service.enviar_pago_por_email_bg,
+        db, pago_id,
         recipients=email_data.recipients,
         subject=email_data.subject,
         body=email_data.body,
     )
+    return {"message": f"Correo de complemento de pago programado para envío a: {', '.join(email_data.recipients)}"}
 
 
 @router.post("/{pago_id}/cancelar-sat", summary="Cancelar pago ante el SAT")

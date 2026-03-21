@@ -16,6 +16,7 @@ from .presupuestos import (
 )
 from .usuario import Usuario
 from .cobranza import CobranzaNota
+from .notificacion import Notificacion
 
 # Usar uno de los Base como referencia unificada
 Base = BaseCliente
@@ -39,4 +40,5 @@ __all__ = [
     "PresupuestoEvento",
     "Usuario",
     "CobranzaNota",
+    "Notificacion",
 ]

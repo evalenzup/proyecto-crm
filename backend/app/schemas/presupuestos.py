@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import date, datetime
 from decimal import Decimal
 from app.schemas.cliente import ClienteSimpleOut
+from app.utils.datetime_utils import TijuanaDatetime
 
 # --- Enums and Literals ---
 
@@ -169,8 +170,8 @@ class Presupuesto(PresupuestoBase):
     descuento_total: Decimal
     impuestos: Decimal
     total: Decimal
-    creado_en: datetime
-    actualizado_en: datetime
+    creado_en: TijuanaDatetime
+    actualizado_en: TijuanaDatetime
     cliente: ClienteSimpleOut
 
     detalles: List[PresupuestoDetalle]

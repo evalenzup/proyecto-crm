@@ -5,7 +5,7 @@ from io import BytesIO
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 from reportlab.lib.pagesizes import letter
@@ -124,7 +124,7 @@ def generate_account_statement_pdf(db: Session, empresa_id: UUID, cliente_id: UU
     c.setFont(FONT, 10)
     c.drawRightString(PAGE_W - MARGIN, y - 30, "ESTADO DE CUENTA")
     c.setFont(FONT, 9)
-    c.drawRightString(PAGE_W - MARGIN, y - 42, f"Fecha de corte: {_to_tijuana(datetime.now()).strftime('%d/%m/%Y')}")
+    c.drawRightString(PAGE_W - MARGIN, y - 42, f"Fecha de corte: {_to_tijuana(datetime.now(timezone.utc)).strftime('%d/%m/%Y')}")
 
     y -= (LOGO_H + 20)
 
@@ -185,10 +185,10 @@ def generate_account_statement_pdf(db: Session, empresa_id: UUID, cliente_id: UU
             raw_base = f.fecha_pago if f.fecha_pago else f.fecha_emision
             dt_base = _to_tijuana(raw_base)
             
-            fecha_base_date = dt_base.date() if dt_base else datetime.now().date()
+            fecha_base_date = dt_base.date() if dt_base else datetime.now(timezone.utc).date()
             vence = dt_base.strftime("%d/%m/%Y") if dt_base else "-"
 
-            today_tj = _to_tijuana(datetime.now()).date()
+            today_tj = _to_tijuana(datetime.now(timezone.utc)).date()
             days_overdue = (today_tj - fecha_base_date).days
             
             saldo = Decimal(f.total or 0)

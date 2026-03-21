@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import datetime
 import enum
 from app.schemas.utils import make_optional  # Importamos la utilidad
+from app.utils.datetime_utils import TijuanaDatetime
 
 Numeric = condecimal(max_digits=18, decimal_places=2)
 
@@ -55,8 +56,8 @@ ProductoServicioUpdate = make_optional(ProductoServicioCreate)
 
 class ProductoServicioOut(ProductoServicioBase):
     id: UUID = Field(..., title="ID")
-    creado_en: datetime = Field(..., title="Creado en")
-    actualizado_en: datetime = Field(..., title="Actualizado en")
+    creado_en: TijuanaDatetime = Field(..., title="Creado en")
+    actualizado_en: TijuanaDatetime = Field(..., title="Actualizado en")
 
     class Config:
         from_attributes = True

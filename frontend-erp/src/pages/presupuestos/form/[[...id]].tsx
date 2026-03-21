@@ -31,6 +31,7 @@ import { usePresupuestoForm } from '@/hooks/usePresupuestoForm';
 import { formatCurrency } from '@/utils/format';
 import { PresupuestoDetalle } from '@/models/presupuesto';
 import dayjs from 'dayjs';
+import { normalizeISOToUTC } from '@/utils/formatDate';
 import api from '@/lib/axios';
 
 const { TextArea } = Input;
@@ -209,7 +210,7 @@ const PresupuestoFormPage: React.FC = () => {
                       onChange={(value) => setSelectedVersionId(value)}
                       options={versionHistory.map(v => ({
                         value: v.id,
-                        label: `Versión ${v.version} (${v.estado}) - ${dayjs(v.creado_en).format('DD/MM/YY HH:mm')}`
+                        label: `Versión ${v.version} (${v.estado}) - ${dayjs(normalizeISOToUTC(v.creado_en)).format('DD/MM/YY HH:mm')}`
                       }))}
                     />
                   ) : (

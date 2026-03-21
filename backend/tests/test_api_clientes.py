@@ -36,7 +36,7 @@ def crear_empresa(client):
 # Tests
 
 
-def test_crear_listar_actualizar_eliminar_cliente(client, db_session):
+def test_crear_listar_actualizar_eliminar_cliente(auth_client, db_session):
     # 1) Crear empresa directa en DB (requisitos mínimos del modelo)
     empresa = Empresa(
         nombre="EMPRESA DEMO",
@@ -67,7 +67,7 @@ def test_crear_listar_actualizar_eliminar_cliente(client, db_session):
         "tamano": "CHICO",
         "actividad": "COMERCIAL",
     }
-    r = client.post("/api/clientes/", json=payload)
+    r = auth_client.post("/api/clientes/", json=payload)
     assert r.status_code == 201, r.text
     cli = r.json()
     cid = cli["id"]
@@ -75,13 +75,14 @@ def test_crear_listar_actualizar_eliminar_cliente(client, db_session):
     assert sorted(cli["telefono"]) == sorted(["5551112222", "5553334444"])
 
     # 3) Listar
-    r = client.get("/api/clientes/")
+    r = auth_client.get("/api/clientes/")
     assert r.status_code == 200
-    assert any(c["id"] == cid for c in r.json())
+    items = r.json() if isinstance(r.json(), list) else r.json().get("items", r.json())
+    assert any(c["id"] == cid for c in items)
 
     # 4) Actualizar (solo nombre_comercial para evitar el bug de la lista de telefonos)
     upd_payload = {"nombre_comercial": "CLIENTE DEMO (ACTUALIZADO)"}
-    r = client.put(f"/api/clientes/{cid}", json=upd_payload)
+    r = auth_client.put(f"/api/clientes/{cid}", json=upd_payload)
     assert r.status_code == 200, r.text
     cli_updated = r.json()
     assert cli_updated["nombre_comercial"] == "CLIENTE DEMO (ACTUALIZADO)"
@@ -91,9 +92,9 @@ def test_crear_listar_actualizar_eliminar_cliente(client, db_session):
     assert cli_updated["rfc"] == payload["rfc"]
 
     # 5) Eliminar
-    r = client.delete(f"/api/clientes/{cid}")
+    r = auth_client.delete(f"/api/clientes/{cid}")
     assert r.status_code == 204
 
     # 6) Verificar que ya no exista
-    r = client.get(f"/api/clientes/{cid}")
+    r = auth_client.get(f"/api/clientes/{cid}")
     assert r.status_code == 404

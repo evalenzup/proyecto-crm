@@ -6,7 +6,7 @@ from io import BytesIO
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional, Tuple
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -476,7 +476,7 @@ def _draw_header(c: canvas.Canvas, f: Factura, logo_path: Optional[str]) -> floa
     c.drawString(
         CONTENT_X0 + x_space,
         y_left,
-        (_to_tijuana(f.fecha_emision or datetime.utcnow())).strftime("%Y-%m-%d %H:%M:%S"),
+        (_to_tijuana(f.fecha_emision or datetime.now(timezone.utc))).strftime("%Y-%m-%d %H:%M:%S"),
     )
     y_left -= 12
     if f.serie:

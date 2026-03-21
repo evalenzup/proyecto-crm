@@ -8,6 +8,7 @@ import { clienteService, ClienteCreate, ClienteOut } from '@/services/clienteSer
 import { empresaService } from '@/services/empresaService';
 import { productoServicioService, ProductoServicioOut } from '@/services/productoServicioService';
 import { normalizeHttpError } from '@/utils/httpError';
+import { normalizeISOToUTC } from '@/utils/formatDate';
 import { applyFormErrors } from '@/utils/formErrors';
 import { Presupuesto, PresupuestoDetalle } from '@/models/presupuesto';
 import dayjs, { Dayjs } from 'dayjs';
@@ -151,8 +152,8 @@ export const usePresupuestoForm = (id?: string) => {
       if (presupuesto) {
         form.setFieldsValue({
           ...presupuesto,
-          fecha_emision: presupuesto.fecha_emision ? dayjs(presupuesto.fecha_emision) : null,
-          fecha_vencimiento: presupuesto.fecha_vencimiento ? dayjs(presupuesto.fecha_vencimiento) : null,
+          fecha_emision: presupuesto.fecha_emision ? dayjs(normalizeISOToUTC(presupuesto.fecha_emision)) : null,
+          fecha_vencimiento: presupuesto.fecha_vencimiento ? dayjs(normalizeISOToUTC(presupuesto.fecha_vencimiento)) : null,
         });
         setConceptos(presupuesto.detalles || []);
         if (presupuesto.cliente) {
