@@ -14,6 +14,7 @@ from app.database import get_db
 from app.models.usuario import Usuario
 from app.schemas.token import Token, RefreshTokenRequest
 from app.schemas.usuario import Usuario as UsuarioSchema
+from app.services import auditoria_service as audit_svc
 
 router = APIRouter()
 
@@ -31,6 +32,16 @@ def login_access_token(
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.LOGIN, entidad="usuario",
+            usuario_id=user.id, usuario_email=user.email,
+            empresa_id=user.empresa_id, entidad_id=str(user.id),
+        )
+        db.commit()
+    except Exception:
+        pass
 
     return {
         "access_token": security.create_access_token(user.id),

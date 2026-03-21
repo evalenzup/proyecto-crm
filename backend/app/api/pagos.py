@@ -191,7 +191,15 @@ def exportar_pagos_excel(
     }
 
     excel_file = generate_excel(data_list, headers, sheet_name="Pagos")
-    
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.EXPORTAR_EXCEL, entidad="pago",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=empresa_id, detalle={"registros": len(data_list)},
+        )
+        db.commit()
+    except Exception:
+        pass
     headers_resp = {
         "Content-Disposition": 'attachment; filename="pagos.xlsx"'
     }
@@ -365,6 +373,15 @@ def enviar_pago_por_email(
         subject=email_data.subject,
         body=email_data.body,
     )
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ENVIAR_PAGO_EMAIL, entidad="pago",
+            empresa_id=pago.empresa_id, entidad_id=str(pago_id),
+            detalle={"destinatarios": email_data.recipients},
+        )
+        db.commit()
+    except Exception:
+        pass
     return {"message": f"Correo de complemento de pago programado para envío a: {', '.join(email_data.recipients)}"}
 
 

@@ -23,6 +23,7 @@ from app.services.email_sender import send_presupuesto_email
 from app.models.presupuestos import PresupuestoEvento
 from app.models.usuario import Usuario, RolUsuario
 from app.api import deps
+from app.services import auditoria_service as audit_svc
 from pydantic import BaseModel, EmailStr
 
 router = APIRouter()
@@ -91,9 +92,19 @@ def crear_presupuesto(
         if not current_user.empresa_id:
              raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
         payload.empresa_id = current_user.empresa_id
-        payload.responsable_id = current_user.id # Asignar como responsable automáticamente
-    
-    return presupuesto_repo.create(db, obj_in=payload)
+        payload.responsable_id = current_user.id
+
+    result = presupuesto_repo.create(db, obj_in=payload)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CREAR_PRESUPUESTO, entidad="presupuesto",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=result.empresa_id, entidad_id=str(result.id),
+            detalle={"folio": result.folio, "total": str(result.total) if hasattr(result, "total") else None},
+        )
+    except Exception:
+        pass
+    return result
 
 @router.get("/{id}", response_model=PresupuestoOut)
 def obtener_presupuesto(
@@ -130,9 +141,19 @@ def actualizar_presupuesto(
     if current_user.rol == RolUsuario.SUPERVISOR:
         if db_obj.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
-        payload.empresa_id = current_user.empresa_id # Prevenir cambio
+        payload.empresa_id = current_user.empresa_id
 
-    return presupuesto_repo.update(db, db_obj=db_obj, obj_in=payload)
+    result = presupuesto_repo.update(db, db_obj=db_obj, obj_in=payload)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ACTUALIZAR_PRESUPUESTO, entidad="presupuesto",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=db_obj.empresa_id, entidad_id=str(id),
+            detalle={"folio": db_obj.folio},
+        )
+    except Exception:
+        pass
+    return result
 
 @router.patch("/{id}/estado", response_model=PresupuestoOut)
 def actualizar_estado_presupuesto(
@@ -147,10 +168,17 @@ def actualizar_estado_presupuesto(
     if not db_obj:
         raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
 
-    # Placeholder for user_id from token
     user_id = db_obj.responsable_id
-
-    return presupuesto_repo.update_status(db, db_obj=db_obj, new_status=payload.estado, user_id=user_id)
+    result = presupuesto_repo.update_status(db, db_obj=db_obj, new_status=payload.estado, user_id=user_id)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CAMBIAR_ESTADO_PRESUPUESTO, entidad="presupuesto",
+            usuario_id=user_id, empresa_id=db_obj.empresa_id, entidad_id=str(id),
+            detalle={"folio": db_obj.folio, "nuevo_estado": payload.estado},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.post("/{id}/evidencia", response_model=PresupuestoOut)
@@ -186,10 +214,17 @@ def eliminar_presupuesto(
          
     if current_user.rol == RolUsuario.SUPERVISOR and presupuesto.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
-        
+
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ELIMINAR_PRESUPUESTO, entidad="presupuesto",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=presupuesto.empresa_id, entidad_id=str(id),
+            detalle={"folio": presupuesto.folio},
+        )
+    except Exception:
+        pass
     presupuesto_repo.remove(db, id=id)
-    if not presupuesto:
-        raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
     return
 
 @router.get("/{id}/pdf", response_class=StreamingResponse)
@@ -247,6 +282,16 @@ def enviar_presupuesto_email(
         presupuesto_id=id,
         recipient_email=payload.recipient_email,
     )
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ENVIAR_PRESUPUESTO, entidad="presupuesto",
+            usuario_id=presupuesto.responsable_id, empresa_id=presupuesto.empresa_id,
+            entidad_id=str(id),
+            detalle={"folio": presupuesto.folio, "destinatario": payload.recipient_email},
+        )
+        db.commit()
+    except Exception:
+        pass
 
     return {"message": f"Presupuesto programado para envío a: {payload.recipient_email}"}
 

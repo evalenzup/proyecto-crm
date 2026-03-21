@@ -201,7 +201,15 @@ def exportar_clientes_excel(
     }
 
     excel_file = generate_excel(data_list, headers, sheet_name="Clientes")
-    
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.EXPORTAR_EXCEL, entidad="cliente",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=empresa_id, detalle={"registros": len(data_list)},
+        )
+        db.commit()
+    except Exception:
+        pass
     headers_resp = {
         "Content-Disposition": 'attachment; filename="clientes.xlsx"'
     }

@@ -27,6 +27,7 @@ from app.config import settings
 from app.core.logger import logger
 from app.models.usuario import Usuario, RolUsuario
 from app.api import deps
+from app.services import auditoria_service as audit_svc
 from pydantic import BaseModel
 
 
@@ -237,9 +238,20 @@ def crear_empresa(
     if current_user.rol != RolUsuario.ADMIN:
         raise HTTPException(status_code=403, detail="Solo administradores pueden crear empresas")
     data = _parse_json_form(empresa_data, EmpresaCreate)
-    return empresa_repo.create(
+    result = empresa_repo.create(
         db, obj_in=data, archivo_cer=archivo_cer, archivo_key=archivo_key, logo=logo
     )
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CREAR_EMPRESA, entidad="empresa",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=result.id, entidad_id=str(result.id),
+            detalle={"rfc": result.rfc, "nombre": result.nombre_comercial},
+        )
+        db.commit()
+    except Exception:
+        pass
+    return result
 
 
 @router.put("/{id}", response_model=EmpresaOut, summary="Actualizar empresa")
@@ -268,7 +280,7 @@ def actualizar_empresa(
     empresa = empresa_repo.get(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    return empresa_repo.update(
+    result = empresa_repo.update(
         db,
         db_obj=empresa,
         obj_in=data,
@@ -276,6 +288,18 @@ def actualizar_empresa(
         archivo_key=archivo_key,
         logo=logo,
     )
+    try:
+        cer_actualizado = bool(archivo_cer and getattr(archivo_cer, "filename", ""))
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ACTUALIZAR_EMPRESA, entidad="empresa",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=id, entidad_id=str(id),
+            detalle={"rfc": empresa.rfc, "certificado_actualizado": cer_actualizado},
+        )
+        db.commit()
+    except Exception:
+        pass
+    return result
 
 
 @router.delete("/{id}", status_code=204, summary="Eliminar empresa")

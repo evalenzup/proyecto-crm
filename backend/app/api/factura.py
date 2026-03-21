@@ -203,7 +203,15 @@ def exportar_facturas_excel(
     }
 
     excel_file = generate_excel(data_list, headers, sheet_name="Facturas")
-    
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.EXPORTAR_EXCEL, entidad="factura",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=empresa_id, detalle={"registros": len(data_list)},
+        )
+        db.commit()
+    except Exception:
+        pass
     headers_resp = {
         "Content-Disposition": 'attachment; filename="facturas.xlsx"'
     }
@@ -523,6 +531,15 @@ def _handle_send_email(
         _send_emails_background,
         db, factura.empresa_id, id, recipient_emails, send_function, email_type,
     )
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ENVIAR_FACTURA_EMAIL, entidad="factura",
+            empresa_id=factura.empresa_id, entidad_id=str(id),
+            detalle={"tipo": email_type, "destinatarios": recipient_emails},
+        )
+        db.commit()
+    except Exception:
+        pass
 
     return {
         "message": f"Correo programado para envío a: {', '.join(recipient_emails)}"
