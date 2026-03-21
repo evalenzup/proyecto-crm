@@ -10,16 +10,16 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const status = error?.response?.status;
     const isEmailConfigNotFound = (
-      error?.response?.status === 404 &&
-      error?.config?.url &&
-      error.config.url.includes('/email-config')
+      status === 404 &&
+      error?.config?.url?.includes('/email-config')
     );
-    const isValidationError = error?.response?.status === 422;
+    const isValidationError = status === 422;
+    // Los 401/403 son manejados silenciosamente por el interceptor de refresh token
+    const isAuthError = status === 401 || status === 403;
 
-    // Evitar toasts ruidosos para 404 del email-config y para validaciones 422;
-    // las pantallas de formularios manejarán el 422 localmente.
-    if (!isEmailConfigNotFound && !isValidationError) {
+    if (!isEmailConfigNotFound && !isValidationError && !isAuthError) {
       const msg = normalizeHttpError(error);
       message.error(msg);
     }
@@ -41,17 +41,49 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for API calls
+// Response interceptor — manejo de 401 con refresh token automático
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
+    const is401 = error.response?.status === 401 || error.response?.status === 403;
+    const isRefreshEndpoint = originalRequest?.url?.includes('/login/refresh-token');
+
+    if (is401 && !originalRequest._retry && !isRefreshEndpoint) {
       originalRequest._retry = true;
-      localStorage.removeItem('token');
-      // Redirigir a login si es necesario, aunque esto se maneja mejor en el AuthProvider
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+
+      const refreshToken = typeof window !== 'undefined'
+        ? localStorage.getItem('refresh_token')
+        : null;
+
+      if (refreshToken) {
+        try {
+          // Importación dinámica para evitar dependencia circular con authService
+          const { authService } = await import('@/services/authService');
+          const tokens = await authService.refreshToken(refreshToken);
+
+          localStorage.setItem('token', tokens.access_token);
+          localStorage.setItem('refresh_token', tokens.refresh_token);
+
+          // Reintentar request original con el nuevo token
+          originalRequest.headers = {
+            ...originalRequest.headers,
+            Authorization: `Bearer ${tokens.access_token}`,
+          };
+          return api(originalRequest);
+        } catch {
+          // Refresh falló — limpiar sesión y redirigir a login
+          localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
+        }
+      } else {
+        localStorage.removeItem('token');
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

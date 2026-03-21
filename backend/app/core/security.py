@@ -2,15 +2,16 @@ from cryptography.fernet import Fernet
 from app.config import settings
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
-from jose import jwt
+from fastapi import HTTPException, status
+from jose import jwt, JWTError
 import bcrypt
 
 # pwd_context eliminado
 
 
 ALGORITHM = "HS256"
-# En entorno real, esto debería estar en config.py
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 8 # 8 dias
+ACCESS_TOKEN_EXPIRE_MINUTES = 30        # 30 minutos
+REFRESH_TOKEN_EXPIRE_DAYS = 7           # 7 días
 
 # Genera una clave si no existe y la guarda, o carga la existente.
 # En un entorno real, la clave DEBE ser gestionada de forma segura (ej. Vault, AWS KMS).
@@ -59,6 +60,36 @@ def create_access_token(
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"exp": expire, "sub": str(subject)}
+    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY_JWT, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def create_refresh_token(subject: Union[str, Any]) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY_JWT, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def verify_refresh_token(token: str) -> str:
+    """Verifica un refresh token y retorna el subject (user_id). Lanza 401 si es inválido."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY_JWT, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado",
+        )
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tipo de token incorrecto",
+        )
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token sin subject",
+        )
+    return sub

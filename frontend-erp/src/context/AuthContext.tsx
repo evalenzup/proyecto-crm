@@ -47,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             const response: LoginResponse = await authService.login(email, password);
             localStorage.setItem('token', response.access_token);
+            localStorage.setItem('refresh_token', response.refresh_token);
 
             const userData = await authService.getMe();
             setUser(userData);
@@ -68,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
         setUser(null);
         setIsAuthenticated(false);
         router.push('/login');
