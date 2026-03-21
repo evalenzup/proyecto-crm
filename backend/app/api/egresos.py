@@ -15,6 +15,7 @@ from app.models.egreso import CategoriaEgreso, EstatusEgreso
 from app.config import settings
 from app.services.egreso_service import egreso_repo
 from app.services import notificacion_service as notif_svc
+from app.services import auditoria_service as audit_svc
 from app.models.usuario import Usuario, RolUsuario
 from app.api import deps
 # Catálogos
@@ -86,6 +87,15 @@ def create_egreso(
             titulo="Egreso registrado",
             mensaje=f"Egreso de ${nuevo_egreso.monto:,.2f} a {nuevo_egreso.proveedor} registrado.",
             metadata={"egreso_id": str(nuevo_egreso.id)},
+        )
+    except Exception:
+        pass
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CREAR_EGRESO, entidad="egreso",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=nuevo_egreso.empresa_id, entidad_id=str(nuevo_egreso.id),
+            detalle={"proveedor": nuevo_egreso.proveedor, "monto": str(nuevo_egreso.monto)},
         )
     except Exception:
         pass
@@ -245,7 +255,17 @@ def update_egreso(
         if db_egreso.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=404, detail="Egreso not found")
 
-    return egreso_repo.update(db, db_obj=db_egreso, obj_in=egreso)
+    result = egreso_repo.update(db, db_obj=db_egreso, obj_in=egreso)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ACTUALIZAR_EGRESO, entidad="egreso",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=db_egreso.empresa_id, entidad_id=str(egreso_id),
+            detalle={"proveedor": db_egreso.proveedor, "monto": str(db_egreso.monto)},
+        )
+    except Exception:
+        pass
+    return result
 
 @router.delete("/{egreso_id}", status_code=204)
 def delete_egreso(
@@ -260,7 +280,14 @@ def delete_egreso(
     if current_user.rol == RolUsuario.SUPERVISOR and db_egreso.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Egreso not found")
 
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ELIMINAR_EGRESO, entidad="egreso",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=db_egreso.empresa_id, entidad_id=str(egreso_id),
+            detalle={"proveedor": db_egreso.proveedor, "monto": str(db_egreso.monto)},
+        )
+    except Exception:
+        pass
     egreso_repo.remove(db, id=egreso_id)
-    if db_egreso is None:
-        raise HTTPException(status_code=404, detail="Egreso not found")
     return

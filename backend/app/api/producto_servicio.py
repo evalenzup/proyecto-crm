@@ -14,6 +14,7 @@ from app.schemas.producto_servicio import (
 from app.services.producto_servicio_service import (
     producto_servicio_repo,
 )  # Importamos el nuevo repositorio
+from app.utils.cache import cache_get, cache_set, cache_invalidate_prefix
 from pydantic import BaseModel
 
 
@@ -104,8 +105,17 @@ def buscar_productos(
     """
     Busca productos o servicios que coincidan con el término `q` en su clave o descripción.
     Se puede filtrar opcionalmente por `empresa_id`.
+    Resultados cacheados 30 s para reducir carga en consultas de typeahead.
     """
+    cache_key = f"productos:busqueda:{empresa_id}:{q.lower().strip()}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     productos = producto_servicio_repo.search_by_term(db, q=q, empresa_id=empresa_id)
+    # Serializar a dicts antes de cachear (independiza del ciclo de vida de la sesión)
+    serialized = [ProductoServicioOut.model_validate(p).model_dump(mode="json") for p in productos]
+    cache_set(cache_key, serialized, ttl=30)
     return productos
 
 
@@ -128,7 +138,9 @@ def obtener_producto(id: UUID, db: Session = Depends(get_db)):
     summary="Crear producto o servicio",
 )
 def crear_producto(payload: ProductoServicioCreate, db: Session = Depends(get_db)):
-    return producto_servicio_repo.create(db, obj_in=payload)
+    result = producto_servicio_repo.create(db, obj_in=payload)
+    cache_invalidate_prefix(f"productos:busqueda:{payload.empresa_id}")
+    return result
 
 
 @router.put(
@@ -140,12 +152,18 @@ def actualizar_producto(
     prod = producto_servicio_repo.get(db, id)
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
-    return producto_servicio_repo.update(db, db_obj=prod, obj_in=payload)
+    result = producto_servicio_repo.update(db, db_obj=prod, obj_in=payload)
+    cache_invalidate_prefix(f"productos:busqueda:{prod.empresa_id}")
+    return result
 
 
 @router.delete("/{id}", status_code=204, summary="Eliminar producto o servicio")
 def eliminar_producto(id: UUID, db: Session = Depends(get_db)):
+    prod = producto_servicio_repo.get(db, id)
+    if not prod:
+        raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
     ok = producto_servicio_repo.remove(db, id)
     if not ok:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
+    cache_invalidate_prefix(f"productos:busqueda:{prod.empresa_id}")
     return Response(status_code=204)

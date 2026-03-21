@@ -30,6 +30,7 @@ from app.services import email_sender
 from app.services.email_sender import EmailSendingError
 from app.models.email_config import EmailConfig
 from app.core.limiter import limiter
+from app.services import auditoria_service as audit_svc
 
 # Catálogos para exportación
 from app.catalogos_sat.facturacion import (
@@ -110,7 +111,17 @@ def crear_factura_endpoint(
         if not current_user.empresa_id:
              raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
         payload.empresa_id = current_user.empresa_id
-    return srv.crear_factura(db, payload)
+    result = srv.crear_factura(db, payload)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CREAR_FACTURA, entidad="factura",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=result.empresa_id, entidad_id=str(result.id),
+            detalle={"serie": result.serie, "folio": result.folio, "total": str(result.total)},
+        )
+    except Exception:
+        pass
+    return result
 
 
 
@@ -312,7 +323,17 @@ def eliminar_factura(
     if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    return srv.eliminar_factura(db, id=id)
+    result = srv.eliminar_factura(db, id=id)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ELIMINAR_FACTURA, entidad="factura",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=factura.empresa_id, entidad_id=str(id),
+            detalle={"serie": factura.serie, "folio": factura.folio},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.patch("/{id}/pago", response_model=FacturaOut)
@@ -352,17 +373,42 @@ def timbrar_endpoint(
          raise HTTPException(status_code=404, detail="Factura no encontrada")
     if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-        
-    return srv.timbrar_factura(db, id)
+
+    result = srv.timbrar_factura(db, id)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.TIMBRAR_FACTURA, entidad="factura",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=factura.empresa_id, entidad_id=str(id),
+            detalle={"serie": factura.serie, "folio": factura.folio},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.post("/{id}/cancelar")
 def solicitar_cancelacion_endpoint(
-    id: UUID, payload: CancelarIn, db: Session = Depends(get_db)
+    id: UUID, payload: CancelarIn,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return srv.solicitar_cancelacion_cfdi(
+    factura = srv.obtener_factura(db, id)
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    result = srv.solicitar_cancelacion_cfdi(
         db, id, payload.motivo_cancelacion, payload.folio_fiscal_sustituto
     )
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CANCELAR_FACTURA, entidad="factura",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=factura.empresa_id, entidad_id=str(id),
+            detalle={"motivo": payload.motivo_cancelacion, "serie": factura.serie, "folio": factura.folio},
+        )
+    except Exception:
+        pass
+    return result
 
 
 # --- Endpoints de Archivos ---

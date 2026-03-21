@@ -29,6 +29,7 @@ from app.api.users import router as users_router
 from app.api.cobranza import router as cobranza_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.health import router as health_router
+from app.api.auditoria import router as auditoria_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -174,6 +175,13 @@ app.include_router(
 )
 
 app.include_router(health_router, prefix="/health", tags=["health"])
+
+app.include_router(
+    auditoria_router,
+    prefix="/api/auditoria",
+    tags=["auditoria"],
+    responses={404: {"description": "No encontrado"}},
+)
 
 # Registrar manejadores globales de excepción
 # Orden importa: los más específicos primero

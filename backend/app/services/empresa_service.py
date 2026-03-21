@@ -20,6 +20,26 @@ from app.config import settings
 from app.core.logger import logger
 
 
+_PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
+_LOGO_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
+def _validate_logo(logo: UploadFile) -> bytes:
+    """Lee y valida un logo: debe ser PNG válido y no superar 2 MB."""
+    content = logo.file.read()
+    if len(content) > _LOGO_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El logo no puede superar 2 MB (recibido: {len(content) // 1024} KB).",
+        )
+    if not content.startswith(_PNG_MAGIC):
+        raise HTTPException(
+            status_code=400,
+            detail="El logo debe ser un archivo PNG válido.",
+        )
+    return content
+
+
 class EmpresaRepository(BaseRepository[Empresa, EmpresaCreate, EmpresaUpdate]):
     def _validar_datos(
         self,
@@ -128,12 +148,13 @@ class EmpresaRepository(BaseRepository[Empresa, EmpresaCreate, EmpresaUpdate]):
         nueva_empresa.archivo_key = filename_key
 
         # Logo opcional
-        if logo:
+        if logo and getattr(logo, "filename", ""):
+            logo_bytes = _validate_logo(logo)
             logos_dir = os.path.join(settings.DATA_DIR, "logos")
             os.makedirs(logos_dir, exist_ok=True)
             logo_filename = f"{nueva_empresa.id}.png"
             with open(os.path.join(logos_dir, logo_filename), "wb") as buf:
-                buf.write(logo.file.read())
+                buf.write(logo_bytes)
             nueva_empresa.logo = os.path.join("logos", logo_filename)
 
         try:
@@ -266,7 +287,8 @@ class EmpresaRepository(BaseRepository[Empresa, EmpresaCreate, EmpresaUpdate]):
                 )
 
         # Logo
-        if logo:
+        if logo and getattr(logo, "filename", ""):
+            logo_bytes = _validate_logo(logo)
             try:
                 if db_obj.logo and os.path.exists(
                     os.path.join(settings.DATA_DIR, db_obj.logo)
@@ -278,7 +300,7 @@ class EmpresaRepository(BaseRepository[Empresa, EmpresaCreate, EmpresaUpdate]):
             os.makedirs(logos_dir, exist_ok=True)
             logo_filename = f"{db_obj.id}.png"
             with open(os.path.join(logos_dir, logo_filename), "wb") as buf:
-                buf.write(logo.file.read())
+                buf.write(logo_bytes)
             db_obj.logo = os.path.join("logos", logo_filename)
 
         # Llama al método `update` de la clase base para los campos simples

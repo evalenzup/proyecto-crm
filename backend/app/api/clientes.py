@@ -17,6 +17,7 @@ from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate, Client
 from app.services.cliente_service import cliente_repo
 from app.api import deps
 from app.models.usuario import Usuario, RolUsuario
+from app.services import auditoria_service as audit_svc
 from pydantic import BaseModel
 
 
@@ -240,8 +241,18 @@ def crear_cliente(
         if not current_user.empresa_id:
              raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
         payload.empresa_id = [current_user.empresa_id]
-        
-    return cliente_repo.create(db, obj_in=payload)
+
+    result = cliente_repo.create(db, obj_in=payload)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CREAR_CLIENTE, entidad="cliente",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=current_user.empresa_id, entidad_id=str(result.id),
+            detalle={"rfc": result.rfc, "nombre": result.nombre_comercial or result.nombre_razon_social},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.put("/{id}", response_model=ClienteOut)
@@ -264,7 +275,17 @@ def actualizar_cliente(
         # No permitir cambiar empresa_id a otra cosa (mantiene solo la suya)
         payload.empresa_id = [current_user.empresa_id]
 
-    return cliente_repo.update(db, db_obj=db_cliente, obj_in=payload)
+    result = cliente_repo.update(db, db_obj=db_cliente, obj_in=payload)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ACTUALIZAR_CLIENTE, entidad="cliente",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=current_user.empresa_id, entidad_id=str(id),
+            detalle={"rfc": db_cliente.rfc, "nombre": db_cliente.nombre_comercial},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.delete("/{id}", status_code=204)
@@ -282,7 +303,16 @@ def eliminar_cliente(
         empresas_ids = [e.id for e in cliente.empresas]
         if current_user.empresa_id not in empresas_ids:
             raise HTTPException(status_code=404, detail="Cliente no encontrado")
-            
+
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.ELIMINAR_CLIENTE, entidad="cliente",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=current_user.empresa_id, entidad_id=str(id),
+            detalle={"rfc": cliente.rfc, "nombre": cliente.nombre_comercial},
+        )
+    except Exception:
+        pass
     cliente_repo.remove(db, id=id)
     return Response(status_code=204)
 

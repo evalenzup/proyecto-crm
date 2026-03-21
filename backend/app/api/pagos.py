@@ -30,6 +30,7 @@ from app.services.email_sender import send_pago_email, EmailSendingError
 from app.schemas.factura import SendEmailIn
 from app.config import settings
 from app.core.limiter import limiter
+from app.services import auditoria_service as audit_svc
 
 # Catálogos
 from app.catalogos_sat.facturacion import FORMA_PAGO
@@ -47,7 +48,17 @@ def crear_pago(
         if not current_user.empresa_id:
              raise HTTPException(status_code=400, detail="El usuario supervisor no tiene empresa asignada.")
         pago.empresa_id = current_user.empresa_id
-    return pago_service.crear_pago(db, pago)
+    result = pago_service.crear_pago(db, pago)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CREAR_PAGO, entidad="pago",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=result.empresa_id, entidad_id=str(result.id),
+            detalle={"serie": result.serie, "folio": result.folio, "monto": str(result.monto)},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.get("/siguiente-folio", response_model=int)
@@ -283,8 +294,18 @@ def timbrar_pago_endpoint(
          raise HTTPException(status_code=404, detail="Pago no encontrado")
     if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
-        
-    return pago_service.timbrar_pago(db, pago_id)
+
+    result = pago_service.timbrar_pago(db, pago_id)
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.TIMBRAR_PAGO, entidad="pago",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=pago.empresa_id, entidad_id=str(pago_id),
+            detalle={"serie": pago.serie, "folio": pago.folio},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.get("/{pago_id}/pdf", summary="Obtener el PDF del pago")
@@ -360,10 +381,18 @@ def cancelar_pago_sat(
          
     if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
-        
-    return pago_service.cancelar_pago_sat(
-        db=db,
-        pago_id=pago_id,
-        motivo=payload.motivo,
-        folio_sustituto=payload.folio_sustituto,
+
+    result = pago_service.cancelar_pago_sat(
+        db=db, pago_id=pago_id,
+        motivo=payload.motivo, folio_sustituto=payload.folio_sustituto,
     )
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.CANCELAR_PAGO, entidad="pago",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=pago.empresa_id, entidad_id=str(pago_id),
+            detalle={"motivo": payload.motivo},
+        )
+    except Exception:
+        pass
+    return result
