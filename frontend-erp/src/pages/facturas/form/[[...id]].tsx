@@ -675,14 +675,23 @@ const FacturaFormPage: React.FC = () => {
               <Button type="primary" htmlType="submit" loading={saving}>
                 {id ? 'Actualizar' : 'Guardar'}
               </Button>
-              <Button
-                icon={<ThunderboltOutlined />}
-                onClick={timbrarFactura}
-                loading={accionLoading.timbrar}
+              <Popconfirm
+                title="¿Timbrar esta factura?"
+                description="Se enviará al SAT. Esta acción no se puede deshacer."
+                onConfirm={timbrarFactura}
+                okText="Sí, timbrar"
+                cancelText="Cancelar"
+                okButtonProps={{ danger: true }}
                 disabled={!puedeTimbrar}
               >
-                Timbrar
-              </Button>
+                <Button
+                  icon={<ThunderboltOutlined />}
+                  loading={accionLoading.timbrar}
+                  disabled={!puedeTimbrar}
+                >
+                  Timbrar
+                </Button>
+              </Popconfirm>
 
               <Button
                 danger

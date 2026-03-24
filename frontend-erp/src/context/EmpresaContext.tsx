@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 
@@ -15,57 +16,51 @@ const EmpresaContext = createContext<EmpresaContextType | undefined>(undefined);
 export const EmpresaProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
     const [selectedEmpresaId, setSelectedEmpresaId] = useState<string | undefined>(undefined);
-    const [empresas, setEmpresas] = useState<EmpresaOut[]>([]);
-    const [loadingEmpresas, setLoadingEmpresas] = useState(false);
 
     const isAdmin = user?.rol === 'admin';
     const supervisorEmpresaId = !isAdmin && user?.empresa_id ? user.empresa_id : undefined;
 
+    // Fetch lista de empresas (admin) — cacheado 5 min por el QueryClient global
+    const { data: empresasAdmin = [], isLoading: loadingAdmin } = useQuery({
+        queryKey: ['empresas'],
+        queryFn: () => empresaService.getEmpresas(),
+        enabled: !!user && isAdmin,
+    });
+
+    // Fetch empresa individual (supervisor) — cacheada 5 min
+    const { data: empresaSupervisor, isLoading: loadingSupervisor } = useQuery({
+        queryKey: ['empresa', supervisorEmpresaId],
+        queryFn: () => empresaService.getEmpresa(supervisorEmpresaId!),
+        enabled: !!user && !isAdmin && !!supervisorEmpresaId,
+    });
+
+    const empresas: EmpresaOut[] = isAdmin
+        ? empresasAdmin
+        : empresaSupervisor
+        ? [empresaSupervisor]
+        : [];
+
+    const loadingEmpresas = isAdmin ? loadingAdmin : loadingSupervisor;
+
+    // Auto-seleccionar empresa cuando cambia la lista o el usuario
     useEffect(() => {
-        // Reset state on user change/logout
         if (!user) {
-            setEmpresas([]);
             setSelectedEmpresaId(undefined);
             return;
         }
 
-        const fetchEmpresas = async () => {
-            if (isAdmin) {
-                setLoadingEmpresas(true);
-                try {
-                    const data = await empresaService.getEmpresas();
-                    setEmpresas(data);
-                    // Si no hay empresa seleccionada (o la seleccionada ya no existe), seleccionar la primera
-                    if (data.length > 0) {
-                        // Intentar mantener la seleccionada si existe en la nueva lista
-                        setSelectedEmpresaId(prev => {
-                            if (prev && data.find(e => e.id === prev)) return prev;
-                            return data[0].id;
-                        });
-                    } else {
-                        setSelectedEmpresaId(undefined);
-                    }
-                } catch (error) {
-                    console.error("Error cargando empresas:", error);
-                } finally {
-                    setLoadingEmpresas(false);
-                }
-            } else if (supervisorEmpresaId) {
-                setSelectedEmpresaId(supervisorEmpresaId);
-                setLoadingEmpresas(true);
-                try {
-                    const empresa = await empresaService.getEmpresa(supervisorEmpresaId);
-                    setEmpresas([empresa]);
-                } catch (error) {
-                    console.error("Error cargando empresa de supervisor:", error);
-                } finally {
-                    setLoadingEmpresas(false);
-                }
-            }
-        };
+        if (!isAdmin && supervisorEmpresaId) {
+            setSelectedEmpresaId(supervisorEmpresaId);
+            return;
+        }
 
-        fetchEmpresas();
-    }, [isAdmin, supervisorEmpresaId, user]);
+        if (isAdmin && empresasAdmin.length > 0) {
+            setSelectedEmpresaId(prev => {
+                if (prev && empresasAdmin.find(e => e.id === prev)) return prev;
+                return empresasAdmin[0].id;
+            });
+        }
+    }, [isAdmin, supervisorEmpresaId, empresasAdmin, user]);
 
     return (
         <EmpresaContext.Provider value={{
@@ -73,15 +68,13 @@ export const EmpresaProvider: React.FC<{ children: ReactNode }> = ({ children })
             setSelectedEmpresaId,
             empresas,
             loadingEmpresas,
-            isAdmin
+            isAdmin,
         }}>
             {children}
         </EmpresaContext.Provider>
     );
 };
 
-// Hook interno para usar el contexto directamente si se quisiera, 
-// pero mantendremos useEmpresaSelector como la interfaz pública por compatibilidad.
 export const useEmpresaContext = () => {
     const context = useContext(EmpresaContext);
     if (context === undefined) {

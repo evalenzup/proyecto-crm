@@ -177,6 +177,7 @@ const ProductosServiciosPage: React.FC = () => {
           columns={columns}
           dataSource={productosServicios}
           loading={loading}
+          virtual
           scroll={{ x: 1000, y: tableY }}
           pagination={{
             current: currentPage,

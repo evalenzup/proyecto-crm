@@ -24,7 +24,16 @@ export const getEgresos = (params: {
 }) =>
   getData<EgresoPageOut>(api.get('/egresos/', { params }));
 
-export const exportEgresosExcel = (params: any) =>
+export interface ExportEgresosParams {
+  empresa_id?: string | null;
+  proveedor?: string | null;
+  categoria?: string | null;
+  estatus?: string | null;
+  fecha_desde?: string | null;
+  fecha_hasta?: string | null;
+}
+
+export const exportEgresosExcel = (params: ExportEgresosParams) =>
   api.get('/egresos/export-excel', { params, responseType: 'blob' }).then(r => r.data as Blob);
 
 export const getEgresoById = (id: string) =>

@@ -220,6 +220,7 @@ const ClientesPage: React.FC = () => {
           columns={columns}
           dataSource={clientes}
           loading={loading}
+          virtual
           scroll={{ x: 1000, y: tableY }}
           pagination={{
             current: currentPage,

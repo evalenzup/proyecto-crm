@@ -32,6 +32,19 @@ Una de las funciones más poderosas del sistema es su "memoria".
 *   **¿Dónde aplica?**: Clientes, Productos, Facturas, Pagos y Egresos.
 *   **¿Cómo limpiar?**: Para borrar todo y empezar de cero, simplemente da clic en **"Cerrar Sesión"** o limpia los filtros manualmente con el botón "Limpiar" (cruz pequeña en los campos de búsqueda).
 
+### 🔔 1.2 Notificaciones
+En la parte inferior del menú lateral verás un **ícono de campana** (🔔).
+*   El número en rojo indica cuántas notificaciones tienes sin leer.
+*   Haz clic en la campana para ver el listado de avisos (facturas timbradas, pagos registrados, errores, etc.).
+*   Puedes marcar cada notificación como leída individualmente o todas a la vez.
+*   El sistema revisa si hay nuevas notificaciones automáticamente cada 30 segundos.
+
+### ⏱️ 1.3 Sesión Automática
+Tu sesión tiene una duración activa de **30 minutos**. Si sigues trabajando, el sistema la renueva automáticamente sin que tengas que volver a iniciar sesión. Solo se cierra si no haces ninguna acción durante un período prolongado o si haces clic en **"Cerrar Sesión"**.
+
+### 🌐 1.4 Indicador de Conexión
+Si tu computadora pierde el acceso a internet, verás una **barra amarilla en la parte superior** de la pantalla con el mensaje *"Sin conexión"*. Mientras esté visible, los cambios **no se guardarán**. La barra desaparece automáticamente cuando la conexión se restablece.
+
 ---
 
 ## 👥 2. Clientes: Cómo registrarlos sin errores
@@ -52,9 +65,9 @@ Una de las funciones más poderosas del sistema es su "memoria".
 ### Opción B: Registro Manual
 1.  Ve a **Clientes > "+ Nuevo Cliente"**.
 2.  Llena los campos con cuidado. **OJO**:
-    *   **Razón Social**: Escríbela *exactamente* como aparece en su constancia, sin incluir "SA de CV" (a menos que su constancia lo diga explícitamente, pero el SAT ya no suele pedir el régimen societario).
+    *   **Razón Social**: Escríbela *exactamente* como aparece en su constancia, sin incluir "SA de CV" (a menos que su constancia lo diga explícitamente).
     *   **Código Postal**: Debe coincidir con el de su domicilio fiscal. Si está mal, la factura no pasará.
-    *   **Régimen Fiscal**: Pregúntale cuál es (ej. "Gastos en general" no es un régimen, es un uso; el régimen es algo como "601 - Personas Morales").
+    *   **Régimen Fiscal**: Pregúntale cuál es (ej. "601 - Personas Morales con Fines no Lucrativos").
 3.  Haz clic en **Guardar**.
 
 ---
@@ -62,7 +75,7 @@ Una de las funciones más poderosas del sistema es su "memoria".
 ## 📦 3. Productos y Servicios
 Define qué vendes para no tener que escribirlo cada vez.
 
-1.  Ve al menú **Catálogos > Productos** (o Productos/Servicios) y da clic en **"+ Nuevo"**.
+1.  Ve al menú **Productos** y da clic en **"+ Nuevo"**.
 2.  **Llenado de Datos**:
     *   **Descripción**: El nombre detallado de tu producto (ej. "Mantenimiento de Aire Acondicionado").
     *   **Clave Producto SAT**: Escribe una palabra clave (ej. "limpieza") y el sistema te sugerirá claves. *Es obligatorio por el SAT*.
@@ -74,7 +87,28 @@ Define qué vendes para no tener que escribirlo cada vez.
 
 ---
 
-## 🧾 4. Facturación: Ciclo de Venta
+## 📊 4. Dashboard (Tablero Principal)
+
+Al iniciar sesión, el **Dashboard** te muestra un resumen financiero de tu empresa en tiempo real.
+
+### 4.1 Indicadores Principales (KPIs)
+En la parte superior verás tarjetas con:
+*   **Ingresos del mes**: Total facturado en el mes actual.
+*   **Egresos del mes**: Total de gastos registrados.
+*   **Por cobrar**: Facturas PPD pendientes de pago.
+*   **Vencido**: Facturas que superaron su fecha de vencimiento.
+
+### 4.2 Gráficas
+*   **Ingresos vs Egresos**: Gráfica de barras comparando los últimos 12 meses.
+*   **Egresos por Categoría**: Gráfica de pastel mostrando en qué se va el dinero (Nómina, Renta, Servicios, etc.).
+
+### 4.3 Filtros del Dashboard
+*   Selecciona el **mes y año** que quieres analizar usando los controles en la parte superior derecha de cada sección.
+*   Si eres Administrador, también puedes filtrar por **Empresa** para ver los datos de cada razón social por separado.
+
+---
+
+## 🧾 5. Facturación: Ciclo de Venta
 
 ### Paso 1: Crear la Factura
 1.  Ve al menú **Facturas** y presiona **"+ Nueva"**.
@@ -85,7 +119,7 @@ Define qué vendes para no tener que escribirlo cada vez.
         *   Elige **PPD (Pago en parcialidades)** si te pagarán después (crédito).
 3.  **Conceptos (Lo que vendes)**:
     *   Haz clic en **"Agregar concepto"**.
-    *   Busca tu producto en la lista. Si no existe, puedes crearlo ahí mismo o usar "Nuevo producto/servicio".
+    *   Busca tu producto en la lista. Si no existe, puedes crearlo ahí mismo.
     *   Verifica la cantidad y el precio.
 4.  **Guardar Borrador**:
     *   Si das clic en "Guardar", la factura se guarda pero **NO** se envía al SAT. Puedes editarla después.
@@ -94,11 +128,13 @@ Define qué vendes para no tener que escribirlo cada vez.
 Antes de timbrar (hacerla oficial), envíale un borrador a tu cliente:
 1.  Con la factura en estado "BORRADOR", busca el botón **"Enviar Vista Previa"** (icono de sobre ✉️).
 2.  Esto le manda un correo a tu cliente con la factura "sin validez oficial" para que revise sus datos.
+3.  También puedes enviar la vista previa directamente desde el **listado de facturas** usando el botón de sobre que aparece en la columna de acciones de cada fila.
 
 ### Paso 3: Timbrar (Hacerla oficial)
 1.  Cuando estés seguro, presiona el botón **"Timbrar"** (icono de rayo ⚡).
-2.  El sistema la enviará al SAT y generará el PDF y XML oficiales.
-3.  Automáticamente se envía por correo al cliente.
+2.  El sistema te pedirá una **confirmación** antes de proceder — este paso es **irreversible**.
+3.  El sistema la enviará al SAT y generará el PDF y XML oficiales.
+4.  Automáticamente se envía por correo al cliente.
 
 ### Truco Pro: Duplicar Facturas 🚀
 Si vas a hacer una factura igual a la del mes pasado:
@@ -109,7 +145,7 @@ Si vas a hacer una factura igual a la del mes pasado:
 
 ---
 
-## ❌ 4.1 Cancelación y Refacturación (Corrección de Errores)
+## ❌ 5.1 Cancelación y Refacturación (Corrección de Errores)
 
 Si timbraste una factura (Factura A) y te diste cuenta de que tiene un error (ej. precio mal, RFC mal, etc.), sigue estos pasos para corregirlo cumpliendo con el SAT.
 
@@ -119,7 +155,7 @@ Si timbraste una factura (Factura A) y te diste cuenta de que tiene un error (ej
 3.  El sistema te pedirá el motivo. Selecciona:
     *   **"02 - Comprobante emitido con errores sin relación"**.
     *   *(Este es el método más directo y evita complicaciones).*
-4.  Confirma la cancelación. El estatus cambiará a "CANCELADA" (o "EN PROCESO..." si requiere aprobación, en cuyo caso espera a que el estatus final sea CANCELADA).
+4.  Confirma la cancelación. El estatus cambiará a "CANCELADA".
 
 ### Paso 2: Crear la nueva factura (Factura B)
 1.  Puedes usar el botón **"Duplicar"** en la factura cancelada para no volver a escribir todo.
@@ -132,12 +168,12 @@ Para que el SAT sepa que esta nueva factura reemplaza a la anterior:
 3.  **CFDIs relacionados**: Escribe o pega el **UUID (Folio Fiscal)** de la factura que acabas de cancelar.
 
 ### Paso 4: Timbrar
-1.  Presiona **"Timbrar"**.
+1.  Presiona **"Timbrar"** y confirma.
 2.  ¡Listo! Has sustituido la factura correctamente.
 
 ---
 
-## 💰 5. Complemento de Pagos
+## 💰 6. Complemento de Pagos
 
 *Solo necesitas hacer esto si hiciste una factura PPD (Pago en Parcialidades o Diferido) y ya recibiste el dinero.*
 
@@ -150,7 +186,7 @@ Para que el SAT sepa que esta nueva factura reemplaza a la anterior:
     *   **Fecha de Pago (Real)**: El día y hora exacta que cayó el dinero.
     *   **Forma de Pago**: ¿Cómo te pagaron? (03-Transferencia, 02-Cheque, 01-Efectivo, etc.).
     *   **Moneda**: MXN o USD.
-    *   *(Nota: El campo "Monto" está bloqueado. Se calculará automáticamente en el siguiente paso).*
+    *   *(Nota: El campo "Monto" se calculará automáticamente en el siguiente paso).*
 
 ### Paso 2: Asignar el Pago a las Facturas (Saldar Deuda)
 Una vez seleccionado el cliente, aparecerá abajo la tabla **"Facturas a Pagar"** con todas sus facturas pendientes.
@@ -158,13 +194,13 @@ Una vez seleccionado el cliente, aparecerá abajo la tabla **"Facturas a Pagar"*
 2.  En la columna **"Monto a Pagar"** (casilla blanca), escribe cuánto dinero estás aplicando a esa factura.
     *   *Ejemplo: Si la factura es de $10,000 y te pagaron todo, escribe 10000.*
     *   *Ejemplo: Si solo es un abono parcial, escribe la cantidad abonada.*
-3.  Verás que el campo **"Monto"** (total general arriba) se actualiza solo con la suma de todo lo que escribiste.
+3.  Verás que el campo **"Monto"** (total general arriba) se actualiza solo con la suma.
 
 ### Paso 3: Guardar y Timbrar
-1.  Haz clic en **"Guardar Borrador"** (icono de disquete 💾). Esto guarda el registro en tu sistema interna pero aún no avisa al SAT.
+1.  Haz clic en **"Guardar Borrador"** (icono de disquete 💾).
 2.  Revisa que los datos sean correctos.
-3.  Presiona el botón **"Timbrar"** (icono de rayo ⚡).
-4.  El sistema generará el **REP (Recibo Electrónico de Pago)** oficial, obteniendo su Folio Fiscal (UUID).
+3.  Presiona el botón **"Timbrar"** (icono de rayo ⚡) y confirma. El sistema solicitará confirmación ya que **esta acción es irreversible**.
+4.  El sistema generará el **REP (Recibo Electrónico de Pago)** oficial con su Folio Fiscal (UUID).
 
 ### Paso 4: Enviar al Cliente
 Una vez timbrado, se habilitarán los botones de acción:
@@ -172,27 +208,60 @@ Una vez timbrado, se habilitarán los botones de acción:
 *   **Ver PDF**: Para descargarlo tú mismo.
 
 ### ❌ Cancelación de Pagos
-Si te equivocaste al hacer el recibo de pago (ej. fecha incorrecta o asignaste mal el dinero):
+Si te equivocaste al hacer el recibo de pago:
 1.  Abre el pago timbrado.
-2.  Presiona el botón de **"Papelera" (Borrar/Cancelar)** 🗑️.
-3.  Selecciona el motivo:
-    *   **"01 - Comprobante emitido con errores CON relación"**: Si vas a hacer uno nuevo para sustituirlo. (Te pedirá el UUID del nuevo, así que primero haz el nuevo y luego cancela este, o usa la opción 02 si se te complica).
-    *   **"02 - Comprobante emitido con errores SIN relación"**: La opción más sencilla para anularlo y volver a empezar.
-4.  Confirma la cancelación.
+2.  Presiona el botón de **"Cancelar"** 🗑️.
+3.  Selecciona el motivo y confirma la cancelación.
 
---- 
+---
 
-## 💰 6. Cobranza: Recupera tu Dinero
+## 📋 7. Presupuestos (Cotizaciones)
+
+El módulo de Presupuestos te permite enviar cotizaciones formales a tus clientes antes de facturar.
+
+### 7.1 Crear un Presupuesto
+1.  Ve al menú **Presupuestos** y presiona **"+ Nuevo Presupuesto"**.
+2.  Selecciona el **Cliente** y la **Empresa** emisora.
+3.  Agrega los conceptos (productos o servicios) igual que en una factura.
+4.  Haz clic en **Guardar**. El presupuesto queda en estado **BORRADOR**.
+
+### 7.2 Estados del Presupuesto
+Un presupuesto puede estar en los siguientes estados:
+*   **Borrador**: Recién creado, aún no enviado.
+*   **Enviado**: Ya fue enviado al cliente por correo.
+*   **Aceptado**: El cliente confirmó que procede.
+*   **Rechazado**: El cliente no aceptó la cotización.
+*   **Facturado**: Ya se convirtió en factura oficial.
+
+### 7.3 Enviar al Cliente
+1.  Abre el presupuesto.
+2.  Presiona el botón **"Enviar"** (icono de sobre ✉️).
+3.  El sistema enviará un correo al cliente con el PDF adjunto y cambiará el estado a **Enviado**.
+
+### 7.4 Cambiar el Estado
+Para marcar un presupuesto como Aceptado, Rechazado o Facturado:
+1.  Abre el presupuesto.
+2.  Usa el selector de **Estado** en la parte superior del formulario.
+3.  Guarda los cambios.
+
+### 7.5 Eliminar un Presupuesto
+Solo se pueden eliminar presupuestos en estado **Borrador**.
+1.  Abre el presupuesto.
+2.  Presiona el botón **"Eliminar"** y confirma.
+
+---
+
+## 💰 8. Cobranza: Recupera tu Dinero
 
 Gestiona de forma proactiva a los clientes que te deben dinero para mejorar tu flujo de efectivo.
 
-### 6.1 Dashboard (Tu Tablero de Control)
+### 8.1 Dashboard (Tu Tablero de Control)
 Al entrar a "Cobranza", verás indicadores clave:
 *   **KPIs**: Cuánto te deben en total, cuánto está vencido (urgente) y cuánto está vigente.
 *   **Gráfico de Antigüedad**: Te muestra visualmente qué tan vieja es la cartera.
-*   **Top Deudores**: Lista rápida de quiénes te deben más dinereo.
+*   **Top Deudores**: Lista rápida de quiénes te deben más dinero.
 
-### 6.2 Reporte de Antigüedad (Antigüedad de Saldos)
+### 8.2 Reporte de Antigüedad (Antigüedad de Saldos)
 Es la tabla principal donde ves cliente por cliente.
 *   **Colores de Alerta**:
     *   **Verde**: Saldo Vigente (aún no vence).
@@ -200,20 +269,19 @@ Es la tabla principal donde ves cliente por cliente.
     *   **Naranja**: Vencido de 31-60 días y 61-90 días (atención media).
     *   **Rojo**: Vencido más de 90 días (crítico).
 *   **Acciones Rápidas**:
-    1.  **Estado de Cuenta (PDF)**: Da clic en el icono de **PDF** el cual te mostrará la vista previa del documento para descargarlo.
+    1.  **Estado de Cuenta (PDF)**: Da clic en el icono de **PDF** para ver y descargar el documento.
     2.  **Enviar por Correo**: Da clic en el icono de **Sobre (✉️)**.
         *   Se abrirá una ventana para confirmar los destinatarios.
         *   Se adjunta el PDF automáticamente.
-        *   Se envía un mensaje cordial invitando al pago.
     3.  **Bitácora (Notas)**: Da clic en el icono de **Libreta**.
         *   Aquí puedes anotar: "Hablé con contabilidad, prometen pago el viernes".
-        *   También verás el **historial automático** de cuándo les enviaste el estado de cuenta por correo.
+        *   También verás el **historial automático** de cuándo les enviaste el estado de cuenta.
 
 ---
 
-## 💸 7. Control de Gastos (Egresos)
+## 💸 9. Control de Gastos (Egresos)
 
-Registra tus compras para saber en qué se va el dinero. El sistema tiene una función inteligente para ahorrarte tiempo.
+Registra tus compras para saber en qué se va el dinero.
 
 ### Opción A: Carga Inteligente (XML) - ¡La más rápida! ⚡
 Usa esta opción si tu proveedor te dio factura (XML).
@@ -244,11 +312,9 @@ Si no hay factura (ej. recibo simple, taxi, propina):
 3.  Sube cualquier comprobante (foto o PDF) en "Subir Otro" o "Subir PDF".
 4.  Haz clic en **Guardar**.
 
-El archivo adjunto puede servir para subir una foto de evidencia del egreso o el comprobante de pago.
-
 ---
 
-## ⚙️ 8. Administración de Empresas (Solo Gerentes)
+## ⚙️ 10. Administración de Empresas (Solo Gerentes)
 
 ### Agregar Nueva Empresa
 Si tienes varias razones sociales, regístralas aquí para mantenerlas separadas.
@@ -257,36 +323,70 @@ Si tienes varias razones sociales, regístralas aquí para mantenerlas separadas
 2.  **Llenado de Datos**:
     *   Puedes usar el botón **"Subir PDF Constancia"** para ahorrar tiempo (igual que en Clientes).
     *   **Certificados Digitales (CSD)**: En la parte inferior, sube los archivos `.cer` y `.key` que te dio el SAT, y escribe la **Contraseña** de la llave privada. Sin esto, no podrás timbrar.
-    *   **Logo**: Sube tu logo para que salga en los PDFs.
+    *   **Logo**: Sube tu logo para que aparezca en los PDFs.
+        *   El logo debe ser en formato **PNG** y pesar máximo **2 MB**.
 3.  **Correo Electrónico**:
     *   Una vez guardada la empresa, busca el botón **"Configurar Correo Electrónico"**.
     *   Aquí pones los datos de tu servidor SMTP (ej. Gmail, Outlook) para que las facturas se envíen automáticamente desde tu cuenta.
+    *   Cuando la empresa tiene correo configurado, verás una palomita verde (✅) en el listado de empresas.
 
 ---
 
-## 👥 9. Gestión de Usuarios
+## 👥 11. Gestión de Usuarios
 Dales acceso a tus empleados sin compartir tu contraseña.
 
-1.  Ve al menú **Usuarios** (es posible que solo lo vean los Administradores).
+1.  Ve al menú **Usuarios** (solo visible para Administradores).
 2.  Presiona **"+ Nuevo Usuario"**.
 3.  **Roles**:
-    *   **Administrador**: Tiene acceso a TODO.
-    *   **Supervisor**: Puede ver y crear facturas, pero solo de la empresa que le asignes.
+    *   **Administrador**: Tiene acceso a TODO, incluyendo todas las empresas.
+    *   **Supervisor**: Puede ver y crear registros, pero solo de la empresa que le asignes.
 4.  Si eliges "Supervisor", selecciona la **Empresa Asignada**.
-5.  Crea su contraseña inicial (ellos no la verán, tú se las entregas).
-
-
+5.  Crea su contraseña inicial y compártesela de forma segura.
 
 ---
 
+## 🔍 12. Auditoría (Solo Gerentes)
 
+El módulo de Auditoría está disponible únicamente para usuarios autorizados. Permite ver **qué hizo cada usuario** en el sistema.
+
+### ¿Para qué sirve?
+*   Saber quién timbró, canceló o eliminó una factura y a qué hora.
+*   Ver qué información se ha exportado a Excel y por quién.
+*   Monitorear los envíos de correo realizados.
+*   Detectar actividad inusual o errores de operación.
+
+### Cómo usar los filtros
+1.  Ve al menú **Auditoría** (solo aparece si tienes acceso).
+2.  Filtra por:
+    *   **Empresa**: Selecciona la razón social que quieres revisar.
+    *   **Email usuario**: Escribe el correo del empleado para ver solo sus acciones.
+    *   **Acción**: Filtra por tipo de evento (Crear Factura, Exportar Excel, Login, etc.).
+    *   **Rango de fechas**: Acota el período de tiempo.
+3.  La tabla muestra: fecha/hora, usuario, acción realizada, entidad afectada y detalle adicional.
+
+### Tipos de eventos registrados
+| Evento | Cuándo ocurre |
+|---|---|
+| LOGIN | Cada vez que un usuario inicia sesión |
+| CREAR / TIMBRAR / CANCELAR FACTURA | Al crear, timbrar o cancelar una factura |
+| CREAR / TIMBRAR / CANCELAR PAGO | Al operar complementos de pago |
+| ENVIAR FACTURA / PAGO EMAIL | Al enviar documentos por correo |
+| CREAR / ACTUALIZAR / ELIMINAR CLIENTE | Al modificar el catálogo de clientes |
+| CREAR / ACTUALIZAR / ELIMINAR EGRESO | Al operar gastos |
+| EXPORTAR EXCEL | Al descargar cualquier reporte en Excel |
+| CREAR / ACTUALIZAR EMPRESA | Al modificar datos de la empresa |
+| Operaciones de Presupuesto | Crear, actualizar, enviar, cambiar estado |
+
+---
 
 ## ⚠️ Glosario Rápido
 *   **Timbrar**: Avisarle al SAT que hiciste una factura. Es irreversible (tienes que cancelar si te equivocas).
-*   **UUID**: Es el "Folio Fiscal". Un código largo extraño que es la verdadera identificación de la factura.
+*   **UUID**: Es el "Folio Fiscal". Un código largo que es la verdadera identificación de la factura ante el SAT.
 *   **PUE**: "Pago en Una sola Exhibición". Úsalo para ventas de contado.
 *   **PPD**: "Pago en Parcialidades o Diferido". Úsalo para crédito.
+*   **REP**: Recibo Electrónico de Pago. El complemento de pago timbrado.
 *   **CSF**: Constancia de Situación Fiscal. El documento "acta de nacimiento" fiscal de tu cliente.
+*   **CSD**: Certificado de Sello Digital. Los archivos `.cer` y `.key` que usa el SAT para validar tus facturas.
+*   **CFDI**: Comprobante Fiscal Digital por Internet. El término técnico de una "factura electrónica".
 
 ---
-

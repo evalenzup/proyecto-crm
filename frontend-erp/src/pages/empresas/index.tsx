@@ -101,6 +101,7 @@ const EmpresasPage: React.FC = () => {
           columns={columns}
           dataSource={filteredEmpresas}
           loading={loading}
+          virtual
           scroll={{ x: 800, y: tableY }}
           pagination={{ pageSize: 10 }}
           locale={{ emptyText: 'No hay empresas' }}

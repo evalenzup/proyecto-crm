@@ -44,8 +44,19 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
-// Crear una instancia de QueryClient
-const queryClient = new QueryClient();
+// Crear una instancia de QueryClient con defaults conservadores:
+// - staleTime 5 min: no re-fetcha datos "frescos" al cambiar de tab o navegar
+// - refetchOnWindowFocus false: evita el re-fetch al volver al tab del navegador
+// - retry 1: un solo reintento en caso de error de red
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 export default function App({ Component, pageProps }: AppProps) {
   // Ajuste para el build indicator de Next.js en dev

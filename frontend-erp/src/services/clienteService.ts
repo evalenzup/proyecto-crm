@@ -3,8 +3,14 @@ import api from '../lib/axios';
 
 // Definir interfaces para los esquemas de datos (pueden ser más detalladas si se importan de un generador)
 interface ClienteSchema {
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
   required?: string[];
+}
+
+export interface ExportClientesParams {
+  empresa_id?: string | null;
+  rfc?: string | null;
+  nombre_comercial?: string | null;
 }
 
 export interface ClienteOut {
@@ -74,7 +80,7 @@ export const clienteService = {
   },
 
   buscarClientes: async (q: string, empresaId?: string, searchField: 'comercial' | 'fiscal' | 'both' = 'comercial', limit: number = 10): Promise<ClienteOut[]> => {
-    const params: any = { q, limit, search_field: searchField };
+    const params: { q: string; limit: number; search_field: string; empresa_id?: string } = { q, limit, search_field: searchField };
     if (empresaId) {
       params.empresa_id = empresaId;
     }
@@ -83,7 +89,7 @@ export const clienteService = {
   },
 
   checkRfcExistence: async (rfc: string, excludeId?: string): Promise<string[]> => {
-    const params: any = { rfc };
+    const params: { rfc: string; exclude_id?: string } = { rfc };
     if (excludeId) params.exclude_id = excludeId;
     // Retorna lista de nombres de empresas
     const response = await api.get<string[]>('/clientes/validar-rfc', { params });
@@ -96,7 +102,7 @@ export const clienteService = {
     return response.data;
   },
 
-  exportClientesExcel: async (params: any): Promise<Blob> => {
+  exportClientesExcel: async (params: ExportClientesParams): Promise<Blob> => {
     const response = await api.get('/clientes/export-excel', { params, responseType: 'blob' });
     return response.data;
   },

@@ -20,6 +20,7 @@ import {
   FontSizeOutlined,
   QuestionCircleOutlined,
   WarningOutlined,
+  AuditOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography } from 'antd';
 import esES from 'antd/locale/es_ES';
@@ -29,6 +30,8 @@ import { useAuth } from '@/context/AuthContext';
 import { usuarioService } from '@/services/usuarioService';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { empresaService } from '@/services/empresaService';
+import { canViewAuditoria } from '@/services/auditoriaService';
+import { OfflineBanner } from './OfflineBanner';
 import { useFilterContext } from '@/context/FilterContext';
 import api from '@/lib/axios';
 
@@ -282,11 +285,15 @@ export const Layout: React.FC<{
     if (user?.rol === 'admin') {
       menu.push({ path: '/usuarios', name: 'Usuarios', icon: <UserOutlined /> });
     }
+    if (canViewAuditoria(user?.email)) {
+      menu.push({ path: '/auditoria', name: 'Auditoría', icon: <AuditOutlined /> });
+    }
     return menu;
   }, [user]);
 
   return (
     <ConfigProvider theme={themeConfig} locale={esES}>
+      <OfflineBanner />
       <ProLayout
         title={false}
         menuDataRender={() => menuData}

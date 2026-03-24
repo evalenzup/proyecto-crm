@@ -3,7 +3,7 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip } from 'antd';
+import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
@@ -149,13 +149,18 @@ const PagosIndexPage: React.FC = () => {
             }} />
           </Tooltip>
           {r.estatus === 'BORRADOR' && (
-            <Tooltip title="Timbrar">
-              <Button
-                type="link"
-                icon={<ThunderboltOutlined />}
-                onClick={() => handleTimbrar(r.id)}
-              />
-            </Tooltip>
+            <Popconfirm
+              title="¿Timbrar este pago?"
+              description="Se enviará al SAT. Esta acción no se puede deshacer."
+              onConfirm={() => handleTimbrar(r.id)}
+              okText="Sí, timbrar"
+              cancelText="Cancelar"
+              okButtonProps={{ danger: true }}
+            >
+              <Tooltip title="Timbrar">
+                <Button type="link" icon={<ThunderboltOutlined />} />
+              </Tooltip>
+            </Popconfirm>
           )}
         </Space>
       ),

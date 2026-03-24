@@ -37,10 +37,10 @@ export interface ProductoServicioCreate {
   valor_unitario: number;
   empresa_id: string;
   cantidad?: number;
-  stock_actual?: number;
-  stock_minimo?: number;
-  unidad_inventario?: string;
-  ubicacion?: string;
+  stock_actual?: number | null;
+  stock_minimo?: number | null;
+  unidad_inventario?: string | null;
+  ubicacion?: string | null;
   requiere_lote: boolean;
 }
 

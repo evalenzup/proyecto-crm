@@ -359,6 +359,7 @@ def enviar_pago_por_email(
     email_data: SendEmailIn,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     pago = pago_service.leer_pago(db, pago_id)
     if not pago:
@@ -376,6 +377,7 @@ def enviar_pago_por_email(
     try:
         audit_svc.registrar(
             db=db, accion=audit_svc.ENVIAR_PAGO_EMAIL, entidad="pago",
+            usuario_id=current_user.id, usuario_email=current_user.email,
             empresa_id=pago.empresa_id, entidad_id=str(pago_id),
             detalle={"destinatarios": email_data.recipients},
         )

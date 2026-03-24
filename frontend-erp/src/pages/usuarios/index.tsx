@@ -124,6 +124,7 @@ const UsuariosPage: React.FC = () => {
                     dataSource={usuarios}
                     loading={loading}
                     pagination={{ pageSize: 10 }}
+                    virtual
                     scroll={{ x: 800, y: tableY }}
                     locale={{ emptyText: 'No hay usuarios' }}
                 />

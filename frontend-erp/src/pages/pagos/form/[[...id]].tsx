@@ -20,6 +20,7 @@ import {
   Tag,
   Modal,
   Radio,
+  Popconfirm,
 } from 'antd';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate, formatDateOnly } from '@/utils/formatDate';
@@ -386,14 +387,23 @@ const PagoFormPage: React.FC = () => {
           <Button icon={<SaveOutlined />} type="primary" onClick={() => form.submit()} loading={saving} disabled={isTimbrado || isCancelado}>
             {id ? 'Actualizar Pago' : 'Guardar Borrador'}
           </Button>
-          <Button
-            icon={<ThunderboltOutlined />}
-            onClick={generarComplemento}
-            loading={accionLoading.timbrando}
+          <Popconfirm
+            title="¿Timbrar este pago?"
+            description="Se enviará al SAT. Esta acción no se puede deshacer."
+            onConfirm={generarComplemento}
+            okText="Sí, timbrar"
+            cancelText="Cancelar"
+            okButtonProps={{ danger: true }}
             disabled={!id || isTimbrado || isCancelado}
           >
-            Timbrar
-          </Button>
+            <Button
+              icon={<ThunderboltOutlined />}
+              loading={accionLoading.timbrando}
+              disabled={!id || isTimbrado || isCancelado}
+            >
+              Timbrar
+            </Button>
+          </Popconfirm>
           <Button
             icon={<MailOutlined />}
             onClick={() => {

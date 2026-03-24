@@ -507,6 +507,7 @@ def _handle_send_email(
     background_tasks: BackgroundTasks,
     send_function: callable,
     email_type: str,
+    current_user: Optional[Usuario] = None,
 ):
     factura = db.query(Factura).filter(Factura.id == id).first()
     if not factura:
@@ -534,6 +535,8 @@ def _handle_send_email(
     try:
         audit_svc.registrar(
             db=db, accion=audit_svc.ENVIAR_FACTURA_EMAIL, entidad="factura",
+            usuario_id=current_user.id if current_user else None,
+            usuario_email=current_user.email if current_user else None,
             empresa_id=factura.empresa_id, entidad_id=str(id),
             detalle={"tipo": email_type, "destinatarios": recipient_emails},
         )
@@ -552,11 +555,13 @@ def _handle_send_email(
     summary="Enviar vista previa de factura por correo electrónico",
 )
 def send_preview_factura_by_email(
-    id: UUID, payload: FlexibleSendEmailIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+    id: UUID, payload: FlexibleSendEmailIn, background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Programa el envío de la vista previa de la factura (PDF) en segundo plano."""
     return _handle_send_email(
-        id, payload, db, background_tasks, email_sender.send_preview_invoice_email, "Vista previa de factura"
+        id, payload, db, background_tasks, email_sender.send_preview_invoice_email, "Vista previa de factura", current_user
     )
 
 
@@ -566,9 +571,11 @@ def send_preview_factura_by_email(
     summary="Enviar factura por correo electrónico",
 )
 def send_factura_by_email(
-    id: UUID, payload: FlexibleSendEmailIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+    id: UUID, payload: FlexibleSendEmailIn, background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Programa el envío de la factura (PDF y XML) en segundo plano."""
     return _handle_send_email(
-        id, payload, db, background_tasks, email_sender.send_invoice_email, "Factura"
+        id, payload, db, background_tasks, email_sender.send_invoice_email, "Factura", current_user
     )
