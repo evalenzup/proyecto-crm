@@ -77,9 +77,8 @@ const ReportesPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="app-content" style={{ padding: 16 }}>
-        {/* ── Financieros ─────────────────────────────────────────────── */}
-        <Title level={4}>💰 Financieros</Title>
+      <div className="app-content">
+        <Title level={4} style={{ marginTop: 16 }}>Financieros</Title>
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
 
           <Col xs={24} md={12} lg={6}>
@@ -159,7 +158,7 @@ const ReportesPage: React.FC = () => {
         </Row>
 
         {/* ── De riesgo ───────────────────────────────────────────────── */}
-        <Title level={4}>⚠️ Riesgo</Title>
+        <Title level={4} style={{ marginTop: 16 }}>Riesgo</Title>
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
 
           <Col xs={24} md={12} lg={8}>

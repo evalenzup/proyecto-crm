@@ -405,18 +405,12 @@ export const Dashboard: React.FC = () => {
       {alertas && (alertas.borradores_sin_timbrar > 0 || alertas.proximas_a_vencer_7_dias > 0 || alertas.facturas_timbradas_hoy >= 0 || alertas.tasa_cancelacion_mes > 0) && (
         <>
           <Col span={24}>
-            <Typography.Title level={4} style={{ marginTop: 16, color: '#fa8c16' }}>
-              <WarningOutlined style={{ marginRight: 8 }} />
-              Alertas
-            </Typography.Title>
+            <Typography.Title level={4} style={{ marginTop: 16 }}>Alertas</Typography.Title>
           </Col>
 
           {alertas && alertas.borradores_sin_timbrar > 0 && (
             <Col xs={24} md={12} lg={6}>
-              <Card
-                style={{ borderColor: '#fa8c16', background: '#fff7e6' }}
-                styles={{ body: { padding: 16 } }}
-              >
+              <Card loading={loadingFinance}>
                 <Statistic
                   title={
                     <Space>
@@ -428,14 +422,10 @@ export const Dashboard: React.FC = () => {
                     </Space>
                   }
                   value={alertas?.borradores_sin_timbrar ?? 0}
-                  valueStyle={{ color: '#fa8c16', fontWeight: 700 }}
+                  valueStyle={{ color: '#fa8c16' }}
                   suffix={
-                    <Button
-                      type="link"
-                      size="small"
-                      style={{ color: '#fa8c16', padding: '0 4px' }}
-                      onClick={() => router.push('/facturas?estatus=BORRADOR')}
-                    >
+                    <Button type="link" size="small" style={{ color: '#fa8c16', padding: '0 4px' }}
+                      onClick={() => router.push('/facturas')}>
                       Ver →
                     </Button>
                   }
@@ -446,10 +436,7 @@ export const Dashboard: React.FC = () => {
 
           {alertas && alertas.proximas_a_vencer_7_dias > 0 && (
             <Col xs={24} md={12} lg={6}>
-              <Card
-                style={{ borderColor: '#ff4d4f', background: '#fff1f0' }}
-                styles={{ body: { padding: 16 } }}
-              >
+              <Card loading={loadingFinance}>
                 <Statistic
                   title={
                     <Space>
@@ -461,14 +448,10 @@ export const Dashboard: React.FC = () => {
                     </Space>
                   }
                   value={alertas?.proximas_a_vencer_7_dias ?? 0}
-                  valueStyle={{ color: '#ff4d4f', fontWeight: 700 }}
+                  valueStyle={{ color: '#ff4d4f' }}
                   suffix={
-                    <Button
-                      type="link"
-                      size="small"
-                      style={{ color: '#ff4d4f', padding: '0 4px' }}
-                      onClick={() => router.push('/cobranza')}
-                    >
+                    <Button type="link" size="small" style={{ color: '#ff4d4f', padding: '0 4px' }}
+                      onClick={() => router.push('/cobranza')}>
                       Ver →
                     </Button>
                   }
@@ -477,13 +460,9 @@ export const Dashboard: React.FC = () => {
             </Col>
           )}
 
-          {/* Facturas timbradas hoy — informativo, siempre visible si hay datos */}
           {alertas && alertas.facturas_timbradas_hoy >= 0 && (
             <Col xs={24} md={12} lg={6}>
-              <Card
-                style={{ borderColor: '#52c41a', background: '#f6ffed' }}
-                styles={{ body: { padding: 16 } }}
-              >
+              <Card loading={loadingFinance}>
                 <Statistic
                   title={
                     <Space>
@@ -495,14 +474,10 @@ export const Dashboard: React.FC = () => {
                     </Space>
                   }
                   value={alertas.facturas_timbradas_hoy}
-                  valueStyle={{ color: '#52c41a', fontWeight: 700 }}
+                  valueStyle={{ color: '#52c41a' }}
                   suffix={
-                    <Button
-                      type="link"
-                      size="small"
-                      style={{ color: '#52c41a', padding: '0 4px' }}
-                      onClick={() => router.push('/facturas')}
-                    >
+                    <Button type="link" size="small" style={{ color: '#52c41a', padding: '0 4px' }}
+                      onClick={() => router.push('/facturas')}>
                       Ver →
                     </Button>
                   }
@@ -511,16 +486,9 @@ export const Dashboard: React.FC = () => {
             </Col>
           )}
 
-          {/* Tasa de cancelación — solo mostrar si > 0 */}
           {alertas && alertas.tasa_cancelacion_mes > 0 && (
             <Col xs={24} md={12} lg={6}>
-              <Card
-                style={{
-                  borderColor: alertas.tasa_cancelacion_mes >= 10 ? '#ff4d4f' : '#faad14',
-                  background: alertas.tasa_cancelacion_mes >= 10 ? '#fff1f0' : '#fffbe6',
-                }}
-                styles={{ body: { padding: 16 } }}
-              >
+              <Card loading={loadingFinance}>
                 <Statistic
                   title={
                     <Space>
@@ -534,10 +502,7 @@ export const Dashboard: React.FC = () => {
                   value={alertas.tasa_cancelacion_mes}
                   precision={1}
                   suffix="%"
-                  valueStyle={{
-                    color: alertas.tasa_cancelacion_mes >= 10 ? '#ff4d4f' : '#faad14',
-                    fontWeight: 700,
-                  }}
+                  valueStyle={{ color: alertas.tasa_cancelacion_mes >= 10 ? '#ff4d4f' : '#faad14' }}
                 />
               </Card>
             </Col>
