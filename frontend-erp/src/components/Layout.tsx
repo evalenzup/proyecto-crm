@@ -91,7 +91,6 @@ const baseMenuData = [
   { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
   { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
   // { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
-  { path: '/reportes', name: 'Reportes', icon: <BarChartOutlined /> },
   { path: '/ayuda', name: 'Ayuda', icon: <QuestionCircleOutlined /> },
   // El ítem de Usuarios y Auditoría se agregan dinámicamente
 ];

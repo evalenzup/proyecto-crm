@@ -1,9 +1,9 @@
 // src/components/Dashboard.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton, DatePicker, Badge, Button } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined, WarningOutlined, FileTextOutlined, ClockCircleOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined, WarningOutlined, FileTextOutlined, ClockCircleOutlined, CheckCircleOutlined, StopOutlined, RiseOutlined, FallOutlined, TeamOutlined, PieChartOutlined as PieChartIcon, DollarOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/router';
-import { dashboardService, IngresosEgresosOut, EgresoCategoriaMetric, AlertasMetrics } from '@/services/dashboardService';
+import { dashboardService, IngresosEgresosOut, EgresoCategoriaMetric, AlertasMetrics, ReportesMetrics } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { getAgingReport } from '@/services/cobranzaService';
 import { AgingReportResponse } from '@/types/cobranza';
@@ -30,6 +30,7 @@ export const Dashboard: React.FC = () => {
   const [agingData, setAgingData] = useState<AgingReportResponse | null>(null);
   const [trendData, setTrendData] = useState<IngresosEgresosOut | null>(null);
   const [alertas, setAlertas] = useState<AlertasMetrics | null>(null);
+  const [reportes, setReportes] = useState<ReportesMetrics | null>(null);
   const [loadingFinance, setLoadingFinance] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState<Dayjs | null>(dayjs());
@@ -84,9 +85,12 @@ export const Dashboard: React.FC = () => {
 
     // Fetch alertas KPIs
     dashboardService.getAlertas({ empresaId })
-      .then(res => {
-        if (mounted) setAlertas(res);
-      })
+      .then(res => { if (mounted) setAlertas(res); })
+      .catch(console.error);
+
+    // Fetch reportes KPIs
+    dashboardService.getReportes({ empresaId })
+      .then(res => { if (mounted) setReportes(res); })
       .catch(console.error);
 
     return () => {
@@ -646,6 +650,122 @@ export const Dashboard: React.FC = () => {
             value={cardsData?.ytd?.por_pagar ?? 0}
             formatter={(v) => currency(Number(v), ccy)}
           />
+        </Card>
+      </Col>
+
+      {/* ── KPIs Analíticos ─────────────────────────────────────────── */}
+      <Col xs={24} md={12} lg={6}>
+        <Card loading={loadingFinance}>
+          <Statistic
+            title={
+              <Space>
+                <DollarOutlined />
+                Ticket Promedio (mes)
+                <Tooltip title="Valor promedio de cada factura timbrada este mes.">
+                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                </Tooltip>
+              </Space>
+            }
+            value={reportes?.ticket_promedio_mes ?? 0}
+            formatter={v => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(Number(v))}
+            valueStyle={{ color: '#1677ff' }}
+          />
+        </Card>
+      </Col>
+
+      <Col xs={24} md={12} lg={6}>
+        <Card loading={loadingFinance}>
+          <Statistic
+            title={
+              <Space>
+                {(reportes?.margen_bruto_pct ?? 0) >= 0
+                  ? <RiseOutlined style={{ color: '#52c41a' }} />
+                  : <FallOutlined style={{ color: '#ff4d4f' }} />}
+                Margen Bruto Estimado (mes)
+                <Tooltip title="(Ingresos cobrados − Egresos) ÷ Ingresos × 100.">
+                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                </Tooltip>
+              </Space>
+            }
+            value={reportes?.margen_bruto_pct ?? 0}
+            precision={1}
+            suffix="%"
+            valueStyle={{ color: (reportes?.margen_bruto_pct ?? 0) >= 0 ? '#52c41a' : '#ff4d4f' }}
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(reportes?.ingresos_mtd ?? 0)} ingresos · {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(reportes?.egresos_mtd ?? 0)} egresos
+          </Typography.Text>
+        </Card>
+      </Col>
+
+      <Col xs={24} md={12} lg={6}>
+        <Card loading={loadingFinance}>
+          <Statistic
+            title={
+              <Space>
+                <ClockCircleOutlined />
+                Días Promedio de Cobro
+                <Tooltip title="Días promedio entre emisión y cobro real (últimos 90 días). Entre más bajo, mejor.">
+                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                </Tooltip>
+              </Space>
+            }
+            value={reportes?.dias_promedio_cobro ?? 0}
+            precision={1}
+            suffix="días"
+            valueStyle={{
+              color: (reportes?.dias_promedio_cobro ?? 0) > 45 ? '#ff4d4f'
+                : (reportes?.dias_promedio_cobro ?? 0) > 30 ? '#faad14'
+                : '#52c41a',
+            }}
+          />
+        </Card>
+      </Col>
+
+      <Col xs={24} md={12} lg={6}>
+        <Card loading={loadingFinance}>
+          <Statistic
+            title={
+              <Space>
+                <TeamOutlined />
+                Clientes sin Actividad
+                <Tooltip title="Clientes sin factura timbrada en los últimos 90 días.">
+                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                </Tooltip>
+              </Space>
+            }
+            value={reportes?.clientes_sin_actividad ?? 0}
+            valueStyle={{ color: (reportes?.clientes_sin_actividad ?? 0) > 0 ? '#faad14' : '#52c41a' }}
+          />
+        </Card>
+      </Col>
+
+      <Col xs={24} md={12} lg={6}>
+        <Card loading={loadingFinance}>
+          <Statistic
+            title={
+              <Space>
+                <PieChartIcon />
+                Concentración Cartera (YTD)
+                <Tooltip title="% de ingresos del año que concentra el cliente principal. Más de 40% indica dependencia.">
+                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                </Tooltip>
+              </Space>
+            }
+            value={reportes?.concentracion_cartera_pct ?? 0}
+            precision={1}
+            suffix="%"
+            valueStyle={{
+              color: (reportes?.concentracion_cartera_pct ?? 0) >= 40 ? '#ff4d4f'
+                : (reportes?.concentracion_cartera_pct ?? 0) >= 25 ? '#faad14'
+                : '#52c41a',
+            }}
+          />
+          {reportes?.concentracion_cartera_cliente && reportes.concentracion_cartera_cliente !== '—' && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {reportes.concentracion_cartera_cliente}
+            </Typography.Text>
+          )}
         </Card>
       </Col>
 
