@@ -1,8 +1,9 @@
 // src/components/Dashboard.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton, DatePicker } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined } from '@ant-design/icons';
-import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut, EgresoCategoriaMetric } from '@/services/dashboardService';
+import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton, DatePicker, Badge, Button } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined, WarningOutlined, FileTextOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { useRouter } from 'next/router';
+import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut, EgresoCategoriaMetric, AlertasMetrics } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { getAgingReport } from '@/services/cobranzaService';
 import { AgingReportResponse } from '@/types/cobranza';
@@ -23,13 +24,13 @@ const currency = (n: number, ccy: string) =>
   );
 
 export const Dashboard: React.FC = () => {
+  const router = useRouter();
   const [cardsData, setCardsData] = useState<IngresosEgresosOut | null>(null);
   const [egresosCatData, setEgresosCatData] = useState<EgresoCategoriaMetric[]>([]);
   const [agingData, setAgingData] = useState<AgingReportResponse | null>(null);
   const [trendData, setTrendData] = useState<IngresosEgresosOut | null>(null);
-  // const [presupuestosData, setPresupuestosData] = useState<PresupuestosMetricsOut | null>(null); // Disabled
+  const [alertas, setAlertas] = useState<AlertasMetrics | null>(null);
   const [loadingFinance, setLoadingFinance] = useState(false);
-  // const [loadingBudget, setLoadingBudget] = useState(false); // Disabled
 
   const [selectedMonth, setSelectedMonth] = useState<Dayjs | null>(dayjs());
 
@@ -78,6 +79,13 @@ export const Dashboard: React.FC = () => {
     getAgingReport(empresaId)
       .then(res => {
         if (mounted) setAgingData(res);
+      })
+      .catch(console.error);
+
+    // Fetch alertas KPIs
+    dashboardService.getAlertas({ empresaId })
+      .then(res => {
+        if (mounted) setAlertas(res);
       })
       .catch(console.error);
 
@@ -392,6 +400,84 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
       */}
+
+      {/* ── Alertas ── */}
+      {alertas && ((alertas.borradores_sin_timbrar > 0) || (alertas.proximas_a_vencer_7_dias > 0)) && (
+        <>
+          <Col span={24}>
+            <Typography.Title level={4} style={{ marginTop: 16, color: '#fa8c16' }}>
+              <WarningOutlined style={{ marginRight: 8 }} />
+              Alertas
+            </Typography.Title>
+          </Col>
+
+          {alertas && alertas.borradores_sin_timbrar > 0 && (
+            <Col xs={24} md={12} lg={6}>
+              <Card
+                style={{ borderColor: '#fa8c16', background: '#fff7e6' }}
+                styles={{ body: { padding: 16 } }}
+              >
+                <Statistic
+                  title={
+                    <Space>
+                      <FileTextOutlined style={{ color: '#fa8c16' }} />
+                      <span>Borradores sin timbrar</span>
+                      <Tooltip title="Facturas guardadas pero que aún no se han enviado al SAT.">
+                        <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                      </Tooltip>
+                    </Space>
+                  }
+                  value={alertas?.borradores_sin_timbrar ?? 0}
+                  valueStyle={{ color: '#fa8c16', fontWeight: 700 }}
+                  suffix={
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ color: '#fa8c16', padding: '0 4px' }}
+                      onClick={() => router.push('/facturas?estatus=BORRADOR')}
+                    >
+                      Ver →
+                    </Button>
+                  }
+                />
+              </Card>
+            </Col>
+          )}
+
+          {alertas && alertas.proximas_a_vencer_7_dias > 0 && (
+            <Col xs={24} md={12} lg={6}>
+              <Card
+                style={{ borderColor: '#ff4d4f', background: '#fff1f0' }}
+                styles={{ body: { padding: 16 } }}
+              >
+                <Statistic
+                  title={
+                    <Space>
+                      <ClockCircleOutlined style={{ color: '#ff4d4f' }} />
+                      <span>Vencen en 7 días</span>
+                      <Tooltip title="Facturas PPD timbradas sin pagar que llevan entre 23 y 30 días pendientes (término de crédito de 30 días).">
+                        <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                      </Tooltip>
+                    </Space>
+                  }
+                  value={alertas?.proximas_a_vencer_7_dias ?? 0}
+                  valueStyle={{ color: '#ff4d4f', fontWeight: 700 }}
+                  suffix={
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ color: '#ff4d4f', padding: '0 4px' }}
+                      onClick={() => router.push('/cobranza')}
+                    >
+                      Ver →
+                    </Button>
+                  }
+                />
+              </Card>
+            </Col>
+          )}
+        </>
+      )}
 
       <Col span={24}>
         <Typography.Title level={4} style={{ marginTop: 16 }}>Finanzas</Typography.Title>

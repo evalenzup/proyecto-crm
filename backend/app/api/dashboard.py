@@ -40,6 +40,19 @@ def get_presupuestos_metrics(
     return presupuestos_metrics(db, empresa_id=empresa_id)
 
 
+@router.get("/alertas")
+def get_alertas(
+    empresa_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = str(current_user.empresa_id) if current_user.empresa_id else None
+
+    from app.services.dashboard_service import alertas_metrics
+    return alertas_metrics(db, empresa_id=empresa_id)
+
+
 @router.get("/egresos-categoria")
 def get_egresos_por_categoria(
     empresa_id: Optional[str] = Query(default=None),

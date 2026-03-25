@@ -384,6 +384,45 @@ def presupuestos_metrics(db: Session, *, empresa_id: Optional[str] = None) -> Di
     }
 
 
+def alertas_metrics(
+    db: Session, *, empresa_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    KPIs de alerta para el dashboard:
+    - borradores_sin_timbrar: facturas en estado BORRADOR
+    - proximas_a_vencer: facturas PPD timbradas y sin pagar que vencen en los próximos 7 días
+      (emitidas hace 23-30 días, asumiendo término de crédito de 30 días)
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # ── Borradores sin timbrar ──────────────────────────────────────────
+    q_borradores = db.query(func.count(Factura.id)).filter(
+        Factura.estatus == "BORRADOR"
+    )
+    if empresa_id:
+        q_borradores = q_borradores.filter(Factura.empresa_id == empresa_id)
+    borradores = q_borradores.scalar() or 0
+
+    # ── Próximas a vencer (PPD, timbradas, sin pagar, 23-30 días) ──────
+    fecha_23 = now - timedelta(days=30)
+    fecha_30 = now - timedelta(days=23)
+    q_proximas = db.query(func.count(Factura.id)).filter(
+        Factura.estatus == "TIMBRADA",
+        Factura.status_pago == "NO_PAGADA",
+        Factura.metodo_pago == "PPD",
+        Factura.fecha_emision >= fecha_23,
+        Factura.fecha_emision <= fecha_30,
+    )
+    if empresa_id:
+        q_proximas = q_proximas.filter(Factura.empresa_id == empresa_id)
+    proximas = q_proximas.scalar() or 0
+
+    return {
+        "borradores_sin_timbrar": borradores,
+        "proximas_a_vencer_7_dias": proximas,
+    }
+
+
 def egresos_por_categoria_metrics(
     db: Session, *, empresa_id: Optional[str] = None, year: Optional[int] = None, month: Optional[int] = None
 ) -> List[Dict[str, Any]]:

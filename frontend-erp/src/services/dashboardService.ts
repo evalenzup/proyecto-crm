@@ -56,9 +56,23 @@ export const dashboardService = {
     });
     return response.data;
   },
+
+  async getAlertas(params?: { empresaId?: string }): Promise<AlertasMetrics> {
+    const response = await api.get<AlertasMetrics>('/dashboard/alertas', {
+      params: { empresa_id: params?.empresaId },
+    });
+    return response.data;
+  },
 };
 
 export interface EgresoCategoriaMetric {
-  name: string; // Category name
-  value: number; // Total amount
+  name: string;
+  value: number;
 }
+
+export interface AlertasMetrics {
+  borradores_sin_timbrar: number;
+  proximas_a_vencer_7_dias: number;
+}
+
+
