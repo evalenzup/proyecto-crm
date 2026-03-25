@@ -518,143 +518,103 @@ export const Dashboard: React.FC = () => {
         <Typography.Title level={4} style={{ marginTop: 16 }}>Finanzas</Typography.Title>
       </Col>
 
+      {/* ── 4 tarjetas combinadas MTD + YTD ── */}
       <Col xs={24} md={12} lg={6}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
-                Ingresos (MTD)
-                <Tooltip title="Total de facturas cobradas en el mes actual.">
+                <ArrowUpOutlined style={{ color: '#3f8600' }} />
+                Ingresos
+                <Tooltip title="Total de facturas cobradas. El valor principal es del mes seleccionado; el acumulado muestra lo del año.">
                   <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                 </Tooltip>
               </Space>
             }
             value={cardsData?.mtd?.ingresos ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
+            formatter={v => currency(Number(v), ccy)}
             valueStyle={{ color: '#3f8600' }}
-            prefix={<ArrowUpOutlined />}
           />
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Año: <strong>{currency(cardsData?.ytd?.ingresos ?? 0, ccy)}</strong>
+            </Typography.Text>
+          </div>
         </Card>
       </Col>
+
       <Col xs={24} md={12} lg={6}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
-                Egresos (MTD)
-                <Tooltip title="Total de gastos pagados en el mes actual.">
+                <ArrowDownOutlined style={{ color: '#cf1322' }} />
+                Egresos
+                <Tooltip title="Total de gastos pagados. El valor principal es del mes seleccionado; el acumulado muestra lo del año.">
                   <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                 </Tooltip>
               </Space>
             }
             value={cardsData?.mtd?.egresos ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
+            formatter={v => currency(Number(v), ccy)}
             valueStyle={{ color: '#cf1322' }}
-            prefix={<ArrowDownOutlined />}
           />
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Año: <strong>{currency(cardsData?.ytd?.egresos ?? 0, ccy)}</strong>
+            </Typography.Text>
+          </div>
         </Card>
       </Col>
+
       <Col xs={24} md={12} lg={6}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
-                Por cobrar (MTD)
-                <Tooltip title="Monto pendiente de cobro de facturas emitidas en el mes actual.">
+                Por cobrar
+                <Tooltip title="Monto pendiente de cobro. El valor principal es del mes seleccionado; el acumulado muestra lo del año.">
                   <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                 </Tooltip>
               </Space>
             }
             value={cardsData?.mtd?.por_cobrar ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
+            formatter={v => currency(Number(v), ccy)}
             valueStyle={{ color: '#faad14' }}
           />
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Año: <strong>{currency(cardsData?.ytd?.por_cobrar ?? 0, ccy)}</strong>
+            </Typography.Text>
+          </div>
         </Card>
       </Col>
+
       <Col xs={24} md={12} lg={6}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
               <Space>
-                Por pagar (MTD)
-                <Tooltip title="Monto pendiente de pago de gastos registrados en el mes actual.">
+                Por pagar
+                <Tooltip title="Monto pendiente de pago. El valor principal es del mes seleccionado; el acumulado muestra lo del año.">
                   <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                 </Tooltip>
               </Space>
             }
             value={cardsData?.mtd?.por_pagar ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
+            formatter={v => currency(Number(v), ccy)}
             valueStyle={{ color: '#722ed1' }}
           />
-        </Card>
-      </Col>
-      <Col xs={24} md={12} lg={6}>
-        <Card loading={loadingFinance}>
-          <Statistic
-            title={
-              <Space>
-                Ingresos (YTD)
-                <Tooltip title="Acumulado de ingresos en lo que va del año.">
-                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
-                </Tooltip>
-              </Space>
-            }
-            value={cardsData?.ytd?.ingresos ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
-          />
-        </Card>
-      </Col>
-      <Col xs={24} md={12} lg={6}>
-        <Card loading={loadingFinance}>
-          <Statistic
-            title={
-              <Space>
-                Egresos (YTD)
-                <Tooltip title="Acumulado de egresos en lo que va del año.">
-                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
-                </Tooltip>
-              </Space>
-            }
-            value={cardsData?.ytd?.egresos ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
-          />
-        </Card>
-      </Col>
-      <Col xs={24} md={12} lg={6}>
-        <Card loading={loadingFinance}>
-          <Statistic
-            title={
-              <Space>
-                Por cobrar (YTD)
-                <Tooltip title="Total acumulado pendiente de cobro del año.">
-                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
-                </Tooltip>
-              </Space>
-            }
-            value={cardsData?.ytd?.por_cobrar ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
-          />
-        </Card>
-      </Col>
-      <Col xs={24} md={12} lg={6}>
-        <Card loading={loadingFinance}>
-          <Statistic
-            title={
-              <Space>
-                Por pagar (YTD)
-                <Tooltip title="Total acumulado pendiente de pago del año.">
-                  <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
-                </Tooltip>
-              </Space>
-            }
-            value={cardsData?.ytd?.por_pagar ?? 0}
-            formatter={(v) => currency(Number(v), ccy)}
-          />
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Año: <strong>{currency(cardsData?.ytd?.por_pagar ?? 0, ccy)}</strong>
+            </Typography.Text>
+          </div>
         </Card>
       </Col>
 
-      {/* ── KPIs Analíticos ─────────────────────────────────────────── */}
-      <Col xs={24} md={12} lg={6}>
+      {/* ── KPIs Analíticos — fila 1: 3 métricas numéricas ── */}
+      <Col xs={24} md={12} lg={8}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
@@ -673,7 +633,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
 
-      <Col xs={24} md={12} lg={6}>
+      <Col xs={24} md={12} lg={8}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
@@ -698,7 +658,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
 
-      <Col xs={24} md={12} lg={6}>
+      <Col xs={24} md={12} lg={8}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
@@ -722,7 +682,8 @@ export const Dashboard: React.FC = () => {
         </Card>
       </Col>
 
-      <Col xs={24} md={12} lg={6}>
+      {/* ── KPIs Analíticos — fila 2: 2 tarjetas más amplias ── */}
+      <Col xs={24} md={12} lg={12}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
@@ -735,12 +696,18 @@ export const Dashboard: React.FC = () => {
               </Space>
             }
             value={reportes?.clientes_sin_actividad ?? 0}
+            suffix="clientes"
             valueStyle={{ color: (reportes?.clientes_sin_actividad ?? 0) > 0 ? '#faad14' : '#52c41a' }}
           />
+          {!loadingFinance && (reportes?.clientes_sin_actividad ?? 0) > 0 && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Sin factura en los últimos 90 días
+            </Typography.Text>
+          )}
         </Card>
       </Col>
 
-      <Col xs={24} md={12} lg={6}>
+      <Col xs={24} md={12} lg={12}>
         <Card loading={loadingFinance}>
           <Statistic
             title={
