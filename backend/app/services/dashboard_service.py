@@ -645,12 +645,13 @@ def reportes_metrics(
 
     if top_row and total_ytd > 0:
         concentracion_pct = round(float(top_row.total_cliente or 0) / total_ytd * 100, 1)
-        # Buscar nombre del cliente
-        cliente_obj = db.query(Cliente.nombre_comercial).filter(Cliente.id == top_row.cliente_id).first()
-        concentracion_cliente = cliente_obj.nombre_comercial if cliente_obj else "—"
+        cliente_obj = db.query(Cliente.nombre_razon_social, Cliente.nombre_comercial).filter(Cliente.id == top_row.cliente_id).first()
+        concentracion_cliente_fiscal = cliente_obj.nombre_razon_social if cliente_obj else "—"
+        concentracion_cliente_comercial = cliente_obj.nombre_comercial if cliente_obj else "—"
     else:
         concentracion_pct = 0.0
-        concentracion_cliente = "—"
+        concentracion_cliente_fiscal = "—"
+        concentracion_cliente_comercial = "—"
 
     return {
         "ticket_promedio_mes": round(ticket_promedio, 2),
@@ -658,7 +659,8 @@ def reportes_metrics(
         "dias_promedio_cobro": dias_promedio_cobro,
         "clientes_sin_actividad": clientes_sin_actividad,
         "concentracion_cartera_pct": concentracion_pct,
-        "concentracion_cartera_cliente": concentracion_cliente,
+        "concentracion_cartera_cliente": concentracion_cliente_fiscal,
+        "concentracion_cartera_cliente_comercial": concentracion_cliente_comercial,
         "ingresos_mtd": ingresos_mtd,
         "egresos_mtd": egresos_mtd,
     }

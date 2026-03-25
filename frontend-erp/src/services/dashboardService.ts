@@ -91,6 +91,7 @@ export interface ReportesMetrics {
   clientes_sin_actividad: number;
   concentracion_cartera_pct: number;
   concentracion_cartera_cliente: string;
+  concentracion_cartera_cliente_comercial: string;
   ingresos_mtd: number;
   egresos_mtd: number;
 }

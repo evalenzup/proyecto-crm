@@ -764,6 +764,11 @@ export const Dashboard: React.FC = () => {
           {reportes?.concentracion_cartera_cliente && reportes.concentracion_cartera_cliente !== '—' && (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {reportes.concentracion_cartera_cliente}
+              {reportes.concentracion_cartera_cliente_comercial &&
+               reportes.concentracion_cartera_cliente_comercial !== '—' &&
+               reportes.concentracion_cartera_cliente_comercial !== reportes.concentracion_cartera_cliente && (
+                <span> ({reportes.concentracion_cartera_cliente_comercial})</span>
+              )}
             </Typography.Text>
           )}
         </Card>
