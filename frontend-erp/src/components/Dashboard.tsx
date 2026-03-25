@@ -1,9 +1,9 @@
 // src/components/Dashboard.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton, DatePicker, Badge, Button } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined, WarningOutlined, FileTextOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined, WarningOutlined, FileTextOutlined, ClockCircleOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/router';
-import { dashboardService, IngresosEgresosOut, PresupuestosMetricsOut, EgresoCategoriaMetric, AlertasMetrics } from '@/services/dashboardService';
+import { dashboardService, IngresosEgresosOut, EgresoCategoriaMetric, AlertasMetrics } from '@/services/dashboardService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { getAgingReport } from '@/services/cobranzaService';
 import { AgingReportResponse } from '@/types/cobranza';
@@ -402,7 +402,7 @@ export const Dashboard: React.FC = () => {
       */}
 
       {/* ── Alertas ── */}
-      {alertas && ((alertas.borradores_sin_timbrar > 0) || (alertas.proximas_a_vencer_7_dias > 0)) && (
+      {alertas && (alertas.borradores_sin_timbrar > 0 || alertas.proximas_a_vencer_7_dias > 0 || alertas.facturas_timbradas_hoy >= 0 || alertas.tasa_cancelacion_mes > 0) && (
         <>
           <Col span={24}>
             <Typography.Title level={4} style={{ marginTop: 16, color: '#fa8c16' }}>
@@ -455,7 +455,7 @@ export const Dashboard: React.FC = () => {
                     <Space>
                       <ClockCircleOutlined style={{ color: '#ff4d4f' }} />
                       <span>Vencen en 7 días</span>
-                      <Tooltip title="Facturas PPD timbradas sin pagar que llevan entre 23 y 30 días pendientes (término de crédito de 30 días).">
+                      <Tooltip title="Facturas timbradas sin pagar cuya fecha de vencimiento cae en los próximos 7 días.">
                         <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                       </Tooltip>
                     </Space>
@@ -472,6 +472,72 @@ export const Dashboard: React.FC = () => {
                       Ver →
                     </Button>
                   }
+                />
+              </Card>
+            </Col>
+          )}
+
+          {/* Facturas timbradas hoy — informativo, siempre visible si hay datos */}
+          {alertas && alertas.facturas_timbradas_hoy >= 0 && (
+            <Col xs={24} md={12} lg={6}>
+              <Card
+                style={{ borderColor: '#52c41a', background: '#f6ffed' }}
+                styles={{ body: { padding: 16 } }}
+              >
+                <Statistic
+                  title={
+                    <Space>
+                      <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                      <span>Timbradas hoy</span>
+                      <Tooltip title="Facturas enviadas al SAT el día de hoy.">
+                        <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                      </Tooltip>
+                    </Space>
+                  }
+                  value={alertas.facturas_timbradas_hoy}
+                  valueStyle={{ color: '#52c41a', fontWeight: 700 }}
+                  suffix={
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ color: '#52c41a', padding: '0 4px' }}
+                      onClick={() => router.push('/facturas')}
+                    >
+                      Ver →
+                    </Button>
+                  }
+                />
+              </Card>
+            </Col>
+          )}
+
+          {/* Tasa de cancelación — solo mostrar si > 0 */}
+          {alertas && alertas.tasa_cancelacion_mes > 0 && (
+            <Col xs={24} md={12} lg={6}>
+              <Card
+                style={{
+                  borderColor: alertas.tasa_cancelacion_mes >= 10 ? '#ff4d4f' : '#faad14',
+                  background: alertas.tasa_cancelacion_mes >= 10 ? '#fff1f0' : '#fffbe6',
+                }}
+                styles={{ body: { padding: 16 } }}
+              >
+                <Statistic
+                  title={
+                    <Space>
+                      <StopOutlined style={{ color: alertas.tasa_cancelacion_mes >= 10 ? '#ff4d4f' : '#faad14' }} />
+                      <span>Cancelaciones este mes</span>
+                      <Tooltip title="Porcentaje de facturas emitidas este mes que fueron canceladas. Si supera el 10% puede indicar un problema operativo.">
+                        <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
+                      </Tooltip>
+                    </Space>
+                  }
+                  value={alertas.tasa_cancelacion_mes}
+                  precision={1}
+                  suffix="%"
+                  valueStyle={{
+                    color: alertas.tasa_cancelacion_mes >= 10 ? '#ff4d4f' : '#faad14',
+                    fontWeight: 700,
+                  }}
                 />
               </Card>
             </Col>

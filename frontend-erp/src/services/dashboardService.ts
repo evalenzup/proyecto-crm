@@ -63,6 +63,13 @@ export const dashboardService = {
     });
     return response.data;
   },
+
+  async getReportes(params?: { empresaId?: string }): Promise<ReportesMetrics> {
+    const response = await api.get<ReportesMetrics>('/dashboard/reportes', {
+      params: { empresa_id: params?.empresaId },
+    });
+    return response.data;
+  },
 };
 
 export interface EgresoCategoriaMetric {
@@ -73,6 +80,19 @@ export interface EgresoCategoriaMetric {
 export interface AlertasMetrics {
   borradores_sin_timbrar: number;
   proximas_a_vencer_7_dias: number;
+  facturas_timbradas_hoy: number;
+  tasa_cancelacion_mes: number;
+}
+
+export interface ReportesMetrics {
+  ticket_promedio_mes: number;
+  margen_bruto_pct: number;
+  dias_promedio_cobro: number;
+  clientes_sin_actividad: number;
+  concentracion_cartera_pct: number;
+  concentracion_cartera_cliente: string;
+  ingresos_mtd: number;
+  egresos_mtd: number;
 }
 
 

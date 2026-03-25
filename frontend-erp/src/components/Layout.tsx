@@ -21,6 +21,7 @@ import {
   QuestionCircleOutlined,
   WarningOutlined,
   AuditOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography } from 'antd';
 import esES from 'antd/locale/es_ES';
@@ -90,8 +91,9 @@ const baseMenuData = [
   { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
   { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
   // { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
+  { path: '/reportes', name: 'Reportes', icon: <BarChartOutlined /> },
   { path: '/ayuda', name: 'Ayuda', icon: <QuestionCircleOutlined /> },
-  // El ítem de Usuarios se agrega dinámicamente
+  // El ítem de Usuarios y Auditoría se agregan dinámicamente
 ];
 
 const STORAGE_KEY = 'ui.theme.mode';

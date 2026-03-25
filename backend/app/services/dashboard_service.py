@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.factura import Factura
 from app.models.egreso import Egreso, EstatusEgreso
+from app.models.cliente import Cliente
 
 
 def _month_start(dt: datetime) -> datetime:
@@ -389,37 +390,230 @@ def alertas_metrics(
 ) -> Dict[str, Any]:
     """
     KPIs de alerta para el dashboard:
-    - borradores_sin_timbrar: facturas en estado BORRADOR
-    - proximas_a_vencer: facturas PPD timbradas y sin pagar que vencen en los próximos 7 días
-      (emitidas hace 23-30 días, asumiendo término de crédito de 30 días)
+    - borradores_sin_timbrar
+    - proximas_a_vencer_7_dias  (usa fecha_pago real si existe, fallback a 23-30 días de emisión)
+    - facturas_timbradas_hoy
+    - tasa_cancelacion_mes
     """
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = _month_start(now)
+    next_month_start = _next_month(month_start)
+
+    def _emp(q):
+        return q.filter(Factura.empresa_id == empresa_id) if empresa_id else q
 
     # ── Borradores sin timbrar ──────────────────────────────────────────
-    q_borradores = db.query(func.count(Factura.id)).filter(
-        Factura.estatus == "BORRADOR"
-    )
-    if empresa_id:
-        q_borradores = q_borradores.filter(Factura.empresa_id == empresa_id)
-    borradores = q_borradores.scalar() or 0
+    borradores = _emp(
+        db.query(func.count(Factura.id)).filter(Factura.estatus == "BORRADOR")
+    ).scalar() or 0
 
-    # ── Próximas a vencer (PPD, timbradas, sin pagar, 23-30 días) ──────
-    fecha_23 = now - timedelta(days=30)
-    fecha_30 = now - timedelta(days=23)
-    q_proximas = db.query(func.count(Factura.id)).filter(
-        Factura.estatus == "TIMBRADA",
-        Factura.status_pago == "NO_PAGADA",
-        Factura.metodo_pago == "PPD",
-        Factura.fecha_emision >= fecha_23,
-        Factura.fecha_emision <= fecha_30,
-    )
-    if empresa_id:
-        q_proximas = q_proximas.filter(Factura.empresa_id == empresa_id)
-    proximas = q_proximas.scalar() or 0
+    # ── Próximas a vencer en 7 días ─────────────────────────────────────
+    # Primer intento: usa fecha_pago (vencimiento real)
+    fecha_7 = now + timedelta(days=7)
+    proximas_real = _emp(
+        db.query(func.count(Factura.id)).filter(
+            Factura.estatus == "TIMBRADA",
+            Factura.status_pago == "NO_PAGADA",
+            Factura.fecha_pago.isnot(None),
+            Factura.fecha_pago >= now,
+            Factura.fecha_pago <= fecha_7,
+        )
+    ).scalar() or 0
+
+    # Fallback: facturas PPD sin fecha_pago, emitidas hace 23-30 días
+    proximas_fb = _emp(
+        db.query(func.count(Factura.id)).filter(
+            Factura.estatus == "TIMBRADA",
+            Factura.status_pago == "NO_PAGADA",
+            Factura.fecha_pago.is_(None),
+            Factura.metodo_pago == "PPD",
+            Factura.fecha_emision >= (now - timedelta(days=30)),
+            Factura.fecha_emision <= (now - timedelta(days=23)),
+        )
+    ).scalar() or 0
+
+    proximas = proximas_real + proximas_fb
+
+    # ── Facturas timbradas hoy ──────────────────────────────────────────
+    timbradas_hoy = _emp(
+        db.query(func.count(Factura.id)).filter(
+            Factura.estatus == "TIMBRADA",
+            Factura.fecha_timbrado >= today_start,
+        )
+    ).scalar() or 0
+
+    # ── Tasa de cancelación del mes ─────────────────────────────────────
+    total_mes = _emp(
+        db.query(func.count(Factura.id)).filter(
+            Factura.estatus.in_(["TIMBRADA", "CANCELADA"]),
+            Factura.fecha_emision >= month_start,
+            Factura.fecha_emision < next_month_start,
+        )
+    ).scalar() or 0
+
+    canceladas_mes = _emp(
+        db.query(func.count(Factura.id)).filter(
+            Factura.estatus == "CANCELADA",
+            Factura.fecha_emision >= month_start,
+            Factura.fecha_emision < next_month_start,
+        )
+    ).scalar() or 0
+
+    tasa_cancelacion = round(canceladas_mes / total_mes * 100, 1) if total_mes > 0 else 0.0
 
     return {
         "borradores_sin_timbrar": borradores,
         "proximas_a_vencer_7_dias": proximas,
+        "facturas_timbradas_hoy": timbradas_hoy,
+        "tasa_cancelacion_mes": tasa_cancelacion,
+    }
+
+
+def reportes_metrics(
+    db: Session, *, empresa_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    KPIs analíticos para la página de Reportes:
+    - ticket_promedio_mes: AVG total de facturas timbradas este mes (MXN)
+    - margen_bruto_pct: (ingresos_mtd - egresos_mtd) / ingresos_mtd * 100
+    - dias_promedio_cobro: AVG(fecha_cobro - fecha_emision) para facturas cobradas (últimos 90 días)
+    - clientes_sin_actividad: clientes sin factura timbrada en los últimos 90 días
+    - concentracion_cartera_pct: % de ingresos YTD que concentra el cliente top
+    - concentracion_cartera_cliente: nombre del cliente top
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    month_start = _month_start(now)
+    next_month_start = _next_month(month_start)
+    year_start = _year_start(now)
+    dias_90 = now - timedelta(days=90)
+
+    def _emp_f(q):
+        return q.filter(Factura.empresa_id == empresa_id) if empresa_id else q
+
+    def _emp_e(q):
+        return q.filter(Egreso.empresa_id == empresa_id) if empresa_id else q
+
+    # ── Conversión a MXN ───────────────────────────────────────────────
+    monto_mxn = case(
+        (
+            (Factura.moneda != "MXN") & (Factura.tipo_cambio.isnot(None)),
+            Factura.total * Factura.tipo_cambio,
+        ),
+        else_=Factura.total,
+    )
+
+    # ── Ticket promedio del mes ─────────────────────────────────────────
+    row_ticket = _emp_f(
+        db.query(
+            func.count(Factura.id).label("cnt"),
+            func.sum(monto_mxn).label("total"),
+        ).filter(
+            Factura.estatus == "TIMBRADA",
+            Factura.fecha_emision >= month_start,
+            Factura.fecha_emision < next_month_start,
+        )
+    ).one()
+    ticket_promedio = float(row_ticket.total or 0) / row_ticket.cnt if (row_ticket.cnt or 0) > 0 else 0.0
+
+    # ── Margen bruto estimado (MTD) ─────────────────────────────────────
+    ingresos_mtd = float(_emp_f(
+        db.query(func.sum(monto_mxn)).filter(
+            Factura.estatus == "TIMBRADA",
+            Factura.status_pago == "PAGADA",
+            Factura.fecha_emision >= month_start,
+            Factura.fecha_emision < next_month_start,
+        )
+    ).scalar() or 0)
+
+    egresos_mtd = float(_emp_e(
+        db.query(func.sum(Egreso.monto)).filter(
+            Egreso.estatus != EstatusEgreso.CANCELADO,
+            Egreso.fecha_egreso >= month_start,
+            Egreso.fecha_egreso < next_month_start,
+        )
+    ).scalar() or 0)
+
+    margen_bruto_pct = round((ingresos_mtd - egresos_mtd) / ingresos_mtd * 100, 1) if ingresos_mtd > 0 else 0.0
+
+    # ── Días promedio de cobro (últimos 90 días) ────────────────────────
+    rows_cobro = _emp_f(
+        db.query(Factura.fecha_emision, Factura.fecha_cobro).filter(
+            Factura.fecha_cobro.isnot(None),
+            Factura.fecha_cobro >= dias_90,
+        )
+    ).all()
+
+    if rows_cobro:
+        deltas = [
+            (r.fecha_cobro - r.fecha_emision).days
+            for r in rows_cobro
+            if r.fecha_emision and r.fecha_cobro and r.fecha_cobro >= r.fecha_emision
+        ]
+        dias_promedio_cobro = round(sum(deltas) / len(deltas), 1) if deltas else 0.0
+    else:
+        dias_promedio_cobro = 0.0
+
+    # ── Clientes sin actividad (90 días) ───────────────────────────────
+    # Subquery: cliente_id con factura timbrada en los últimos 90 días
+    from sqlalchemy import select
+    sub_activos = (
+        select(Factura.cliente_id)
+        .where(
+            Factura.estatus == "TIMBRADA",
+            Factura.fecha_emision >= dias_90,
+            *([Factura.empresa_id == empresa_id] if empresa_id else []),
+        )
+        .distinct()
+        .scalar_subquery()
+    )
+
+    q_sin_actividad = db.query(func.count(Cliente.id)).filter(
+        Cliente.id.notin_(sub_activos)
+    )
+    if empresa_id:
+        q_sin_actividad = q_sin_actividad.filter(Cliente.empresa_id == empresa_id)
+    clientes_sin_actividad = q_sin_actividad.scalar() or 0
+
+    # ── Concentración de cartera (YTD) ──────────────────────────────────
+    total_ytd = float(_emp_f(
+        db.query(func.sum(monto_mxn)).filter(
+            Factura.estatus == "TIMBRADA",
+            Factura.fecha_emision >= year_start,
+            Factura.fecha_emision < next_month_start,
+        )
+    ).scalar() or 0)
+
+    top_row = _emp_f(
+        db.query(
+            Factura.cliente_id,
+            func.sum(monto_mxn).label("total_cliente"),
+        ).filter(
+            Factura.estatus == "TIMBRADA",
+            Factura.fecha_emision >= year_start,
+            Factura.fecha_emision < next_month_start,
+        ).group_by(Factura.cliente_id)
+        .order_by(func.sum(monto_mxn).desc())
+    ).first()
+
+    if top_row and total_ytd > 0:
+        concentracion_pct = round(float(top_row.total_cliente or 0) / total_ytd * 100, 1)
+        # Buscar nombre del cliente
+        cliente_obj = db.query(Cliente.nombre_comercial).filter(Cliente.id == top_row.cliente_id).first()
+        concentracion_cliente = cliente_obj.nombre_comercial if cliente_obj else "—"
+    else:
+        concentracion_pct = 0.0
+        concentracion_cliente = "—"
+
+    return {
+        "ticket_promedio_mes": round(ticket_promedio, 2),
+        "margen_bruto_pct": margen_bruto_pct,
+        "dias_promedio_cobro": dias_promedio_cobro,
+        "clientes_sin_actividad": clientes_sin_actividad,
+        "concentracion_cartera_pct": concentracion_pct,
+        "concentracion_cartera_cliente": concentracion_cliente,
+        "ingresos_mtd": ingresos_mtd,
+        "egresos_mtd": egresos_mtd,
     }
 
 
