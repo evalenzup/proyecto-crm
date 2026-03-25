@@ -586,25 +586,41 @@ def reportes_metrics(
         dias_promedio_cobro = 0.0
 
     # ── Clientes sin actividad (90 días) ───────────────────────────────
-    # Subquery: cliente_id con factura timbrada en los últimos 90 días
+    # Trabajamos sobre Factura para evitar depender de Cliente.empresa_id
+    # (el modelo Cliente usa relación many-to-many con Empresa, no columna directa)
     from sqlalchemy import select
-    sub_activos = (
+
+    # Todos los cliente_id con al menos una factura timbrada para esta empresa (historial)
+    filters_hist = [Factura.estatus == "TIMBRADA"]
+    if empresa_id:
+        filters_hist.append(Factura.empresa_id == empresa_id)
+
+    sub_con_historial = (
         select(Factura.cliente_id)
-        .where(
-            Factura.estatus == "TIMBRADA",
-            Factura.fecha_emision >= dias_90,
-            *([Factura.empresa_id == empresa_id] if empresa_id else []),
-        )
+        .where(*filters_hist)
         .distinct()
         .scalar_subquery()
     )
 
-    q_sin_actividad = db.query(func.count(Cliente.id)).filter(
-        Cliente.id.notin_(sub_activos)
-    )
+    # Cliente_ids activos en últimos 90 días
+    filters_activos = [Factura.estatus == "TIMBRADA", Factura.fecha_emision >= dias_90]
     if empresa_id:
-        q_sin_actividad = q_sin_actividad.filter(Cliente.empresa_id == empresa_id)
-    clientes_sin_actividad = q_sin_actividad.scalar() or 0
+        filters_activos.append(Factura.empresa_id == empresa_id)
+
+    sub_activos = (
+        select(Factura.cliente_id)
+        .where(*filters_activos)
+        .distinct()
+        .scalar_subquery()
+    )
+
+    # Clientes con historial pero sin actividad reciente
+    clientes_sin_actividad = db.query(
+        func.count(func.distinct(Factura.cliente_id))
+    ).filter(
+        *filters_hist,
+        Factura.cliente_id.notin_(sub_activos),
+    ).scalar() or 0
 
     # ── Concentración de cartera (YTD) ──────────────────────────────────
     total_ytd = float(_emp_f(
