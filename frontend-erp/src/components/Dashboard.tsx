@@ -421,8 +421,8 @@ export const Dashboard: React.FC = () => {
                   title={
                     <Space>
                       <FileTextOutlined style={{ color: '#fa8c16' }} />
-                      <span>Borradores sin timbrar</span>
-                      <Tooltip title="Facturas guardadas pero que aún no se han enviado al SAT.">
+                      <span>Facturas sin timbrar</span>
+                      <Tooltip title="Facturas guardadas como borrador que aún no se han enviado al SAT.">
                         <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                       </Tooltip>
                     </Space>
@@ -454,7 +454,7 @@ export const Dashboard: React.FC = () => {
                   title={
                     <Space>
                       <ClockCircleOutlined style={{ color: '#ff4d4f' }} />
-                      <span>Vencen en 7 días</span>
+                      <span>Facturas por vencer (7 días)</span>
                       <Tooltip title="Facturas timbradas sin pagar cuya fecha de vencimiento cae en los próximos 7 días.">
                         <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                       </Tooltip>
@@ -488,8 +488,8 @@ export const Dashboard: React.FC = () => {
                   title={
                     <Space>
                       <CheckCircleOutlined style={{ color: '#52c41a' }} />
-                      <span>Timbradas hoy</span>
-                      <Tooltip title="Facturas enviadas al SAT el día de hoy.">
+                      <span>Facturas timbradas hoy</span>
+                      <Tooltip title="Facturas enviadas al SAT el día de hoy (hora Tijuana).">
                         <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                       </Tooltip>
                     </Space>
@@ -525,7 +525,7 @@ export const Dashboard: React.FC = () => {
                   title={
                     <Space>
                       <StopOutlined style={{ color: alertas.tasa_cancelacion_mes >= 10 ? '#ff4d4f' : '#faad14' }} />
-                      <span>Cancelaciones este mes</span>
+                      <span>Facturas canceladas este mes</span>
                       <Tooltip title="Porcentaje de facturas emitidas este mes que fueron canceladas. Si supera el 10% puede indicar un problema operativo.">
                         <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                       </Tooltip>

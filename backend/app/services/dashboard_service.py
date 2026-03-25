@@ -395,10 +395,23 @@ def alertas_metrics(
     - facturas_timbradas_hoy
     - tasa_cancelacion_mes
     """
+    # Usar timezone de Tijuana para que "hoy" y "este mes" sean correctos para el usuario
+    try:
+        from zoneinfo import ZoneInfo
+        _TZ = ZoneInfo("America/Tijuana")
+        now_local = datetime.now(_TZ)
+        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+        month_start_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_start = month_start_local.astimezone(timezone.utc).replace(tzinfo=None)
+        next_month_start = _next_month(now_local.replace(tzinfo=None))
+    except Exception:
+        # Fallback a UTC si zoneinfo no está disponible
+        now_local = datetime.now(timezone.utc)
+        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
+        month_start = _month_start(now_local.replace(tzinfo=None))
+        next_month_start = _next_month(month_start)
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = _month_start(now)
-    next_month_start = _next_month(month_start)
 
     def _emp(q):
         return q.filter(Factura.empresa_id == empresa_id) if empresa_id else q
@@ -436,10 +449,18 @@ def alertas_metrics(
     proximas = proximas_real + proximas_fb
 
     # ── Facturas timbradas hoy ──────────────────────────────────────────
+    # Usa fecha_timbrado si existe, fallback a fecha_emision
+    from sqlalchemy import or_
     timbradas_hoy = _emp(
         db.query(func.count(Factura.id)).filter(
             Factura.estatus == "TIMBRADA",
-            Factura.fecha_timbrado >= today_start,
+            or_(
+                Factura.fecha_timbrado >= today_start,
+                and_(
+                    Factura.fecha_timbrado.is_(None),
+                    Factura.fecha_emision >= today_start,
+                ),
+            ),
         )
     ).scalar() or 0
 
@@ -482,10 +503,20 @@ def reportes_metrics(
     - concentracion_cartera_pct: % de ingresos YTD que concentra el cliente top
     - concentracion_cartera_cliente: nombre del cliente top
     """
+    try:
+        from zoneinfo import ZoneInfo
+        _TZ = ZoneInfo("America/Tijuana")
+        now_local = datetime.now(_TZ)
+        month_start = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+        next_month_start = _next_month(now_local.replace(tzinfo=None))
+        year_start = now_local.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception:
+        now_local = datetime.now(timezone.utc)
+        month_start = _month_start(now_local.replace(tzinfo=None))
+        next_month_start = _next_month(month_start)
+        year_start = _year_start(now_local.replace(tzinfo=None))
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    month_start = _month_start(now)
-    next_month_start = _next_month(month_start)
-    year_start = _year_start(now)
     dias_90 = now - timedelta(days=90)
 
     def _emp_f(q):
