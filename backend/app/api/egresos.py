@@ -97,6 +97,7 @@ def create_egreso(
             empresa_id=nuevo_egreso.empresa_id, entidad_id=str(nuevo_egreso.id),
             detalle={"proveedor": nuevo_egreso.proveedor, "monto": str(nuevo_egreso.monto)},
         )
+        db.commit()
     except Exception:
         pass
     return nuevo_egreso
@@ -271,6 +272,7 @@ def update_egreso(
             empresa_id=db_egreso.empresa_id, entidad_id=str(egreso_id),
             detalle={"proveedor": db_egreso.proveedor, "monto": str(db_egreso.monto)},
         )
+        db.commit()
     except Exception:
         pass
     return result

@@ -56,6 +56,7 @@ def crear_pago(
             empresa_id=result.empresa_id, entidad_id=str(result.id),
             detalle={"serie": result.serie, "folio": result.folio, "monto": str(result.monto)},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -311,6 +312,7 @@ def timbrar_pago_endpoint(
             empresa_id=pago.empresa_id, entidad_id=str(pago_id),
             detalle={"serie": pago.serie, "folio": pago.folio},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -412,6 +414,7 @@ def cancelar_pago_sat(
             empresa_id=pago.empresa_id, entidad_id=str(pago_id),
             detalle={"motivo": payload.motivo},
         )
+        db.commit()
     except Exception:
         pass
     return result

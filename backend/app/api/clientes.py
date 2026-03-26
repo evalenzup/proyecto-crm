@@ -252,12 +252,14 @@ def crear_cliente(
 
     result = cliente_repo.create(db, obj_in=payload)
     try:
+        _empresa_id = result.empresas[0].id if result.empresas else current_user.empresa_id
         audit_svc.registrar(
             db=db, accion=audit_svc.CREAR_CLIENTE, entidad="cliente",
             usuario_id=current_user.id, usuario_email=current_user.email,
-            empresa_id=current_user.empresa_id, entidad_id=str(result.id),
+            empresa_id=_empresa_id, entidad_id=str(result.id),
             detalle={"rfc": result.rfc, "nombre": result.nombre_comercial or result.nombre_razon_social},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -285,12 +287,14 @@ def actualizar_cliente(
 
     result = cliente_repo.update(db, db_obj=db_cliente, obj_in=payload)
     try:
+        _empresa_id = db_cliente.empresas[0].id if db_cliente.empresas else current_user.empresa_id
         audit_svc.registrar(
             db=db, accion=audit_svc.ACTUALIZAR_CLIENTE, entidad="cliente",
             usuario_id=current_user.id, usuario_email=current_user.email,
-            empresa_id=current_user.empresa_id, entidad_id=str(id),
+            empresa_id=_empresa_id, entidad_id=str(id),
             detalle={"rfc": db_cliente.rfc, "nombre": db_cliente.nombre_comercial},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -312,11 +316,12 @@ def eliminar_cliente(
         if current_user.empresa_id not in empresas_ids:
             raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
+    _empresa_id = cliente.empresas[0].id if cliente.empresas else current_user.empresa_id
     try:
         audit_svc.registrar(
             db=db, accion=audit_svc.ELIMINAR_CLIENTE, entidad="cliente",
             usuario_id=current_user.id, usuario_email=current_user.email,
-            empresa_id=current_user.empresa_id, entidad_id=str(id),
+            empresa_id=_empresa_id, entidad_id=str(id),
             detalle={"rfc": cliente.rfc, "nombre": cliente.nombre_comercial},
         )
     except Exception:

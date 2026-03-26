@@ -119,6 +119,7 @@ def crear_factura_endpoint(
             empresa_id=result.empresa_id, entidad_id=str(result.id),
             detalle={"serie": result.serie, "folio": result.folio, "total": str(result.total)},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -339,6 +340,7 @@ def eliminar_factura(
             empresa_id=factura.empresa_id, entidad_id=str(id),
             detalle={"serie": factura.serie, "folio": factura.folio},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -390,6 +392,7 @@ def timbrar_endpoint(
             empresa_id=factura.empresa_id, entidad_id=str(id),
             detalle={"serie": factura.serie, "folio": factura.folio},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -414,6 +417,7 @@ def solicitar_cancelacion_endpoint(
             empresa_id=factura.empresa_id, entidad_id=str(id),
             detalle={"motivo": payload.motivo_cancelacion, "serie": factura.serie, "folio": factura.folio},
         )
+        db.commit()
     except Exception:
         pass
     return result

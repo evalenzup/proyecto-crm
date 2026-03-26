@@ -102,6 +102,7 @@ def crear_presupuesto(
             empresa_id=result.empresa_id, entidad_id=str(result.id),
             detalle={"folio": result.folio, "total": str(result.total) if hasattr(result, "total") else None},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -151,6 +152,7 @@ def actualizar_presupuesto(
             empresa_id=db_obj.empresa_id, entidad_id=str(id),
             detalle={"folio": db_obj.folio},
         )
+        db.commit()
     except Exception:
         pass
     return result
@@ -176,6 +178,7 @@ def actualizar_estado_presupuesto(
             usuario_id=user_id, empresa_id=db_obj.empresa_id, entidad_id=str(id),
             detalle={"folio": db_obj.folio, "nuevo_estado": payload.estado},
         )
+        db.commit()
     except Exception:
         pass
     return result
