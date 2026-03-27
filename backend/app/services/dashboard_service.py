@@ -622,7 +622,10 @@ def reportes_metrics(
         Factura.cliente_id.notin_(sub_activos),
     ).scalar() or 0
 
-    # ── Concentración de cartera (YTD) ──────────────────────────────────
+    # ── Concentración de cartera (YTD) — agrupado por RFC ───────────────
+    # Un mismo grupo empresarial puede tener varias sucursales registradas
+    # como clientes distintos pero con el mismo RFC.  Agrupar por RFC evita
+    # subestimar la concentración real.
     total_ytd = float(_emp_f(
         db.query(func.sum(monto_mxn)).filter(
             Factura.estatus == "TIMBRADA",
@@ -633,19 +636,25 @@ def reportes_metrics(
 
     top_row = _emp_f(
         db.query(
-            Factura.cliente_id,
+            Cliente.rfc,
             func.sum(monto_mxn).label("total_cliente"),
-        ).filter(
+        )
+        .join(Cliente, Factura.cliente_id == Cliente.id)
+        .filter(
             Factura.estatus == "TIMBRADA",
             Factura.fecha_emision >= year_start,
             Factura.fecha_emision < next_month_start,
-        ).group_by(Factura.cliente_id)
+        )
+        .group_by(Cliente.rfc)
         .order_by(func.sum(monto_mxn).desc())
     ).first()
 
     if top_row and total_ytd > 0:
         concentracion_pct = round(float(top_row.total_cliente or 0) / total_ytd * 100, 1)
-        cliente_obj = db.query(Cliente.nombre_razon_social, Cliente.nombre_comercial).filter(Cliente.id == top_row.cliente_id).first()
+        # Tomar el nombre_razon_social y nombre_comercial del primer cliente con ese RFC
+        cliente_obj = db.query(Cliente.nombre_razon_social, Cliente.nombre_comercial).filter(
+            Cliente.rfc == top_row.rfc
+        ).first()
         concentracion_cliente_fiscal = cliente_obj.nombre_razon_social if cliente_obj else "—"
         concentracion_cliente_comercial = cliente_obj.nombre_comercial if cliente_obj else "—"
     else:
