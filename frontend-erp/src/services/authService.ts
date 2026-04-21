@@ -24,6 +24,20 @@ export const authService = {
         return response.data;
     },
 
+    logout: async (refreshToken: string): Promise<void> => {
+        // Invalida el refresh token en el servidor (lo saca de la whitelist)
+        // Usamos axios directo para no depender del interceptor de auth.
+        try {
+            await axios.post(
+                `${process.env.NEXT_PUBLIC_API_URL}/login/logout`,
+                { refresh_token: refreshToken },
+                { headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` } },
+            );
+        } catch {
+            // Si falla (token ya expirado, red caída) no bloqueamos el logout local
+        }
+    },
+
     getMe: async (): Promise<Usuario> => {
         const response = await api.get<Usuario>('/users/me');
         return response.data;

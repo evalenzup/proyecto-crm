@@ -1,8 +1,10 @@
 import api from '@/lib/axios';
 import { AgingReportResponse, CobranzaNota, CobranzaNotaCreate } from '@/types/cobranza';
 
-export const getAgingReport = async (empresaId?: string): Promise<AgingReportResponse> => {
-    const params = empresaId ? { empresa_id: empresaId } : {};
+export const getAgingReport = async (empresaId?: string, rfc?: string): Promise<AgingReportResponse> => {
+    const params: Record<string, string> = {};
+    if (rfc) params.rfc = rfc;
+    else if (empresaId) params.empresa_id = empresaId;
     const response = await api.get<AgingReportResponse>('/cobranza/aging', { params });
     return response.data;
 };

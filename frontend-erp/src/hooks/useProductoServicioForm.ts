@@ -1,5 +1,5 @@
 // frontend-erp/src/hooks/useProductoServicioForm.ts
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { message, Form } from 'antd';
 import { productoServicioService, ProductoServicioOut, ProductoServicioCreate, ProductoServicioUpdate, TipoProductoServicio } from '../services/productoServicioService';
 import { empresaService, EmpresaOut } from '../services/empresaService'; // Para obtener las empresas para el select
@@ -7,6 +7,7 @@ import { useRouter } from 'next/router';
 import api from '../lib/axios'; // Para los catálogos SAT
 import { normalizeHttpError } from '@/utils/httpError';
 import { applyFormErrors } from '@/utils/formErrors';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 interface ProductoServicioFormData {
   id?: string;
@@ -41,6 +42,11 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
   const [form] = Form.useForm();
   const router = useRouter();
 
+  // Empresa global del sidebar
+  const { selectedEmpresaId: globalEmpresaId } = useEmpresaSelector();
+  const globalEmpresaIdRef = useRef(globalEmpresaId);
+  useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
+
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [loadingEmpresas, setLoadingEmpresas] = useState(true);
   const [loadingSchema, setLoadingSchema] = useState(true);
@@ -63,9 +69,15 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
         const options = empresasData.map(emp => ({ value: emp.id, label: emp.nombre_comercial }));
         setEmpresasOptions(options);
 
-        // Auto-selección si es nuevo y solo hay una empresa
-        if (!id && options.length === 1) {
-          form.setFieldValue('empresa_id', options[0].value);
+        // Auto-selección: preferir empresa global del sidebar, o empresa única
+        if (!id) {
+          const globalId = globalEmpresaIdRef.current;
+          const defaultId = (globalId && options.some((o: any) => o.value === globalId))
+            ? globalId
+            : options.length === 1 ? options[0].value : undefined;
+          if (defaultId) {
+            form.setFieldValue('empresa_id', defaultId);
+          }
         }
 
         // Inyectar opciones de catálogos SAT en el esquema

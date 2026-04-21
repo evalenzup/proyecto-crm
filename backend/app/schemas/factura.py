@@ -93,6 +93,10 @@ class FacturaBase(BaseModel):
     cfdi_relacionados_tipo: Optional[constr(max_length=2)] = None
     cfdi_relacionados: Optional[str] = None  # UUIDs separados por coma
 
+    # Retención de Impuesto Local (Complemento ImpLocal SAT)
+    retencion_local_desc: Optional[constr(max_length=100)] = None
+    retencion_local_tasa: Optional[condecimal(ge=0, max_digits=10, decimal_places=6)] = None
+
     # Fechas de pago/cobro y status
     fecha_pago: Optional[datetime] = None  # programado
     fecha_cobro: Optional[datetime] = None  # real
@@ -158,11 +162,12 @@ class FacturaSimpleOut(BaseModel):
 
 class FacturaOut(FacturaBase):
     id: UUID
-    estatus: Literal["BORRADOR", "TIMBRADA", "CANCELADA"]
+    estatus: Literal["BORRADOR", "TIMBRADA", "EN_CANCELACION", "CANCELADA"]
     motivo_cancelacion: Optional[str] = None
     folio_fiscal_sustituto: Optional[str] = None
     cfdi_uuid: Optional[str] = None
     fecha_timbrado: Optional[TijuanaDatetime] = None
+    fecha_solicitud_cancelacion: Optional[TijuanaDatetime] = None
     no_certificado: Optional[str] = None
     no_certificado_sat: Optional[str] = None
     xml_path: Optional[str] = None
@@ -180,6 +185,7 @@ class FacturaOut(FacturaBase):
     impuestos_trasladados: condecimal(ge=0, max_digits=18, decimal_places=6)
     impuestos_retenidos: condecimal(ge=0, max_digits=18, decimal_places=6)
     total: condecimal(ge=0, max_digits=18, decimal_places=6)
+    retencion_local_monto: Optional[condecimal(ge=0, max_digits=20, decimal_places=6)] = None
 
     creado_en: TijuanaDatetime
     actualizado_en: TijuanaDatetime

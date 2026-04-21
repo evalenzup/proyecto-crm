@@ -24,7 +24,7 @@ import {
   message,
 } from 'antd';
 import type { MenuProps } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, FilePdfOutlined, DownOutlined, UploadOutlined, PaperClipOutlined, FileDoneOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, FilePdfOutlined, DownOutlined, UploadOutlined, PaperClipOutlined, FileDoneOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd/es/upload/interface';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePresupuestoForm } from '@/hooks/usePresupuestoForm';
@@ -81,6 +81,10 @@ const PresupuestoFormPage: React.FC = () => {
     quickClienteForm,
     handleSaveQuickCliente,
     verPDF,
+    // PDF Preview
+    previewModalOpen,
+    previewPdfUrl,
+    cerrarPreview,
   } = usePresupuestoForm(presupuestoId);
 
   const isReadOnly = useMemo(() => {
@@ -457,6 +461,43 @@ const PresupuestoFormPage: React.FC = () => {
             <Input />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Modal de Previsualización PDF */}
+      <Modal
+        open={previewModalOpen}
+        onCancel={cerrarPreview}
+        title={presupuesto ? `PDF — ${presupuesto.folio}` : 'Vista Previa PDF'}
+        width="90%"
+        style={{ top: 20 }}
+        styles={{ body: { height: '80vh', padding: 0 } }}
+        destroyOnHidden
+        footer={[
+          <Button key="close" onClick={cerrarPreview}>Cerrar</Button>,
+          previewPdfUrl && (
+            <Button
+              key="download"
+              type="primary"
+              icon={<DownloadOutlined />}
+              href={previewPdfUrl}
+              download={`presupuesto-${presupuesto?.folio ?? 'pdf'}.pdf`}
+            >
+              Descargar
+            </Button>
+          ),
+        ]}
+      >
+        {previewPdfUrl ? (
+          <iframe
+            src={previewPdfUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Vista previa PDF"
+          />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <span>Cargando PDF...</span>
+          </div>
+        )}
       </Modal>
     </>
   );

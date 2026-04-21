@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     FM_TIMBRADO_URL: str = "http://t1.facturacionmoderna.com/timbrado/soap" # URL Producción por default
     # Para pruebas: http://t1.facturacionmoderna.com/timbrado/soap
 
+    # HERE Maps API
+    HERE_API_KEY: str = ""
+
     # API Prefix
     API_V1_STR: str = "/api"
 

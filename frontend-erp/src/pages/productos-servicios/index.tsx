@@ -10,7 +10,6 @@ import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useProductoServicioList } from '@/hooks/useProductoServicioList'; // Importamos el hook
 import { ProductoServicioOut, TipoProductoServicio, productoServicioService } from '@/services/productoServicioService'; // Importamos la interfaz ProductoServicioOut
-import { EmpresaOut } from '@/services/empresaService'; // Importamos la interfaz EmpresaOut para el filtro
 import { useTableHeight } from '@/hooks/useTableHeight';
 
 const { Option } = Select;
@@ -28,14 +27,11 @@ const ProductosServiciosPage: React.FC = () => {
     pageSize,
     handlePageChange,
     handleDelete,
-    empresasForFilter,
     empresaFiltro,
-    setEmpresaFiltro,
     searchTerm,
     setSearchTerm,
     clearFilters,
     mapaClaves,
-    isAdmin, // Nuevo
   } = useProductoServicioList();
 
   const [productOptions, setProductOptions] = React.useState<ProductoServicioOut[]>([]);
@@ -141,20 +137,6 @@ const ProductosServiciosPage: React.FC = () => {
               >
                 <Option value={TipoProductoServicio.PRODUCTO}>PRODUCTO</Option>
                 <Option value={TipoProductoServicio.SERVICIO}>SERVICIO</Option>
-              </Select>
-              <Select
-                placeholder="Filtrar por Empresa"
-                style={{ width: 220 }}
-                allowClear
-                onChange={setEmpresaFiltro}
-                value={empresaFiltro}
-                disabled={!isAdmin} // Deshabilitar si no es admin
-              >
-                {empresasForFilter.map((emp: EmpresaOut) => (
-                  <Option key={emp.id} value={emp.id}>
-                    {emp.nombre_comercial}
-                  </Option>
-                ))}
               </Select>
               <AutoComplete
                 style={{ width: 500 }}

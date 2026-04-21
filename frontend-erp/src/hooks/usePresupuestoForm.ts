@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { message, Form } from 'antd';
 import { useRouter } from 'next/router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,10 +8,10 @@ import { clienteService, ClienteCreate, ClienteOut } from '@/services/clienteSer
 import { empresaService } from '@/services/empresaService';
 import { productoServicioService, ProductoServicioOut } from '@/services/productoServicioService';
 import { normalizeHttpError } from '@/utils/httpError';
-import { normalizeISOToUTC } from '@/utils/formatDate';
 import { applyFormErrors } from '@/utils/formErrors';
 import { Presupuesto, PresupuestoDetalle } from '@/models/presupuesto';
 import dayjs, { Dayjs } from 'dayjs';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 export const usePresupuestoForm = (id?: string) => {
   const [form] = Form.useForm();
@@ -33,6 +33,11 @@ export const usePresupuestoForm = (id?: string) => {
   const [editingConcepto, setEditingConcepto] = useState<Partial<PresupuestoDetalle> | null>(null);
   const [editingConceptoIndex, setEditingConceptoIndex] = useState<number | null>(null);
   const [psOpts, setPsOpts] = useState<{ value: string; label: string; meta: ProductoServicioOut }[]>([]);
+
+  // Empresa global del sidebar
+  const { selectedEmpresaId: globalEmpresaId } = useEmpresaSelector();
+  const globalEmpresaIdRef = useRef(globalEmpresaId);
+  useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
 
   // Watchers
   const empresaId = Form.useWatch('empresa_id', form);
@@ -152,8 +157,8 @@ export const usePresupuestoForm = (id?: string) => {
       if (presupuesto) {
         form.setFieldsValue({
           ...presupuesto,
-          fecha_emision: presupuesto.fecha_emision ? dayjs(normalizeISOToUTC(presupuesto.fecha_emision)) : null,
-          fecha_vencimiento: presupuesto.fecha_vencimiento ? dayjs(normalizeISOToUTC(presupuesto.fecha_vencimiento)) : null,
+          fecha_emision: presupuesto.fecha_emision ? dayjs(presupuesto.fecha_emision, 'YYYY-MM-DD') : null,
+          fecha_vencimiento: presupuesto.fecha_vencimiento ? dayjs(presupuesto.fecha_vencimiento, 'YYYY-MM-DD') : null,
         });
         setConceptos(presupuesto.detalles || []);
         if (presupuesto.cliente) {
@@ -172,13 +177,17 @@ export const usePresupuestoForm = (id?: string) => {
       setConceptos([]);
       setClientesOptions([]);
 
-      // Auto-selección de empresa única
-      if (empresas && empresas.length === 1) {
-        const singleId = empresas[0].id;
+      // Auto-selección: preferir empresa global del sidebar, o empresa única
+      const empresasArr = empresas || [];
+      const globalId = globalEmpresaIdRef.current;
+      const defaultId = (globalId && empresasArr.some(e => e.id === globalId))
+        ? globalId
+        : empresasArr.length === 1 ? empresasArr[0].id : undefined;
+      if (defaultId) {
         const currentEmpId = form.getFieldValue('empresa_id');
-        if (currentEmpId !== singleId) {
-          form.setFieldValue('empresa_id', singleId);
-          onEmpresaChange(singleId);
+        if (currentEmpId !== defaultId) {
+          form.setFieldValue('empresa_id', defaultId);
+          onEmpresaChange(defaultId);
         }
       }
     }
@@ -323,6 +332,10 @@ export const usePresupuestoForm = (id?: string) => {
     onError: (err) => message.error(normalizeHttpError(err) || 'Error al convertir a factura'),
   });
 
+  // ── PDF Preview Modal ───────────────────────────────────────────────────────
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+
   const verPDF = async () => {
     if (!selectedVersionId) {
       message.info('Guarda el presupuesto para generar una vista previa.');
@@ -331,12 +344,20 @@ export const usePresupuestoForm = (id?: string) => {
     try {
       const blob = await presupuestoService.getPresupuestoPdf(selectedVersionId);
       const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      setPreviewPdfUrl(url);
+      setPreviewModalOpen(true);
     } catch (e: any) {
       message.error(normalizeHttpError(e) || 'No se pudo abrir el PDF');
     }
   };
+
+  const cerrarPreview = useCallback(() => {
+    setPreviewModalOpen(false);
+    setPreviewPdfUrl(prev => {
+      if (prev) window.URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
 
   const empresasOptions = empresas?.map(e => ({ value: e.id, label: e.nombre_comercial })) || [];
 
@@ -379,5 +400,9 @@ export const usePresupuestoForm = (id?: string) => {
     quickClienteForm,
     handleSaveQuickCliente,
     verPDF,
+    // PDF Preview
+    previewModalOpen,
+    previewPdfUrl,
+    cerrarPreview,
   };
 };

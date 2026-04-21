@@ -118,7 +118,7 @@ const FacturaFormPage: React.FC = () => {
     setEditingConceptoIndex,
 
     // cálculos
-    resumen,
+    resumen, retencionLocalMonto,
 
     // handlers (empresa/cliente/fechas)
     onFinish,
@@ -154,7 +154,23 @@ const FacturaFormPage: React.FC = () => {
     previewModalOpen,
     previewPdfUrl,
     cerrarPreview,
+
+    // EN_CANCELACION
+    fechaSolicitudCancelacion,
+    puedeVerificarSat,
+    puedeRevertir,
+    handleVerificarSAT,
+    handleRevertirCancelacion,
   } = useFacturaForm();
+
+  // Auto-verificar SAT al cargar si la factura está EN_CANCELACION
+  React.useEffect(() => {
+    if (id && estatusCFDI === 'EN_CANCELACION') {
+      handleVerificarSAT();
+    }
+    // Solo al montar la página con ese estatus
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, estatusCFDI === 'EN_CANCELACION']);
 
   const handleSendEmail = async () => {
     if (!id) return;
@@ -418,6 +434,25 @@ const FacturaFormPage: React.FC = () => {
                 </Col>
               </Row>
 
+              {/* Banner EN_CANCELACION */}
+              {estatusCFDI === 'EN_CANCELACION' && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message="Cancelación en proceso"
+                  description={
+                    <>
+                      Se envió la solicitud de cancelación al SAT. El receptor tiene 72 horas hábiles para aceptar o rechazar.
+                      {fechaSolicitudCancelacion && (
+                        <> Solicitada el: <b>{new Date(fechaSolicitudCancelacion).toLocaleString('es-MX')}</b>.</>
+                      )}
+                      {' '}El sistema verifica automáticamente el estado al cargar esta página.
+                    </>
+                  }
+                />
+              )}
+
               <Row gutter={16} align="bottom">
                 <Col xs={24} md={6}>
                   <Form.Item label="Estatus CFDI">
@@ -527,6 +562,39 @@ const FacturaFormPage: React.FC = () => {
                     </>
                   )}
                 </Form.Item>
+              </Row>
+
+              <Row gutter={16}>
+                <Col xs={24} md={16}>
+                  <Form.Item
+                    label="Ret. Impuesto Local (descripción)"
+                    name="retencion_local_desc"
+                    tooltip="Ej: 5 AL MILLAR — opcional, solo si aplica retención de impuesto local"
+                  >
+                    <Input
+                      placeholder="Ej: 5 AL MILLAR"
+                      disabled={fieldDisabled(!empresaId)}
+                      allowClear
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Form.Item
+                    label="Tasa ret. local (%)"
+                    name="retencion_local_tasa"
+                    tooltip="Porcentaje sobre el subtotal. Ej: 0.5 para 5 AL MILLAR"
+                  >
+                    <InputNumber
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      precision={4}
+                      placeholder="0.05"
+                      style={{ width: '100%' }}
+                      disabled={fieldDisabled(!empresaId)}
+                    />
+                  </Form.Item>
+                </Col>
               </Row>
 
               <Row gutter={16}>
@@ -663,6 +731,13 @@ const FacturaFormPage: React.FC = () => {
                 <Col><Text>Trasladados: <b>{resumen.traslados}</b></Text></Col>
                 <Col><Text>Retenciones: <b>{resumen.retenciones}</b></Text></Col>
                 <Col><Text>Total: <b>{resumen.total}</b></Text></Col>
+                {retencionLocalMonto != null && retencionLocalMonto > 0 && (
+                  <Col>
+                    <Text type="warning">
+                      Ret. Local: <b>-{retencionLocalMonto.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}</b>
+                    </Text>
+                  </Col>
+                )}
               </Row>
 
             </Card>
@@ -703,6 +778,32 @@ const FacturaFormPage: React.FC = () => {
                 Cancelar CFDI
               </Button>
 
+              {/* Botones EN_CANCELACION */}
+              {puedeVerificarSat && (
+                <Button
+                  icon={<FileOutlined />}
+                  loading={accionLoading.verificarSat}
+                  onClick={handleVerificarSAT}
+                >
+                  Verificar con SAT
+                </Button>
+              )}
+              {puedeRevertir && (
+                <Popconfirm
+                  title="¿Revertir a TIMBRADA?"
+                  description="Esto indica que el receptor rechazó la cancelación. La factura quedará vigente nuevamente."
+                  onConfirm={handleRevertirCancelacion}
+                  okText="Sí, revertir"
+                  cancelText="Cancelar"
+                >
+                  <Button
+                    loading={accionLoading.revertir}
+                  >
+                    Receptor rechazó cancelación
+                  </Button>
+                </Popconfirm>
+              )}
+
               {id && (
                 <Popconfirm
                   title="¿Duplicar factura?"
@@ -730,10 +831,10 @@ const FacturaFormPage: React.FC = () => {
                 </Button>
               )}
 
-              {/* Botones para facturas timbradas o canceladas */}
-              {(estatusCFDI === 'TIMBRADA' || estatusCFDI === 'CANCELADA') && (
+              {/* Botones para facturas timbradas, en cancelación o canceladas */}
+              {(estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA') && (
                 <>
-                  {estatusCFDI === 'TIMBRADA' && (
+                  {(estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION') && (
                     <Button icon={<FileExcelOutlined />} onClick={descargarXML}>Descargar XML</Button>
                   )}
 

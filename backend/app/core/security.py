@@ -65,15 +65,24 @@ def create_access_token(
     return encoded_jwt
 
 
-def create_refresh_token(subject: Union[str, Any]) -> str:
+def create_refresh_token(subject: Union[str, Any], jti: str) -> str:
+    """Crea un refresh token JWT con un JTI (JWT ID) único para poder revocarlo."""
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "refresh",
+        "jti": jti,
+    }
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY_JWT, algorithm=ALGORITHM)
     return encoded_jwt
 
 
-def verify_refresh_token(token: str) -> str:
-    """Verifica un refresh token y retorna el subject (user_id). Lanza 401 si es inválido."""
+def verify_refresh_token(token: str) -> dict:
+    """
+    Verifica un refresh token y retorna el payload con 'sub' y 'jti'.
+    Lanza 401 si es inválido, expirado o de tipo incorrecto.
+    """
     try:
         payload = jwt.decode(token, SECRET_KEY_JWT, algorithms=[ALGORITHM])
     except JWTError:
@@ -86,10 +95,9 @@ def verify_refresh_token(token: str) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tipo de token incorrecto",
         )
-    sub = payload.get("sub")
-    if not sub:
+    if not payload.get("sub") or not payload.get("jti"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token sin subject",
+            detail="Token malformado",
         )
-    return sub
+    return payload

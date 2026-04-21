@@ -63,17 +63,23 @@ class Factura(Base):
 
     # Timbrado / estados CFDI
     estatus = Column(
-        String(15), nullable=False, default="BORRADOR"
-    )  # BORRADOR, TIMBRADA, CANCELADA
+        String(20), nullable=False, default="BORRADOR"
+    )  # BORRADOR, TIMBRADA, EN_CANCELACION, CANCELADA
     motivo_cancelacion = Column(String(2), nullable=True)
     folio_fiscal_sustituto = Column(String(36), nullable=True)
     cfdi_uuid = Column(String(36), nullable=True)
     fecha_timbrado = Column(DateTime, nullable=True)
+    fecha_solicitud_cancelacion = Column(DateTime, nullable=True)
     no_certificado = Column(String(20), nullable=True)
     no_certificado_sat = Column(String(20), nullable=True)
     sello_cfdi = Column(Text, nullable=True)
     sello_sat = Column(Text, nullable=True)
     rfc_proveedor_sat = Column(String(13), nullable=True)
+
+    # Retención local (Complemento ImpLocal SAT) — configurable por factura
+    retencion_local_desc  = Column(String(100), nullable=True)   # ej. "5 AL MILLAR"
+    retencion_local_tasa  = Column(Numeric(10, 6), nullable=True)  # valor directo para TasadeRetencion
+    retencion_local_monto = Column(Numeric(20, 6), nullable=True)  # calculado al generar CFDI
 
     # Pago / cobranza
     fecha_pago = Column(DateTime, nullable=True)  # programada / vencimiento

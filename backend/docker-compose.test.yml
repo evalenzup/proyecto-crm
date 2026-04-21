@@ -1,0 +1,14 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      DATABASE_URL: "sqlite:///:memory:"
+      SECRET_KEY: "test-secret-key-for-testing-only"
+      ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      ENCRYPTION_KEY: "2oUnSlmpjN0_TYGhPvJBEK0t3rimeuP3CRcDfH7kLX4="
+    volumes:
+      - ./tests:/app/tests
+      - ./app:/app/app

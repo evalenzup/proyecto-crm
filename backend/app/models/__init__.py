@@ -14,10 +14,11 @@ from .presupuestos import (
     PresupuestoAdjunto,
     PresupuestoEvento,
 )
-from .usuario import Usuario
+from .usuario import Usuario, UsuarioEmpresa, UsuarioPermiso
 from .cobranza import CobranzaNota
 from .notificacion import Notificacion
 from .auditoria import AuditoriaLog
+from .refresh_token import RefreshToken
 
 # Usar uno de los Base como referencia unificada
 Base = BaseCliente
@@ -40,7 +41,10 @@ __all__ = [
     "PresupuestoAdjunto",
     "PresupuestoEvento",
     "Usuario",
+    "UsuarioEmpresa",
+    "UsuarioPermiso",
     "CobranzaNota",
     "Notificacion",
     "AuditoriaLog",
+    "RefreshToken",
 ]

@@ -25,3 +25,4 @@ ruff
 openpyxl>=3.1.2
 pypdf>=3.17.0
 slowapi>=0.1.9
+apscheduler>=3.10.0

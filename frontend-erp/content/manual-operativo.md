@@ -155,7 +155,11 @@ Si timbraste una factura (Factura A) y te diste cuenta de que tiene un error (ej
 3.  El sistema te pedirá el motivo. Selecciona:
     *   **"02 - Comprobante emitido con errores sin relación"**.
     *   *(Este es el método más directo y evita complicaciones).*
-4.  Confirma la cancelación. El estatus cambiará a "CANCELADA".
+4.  Confirma la cancelación.
+
+> ⏳ **¿Qué pasa después de cancelar?** Depende del motivo:
+> - **Motivos 02, 03, 04**: La cancelación se procesa de inmediato. El estatus cambia a **CANCELADA** al instante.
+> - **Motivo 01** (sustitución): El receptor del CFDI tiene **72 horas hábiles** para aceptar o rechazar la cancelación. El estatus cambiará a **EN CANCELACIÓN** mientras esperas su respuesta.
 
 ### Paso 2: Crear la nueva factura (Factura B)
 1.  Puedes usar el botón **"Duplicar"** en la factura cancelada para no volver a escribir todo.
@@ -170,6 +174,38 @@ Para que el SAT sepa que esta nueva factura reemplaza a la anterior:
 ### Paso 4: Timbrar
 1.  Presiona **"Timbrar"** y confirma.
 2.  ¡Listo! Has sustituido la factura correctamente.
+
+---
+
+## ⏳ 5.2 Facturas "EN CANCELACIÓN" — Qué hacer mientras esperas
+
+Cuando solicitas cancelar una factura con **Motivo 01** (sustitución de CFDI), el SAT requiere que el receptor la acepte o rechace. Durante ese período la factura aparece en estado **EN CANCELACIÓN** y el sistema te muestra un aviso amarillo con la fecha y hora en que se envió la solicitud.
+
+### ¿Qué significa este estado?
+*   La factura **no está cancelada aún** — sigue siendo fiscalmente válida.
+*   El receptor tiene **72 horas hábiles** para responder.
+*   Si no responde en ese plazo, el SAT la cancela automáticamente.
+*   La factura queda **bloqueada**: no se puede editar ni volver a cancelar.
+
+### Verificar el resultado con el SAT
+El sistema revisa automáticamente el estado al abrir la factura. También puedes hacerlo manualmente:
+
+1.  Abre la factura que está **EN CANCELACIÓN**.
+2.  Presiona el botón **"Verificar con SAT"**.
+3.  El sistema consultará directamente las bases de datos del SAT en tiempo real.
+4.  Si la cancelación fue aceptada o el plazo venció, el estatus cambiará automáticamente a **CANCELADA**.
+5.  Si el receptor la rechazó (y el SAT lo reporta como "Vigente"), el estatus regresará a **TIMBRADA**.
+
+> 💡 Adicionalmente, el sistema realiza una verificación automática de todas las facturas EN CANCELACIÓN cada noche a las 3:00 AM, por lo que al día siguiente siempre verás el estado actualizado sin tener que hacer nada.
+
+### Si el receptor te avisó que rechazó la cancelación
+Si tu cliente te comunica directamente que rechazó la cancelación:
+1.  Abre la factura en estado **EN CANCELACIÓN**.
+2.  Presiona el botón **"Receptor rechazó cancelación"**.
+3.  Confirma la acción en la ventana emergente.
+4.  La factura regresará al estado **TIMBRADA** y quedará vigente nuevamente.
+
+> ⚠️ **Usa este botón solo si el cliente te confirmó explícitamente que rechazó la cancelación.** Si tienes dudas, usa primero "Verificar con SAT" para confirmar.
 
 ---
 
@@ -388,5 +424,8 @@ El módulo de Auditoría está disponible únicamente para usuarios autorizados.
 *   **CSF**: Constancia de Situación Fiscal. El documento "acta de nacimiento" fiscal de tu cliente.
 *   **CSD**: Certificado de Sello Digital. Los archivos `.cer` y `.key` que usa el SAT para validar tus facturas.
 *   **CFDI**: Comprobante Fiscal Digital por Internet. El término técnico de una "factura electrónica".
+*   **EN CANCELACIÓN**: Estado intermedio de una factura. La solicitud de cancelación ya fue enviada al SAT pero el receptor aún no ha respondido. La factura sigue siendo válida hasta que se confirme la cancelación.
+*   **Motivo 01**: Motivo de cancelación que requiere aprobación del receptor (implica sustitución por otra factura). Activa el período de espera de 72 horas hábiles.
+*   **Motivos 02/03/04**: Motivos de cancelación que no requieren aprobación del receptor. Se procesan de inmediato.
 
 ---

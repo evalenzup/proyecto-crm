@@ -75,6 +75,63 @@ def _money(v: Optional[Decimal | float | int]) -> str:
     except Exception:
         return "$0.00"
 
+# ── Número a letras (español, pesos MXN) ──────────────────────────────────────
+_UNIDADES = ["", "UN", "DOS", "TRES", "CUATRO", "CINCO", "SEIS", "SIETE", "OCHO", "NUEVE",
+             "DIEZ", "ONCE", "DOCE", "TRECE", "CATORCE", "QUINCE", "DIECISÉIS",
+             "DIECISIETE", "DIECIOCHO", "DIECINUEVE"]
+_DECENAS  = ["", "DIEZ", "VEINTE", "TREINTA", "CUARENTA", "CINCUENTA",
+             "SESENTA", "SETENTA", "OCHENTA", "NOVENTA"]
+_CENTENAS = ["", "CIENTO", "DOSCIENTOS", "TRESCIENTOS", "CUATROCIENTOS",
+             "QUINIENTOS", "SEISCIENTOS", "SETECIENTOS", "OCHOCIENTOS", "NOVECIENTOS"]
+
+def _grupo(n: int) -> str:
+    """Convierte un número 0-999 a palabras."""
+    if n == 0:
+        return ""
+    if n == 100:
+        return "CIEN"
+    c, resto = divmod(n, 100)
+    partes = []
+    if c:
+        partes.append(_CENTENAS[c])
+    if resto < 20:
+        if resto:
+            partes.append(_UNIDADES[resto])
+    else:
+        d, u = divmod(resto, 10)
+        partes.append(_DECENAS[d])
+        if u:
+            partes.append(_UNIDADES[u])
+    return " Y ".join(partes) if len(partes) > 1 else (partes[0] if partes else "")
+
+def _numero_a_letras(monto: Decimal) -> str:
+    """Convierte un monto Decimal a letras en español (pesos MXN)."""
+    try:
+        entero = int(monto)
+        centavos = round((monto - entero) * 100)
+        if entero == 0:
+            letras = "CERO"
+        elif entero < 0:
+            return f"({_numero_a_letras(-monto)})"
+        else:
+            partes = []
+            millones, resto = divmod(entero, 1_000_000)
+            miles, unidades = divmod(resto, 1_000)
+            if millones == 1:
+                partes.append("UN MILLÓN")
+            elif millones > 1:
+                partes.append(f"{_grupo(millones)} MILLONES")
+            if miles == 1:
+                partes.append("MIL")
+            elif miles > 1:
+                partes.append(f"{_grupo(miles)} MIL")
+            if unidades:
+                partes.append(_grupo(unidades))
+            letras = " ".join(filter(None, partes)) or "CERO"
+        return f"{letras} PESOS {centavos:02d}/100 M.N."
+    except Exception:
+        return ""
+
 def _draw_logo(c: canvas.Canvas, logo_path: Optional[str], x: float, y: float, max_w: float, max_h: float):
     if logo_path and os.path.exists(logo_path):
         try:
@@ -151,163 +208,347 @@ def _draw_watermark(c: canvas.Canvas, text: str):
 # --- Componentes del PDF ---
 
 def _draw_header_info(c: canvas.Canvas, p: Presupuesto, logo_path: Optional[str]) -> float:
+    """
+    Cabecera al estilo de facturas:
+    - Logo arriba derecha (2.5" × 1.5")
+    - Tira izquierda: nombre empresa + folio + fechas
+    - Dos columnas: Emisor (izquierda) / Receptor (derecha)
+    """
     top_y = PAGE_H - MARGIN_Y
-    
-    # 1. Logo (Izquierda)
-    _draw_logo(c, logo_path, MARGIN_X, top_y, 2*inch, 1*inch)
-    
-    # 2. Título y Folio (Derecha)
-    c.saveState()
-    c.setFont(FONT_BOLD, 24)
-    c.setFillColor(COLOR_PRIMARY)
-    c.drawRightString(PAGE_W - MARGIN_X, top_y - 20, "PRESUPUESTO")
-    
-    c.setFont(FONT_REGULAR, 12)
-    c.setFillColor(COLOR_TEXT_LIGHT)
-    c.drawRightString(PAGE_W - MARGIN_X, top_y - 40, f"Folio: {p.folio}")
-    c.restoreState()
 
-    # 3. Datos de la Empresa (Debajo del Logo)
-    y_cursor = top_y - 1.2*inch
+    # ── LOGO (arriba derecha) ────────────────────────────────────────────────
+    LOGO_W = 2.5 * inch
+    LOGO_H = 1.5 * inch
+    y_below_logo = top_y - 30
+
+    if logo_path and os.path.exists(logo_path):
+        try:
+            img = ImageReader(logo_path)
+            iw, ih = img.getSize()
+            scale = min(LOGO_W / iw, LOGO_H / ih)
+            dw, dh = iw * scale, ih * scale
+            x_logo = (PAGE_W - MARGIN_X) - LOGO_W + (LOGO_W - dw) / 2.0
+            y_logo = top_y - LOGO_H + (LOGO_H - dh) / 2.0
+            c.drawImage(img, x_logo, y_logo, width=dw, height=dh, mask="auto")
+            y_below_logo = y_logo - 3
+        except Exception:
+            pass
+
+    # ── TIRA IZQUIERDA: Etiqueta doc + Nombre empresa + Folio + Fechas ─────────
     emp = p.empresa
-    if emp:
-        c.setFont(FONT_BOLD, 10)
+    y_strip = top_y - 14
+
+    # Etiqueta del tipo de documento
+    c.setFont(FONT_REGULAR, 16)
+    c.setFillColor(COLOR_TEXT_LIGHT)
+    c.drawString(MARGIN_X, y_strip, "PRESUPUESTO")
+    y_strip -= 22
+
+    if emp and emp.nombre_comercial:
+        c.setFont(FONT_BOLD, 12)
+        c.setFillColor(COLOR_PRIMARY)
+        c.drawString(MARGIN_X, y_strip, emp.nombre_comercial)
+
+    y_strip -= 18
+    x_val = MARGIN_X + 85
+
+    def _strip_row(label: str, value: str, red: bool = False):
+        nonlocal y_strip
+        c.setFont(FONT_BOLD, 8)
         c.setFillColor(COLOR_TEXT)
-        c.drawString(MARGIN_X, y_cursor, emp.nombre_comercial or "Empresa")
-        y_cursor -= 12
-        
-        c.setFont(FONT_REGULAR, 9)
+        c.drawString(MARGIN_X, y_strip, f"{label}:")
+        c.setFont(FONT_REGULAR, 8)
+        c.setFillColor(colors.red if red else COLOR_TEXT)
+        c.drawString(x_val, y_strip, value)
+        c.setFillColor(COLOR_TEXT)
+        y_strip -= 12
+
+    _strip_row("Folio", p.folio or "")
+    _strip_row("Fecha emisión", p.fecha_emision.strftime("%d/%m/%Y") if p.fecha_emision else "")
+    if p.fecha_vencimiento:
+        _strip_row("Vence", p.fecha_vencimiento.strftime("%d/%m/%Y"), red=True)
+
+    # ── DOS COLUMNAS: Emisor / Receptor ──────────────────────────────────────
+    FULL_W = PAGE_W - 2 * MARGIN_X
+    MID_X = MARGIN_X + FULL_W / 2.0
+    GUTTER = 12
+    x_right = MID_X + GUTTER / 2
+    left_col_w = MID_X - MARGIN_X - GUTTER / 2 - 4
+    right_col_w = (PAGE_W - MARGIN_X) - x_right - 4
+
+    y_sections_start = min(y_strip - 4, y_below_logo - 4)
+
+    def _col_row(label: str, value: Optional[str], x: float, y: float, col_w: float) -> float:
+        """Dibuja una fila etiqueta+valor con word-wrap, retorna y actualizado."""
+        if not value:
+            return y
+        lbl = f"{label}:"
+        c.setFont(FONT_BOLD, 7)
         c.setFillColor(COLOR_TEXT_LIGHT)
+        c.drawString(x, y, lbl)
+        lbl_w = c.stringWidth(lbl, FONT_BOLD, 7)
+        vx = x + lbl_w + 4
+        max_vw = col_w - (vx - x)
+        c.setFont(FONT_REGULAR, 7)
+        c.setFillColor(COLOR_TEXT)
+        # Word-wrap simple
+        words = str(value).split()
+        line = ""
+        yy = y
+        for word in words:
+            test = f"{line} {word}".strip()
+            if c.stringWidth(test, FONT_REGULAR, 7) <= max_vw:
+                line = test
+            else:
+                if line:
+                    c.drawString(vx, yy, line)
+                    yy -= 9
+                line = word
+        if line:
+            c.drawString(vx, yy, line)
+            yy -= 9
+        return yy - 2
+
+    # -- Emisor --
+    y_col_left = y_sections_start
+    c.setFont(FONT_BOLD, 8)
+    c.setFillColor(COLOR_PRIMARY)
+    c.drawString(MARGIN_X, y_col_left, "Emisor")
+    y_col_left -= 12
+
+    if emp:
         if emp.rfc:
-            c.drawString(MARGIN_X, y_cursor, f"RFC: {emp.rfc}")
-            y_cursor -= 12
-        
-        # Dirección
+            c.setFont(FONT_BOLD, 7)
+            c.setFillColor(COLOR_TEXT_LIGHT)
+            c.drawString(MARGIN_X, y_col_left, "RFC:")
+            c.setFont(FONT_REGULAR, 7)
+            c.setFillColor(COLOR_TEXT)
+            c.drawString(MARGIN_X + 28, y_col_left, emp.rfc)
+            y_col_left -= 10
+        nombre_em = getattr(emp, "nombre", None) or emp.nombre_comercial or ""
+        y_col_left = _col_row("Nombre", nombre_em, MARGIN_X, y_col_left, left_col_w)
+        reg = getattr(emp, "regimen_fiscal", None)
+        if reg:
+            y_col_left = _col_row("Régimen", str(reg), MARGIN_X, y_col_left, left_col_w)
         dir_em = _compose_address(emp)
         if dir_em:
-            # Usar textLines para manejar saltos de línea en la dirección
-            text_obj = c.beginText(MARGIN_X, y_cursor)
-            text_obj.setFont(FONT_REGULAR, 9)
-            text_obj.setFillColor(COLOR_TEXT_LIGHT)
-            for line in dir_em.split('\n'):
-                text_obj.textLine(line)
-            c.drawText(text_obj)
-            y_cursor = text_obj.getY() - 12 # Actualizar cursor basado en donde terminó el texto
+            y_col_left = _col_row("Dirección", dir_em.replace("\n", " "), MARGIN_X, y_col_left, left_col_w)
+        tel = getattr(emp, "telefono", None)
+        if tel:
+            y_col_left = _col_row("Teléfono", str(tel), MARGIN_X, y_col_left, left_col_w)
 
-    # 4. Datos del Cliente y Fechas (Panel derecho con fondo ligero)
-    panel_y_start = top_y - 0.8*inch
-    panel_h = 1.2*inch
-    panel_w = 3.5*inch
-    panel_x = PAGE_W - MARGIN_X - panel_w
-    
-    # Fondo del panel
-    c.setFillColor(COLOR_BG_HEADER)
-    c.roundRect(panel_x, panel_y_start - panel_h, panel_w, panel_h, 4, fill=1, stroke=0)
-    
-    # Contenido del panel
-    py = panel_y_start - 15
-    px = panel_x + 10
-    
-    # Cliente
+    # -- Receptor --
+    y_col_right = y_sections_start
+    c.setFont(FONT_BOLD, 8)
+    c.setFillColor(COLOR_PRIMARY)
+    c.drawString(x_right, y_col_right, "Receptor")
+    y_col_right -= 12
+
     cli = p.cliente
     if cli:
-        c.setFont(FONT_BOLD, 9)
-        c.setFillColor(COLOR_PRIMARY)
-        c.drawString(px, py, "CLIENTE:")
-        c.setFont(FONT_REGULAR, 9)
-        c.setFillColor(COLOR_TEXT)
-        c.drawString(px + 60, py, cli.nombre_comercial or "Cliente General")
-        py -= 14
         if cli.rfc:
-            c.setFont(FONT_REGULAR, 8)
+            c.setFont(FONT_BOLD, 7)
             c.setFillColor(COLOR_TEXT_LIGHT)
-            c.drawString(px + 60, py, f"RFC: {cli.rfc}")
-            py -= 14
+            c.drawString(x_right, y_col_right, "RFC:")
+            c.setFont(FONT_REGULAR, 7)
+            c.setFillColor(COLOR_TEXT)
+            c.drawString(x_right + 28, y_col_right, cli.rfc)
+            y_col_right -= 10
+        nombre_cli = (
+            getattr(cli, "nombre_razon_social", None)
+            or getattr(cli, "nombre_comercial", None)
+            or ""
+        )
+        y_col_right = _col_row("Nombre", nombre_cli, x_right, y_col_right, right_col_w)
+        reg_cli = getattr(cli, "regimen_fiscal", None)
+        if reg_cli:
+            y_col_right = _col_row("Régimen", str(reg_cli), x_right, y_col_right, right_col_w)
+        dir_cli = _compose_address(cli)
+        if dir_cli:
+            y_col_right = _col_row("Dirección", dir_cli.replace("\n", " "), x_right, y_col_right, right_col_w)
 
-    # Fechas
-    py -= 5
-    c.setStrokeColor(COLOR_BORDER)
-    c.line(px, py, px + panel_w - 20, py)
-    py -= 15
-    
-    c.setFont(FONT_BOLD, 9)
-    c.setFillColor(COLOR_PRIMARY)
-    c.drawString(px, py, "FECHA:")
-    c.setFont(FONT_REGULAR, 9)
-    c.setFillColor(COLOR_TEXT)
-    c.drawString(px + 60, py, p.fecha_emision.strftime("%d/%m/%Y"))
-    
-    if p.fecha_vencimiento:
-        c.drawString(px + 150, py, "VENCE:")
-        c.setFillColor(colors.red)
-        c.drawString(px + 200, py, p.fecha_vencimiento.strftime("%d/%m/%Y"))
-
-    return min(y_cursor, panel_y_start - panel_h) - 20
+    header_bottom = min(y_col_left, y_col_right) - 8
+    return header_bottom
 
 def _draw_footer(c: canvas.Canvas, p: Presupuesto, y_start: float):
-    # Línea separadora
+    """
+    Footer de 3 columnas con proporciones ajustadas:
+    - Izquierda (40%): Condiciones comerciales + notas
+    - Centro   (33%): Datos bancarios de la empresa
+    - Derecha  (27%): Subtotal / Descuento / IVA / TOTAL + total en letras
+    """
+    # ── Línea separadora ──────────────────────────────────────────────────────
     c.setStrokeColor(COLOR_PRIMARY)
-    c.setLineWidth(1)
+    c.setLineWidth(1.5)
     c.line(MARGIN_X, y_start, PAGE_W - MARGIN_X, y_start)
-    
-    y = y_start - 20
-    
-    # Totales (Derecha)
+
+    available_w = PAGE_W - 2 * MARGIN_X
+    # Proporciones: 40% / 33% / 27%
+    col_left_w  = available_w * 0.40
+    col_mid_w   = available_w * 0.33
+    col_right_w = available_w * 0.27
+
+    x_mid   = MARGIN_X + col_left_w + 8
     right_x = PAGE_W - MARGIN_X
-    
-    # Estilos de totales
-    def draw_total_line(label, value, is_final=False):
-        nonlocal y
-        c.setFont(FONT_BOLD if is_final else FONT_REGULAR, 10 if is_final else 9)
-        c.setFillColor(COLOR_PRIMARY if is_final else COLOR_TEXT)
-        c.drawRightString(right_x - 100, y, label)
-        c.drawRightString(right_x, y, value)
-        y -= 15
+    y_top   = y_start - 18          # más holgura tras la línea separadora
 
-    draw_total_line("Subtotal:", _money(p.subtotal))
-    if p.descuento_total and p.descuento_total > 0:
-        draw_total_line("Descuento:", f"-{_money(p.descuento_total)}")
-    draw_total_line("Impuestos:", _money(p.impuestos))
-    y -= 5
-    draw_total_line("TOTAL:", _money(p.total), is_final=True)
+    # ══════════════════════════════════════════════════════════════════════════
+    # COLUMNA DERECHA: Totales
+    # ══════════════════════════════════════════════════════════════════════════
+    yr = y_top
 
-    # Condiciones y Notas (Izquierda)
-    text_width = PAGE_W - MARGIN_X - MARGIN_X - 200 # Espacio restante a la izquierda
-    y_text = y_start - 20
-    
+    def _total_row(label: str, value: str, bold: bool = False, red: bool = False):
+        nonlocal yr
+        size = 10 if bold else 9
+        lbl_color = COLOR_PRIMARY if bold else COLOR_TEXT
+        val_color = colors.HexColor("#c0392b") if red else (COLOR_PRIMARY if bold else COLOR_TEXT)
+        c.setFont(FONT_BOLD if bold else FONT_REGULAR, size)
+        c.setFillColor(lbl_color)
+        c.drawRightString(right_x - 85, yr, label)
+        c.setFont(FONT_BOLD, size)
+        c.setFillColor(val_color)
+        c.drawRightString(right_x, yr, value)
+        yr -= 16 if bold else 15
+
+    _total_row("Subtotal:", _money(p.subtotal))
+    try:
+        if p.descuento_total and Decimal(str(p.descuento_total)) > 0:
+            _total_row("Descuento:", f"-{_money(p.descuento_total)}", red=True)
+    except Exception:
+        pass
+    try:
+        if p.impuestos and Decimal(str(p.impuestos)) > 0:
+            _total_row("IVA:", _money(p.impuestos))
+    except Exception:
+        pass
+
+    # Línea divisoria antes del total
+    yr -= 4
+    c.setStrokeColor(COLOR_BORDER)
+    c.setLineWidth(0.5)
+    c.line(right_x - col_right_w + 4, yr, right_x, yr)
+    yr -= 10
+
+    _total_row("TOTAL:", _money(p.total), bold=True)
+
+    # Total en letras — word-wrap correcto
+    try:
+        letras = _numero_a_letras(Decimal(str(p.total)))
+        c.setFont(FONT_REGULAR, 7)
+        c.setFillColor(COLOR_TEXT_LIGHT)
+        max_w = col_right_w - 4
+        words = letras.split()
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            test = (current + " " + word).strip()
+            if c.stringWidth(test, FONT_REGULAR, 7) <= max_w:
+                current = test
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        yr -= 2
+        for ln in lines[:3]:
+            c.drawRightString(right_x, yr, ln)
+            yr -= 10
+    except Exception:
+        pass
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # COLUMNA CENTRAL: Datos bancarios
+    # ══════════════════════════════════════════════════════════════════════════
+    yc = y_top
+    emp = p.empresa
+
+    banco = getattr(emp, "nombre_banco", None) if emp else None
+    cuenta = getattr(emp, "numero_cuenta", None) if emp else None
+    clabe = getattr(emp, "clabe", None) if emp else None
+    benef = getattr(emp, "beneficiario", None) if emp else None
+
+    if any([banco, cuenta, clabe, benef]):
+        c.setFont(FONT_BOLD, 9)
+        c.setFillColor(COLOR_PRIMARY)
+        c.drawString(x_mid, yc, "DATOS BANCARIOS")
+        yc -= 5
+        c.setStrokeColor(COLOR_ACCENT)
+        c.setLineWidth(0.5)
+        c.line(x_mid, yc, x_mid + col_mid_w - 16, yc)
+        yc -= 15
+
+        # Ancho de la etiqueta más larga ("Beneficiario") para alinear valores
+        lbl_w = c.stringWidth("Beneficiario:", FONT_BOLD, 8) + 6
+
+        def _bank_row(label: str, value: Optional[str]):
+            nonlocal yc
+            if not value:
+                return
+            c.setFont(FONT_BOLD, 8)
+            c.setFillColor(COLOR_TEXT_LIGHT)
+            c.drawString(x_mid, yc, f"{label}:")
+            c.setFont(FONT_REGULAR, 8)
+            c.setFillColor(COLOR_TEXT)
+            c.drawString(x_mid + lbl_w, yc, str(value))
+            yc -= 15
+
+        _bank_row("Banco", banco)
+        _bank_row("Beneficiario", benef)
+        _bank_row("No. Cuenta", cuenta)
+        _bank_row("CLABE", clabe)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # COLUMNA IZQUIERDA: Condiciones + Notas
+    # ══════════════════════════════════════════════════════════════════════════
+    yl = y_top
+    left_text_w = col_left_w - 10   # usa casi todo el ancho de la columna
+
+    style_cond = ParagraphStyle(
+        name="FooterCond",
+        parent=style_small,
+        fontSize=8,
+        leading=12,
+    )
+
     if p.condiciones_comerciales:
         c.setFont(FONT_BOLD, 9)
         c.setFillColor(COLOR_PRIMARY)
-        c.drawString(MARGIN_X, y_text, "Condiciones Comerciales:")
-        y_text -= 12
-        
-        p_cond = Paragraph(p.condiciones_comerciales, style_small)
-        w, h = p_cond.wrap(text_width, 200)
-        p_cond.drawOn(c, MARGIN_X, y_text - h)
-        y_text -= (h + 10)
+        c.drawString(MARGIN_X, yl, "Condiciones Comerciales:")
+        yl -= 14
+        para = Paragraph(p.condiciones_comerciales, style_cond)
+        _, h = para.wrap(left_text_w, 400)
+        yl -= h
+        para.drawOn(c, MARGIN_X, yl)
+        yl -= 8
 
-    if p.notas_internas: 
-        pass
+    if p.notas_internas:
+        c.setFont(FONT_BOLD, 9)
+        c.setFillColor(COLOR_PRIMARY)
+        c.drawString(MARGIN_X, yl, "Notas:")
+        yl -= 14
+        para = Paragraph(p.notas_internas, style_cond)
+        _, h = para.wrap(left_text_w, 200)
+        yl -= h
+        para.drawOn(c, MARGIN_X, yl)
 
-    # --- Espacio para Firma ---
-    # Calculamos el punto más bajo entre totales y condiciones para no encimar
-    y_signature_base = min(y, y_text) - 40
-    
-    # Línea de firma centrada
-    center_x = PAGE_W / 2
+    # ══════════════════════════════════════════════════════════════════════════
+    # Línea de firma (centrada) — 40 pts bajo el bloque más bajo
+    # ══════════════════════════════════════════════════════════════════════════
+    y_sig = min(yr, yc, yl) - 40
+    center_doc = PAGE_W / 2
     c.setStrokeColor(COLOR_TEXT)
     c.setLineWidth(0.5)
-    c.line(center_x - 80, y_signature_base, center_x + 80, y_signature_base)
-    
-    c.setFont(FONT_REGULAR, 8)
-    c.setFillColor(COLOR_TEXT)
-    c.drawCentredString(center_x, y_signature_base - 12, "Nombre y Firma de Aceptación")
-
-    # Pie de página final (número de página)
+    c.line(center_doc - 90, y_sig, center_doc + 90, y_sig)
     c.setFont(FONT_REGULAR, 8)
     c.setFillColor(COLOR_TEXT_LIGHT)
-    c.drawCentredString(PAGE_W/2, MARGIN_Y/2, "Gracias por su preferencia.")
-    c.drawCentredString(PAGE_W/2, MARGIN_Y/2 - 10, f"Página {c.getPageNumber()}")
+    c.drawCentredString(center_doc, y_sig - 12, "Nombre y Firma de Aceptación")
+
+    # ── Pie de página ─────────────────────────────────────────────────────────
+    c.setFont(FONT_REGULAR, 7.5)
+    c.setFillColor(COLOR_TEXT_LIGHT)
+    c.drawCentredString(PAGE_W / 2, MARGIN_Y / 2 + 4, "Gracias por su preferencia.")
+    c.drawCentredString(PAGE_W / 2, MARGIN_Y / 2 - 6, f"Página {c.getPageNumber()}")
 
 def _build_table(data: List[List], col_widths: List[float]) -> Table:
     t = Table(data, colWidths=col_widths, repeatRows=1)

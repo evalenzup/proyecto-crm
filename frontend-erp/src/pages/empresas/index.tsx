@@ -47,7 +47,7 @@ const EmpresasPage: React.FC = () => {
               onClick={() => router.push(`/empresas/form/${record.id}`)}
             />
           </Tooltip>
-          {user?.rol === 'admin' && (
+          {(user?.rol === 'superadmin' || user?.rol === 'admin') && (
             <Tooltip title="Eliminar">
               <Popconfirm
                 title="¿Eliminar empresa?"
@@ -72,7 +72,7 @@ const EmpresasPage: React.FC = () => {
           <h1 className="app-title">Empresas</h1>
         </div>
         <div className="app-page-header__right">
-          {user?.rol === 'admin' && (
+          {(user?.rol === 'superadmin' || user?.rol === 'admin') && (
             <Button
               type="primary"
               icon={<PlusOutlined />}

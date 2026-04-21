@@ -53,6 +53,17 @@ export interface EmpresaPageOut {
   offset: number;
 }
 
+export interface RfcGroupEmpresa {
+  id: string;
+  nombre_comercial: string;
+  nombre: string;
+}
+
+export interface RfcGroup {
+  rfc: string;
+  empresas: RfcGroupEmpresa[];
+}
+
 export const empresaService = {
   getEmpresaSchema: async (): Promise<EmpresaSchema> => {
     const response = await api.get<EmpresaSchema>('/empresas/form-schema');
@@ -99,5 +110,10 @@ export const empresaService = {
 
   deleteEmpresa: async (id: string): Promise<void> => {
     await api.delete(`/empresas/${id}`);
+  },
+
+  getRfcGroups: async (): Promise<RfcGroup[]> => {
+    const response = await api.get<RfcGroup[]>('/empresas/rfc-groups');
+    return response.data;
   },
 };

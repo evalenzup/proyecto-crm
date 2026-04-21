@@ -67,13 +67,13 @@ const PagosIndexPage: React.FC = () => {
   };
 
   const {
-    empresaId, setEmpresaId, empresasOptions,
+    empresaId,
     clienteId, setClienteId,
     clienteOptionsComercial, clienteOptionsFiscal,
     debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
-    setClienteQuery, // Ignoramos clienteQuery para lectura, usamos local
+    setClienteQuery,
     estatus, setEstatus,
-    rangoFechas, setRangoFechas, empresas,
+    rangoFechas, setRangoFechas,
   } = filters;
 
   // Auto-fetch on filter change
@@ -206,12 +206,6 @@ const PagosIndexPage: React.FC = () => {
             }}
           >
             <Space wrap size={[8, 8]}>
-              <Select
-                allowClear placeholder="Empresa" style={{ width: 220 }}
-                options={empresasOptions} value={empresaId}
-                onChange={setEmpresaId} onClear={() => setEmpresaId(undefined)}
-                disabled={!filters.isAdmin}
-              />
               <Select
                 showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220 }}
                 filterOption={false}

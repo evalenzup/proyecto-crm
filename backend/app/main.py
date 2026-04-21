@@ -30,6 +30,8 @@ from app.api.cobranza import router as cobranza_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.health import router as health_router
 from app.api.auditoria import router as auditoria_router
+from app.api.mapa import router as mapa_router
+from app.api.reportes import router as reportes_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -39,10 +41,83 @@ from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
 
 
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+
+
+def _sync_cancelaciones_job():
+    """Cron 1x/día: verifica en el SAT todas las facturas EN_CANCELACION."""
+    from app.database import SessionLocal
+    from app.models.factura import Factura
+    from app.services import sat_cfdi_service as sat_svc
+    from datetime import datetime
+
+    db = SessionLocal()
+    try:
+        pendientes = (
+            db.query(Factura)
+            .filter(Factura.estatus == "EN_CANCELACION", Factura.cfdi_uuid.isnot(None))
+            .all()
+        )
+        logger.info("[SAT Sync] Verificando %d facturas EN_CANCELACION", len(pendientes))
+        for f in pendientes:
+            rfc_emisor = getattr(getattr(f, "empresa", None), "rfc", None) or ""
+            rfc_receptor = getattr(getattr(f, "cliente", None), "rfc", None) or ""
+            try:
+                acuse = sat_svc.consultar_cfdi(
+                    rfc_emisor=rfc_emisor.strip().upper(),
+                    rfc_receptor=rfc_receptor.strip().upper(),
+                    total=float(f.total or 0),
+                    uuid=f.cfdi_uuid,
+                )
+                if acuse.cancelado_por_sat:
+                    f.estatus = "CANCELADA"
+                    f.fecha_solicitud_cancelacion = None
+                    db.add(f)
+                    logger.info("[SAT Sync] Factura %s-%s → CANCELADA", f.serie, f.folio)
+                elif not acuse.en_proceso:
+                    # El receptor rechazó, volvemos a TIMBRADA
+                    f.estatus = "TIMBRADA"
+                    f.motivo_cancelacion = None
+                    f.folio_fiscal_sustituto = None
+                    f.fecha_solicitud_cancelacion = None
+                    db.add(f)
+                    logger.info("[SAT Sync] Factura %s-%s → TIMBRADA (receptor rechazó)", f.serie, f.folio)
+            except Exception as exc:
+                logger.warning("[SAT Sync] Error verificando factura %s: %s", f.id, exc)
+        db.commit()
+    except Exception as exc:
+        logger.error("[SAT Sync] Error general en cron: %s", exc)
+        db.rollback()
+    finally:
+        db.close()
+
+
+_scheduler = BackgroundScheduler(timezone="America/Mexico_City")
+_scheduler.add_job(
+    _sync_cancelaciones_job,
+    trigger="cron",
+    hour=3,        # 3:00 AM hora México
+    minute=0,
+    id="sync_cancelaciones_sat",
+    replace_existing=True,
+)
+
+
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
+    _scheduler.start()
+    logger.info("[SAT Sync] Scheduler iniciado — cron diario 03:00 AM MX")
+    yield
+    _scheduler.shutdown(wait=False)
+    logger.info("[SAT Sync] Scheduler detenido")
+
+
 app = FastAPI(
     title="ERP/CRM Desarrollo NORTON",
     description="Un ERP/CRM para fumigaciones, jardinería y extintores.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Rate limiting
@@ -180,6 +255,20 @@ app.include_router(
     auditoria_router,
     prefix="/api/auditoria",
     tags=["auditoria"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    mapa_router,
+    prefix="/api/mapa",
+    tags=["mapa"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    reportes_router,
+    prefix="/api/reportes",
+    tags=["reportes"],
     responses={404: {"description": "No encontrado"}},
 )
 

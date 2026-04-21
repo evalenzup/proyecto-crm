@@ -964,6 +964,54 @@ def build_cfdi40_xml_sin_timbrar(db: Session, factura_id: UUID) -> bytes:
                     },
                 )
 
+    # ── Complemento: Impuestos Locales (si la empresa tiene retención configurada) ──
+    NS_IMPLOCAL = "http://www.sat.gob.mx/implocal"
+    retencion_tasa = getattr(f, "retencion_local_tasa", None)
+    retencion_desc = getattr(f, "retencion_local_desc", None) or "RETENCION LOCAL"
+
+    if retencion_tasa and Decimal(str(retencion_tasa)) > 0:
+        # Calcular importe: subtotal * (tasa / 100)
+        ret_monto = (subtotal * Decimal(str(retencion_tasa)) / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+        # Registrar namespace e incluirlo en schemaLocation del Comprobante
+        register_namespace("implocal", NS_IMPLOCAL)
+        current_schema = compro.get(f"{{{NS_XSI}}}schemaLocation", "")
+        implocal_schema = (
+            " http://www.sat.gob.mx/implocal"
+            " http://www.sat.gob.mx/sitio_internet/cfd/implocal/implocal.xsd"
+        )
+        if "implocal" not in current_schema:
+            compro.set(f"{{{NS_XSI}}}schemaLocation", current_schema + implocal_schema)
+
+        complemento = SubElement(compro, f"{{{NS_CFDI}}}Complemento")
+        imp_locales = SubElement(
+            complemento,
+            f"{{{NS_IMPLOCAL}}}ImpuestosLocales",
+            {
+                "version": "1.0",
+                "TotaldeRetenciones": money2(ret_monto),
+                "TotaldeTraslados": "0.00",
+            },
+        )
+        SubElement(
+            imp_locales,
+            f"{{{NS_IMPLOCAL}}}RetencionesLocales",
+            {
+                "ImpLocRetenido": retencion_desc,
+                "TasadeRetencion": str(retencion_tasa).rstrip("0").rstrip(".") if "." in str(retencion_tasa) else str(retencion_tasa),
+                "Importe": money2(ret_monto),
+            },
+        )
+
+        # Guardar el monto calculado en la factura (para PDF y consultas)
+        try:
+            f.retencion_local_monto = ret_monto
+            db.flush()
+        except Exception:
+            pass
+
     # ── Cadena Original y Firma ──────────────────────────────────────────────
     xml_tmp = tostring(compro, encoding="UTF-8", xml_declaration=False)
     print("Intentando generar Cadena Original 4.0…")

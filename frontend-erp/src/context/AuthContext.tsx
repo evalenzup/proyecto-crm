@@ -6,7 +6,7 @@ import { message } from 'antd';
 
 interface AuthContextType extends AuthState {
     login: (email: string, password: string) => Promise<void>;
-    logout: () => void;
+    logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,11 +28,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setUser(userData);
                     setIsAuthenticated(true);
                 } catch (err) {
+                    // Si getMe() falla (p.ej. ambos tokens expirados), limpiar
+                    // todo para que el interceptor no quede con tokens basura.
                     console.error("Error validando sesión:", err);
                     localStorage.removeItem('token');
+                    localStorage.removeItem('refresh_token');
                     setUser(null);
                     setIsAuthenticated(false);
-                    // Opcional: router.push('/login');
                 }
             }
             setIsLoading(false);
@@ -67,7 +69,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const logout = () => {
+    const logout = async () => {
+        // Invalidar el refresh token en el servidor antes de limpiar localmente
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+            await authService.logout(refreshToken);
+        }
         localStorage.removeItem('token');
         localStorage.removeItem('refresh_token');
         setUser(null);

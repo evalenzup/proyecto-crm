@@ -30,15 +30,12 @@ export const getAuditoria = (params: {
     limit?: number;
 }) => api.get<AuditoriaPageOut>('/auditoria/', { params }).then((r) => r.data);
 
-// Emails con acceso al módulo de auditoría
-export const AUDITORIA_ALLOWED_EMAILS = [
-    'gerente@nortonservicios.com',
-    'admin@example.com',
-    'zelene@nortonservicios.com',
-];
-
-export const canViewAuditoria = (email?: string | null): boolean =>
-    !!email && AUDITORIA_ALLOWED_EMAILS.includes(email.toLowerCase());
+// Cualquier usuario autenticado (admin o supervisor) puede ver auditoría.
+// El backend se encarga de acotar los registros:
+//   - admin: ve todos los registros de cualquier empresa
+//   - supervisor: solo ve los registros de su empresa
+export const canViewAuditoria = (rol?: string | null): boolean =>
+    rol === 'superadmin' || rol === 'admin' || rol === 'supervisor';
 
 // Catálogo de acciones para el filtro
 export const ACCIONES_AUDITORIA = [

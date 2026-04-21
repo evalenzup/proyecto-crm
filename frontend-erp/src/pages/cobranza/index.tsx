@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Row, Col, Typography, Statistic, Tag, Button, Tooltip, message, Select, Modal, Form, Input } from 'antd';
-import { DollarOutlined, SolutionOutlined, CommentOutlined, WarningOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
+import { Table, Card, Row, Col, Typography, Statistic, Tag, Button, Tooltip, message, Modal, Form, Input } from 'antd';
+import { DollarOutlined, SolutionOutlined, CommentOutlined, WarningOutlined, FilePdfOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
 import { AgingReportResponse, ClienteAging } from '@/types/cobranza';
 import { getAgingReport, fetchEstadoCuentaBlob, sendEstadoCuentaEmail } from '@/services/cobranzaService';
 import Notas from '@/components/Cobranza/Notas';
@@ -12,9 +12,10 @@ import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 const { Title, Text } = Typography;
 
 const CobranzaPage: React.FC = () => {
-    const { selectedEmpresaId, empresas, setSelectedEmpresaId, isAdmin } = useEmpresaSelector();
+    const { selectedEmpresaId } = useEmpresaSelector();
     const [data, setData] = useState<AgingReportResponse | null>(null);
     const [loading, setLoading] = useState(true);
+    const [clienteSearch, setClienteSearch] = useState('');
 
     // Notas Modal State
     const [notasVisible, setNotasVisible] = useState(false);
@@ -201,27 +202,30 @@ const CobranzaPage: React.FC = () => {
                     <WarningOutlined style={{ marginRight: 10 }} />
                     Cobranza y Antigüedad de Saldos
                 </Title>
-                {isAdmin && (
-                    <Select
-                        value={selectedEmpresaId}
-                        onChange={setSelectedEmpresaId}
-                        style={{ width: 250 }}
-                        placeholder="Seleccionar Empresa"
-                        options={empresas.map(e => ({
-                            label: e.nombre_comercial || e.nombre,
-                            value: e.id
-                        }))}
-                    />
-                )}
             </div>
 
             <CobranzaDashboard data={data} loading={loading} />
 
-            <Card title="Detalle por Cliente" bordered={false}>
+            <Card
+                title="Detalle por Cliente"
+                bordered={false}
+                extra={
+                    <Input
+                        placeholder="Buscar cliente..."
+                        prefix={<SearchOutlined style={{ color: '#bbb' }} />}
+                        allowClear
+                        style={{ width: 260 }}
+                        value={clienteSearch}
+                        onChange={e => setClienteSearch(e.target.value)}
+                    />
+                }
+            >
 
                 <Table
                     columns={columns}
-                    dataSource={data?.items || []}
+                    dataSource={(data?.items || []).filter(item =>
+                        !clienteSearch || item.nombre_cliente.toLowerCase().includes(clienteSearch.toLowerCase())
+                    )}
                     rowKey="cliente_id"
                     loading={loading}
                     pagination={{

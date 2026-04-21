@@ -1,5 +1,5 @@
 // src/hooks/usePagoForm.ts
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Form, message } from 'antd';
 import dayjs from 'dayjs';
@@ -10,6 +10,7 @@ import * as facturaService from '@/services/facturaService';
 import type { Pago } from '@/services/pagoService';
 import { normalizeHttpError } from '@/utils/httpError';
 import { applyFormErrors } from '@/utils/formErrors';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 export const usePagoForm = () => {
   const router = useRouter();
@@ -52,6 +53,11 @@ export const usePagoForm = () => {
     );
   };
 
+  // Empresa global del sidebar
+  const { selectedEmpresaId: globalEmpresaId } = useEmpresaSelector();
+  const globalEmpresaIdRef = useRef(globalEmpresaId);
+  useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
+
   const empresaId = Form.useWatch('empresa_id', form);
   const clienteId = Form.useWatch('cliente_id', form);
 
@@ -71,9 +77,15 @@ export const usePagoForm = () => {
         }));
         setEmpresas(empOptions);
 
-        // Auto-selección si solo hay una empresa y es nuevo
-        if (!id && empOptions.length === 1) {
-          form.setFieldValue('empresa_id', empOptions[0].value);
+        // Auto-selección: preferir empresa global del sidebar, o empresa única
+        if (!id) {
+          const globalId = globalEmpresaIdRef.current;
+          const defaultId = (globalId && empOptions.some((e: any) => e.value === globalId))
+            ? globalId
+            : empOptions.length === 1 ? empOptions[0].value : undefined;
+          if (defaultId) {
+            form.setFieldValue('empresa_id', defaultId);
+          }
         }
 
         setFormasPago(

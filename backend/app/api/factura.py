@@ -423,6 +423,114 @@ def solicitar_cancelacion_endpoint(
     return result
 
 
+# --- Verificación SAT y reversión de cancelación ---
+
+
+@router.post("/{id}/verificar-sat", summary="Consulta el estado del CFDI en el SAT y actualiza el estatus")
+def verificar_estado_sat(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    from app.services import sat_cfdi_service as sat_svc
+    from datetime import datetime
+
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if factura.estatus not in ("EN_CANCELACION", "TIMBRADA", "CANCELADA"):
+        raise HTTPException(status_code=400, detail="Solo se puede verificar facturas TIMBRADAS o EN_CANCELACION")
+    if not factura.cfdi_uuid:
+        raise HTTPException(status_code=400, detail="La factura no tiene UUID fiscal")
+
+    rfc_emisor = getattr(getattr(factura, "empresa", None), "rfc", None) or ""
+    rfc_receptor = getattr(getattr(factura, "cliente", None), "rfc", None) or ""
+    total = float(factura.total or 0)
+
+    try:
+        acuse = sat_svc.consultar_cfdi(
+            rfc_emisor=rfc_emisor.strip().upper(),
+            rfc_receptor=rfc_receptor.strip().upper(),
+            total=total,
+            uuid=factura.cfdi_uuid,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=f"Error al consultar SAT: {e}")
+
+    estatus_anterior = factura.estatus
+    nuevo_estatus = estatus_anterior  # por defecto no cambia
+
+    if not acuse.encontrado:
+        raise HTTPException(status_code=404, detail=f"CFDI no encontrado en SAT: {acuse.codigo_estatus}")
+
+    if acuse.cancelado_por_sat:
+        nuevo_estatus = "CANCELADA"
+        factura.fecha_solicitud_cancelacion = None
+    elif acuse.en_proceso:
+        nuevo_estatus = "EN_CANCELACION"
+        if not factura.fecha_solicitud_cancelacion:
+            factura.fecha_solicitud_cancelacion = datetime.utcnow()
+    else:
+        # Vigente (receptor rechazó o nunca se inició cancelación)
+        if estatus_anterior == "EN_CANCELACION":
+            nuevo_estatus = "TIMBRADA"
+            factura.fecha_solicitud_cancelacion = None
+
+    factura.estatus = nuevo_estatus
+    db.add(factura)
+    db.commit()
+    db.refresh(factura)
+
+    return {
+        "id": str(factura.id),
+        "estatus_anterior": estatus_anterior,
+        "estatus_nuevo": nuevo_estatus,
+        "sat_codigo": acuse.codigo_estatus,
+        "sat_estado": acuse.estado,
+        "sat_es_cancelable": acuse.es_cancelable,
+        "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+        "actualizado": estatus_anterior != nuevo_estatus,
+    }
+
+
+@router.post("/{id}/revertir-cancelacion", summary="Revierte EN_CANCELACION a TIMBRADA (receptor rechazó la cancelación)")
+def revertir_cancelacion(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if factura.estatus != "EN_CANCELACION":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede revertir una factura EN_CANCELACION"
+        )
+
+    factura.estatus = "TIMBRADA"
+    factura.motivo_cancelacion = None
+    factura.folio_fiscal_sustituto = None
+    factura.fecha_solicitud_cancelacion = None
+    db.add(factura)
+    db.commit()
+    db.refresh(factura)
+
+    try:
+        audit_svc.registrar(
+            db=db, accion="REVERTIR_CANCELACION", entidad="factura",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=factura.empresa_id, entidad_id=str(id),
+            detalle={"serie": factura.serie, "folio": factura.folio},
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    from app.schemas.factura import FacturaOut
+    return FacturaOut.model_validate(factura)
+
+
 # --- Endpoints de Archivos ---
 
 

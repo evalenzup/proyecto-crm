@@ -8,7 +8,6 @@ import { getEgresos, Egreso, getEgresoEnums, exportEgresosExcel, searchProveedor
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
 import api from '@/lib/axios';
-import { getEmpresas } from '@/services/facturaService';
 
 const { RangePicker } = DatePicker;
 
@@ -30,12 +29,7 @@ const EgresosListPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const {
-    selectedEmpresaId,
-    setSelectedEmpresaId,
-    empresas,
-    isAdmin
-  } = useEmpresaSelector();
+  const { selectedEmpresaId } = useEmpresaSelector();
 
   // Use Unified Filter Context
   // Mapping context (fechaInicio/Fin) to local expectation (fecha_desde/hasta) for API calls
@@ -304,15 +298,6 @@ const EgresosListPage: React.FC = () => {
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 4 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: screens.lg ? '4px' : '8px', background: token.colorBgContainer }}>
             <Space wrap>
-              <Select
-                placeholder="Empresa"
-                style={{ width: 200 }}
-                allowClear
-                options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
-                value={selectedEmpresaId}
-                onChange={setSelectedEmpresaId}
-                disabled={!isAdmin}
-              />
               <Select
                 showSearch
                 placeholder="Nombre Proveedor (min 3 letras)"

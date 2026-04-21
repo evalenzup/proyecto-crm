@@ -4,9 +4,11 @@ export interface Usuario {
     id: string;
     email: string;
     nombre_completo: string | null;
-    rol: 'admin' | 'supervisor';
+    rol: 'superadmin' | 'admin' | 'supervisor' | 'estandar' | 'operativo';
     is_active: boolean;
     empresa_id: string | null;
+    empresas_ids: string[];
+    permisos: string[];
     empresa?: {
         id: string;
         nombre_comercial: string;
@@ -17,18 +19,22 @@ export interface UsuarioCreate {
     email: string;
     password: string;
     nombre_completo?: string;
-    rol: 'admin' | 'supervisor';
+    rol: 'admin' | 'supervisor' | 'estandar' | 'operativo';
     is_active?: boolean;
     empresa_id?: string | null;
+    empresas_ids?: string[];
+    permisos?: string[];
 }
 
 export interface UsuarioUpdate {
     email?: string;
     password?: string;
     nombre_completo?: string;
-    rol?: 'admin' | 'supervisor';
+    rol?: 'admin' | 'supervisor' | 'estandar' | 'operativo';
     is_active?: boolean;
     empresa_id?: string | null;
+    empresas_ids?: string[];
+    permisos?: string[];
 }
 
 export interface UsuarioPreferences {
@@ -58,13 +64,6 @@ export const usuarioService = {
     },
 
     getUsuario: async (id: string) => {
-        // Usamos el endpoint específico ahora disponible en backend
-        const response = await api.get<Usuario>(`/users/${id}`);
-        return response.data;
-    },
-
-    // Update: Agregando endpoint getById real si decido implementarlo en backend
-    getUsuarioReal: async (id: string) => {
         const response = await api.get<Usuario>(`/users/${id}`);
         return response.data;
     },
@@ -82,5 +81,20 @@ export const usuarioService = {
     deleteUsuario: async (id: string) => {
         const response = await api.delete<Usuario>(`/users/${id}`);
         return response.data;
-    }
+    },
+
+    cambiarPassword: async (data: { password_actual: string; password_nuevo: string }) => {
+        const response = await api.put<Usuario>('/users/me/password', data);
+        return response.data;
+    },
+
+    asignarEmpresas: async (userId: string, empresas_ids: string[]) => {
+        const response = await api.put<Usuario>(`/users/${userId}/empresas`, { empresas_ids });
+        return response.data;
+    },
+
+    asignarPermisos: async (userId: string, permisos: string[]) => {
+        const response = await api.put<Usuario>(`/users/${userId}/permisos`, { permisos });
+        return response.data;
+    },
 };

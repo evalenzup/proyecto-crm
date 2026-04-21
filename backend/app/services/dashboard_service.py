@@ -32,8 +32,12 @@ def _to_period_key(dt: datetime) -> str:
 
 
 def ingresos_egresos_metrics(
-    db: Session, *, empresa_id: Optional[str] = None, months: int = 12, year: Optional[int] = None, month: Optional[int] = None
+    db: Session, *, empresa_id: Optional[str] = None, empresa_ids: Optional[List[str]] = None,
+    months: int = 12, year: Optional[int] = None, month: Optional[int] = None
 ) -> Dict[str, Any]:
+    # Normalize: empresa_ids takes precedence; empresa_id is kept for backward compat
+    if empresa_ids is None and empresa_id:
+        empresa_ids = [empresa_id]
     if year and month:
         now = datetime(year, month, 1)
         # Advance to end of month efficiently or just use day=1 logic which works with _next_month helper
@@ -71,8 +75,8 @@ def ingresos_egresos_metrics(
             Factura.status_pago == "PAGADA",
         )
     )
-    if empresa_id:
-        q_ing_pag = q_ing_pag.filter(Factura.empresa_id == empresa_id)
+    if empresa_ids:
+        q_ing_pag = q_ing_pag.filter(Factura.empresa_id.in_(empresa_ids))
     q_ing_pag = (
         q_ing_pag.group_by(func.date_trunc("month", Factura.fecha_emision))
         .order_by(func.date_trunc("month", Factura.fecha_emision))
@@ -94,8 +98,8 @@ def ingresos_egresos_metrics(
             Factura.status_pago == "NO_PAGADA",
         )
     )
-    if empresa_id:
-        q_por_cobrar = q_por_cobrar.filter(Factura.empresa_id == empresa_id)
+    if empresa_ids:
+        q_por_cobrar = q_por_cobrar.filter(Factura.empresa_id.in_(empresa_ids))
     q_por_cobrar = (
         q_por_cobrar.group_by(func.date_trunc("month", Factura.fecha_emision))
         .order_by(func.date_trunc("month", Factura.fecha_emision))
@@ -110,8 +114,8 @@ def ingresos_egresos_metrics(
         func.date_trunc("month", Egreso.fecha_egreso).label("period"),
         func.sum(Egreso.monto).label("egresos"),
     ).filter(Egreso.estatus != EstatusEgreso.CANCELADO)
-    if empresa_id:
-        q_egr = q_egr.filter(Egreso.empresa_id == empresa_id)
+    if empresa_ids:
+        q_egr = q_egr.filter(Egreso.empresa_id.in_(empresa_ids))
     q_egr = (
         q_egr.group_by(func.date_trunc("month", Egreso.fecha_egreso))
         .order_by(func.date_trunc("month", Egreso.fecha_egreso))
@@ -126,8 +130,8 @@ def ingresos_egresos_metrics(
         func.date_trunc("month", Egreso.fecha_egreso).label("period"),
         func.sum(Egreso.monto).label("por_pagar"),
     ).filter(Egreso.estatus == EstatusEgreso.PENDIENTE)
-    if empresa_id:
-        q_pp = q_pp.filter(Egreso.empresa_id == empresa_id)
+    if empresa_ids:
+        q_pp = q_pp.filter(Egreso.empresa_id.in_(empresa_ids))
     q_pp = (
         q_pp.group_by(func.date_trunc("month", Egreso.fecha_egreso))
         .order_by(func.date_trunc("month", Egreso.fecha_egreso))
@@ -216,8 +220,8 @@ def ingresos_egresos_metrics(
         Factura.fecha_emision < next_month_start
     )
     
-    if empresa_id:
-        q_facturas_agg = q_facturas_agg.filter(Factura.empresa_id == empresa_id)
+    if empresa_ids:
+        q_facturas_agg = q_facturas_agg.filter(Factura.empresa_id.in_(empresa_ids))
 
     fact_agg = q_facturas_agg.one()
     
@@ -282,8 +286,8 @@ def ingresos_egresos_metrics(
         Egreso.fecha_egreso < next_month_start
     )
 
-    if empresa_id:
-        q_egresos_agg = q_egresos_agg.filter(Egreso.empresa_id == empresa_id)
+    if empresa_ids:
+        q_egresos_agg = q_egresos_agg.filter(Egreso.empresa_id.in_(empresa_ids))
 
     egr_agg = q_egresos_agg.one()
 
@@ -299,28 +303,33 @@ def ingresos_egresos_metrics(
             "egresos": egresos_mtd,
             "por_cobrar": por_cobrar_mtd,
             "por_pagar": por_pagar_mtd,
+            "total_facturado": ingresos_mtd + por_cobrar_mtd,  # TIMBRADAS (cobradas + pendientes)
         },
         "ytd": {
             "ingresos": ingresos_ytd,
             "egresos": egresos_ytd,
             "por_cobrar": por_cobrar_ytd,
             "por_pagar": por_pagar_ytd,
+            "total_facturado": ingresos_ytd + por_cobrar_ytd,
         },
         "series": series,
         "currency": "MXN",
     }
 
 
-def presupuestos_metrics(db: Session, *, empresa_id: Optional[str] = None) -> Dict[str, Any]:
+def presupuestos_metrics(db: Session, *, empresa_id: Optional[str] = None, empresa_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Calcula KPIs comerciales basados en presupuestos.
     """
+    if empresa_ids is None and empresa_id:
+        empresa_ids = [empresa_id]
+
     from app.models.presupuestos import Presupuesto
 
     # Base query filters
     filters = [Presupuesto.estado != "ARCHIVADO"]
-    if empresa_id:
-        filters.append(Presupuesto.empresa_id == empresa_id)
+    if empresa_ids:
+        filters.append(Presupuesto.empresa_id.in_(empresa_ids))
 
     # Expression for normalized amount (MXN)
     # SUM(CASE WHEN moneda != 'MXN' AND tipo_cambio IS NOT NULL THEN total * tipo_cambio ELSE total END)
@@ -386,7 +395,7 @@ def presupuestos_metrics(db: Session, *, empresa_id: Optional[str] = None) -> Di
 
 
 def alertas_metrics(
-    db: Session, *, empresa_id: Optional[str] = None
+    db: Session, *, empresa_id: Optional[str] = None, empresa_ids: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     KPIs de alerta para el dashboard:
@@ -411,10 +420,13 @@ def alertas_metrics(
         month_start = _month_start(now_local.replace(tzinfo=None))
         next_month_start = _next_month(month_start)
 
+    if empresa_ids is None and empresa_id:
+        empresa_ids = [empresa_id]
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     def _emp(q):
-        return q.filter(Factura.empresa_id == empresa_id) if empresa_id else q
+        return q.filter(Factura.empresa_id.in_(empresa_ids)) if empresa_ids else q
 
     # ── Borradores sin timbrar ──────────────────────────────────────────
     borradores = _emp(
@@ -492,7 +504,7 @@ def alertas_metrics(
 
 
 def reportes_metrics(
-    db: Session, *, empresa_id: Optional[str] = None
+    db: Session, *, empresa_id: Optional[str] = None, empresa_ids: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     KPIs analíticos para la página de Reportes:
@@ -516,14 +528,17 @@ def reportes_metrics(
         next_month_start = _next_month(month_start)
         year_start = _year_start(now_local.replace(tzinfo=None))
 
+    if empresa_ids is None and empresa_id:
+        empresa_ids = [empresa_id]
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     dias_90 = now - timedelta(days=90)
 
     def _emp_f(q):
-        return q.filter(Factura.empresa_id == empresa_id) if empresa_id else q
+        return q.filter(Factura.empresa_id.in_(empresa_ids)) if empresa_ids else q
 
     def _emp_e(q):
-        return q.filter(Egreso.empresa_id == empresa_id) if empresa_id else q
+        return q.filter(Egreso.empresa_id.in_(empresa_ids)) if empresa_ids else q
 
     # ── Conversión a MXN ───────────────────────────────────────────────
     monto_mxn = case(
@@ -592,8 +607,8 @@ def reportes_metrics(
 
     # Todos los cliente_id con al menos una factura timbrada para esta empresa (historial)
     filters_hist = [Factura.estatus == "TIMBRADA"]
-    if empresa_id:
-        filters_hist.append(Factura.empresa_id == empresa_id)
+    if empresa_ids:
+        filters_hist.append(Factura.empresa_id.in_(empresa_ids))
 
     sub_con_historial = (
         select(Factura.cliente_id)
@@ -604,8 +619,8 @@ def reportes_metrics(
 
     # Cliente_ids activos en últimos 90 días
     filters_activos = [Factura.estatus == "TIMBRADA", Factura.fecha_emision >= dias_90]
-    if empresa_id:
-        filters_activos.append(Factura.empresa_id == empresa_id)
+    if empresa_ids:
+        filters_activos.append(Factura.empresa_id.in_(empresa_ids))
 
     sub_activos = (
         select(Factura.cliente_id)
@@ -676,19 +691,22 @@ def reportes_metrics(
 
 
 def egresos_por_categoria_metrics(
-    db: Session, *, empresa_id: Optional[str] = None, year: Optional[int] = None, month: Optional[int] = None
+    db: Session, *, empresa_id: Optional[str] = None, empresa_ids: Optional[List[str]] = None,
+    year: Optional[int] = None, month: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
     Agrupa egresos por categoría para un mes/año específico.
     """
-    
+    if empresa_ids is None and empresa_id:
+        empresa_ids = [empresa_id]
+
     query = db.query(
         Egreso.categoria,
         func.sum(Egreso.monto).label("total")
     ).filter(Egreso.estatus != EstatusEgreso.CANCELADO)
 
-    if empresa_id:
-        query = query.filter(Egreso.empresa_id == empresa_id)
+    if empresa_ids:
+        query = query.filter(Egreso.empresa_id.in_(empresa_ids))
 
     if year and month:
         start_date = datetime(year, month, 1)

@@ -65,6 +65,8 @@ const UPPERCASE_FIELDS = [
   'rfc',
   'calle',
   'colonia',
+  'serv_calle',
+  'serv_colonia',
 ];
 
 const ClienteFormPage: React.FC = () => {
@@ -258,6 +260,18 @@ const ClienteFormPage: React.FC = () => {
             loading={regimenesOptions.length === 0} // Mostrar ícono de carga
           />
         </Form.Item>
+      );
+    }
+
+    // --- Dirección de servicio: inyectar divider antes del primer campo ---
+    if (key === 'serv_calle') {
+      return (
+        <React.Fragment key={key}>
+          <Divider orientation="left">Dirección de Servicio</Divider>
+          <Form.Item label="Calle (Servicio)" name="serv_calle" getValueFromEvent={(e) => String(e.target.value).toUpperCase()}>
+            <Input maxLength={100} style={{ textTransform: 'uppercase' }} placeholder="Calle donde se realizará el servicio" />
+          </Form.Item>
+        </React.Fragment>
       );
     }
 

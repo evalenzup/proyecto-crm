@@ -1,11 +1,12 @@
 // src/hooks/useEgresoForm.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Form, message } from 'antd';
 import dayjs from 'dayjs';
 import { normalizeISOToUTC } from '@/utils/formatDate';
 import * as egresoService from '@/services/egresoService';
 import * as facturaService from '@/services/facturaService'; // for getEmpresas
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 export const useEgresoForm = () => {
   const router = useRouter();
@@ -14,6 +15,11 @@ export const useEgresoForm = () => {
 
   const [form] = Form.useForm();
   const [egreso, setEgreso] = useState<egresoService.Egreso | null>(null);
+
+  // Empresa global del sidebar
+  const { selectedEmpresaId: globalEmpresaId } = useEmpresaSelector();
+  const globalEmpresaIdRef = useRef(globalEmpresaId);
+  useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -58,12 +64,11 @@ export const useEgresoForm = () => {
             fecha_egreso: egresoData.fecha_egreso ? dayjs(normalizeISOToUTC(egresoData.fecha_egreso)) : null,
           });
         } else {
-          let defaultEmpresaId = localStorage.getItem('selectedEmpresaId') || null;
-
-          // Si solo hay una empresa, forzar esa
-          if (empOptions.length === 1) {
-            defaultEmpresaId = empOptions[0].id;
-          }
+          // Auto-selección: preferir empresa global del sidebar, o empresa única
+          const globalId = globalEmpresaIdRef.current;
+          const defaultEmpresaId = (globalId && empOptions.some((e: any) => e.id === globalId))
+            ? globalId
+            : empOptions.length === 1 ? empOptions[0].id : null;
 
           form.setFieldsValue({
             empresa_id: defaultEmpresaId,

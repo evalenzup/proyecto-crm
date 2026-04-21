@@ -22,8 +22,10 @@ import {
   WarningOutlined,
   AuditOutlined,
   BarChartOutlined,
+  GlobalOutlined,
+  KeyOutlined,
 } from '@ant-design/icons';
-import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography } from 'antd';
+import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography, Select, Modal, Form, Input, message } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { Breadcrumbs } from './Breadcrumb';
 import { NotificationBell } from './NotificationBell';
@@ -32,6 +34,7 @@ import { usuarioService } from '@/services/usuarioService';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { empresaService } from '@/services/empresaService';
 import { canViewAuditoria } from '@/services/auditoriaService';
+import { canViewMapa } from '@/services/mapaService';
 import { OfflineBanner } from './OfflineBanner';
 import { useFilterContext } from '@/context/FilterContext';
 import api from '@/lib/axios';
@@ -46,13 +49,48 @@ const ProLayout = dynamic(
 const RightContent: React.FC = () => {
   const { user, logout: authLogout } = useAuth();
   const { clearAllFilters } = useFilterContext();
+  const [pwModalOpen, setPwModalOpen] = React.useState(false);
+  const [pwSaving, setPwSaving] = React.useState(false);
+  const [pwForm] = Form.useForm();
 
   const logout = () => {
     clearAllFilters();
     authLogout();
   };
 
+  const abrirCambiarPassword = () => {
+    pwForm.resetFields();
+    setPwModalOpen(true);
+  };
+
+  const submitCambiarPassword = async () => {
+    try {
+      const values = await pwForm.validateFields();
+      setPwSaving(true);
+      await usuarioService.cambiarPassword({
+        password_actual: values.password_actual,
+        password_nuevo: values.password_nuevo,
+      });
+      message.success('Contraseña actualizada correctamente');
+      setPwModalOpen(false);
+    } catch (err: any) {
+      // Si es error de validación del form (antd), no hacer nada
+      if (err?.errorFields) return;
+      const detail = err?.response?.data?.detail || 'No se pudo cambiar la contraseña';
+      message.error(detail);
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
   const items: MenuProps['items'] = [
+    {
+      key: 'cambiar-password',
+      label: 'Cambiar contraseña',
+      icon: <KeyOutlined />,
+      onClick: abrirCambiarPassword,
+    },
+    { type: 'divider' },
     {
       key: 'logout',
       label: 'Cerrar Sesión',
@@ -63,19 +101,71 @@ const RightContent: React.FC = () => {
   ];
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingRight: 16 }}>
-      {user && (
-        <Dropdown menu={{ items }}>
-          <Space style={{ cursor: 'pointer' }}>
-            <Avatar style={{ backgroundColor: '#1890ff' }} icon={<UserOutlined />} />
-            <span style={{ color: 'var(--ant-color-text)' }}>
-              {user.nombre_completo || user.email}
-            </span>
-            <DownOutlined style={{ fontSize: '10px', color: 'var(--ant-color-text-description)' }} />
-          </Space>
-        </Dropdown>
-      )}
-    </div>
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingRight: 16 }}>
+        {user && (
+          <Dropdown menu={{ items }}>
+            <Space style={{ cursor: 'pointer' }}>
+              <Avatar style={{ backgroundColor: '#1890ff' }} icon={<UserOutlined />} />
+              <span style={{ color: 'var(--ant-color-text)' }}>
+                {user.nombre_completo || user.email}
+              </span>
+              <DownOutlined style={{ fontSize: '10px', color: 'var(--ant-color-text-description)' }} />
+            </Space>
+          </Dropdown>
+        )}
+      </div>
+
+      {/* Modal: Cambiar contraseña propia */}
+      <Modal
+        title="Cambiar contraseña"
+        open={pwModalOpen}
+        onCancel={() => setPwModalOpen(false)}
+        onOk={submitCambiarPassword}
+        okText="Guardar"
+        cancelText="Cancelar"
+        confirmLoading={pwSaving}
+        destroyOnClose
+      >
+        <Form form={pwForm} layout="vertical" style={{ marginTop: 8 }}>
+          <Form.Item
+            name="password_actual"
+            label="Contraseña actual"
+            rules={[{ required: true, message: 'Ingresa tu contraseña actual' }]}
+          >
+            <Input.Password autoComplete="current-password" />
+          </Form.Item>
+          <Form.Item
+            name="password_nuevo"
+            label="Nueva contraseña"
+            rules={[
+              { required: true, message: 'Ingresa la nueva contraseña' },
+              { min: 6, message: 'Mínimo 6 caracteres' },
+            ]}
+          >
+            <Input.Password autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item
+            name="password_confirm"
+            label="Confirmar nueva contraseña"
+            dependencies={['password_nuevo']}
+            rules={[
+              { required: true, message: 'Confirma la nueva contraseña' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('password_nuevo') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Las contraseñas no coinciden'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password autoComplete="new-password" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   );
 };
 
@@ -86,7 +176,7 @@ const baseMenuData = [
   { path: '/clientes', name: 'Clientes', icon: <ContactsOutlined /> },
   { path: '/productos-servicios', name: 'Productos', icon: <ProductOutlined /> },
   { path: '/facturas', name: 'Facturación', icon: <ContainerOutlined /> },
-  // { path: '/presupuestos', name: 'Presupuestos', icon: <FileTextOutlined /> },
+  { path: '/presupuestos', name: 'Presupuestos', icon: <FileTextOutlined /> },
   { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
   { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
   { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
@@ -229,7 +319,7 @@ export const Layout: React.FC<{
   );
 
   // Logo dinámico basado en la empresa seleccionada
-  const { selectedEmpresaId, empresas, isAdmin } = useEmpresaSelector();
+  const { selectedEmpresaId, setSelectedEmpresaId, empresas, isAdmin } = useEmpresaSelector();
   const [logoUrl, setLogoUrl] = useState<string>('/logo-empresa.png');
 
   useEffect(() => {
@@ -283,11 +373,17 @@ export const Layout: React.FC<{
 
   const menuData = useMemo(() => {
     const menu = [...baseMenuData];
-    if (user?.rol === 'admin') {
+    if (user?.rol === 'superadmin' || user?.rol === 'admin') {
       menu.push({ path: '/usuarios', name: 'Usuarios', icon: <UserOutlined /> });
     }
-    if (canViewAuditoria(user?.email)) {
+    if (canViewAuditoria(user?.rol)) {
+      if (user?.rol === 'superadmin' || user?.rol === 'admin') {
+        menu.push({ path: '/reportes', name: 'Reportes', icon: <BarChartOutlined /> });
+      }
       menu.push({ path: '/auditoria', name: 'Auditoría', icon: <AuditOutlined /> });
+    }
+    if (canViewMapa(user?.rol)) {
+      menu.push({ path: '/mapa', name: 'Mapa Clientes', icon: <GlobalOutlined /> });
     }
     return menu;
   }, [user]);
@@ -320,11 +416,12 @@ export const Layout: React.FC<{
           return (
             <div
               style={{
-                padding: 0,
+                padding: '0 0 8px',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
                 width: '100%',
+                gap: 8,
               }}
             >
               {logoUrl ? (
@@ -342,6 +439,28 @@ export const Layout: React.FC<{
               ) : (
                 <div style={{ width: '100%', height: 40, background: 'var(--ant-color-fill-tertiary)' }} />
               )}
+
+              {/* Selector global de empresa */}
+              <div style={{ width: '100%', padding: '0 8px' }}>
+                {isAdmin ? (
+                  <Select
+                    size="small"
+                    style={{ width: '100%' }}
+                    value={selectedEmpresaId}
+                    onChange={setSelectedEmpresaId}
+                    options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
+                    placeholder="Seleccionar empresa"
+                  />
+                ) : (
+                  <Typography.Text
+                    ellipsis
+                    style={{ fontSize: 12, display: 'block', textAlign: 'center', padding: '2px 4px' }}
+                    title={empresas[0]?.nombre_comercial}
+                  >
+                    {empresas[0]?.nombre_comercial ?? ''}
+                  </Typography.Text>
+                )}
+              </div>
             </div>
           )
         }}

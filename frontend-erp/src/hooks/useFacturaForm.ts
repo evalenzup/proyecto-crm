@@ -1,6 +1,6 @@
 //frontend-erp/src/hooks/useFacturaForm.ts
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Form, message } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
@@ -10,7 +10,7 @@ import { normalizeHttpError } from '@/utils/httpError';
 import { normalizeISOToUTC } from '@/utils/formatDate';
 import { applyFormErrors } from '@/utils/formErrors';
 
-type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'CANCELADA';
+type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'EN_CANCELACION' | 'CANCELADA';
 type StatusPago = 'PAGADA' | 'NO_PAGADA';
 
 interface ConceptoForm {
@@ -26,6 +26,8 @@ interface ConceptoForm {
   ret_isr_tasa?: number | null;
 }
 
+import { useEmpresaSelector } from './useEmpresaSelector';
+
 export const useFacturaForm = () => {
   const router = useRouter();
   const raw = router.query.id;
@@ -40,7 +42,7 @@ export const useFacturaForm = () => {
   // estado UI
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [accionLoading, setAccionLoading] = useState({ timbrar: false, cancelar: false });
+  const [accionLoading, setAccionLoading] = useState({ timbrar: false, cancelar: false, verificarSat: false, revertir: false });
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
   // modal cancelación
@@ -51,6 +53,7 @@ export const useFacturaForm = () => {
   const [estatusCFDI, setEstatusCFDI] = useState<EstatusCFDI>('BORRADOR');
   const [statusPago, setStatusPago] = useState<StatusPago>('NO_PAGADA');
   const [rfcEmisor, setRfcEmisor] = useState<string>('');
+  const [fechaSolicitudCancelacion, setFechaSolicitudCancelacion] = useState<string | null>(null);
 
   // catálogos
   const [empresas, setEmpresas] = useState<{ label: string; value: string }[]>([]);
@@ -63,6 +66,7 @@ export const useFacturaForm = () => {
   const [currentEmpresa, setCurrentEmpresa] = useState<any | null>(null);
 
   // clientes / productos
+  const [retencionLocalMonto, setRetencionLocalMonto] = useState<number | null>(null);
   const [clienteOpts, setClienteOpts] = useState<{ label: string; value: string }[]>([]);
   const [diasCreditoCliente, setDiasCreditoCliente] = useState<number>(0);
   const [psOpts, setPsOpts] = useState<{ value: string; label: string; meta: any }[]>([]);
@@ -79,6 +83,11 @@ export const useFacturaForm = () => {
   const [psModalOpen, setPsModalOpen] = useState(false);
   const [psSaving, setPsSaving] = useState(false);
 
+  // Empresa global del sidebar
+  const { selectedEmpresaId: globalEmpresaId } = useEmpresaSelector();
+  const globalEmpresaIdRef = useRef(globalEmpresaId);
+  useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
+
   // watchers
   const empresaId = Form.useWatch('empresa_id', form);
   const moneda = Form.useWatch('moneda', form);
@@ -86,15 +95,17 @@ export const useFacturaForm = () => {
   const formaPago = Form.useWatch('forma_pago', form);
 
   // helpers bloqueo
-  const isFormDisabled = estatusCFDI === 'TIMBRADA' || estatusCFDI === 'CANCELADA';
+  const isFormDisabled = estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA';
   const fieldDisabled = (defaultDisabled: boolean) => (isFormDisabled ? true : defaultDisabled);
   const fieldAlwaysEditable = (name: string) => {
-    if (name === 'fecha_pago') return estatusCFDI === 'CANCELADA';
+    if (name === 'fecha_pago') return estatusCFDI === 'CANCELADA' || estatusCFDI === 'EN_CANCELACION';
     return ['status_pago', 'fecha_cobro', 'observaciones'].includes(name) ? false : isFormDisabled;
   };
 
   const puedeTimbrar = Boolean(id) && estatusCFDI === 'BORRADOR';
   const puedeCancelar = Boolean(id) && estatusCFDI === 'TIMBRADA';
+  const puedeVerificarSat = Boolean(id) && (estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'TIMBRADA');
+  const puedeRevertir = Boolean(id) && estatusCFDI === 'EN_CANCELACION';
 
   // -------- Carga inicial (catálogos + empresas + (opcional) factura) --------
   const fetchInitialData = useCallback(async () => {
@@ -134,6 +145,8 @@ export const useFacturaForm = () => {
 
         setEstatusCFDI(data.estatus);
         setStatusPago(data.status_pago);
+        setFechaSolicitudCancelacion(data.fecha_solicitud_cancelacion ?? null);
+        setRetencionLocalMonto(data.retencion_local_monto != null ? Number(data.retencion_local_monto) : null);
 
         await onEmpresaChange(data.empresa_id);
 
@@ -181,6 +194,8 @@ export const useFacturaForm = () => {
           fecha_pago: data.fecha_pago ? dayjs(normalizeISOToUTC(data.fecha_pago)) : null,
           fecha_cobro: data.fecha_cobro ? dayjs(normalizeISOToUTC(data.fecha_cobro)) : null,
           observaciones: data.observaciones ?? undefined,
+          retencion_local_desc: data.retencion_local_desc ?? undefined,
+          retencion_local_tasa: data.retencion_local_tasa != null ? Number(data.retencion_local_tasa) : undefined,
         });
 
         setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
@@ -196,11 +211,14 @@ export const useFacturaForm = () => {
           status_pago: 'NO_PAGADA',
         });
 
-        // Auto-selección de empresa única
-        if (empOptions.length === 1) {
-          const singleId = empOptions[0].value;
-          form.setFieldValue('empresa_id', singleId);
-          await onEmpresaChange(singleId);
+        // Auto-selección: preferir empresa global del sidebar, o empresa única
+        const globalId = globalEmpresaIdRef.current;
+        const defaultId = (globalId && empOptions.some(e => e.value === globalId))
+          ? globalId
+          : empOptions.length === 1 ? empOptions[0].value : undefined;
+        if (defaultId) {
+          form.setFieldValue('empresa_id', defaultId);
+          await onEmpresaChange(defaultId);
         }
       }
     } catch (e) {
@@ -572,6 +590,8 @@ export const useFacturaForm = () => {
         cfdi_relacionados: values.tiene_relacion ? values.cfdi_relacionados : null,
         observaciones: values.observaciones || null,
         folio_fiscal: values.folio_fiscal || null,
+        retencion_local_desc: values.retencion_local_desc || null,
+        retencion_local_tasa: values.retencion_local_tasa != null ? Number(values.retencion_local_tasa) : null,
         conceptos: conceptos.map(normalizeConcepto),
       };
 
@@ -726,10 +746,46 @@ export const useFacturaForm = () => {
     }
   };
 
+  // -------- acciones SAT --------
+  const handleVerificarSAT = async () => {
+    if (!id) return;
+    setAccionLoading((p) => ({ ...p, verificarSat: true }));
+    try {
+      const result = await svc.verificarEstadoSAT(id);
+      if (result.actualizado) {
+        setEstatusCFDI(result.estatus_nuevo as EstatusCFDI);
+        if (result.estatus_nuevo !== 'EN_CANCELACION') setFechaSolicitudCancelacion(null);
+        message.success(`Estado actualizado: ${result.estatus_anterior} → ${result.estatus_nuevo}`);
+      } else {
+        message.info(`Sin cambios. SAT reporta: ${result.sat_estado} — ${result.sat_estatus_cancelacion || 'sin estatus de cancelación'}`);
+      }
+    } catch (e: any) {
+      message.error(normalizeHttpError(e) || 'Error al consultar el SAT');
+    } finally {
+      setAccionLoading((p) => ({ ...p, verificarSat: false }));
+    }
+  };
+
+  const handleRevertirCancelacion = async () => {
+    if (!id) return;
+    setAccionLoading((p) => ({ ...p, revertir: true }));
+    try {
+      await svc.revertirCancelacion(id);
+      setEstatusCFDI('TIMBRADA');
+      setFechaSolicitudCancelacion(null);
+      message.success('Factura revertida a TIMBRADA correctamente');
+    } catch (e: any) {
+      message.error(normalizeHttpError(e) || 'Error al revertir la cancelación');
+    } finally {
+      setAccionLoading((p) => ({ ...p, revertir: false }));
+    }
+  };
+
   // -------- return --------
   return {
     // estado
     id, loading, saving, accionLoading, cancelSubmitting, metadata, estatusCFDI, statusPago, rfcEmisor,
+    fechaSolicitudCancelacion,
 
     // forms
     form, conceptoForm, psForm, cancelForm,
@@ -739,16 +795,15 @@ export const useFacturaForm = () => {
     clienteOpts, psOpts, unidadOpts, claveSatOpts, currentEmpresa,
 
     // watchers / flags
-
-    // watchers / flags
-    empresaId, moneda, isFormDisabled, fieldDisabled, fieldAlwaysEditable, puedeTimbrar, puedeCancelar,
+    empresaId, moneda, isFormDisabled, fieldDisabled, fieldAlwaysEditable,
+    puedeTimbrar, puedeCancelar, puedeVerificarSat, puedeRevertir,
 
     // conceptos
     conceptos, setConceptos, isConceptoModalOpen, setIsConceptoModalOpen, editingConcepto,
     setEditingConcepto, setEditingConceptoIndex,
 
     // calculados
-    resumen,
+    resumen, retencionLocalMonto,
 
     // handlers (empresa/cliente/fechas)
     onFinish, onEmpresaChange, buscarClientes, onClienteChange, onFechaEmisionChange,
@@ -764,6 +819,9 @@ export const useFacturaForm = () => {
 
     // acciones (CFDI / archivos)
     timbrarFactura, verPDF, descargarPDF, descargarXML,
+
+    // acciones SAT
+    handleVerificarSAT, handleRevertirCancelacion,
 
     // preview PDF
     previewModalOpen, previewPdfUrl, cerrarPreview,

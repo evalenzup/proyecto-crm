@@ -140,7 +140,7 @@ def search_proveedores_endpoint(
     empresa_id = None
     if current_user.rol == RolUsuario.SUPERVISOR:
         empresa_id = current_user.empresa_id
-    elif current_user.rol == RolUsuario.ADMIN:
+    elif current_user.rol in (RolUsuario.ADMIN, RolUsuario.SUPERADMIN):
          # Admin can search all or filter? For now search all unique providers or maybe current contest?
          # Usually filtering by company is best for UX
          pass

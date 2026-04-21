@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Popconfirm, Space, Select, Input, message, Tooltip, Card, theme, AutoComplete } from 'antd';
+import { Table, Button, Popconfirm, Space, Input, message, Tooltip, Card, theme, AutoComplete } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
@@ -10,10 +10,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useClienteList } from '@/hooks/useClienteList'; // Importamos el hook
 import { ClienteOut, clienteService } from '@/services/clienteService'; // Importamos la interfaz ClienteOut
-import { EmpresaOut } from '@/services/empresaService'; // Importamos la interfaz EmpresaOut
 import { useTableHeight } from '@/hooks/useTableHeight';
 
-const { Option } = Select;
 
 const ClientesPage: React.FC = () => {
   const router = useRouter();
@@ -28,9 +26,7 @@ const ClientesPage: React.FC = () => {
     pageSize,
     handlePageChange,
     handleDelete,
-    empresasForFilter,
     empresaFiltro,
-    setEmpresaFiltro,
     rfcFiltro,
     setRfcFiltro,
     nombreFiltro,
@@ -38,7 +34,6 @@ const ClientesPage: React.FC = () => {
     nombreFiscalFiltro,
     setNombreFiscalFiltro,
     clearFilters,
-    isAdmin, // Nuevo
   } = useClienteList();
 
   const [clienteOptionsComercial, setClienteOptionsComercial] = React.useState<ClienteOut[]>([]);
@@ -166,20 +161,6 @@ const ClientesPage: React.FC = () => {
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>
             <Space wrap>
-              <Select
-                placeholder="Filtrar por Empresa"
-                style={{ width: 220 }}
-                allowClear
-                onChange={setEmpresaFiltro}
-                value={empresaFiltro}
-                disabled={!isAdmin} // Deshabilitar si no es admin
-              >
-                {empresasForFilter.map((emp: EmpresaOut) => (
-                  <Option key={emp.id} value={emp.id}>
-                    {emp.nombre_comercial}
-                  </Option>
-                ))}
-              </Select>
               <Input
                 placeholder="RFC (min 3 letras)"
                 prefix={<SearchOutlined />}

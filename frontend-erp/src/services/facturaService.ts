@@ -28,7 +28,7 @@ export interface Concepto {
 }
 
 // ── Tipos: Factura ───────────────────────────────────────────
-export type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'CANCELADA';
+export type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'EN_CANCELACION' | 'CANCELADA';
 export type EstatusPago = 'PAGADA' | 'NO_PAGADA';
 
 export interface FacturaRow {
@@ -67,6 +67,17 @@ export interface FacturaListParams {
   folio?: string | number;
 }
 
+export interface VerificarSATResult {
+  id: string;
+  estatus_anterior: string;
+  estatus_nuevo: string;
+  sat_codigo: string;
+  sat_estado: string;
+  sat_es_cancelable: string;
+  sat_estatus_cancelacion: string;
+  actualizado: boolean;
+}
+
 export interface FacturaOut extends FacturaRow {
   moneda?: string;
   tipo_cambio?: number | null;
@@ -80,6 +91,7 @@ export interface FacturaOut extends FacturaRow {
   folio_fiscal?: string | null;
   fecha_emision?: string | null;
   fecha_timbrado?: string | null;
+  fecha_solicitud_cancelacion?: string | null;
   fecha_pago?: string | null;
   fecha_cobro?: string | null;
   observaciones?: string | null;
@@ -192,6 +204,12 @@ export const sendPreviewEmail = (id: string, recipients: string | string[]) => {
 
 export const duplicarFactura = (id: string) =>
   getData<FacturaOut>(api.post(`/facturas/${id}/duplicar`));
+
+export const verificarEstadoSAT = (id: string) =>
+  getData<VerificarSATResult>(api.post(`/facturas/${id}/verificar-sat`));
+
+export const revertirCancelacion = (id: string) =>
+  getData<FacturaOut>(api.post(`/facturas/${id}/revertir-cancelacion`));
 
 // ── Empresas / Clientes ──────────────────────────────────────
 export const getEmpresas = async () => {

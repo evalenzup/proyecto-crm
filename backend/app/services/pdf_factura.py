@@ -885,6 +885,67 @@ def _draw_kv_block(
 # ──────────────────────────────────────────────────────────────────────────────
 # Footer (QR fijo, bloque TFD a la izquierda, fila de pagos + totales)
 # ──────────────────────────────────────────────────────────────────────────────
+def _draw_implocal_complemento(c: canvas.Canvas, f: Factura, y: float) -> float:
+    """
+    Dibuja el bloque 'Complemento de Impuestos Locales (V1.0)' si la factura
+    tiene retencion_local_monto calculado.
+    Retorna la nueva coordenada Y tras el bloque.
+    """
+    ret_monto = getattr(f, "retencion_local_monto", None)
+    if not ret_monto:
+        return y
+
+    ret_desc = getattr(f, "retencion_local_desc", None) or "RETENCION LOCAL"
+    ret_tasa = getattr(f, "retencion_local_tasa", None)
+    tasa_str = (
+        f"{float(ret_tasa):g} %" if ret_tasa is not None else ""
+    )
+
+    y -= 10
+    # Título
+    c.setFont(FONT_B, 7)
+    c.drawString(CONTENT_X0, y, "Complemento de Impuestos Locales (V1.0):")
+    y -= 10
+    c.setFont(FONT, 7)
+    c.drawString(CONTENT_X0, y, f"Monto total retenido: {_money(ret_monto)}")
+    y -= 8
+
+    # Mini tabla
+    tbl_data = [
+        [
+            Paragraph("Impuesto Local Retenido", p_center_6),
+            Paragraph("Tasa de Retención", p_center_6),
+            Paragraph("Importe", p_center_6),
+        ],
+        [
+            Paragraph(ret_desc, p_left_6),
+            Paragraph(tasa_str, p_center_6),
+            Paragraph(_money(ret_monto), p_right_6),
+        ],
+    ]
+    col_w = [2.5 * inch, 1.5 * inch, 1.2 * inch]
+    tbl = Table(tbl_data, colWidths=col_w)
+    tbl.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4a4a4a")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("FONTNAME", (0, 0), (-1, 0), FONT_B),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("FONTSIZE", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
+    tbl_w = sum(col_w)
+    _, tbl_h = tbl.wrapOn(c, tbl_w, 40)
+    tbl.drawOn(c, CONTENT_X0, y - tbl_h)
+    return y - tbl_h - 4
+
+
 def _draw_footer(c: canvas.Canvas, f: Factura, is_last_page: bool):
     c.setStrokeColor(colors.lightgrey)
     c.line(CONTENT_X0, FOOTER_TOP_Y, CONTENT_X1, FOOTER_TOP_Y)
@@ -1034,6 +1095,9 @@ def _draw_footer(c: canvas.Canvas, f: Factura, is_last_page: bool):
 
     c.drawRightString(right_x, totales_y, f"Total: {_money(f.total)}")
     totales_y -= espacio_y
+
+    # Complemento Impuestos Locales (si aplica)
+    base_y = _draw_implocal_complemento(c, f, base_y)
 
     # QR (abajo derecha)
     _draw_cbb_qr(c, f)

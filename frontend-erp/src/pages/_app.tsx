@@ -1,7 +1,7 @@
 // src/pages/_app.tsx
 import 'antd/dist/reset.css';
 import type { AppProps } from 'next/app';
-import { App as AntApp, Spin, ConfigProvider } from 'antd';
+import { App as AntApp, Spin, ConfigProvider, Result, Button } from 'antd';
 import esES from 'antd/locale/es_ES';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
@@ -16,9 +16,26 @@ import '@/styles/pro-overrides.css';
 
 dayjs.locale('es');
 
-// Componente para proteger rutas
+// ─── Mapa de rutas protegidas por rol ────────────────────────────────────────
+// La clave es un prefijo de pathname. El valor es la lista de roles permitidos.
+// Coincidencia por prefijo: '/usuarios' protege también '/usuarios/form/...'
+const ROUTE_ROLES: Array<{ prefix: string; roles: string[] }> = [
+  { prefix: '/usuarios', roles: ['superadmin', 'admin'] },
+  { prefix: '/mapa',     roles: ['superadmin', 'admin'] },
+  { prefix: '/reportes', roles: ['superadmin', 'admin'] },
+];
+
+// Devuelve los roles requeridos para un pathname dado, o null si es libre.
+const requiredRoles = (pathname: string): string[] | null => {
+  const match = ROUTE_ROLES.find(
+    ({ prefix }) => pathname === prefix || pathname.startsWith(prefix + '/'),
+  );
+  return match ? match.roles : null;
+};
+
+// ─── Guard de autenticación ───────────────────────────────────────────────────
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
   React.useEffect(() => {
@@ -36,9 +53,30 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     );
   }
 
-  // Si no está autenticado y no es la página de login, no renderizar nada mientras redirige
+  // No autenticado → nada (el useEffect ya redirige)
   if (!isAuthenticated && router.pathname !== '/login') {
     return null;
+  }
+
+  // Verificar rol para rutas restringidas
+  const allowed = requiredRoles(router.pathname);
+  if (allowed && user && !allowed.includes(user.rol)) {
+    return (
+      <MainLayout>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          <Result
+            status="403"
+            title="Acceso denegado"
+            subTitle="No tienes permiso para ver esta página."
+            extra={
+              <Button type="primary" onClick={() => router.push('/')}>
+                Volver al inicio
+              </Button>
+            }
+          />
+        </div>
+      </MainLayout>
+    );
   }
 
   return <>{children}</>;

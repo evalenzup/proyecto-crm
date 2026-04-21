@@ -31,12 +31,8 @@ const UsuariosPage: React.FC = () => {
     };
 
     useEffect(() => {
-        if (currentUser?.rol === 'admin') {
-            fetchUsuarios();
-        } else {
-            // Redirect or show access denied if somehow accessed (though ProtectedRoute should handle)
-        }
-    }, [currentUser]);
+        fetchUsuarios();
+    }, []);
 
     const handleDelete = async (id: string) => {
         try {
@@ -56,11 +52,16 @@ const UsuariosPage: React.FC = () => {
             title: 'Rol',
             dataIndex: 'rol',
             key: 'rol',
-            render: (rol: string) => (
-                <Tag color={rol === 'admin' ? 'red' : 'blue'}>
-                    {rol.toUpperCase()}
-                </Tag>
-            )
+            render: (rol: string) => {
+                const colorMap: Record<string, string> = {
+                    superadmin: 'purple',
+                    admin: 'red',
+                    supervisor: 'blue',
+                    estandar: 'cyan',
+                    operativo: 'default',
+                };
+                return <Tag color={colorMap[rol] ?? 'default'}>{rol.toUpperCase()}</Tag>;
+            }
         },
         {
             title: 'Estado',

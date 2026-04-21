@@ -10,8 +10,8 @@ export interface SerieMensual {
 }
 
 export interface IngresosEgresosOut {
-  mtd: { ingresos: number; egresos: number; por_cobrar?: number; por_pagar?: number };
-  ytd: { ingresos: number; egresos: number; por_cobrar?: number; por_pagar?: number };
+  mtd: { ingresos: number; egresos: number; por_cobrar?: number; por_pagar?: number; total_facturado?: number };
+  ytd: { ingresos: number; egresos: number; por_cobrar?: number; por_pagar?: number; total_facturado?: number };
   series: SerieMensual[];
   currency: string; // e.g., MXN
 }
@@ -25,10 +25,11 @@ export interface PresupuestosMetricsOut {
 }
 
 export const dashboardService = {
-  async getIngresosEgresos(params?: { empresaId?: string; months?: number; year?: number; month?: number }): Promise<IngresosEgresosOut> {
+  async getIngresosEgresos(params?: { empresaId?: string; rfc?: string; months?: number; year?: number; month?: number }): Promise<IngresosEgresosOut> {
     const response = await api.get<IngresosEgresosOut>('/dashboard/ingresos-egresos', {
       params: {
-        empresa_id: params?.empresaId,
+        empresa_id: params?.rfc ? undefined : params?.empresaId,
+        rfc: params?.rfc,
         months: params?.months ?? 12,
         year: params?.year,
         month: params?.month,
@@ -37,19 +38,21 @@ export const dashboardService = {
     return response.data;
   },
 
-  async getPresupuestosMetrics(params?: { empresaId?: string }): Promise<PresupuestosMetricsOut> {
+  async getPresupuestosMetrics(params?: { empresaId?: string; rfc?: string }): Promise<PresupuestosMetricsOut> {
     const response = await api.get<PresupuestosMetricsOut>('/dashboard/presupuestos', {
       params: {
-        empresa_id: params?.empresaId,
+        empresa_id: params?.rfc ? undefined : params?.empresaId,
+        rfc: params?.rfc,
       },
     });
     return response.data;
   },
 
-  async getEgresosPorCategoria(params?: { empresaId?: string; year?: number; month?: number }): Promise<EgresoCategoriaMetric[]> {
+  async getEgresosPorCategoria(params?: { empresaId?: string; rfc?: string; year?: number; month?: number }): Promise<EgresoCategoriaMetric[]> {
     const response = await api.get<EgresoCategoriaMetric[]>('/dashboard/egresos-categoria', {
       params: {
-        empresa_id: params?.empresaId,
+        empresa_id: params?.rfc ? undefined : params?.empresaId,
+        rfc: params?.rfc,
         year: params?.year,
         month: params?.month,
       },
@@ -57,16 +60,22 @@ export const dashboardService = {
     return response.data;
   },
 
-  async getAlertas(params?: { empresaId?: string }): Promise<AlertasMetrics> {
+  async getAlertas(params?: { empresaId?: string; rfc?: string }): Promise<AlertasMetrics> {
     const response = await api.get<AlertasMetrics>('/dashboard/alertas', {
-      params: { empresa_id: params?.empresaId },
+      params: {
+        empresa_id: params?.rfc ? undefined : params?.empresaId,
+        rfc: params?.rfc,
+      },
     });
     return response.data;
   },
 
-  async getReportes(params?: { empresaId?: string }): Promise<ReportesMetrics> {
+  async getReportes(params?: { empresaId?: string; rfc?: string }): Promise<ReportesMetrics> {
     const response = await api.get<ReportesMetrics>('/dashboard/reportes', {
-      params: { empresa_id: params?.empresaId },
+      params: {
+        empresa_id: params?.rfc ? undefined : params?.empresaId,
+        rfc: params?.rfc,
+      },
     });
     return response.data;
   },

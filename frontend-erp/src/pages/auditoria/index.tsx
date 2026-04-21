@@ -23,8 +23,8 @@ import {
   ACCIONES_AUDITORIA,
   canViewAuditoria,
 } from '@/services/auditoriaService';
-import { getEmpresas } from '@/services/facturaService';
 import { useAuth } from '@/context/AuthContext';
+import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import dayjs from 'dayjs';
 
@@ -57,31 +57,15 @@ const AuditoriaPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+  // Empresa global del sidebar
+  const { selectedEmpresaId } = useEmpresaSelector();
+  const empresaId = selectedEmpresaId ?? null;
+
   // Filtros
-  const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [usuarioEmail, setUsuarioEmail] = useState<string>('');
   const [accion, setAccion] = useState<string | null>(null);
   const [fechaDesde, setFechaDesde] = useState<string | null>(null);
   const [fechaHasta, setFechaHasta] = useState<string | null>(null);
-
-  const [empresas, setEmpresas] = useState<{ label: string; value: string }[]>([]);
-
-  // Cargar empresas para el filtro y auto-seleccionar la primera
-  useEffect(() => {
-    getEmpresas()
-      .then((data) => {
-        const options = (data || []).map((e: any) => ({
-          label: e.nombre_comercial || e.nombre,
-          value: e.id,
-        }));
-        setEmpresas(options);
-        if (options.length > 0 && !empresaId) {
-          setEmpresaId(options[0].value);
-        }
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const fetchLogs = useCallback(async () => {
     // El backend requiere empresa_id — esperar a que esté seleccionada
@@ -108,7 +92,7 @@ const AuditoriaPage: React.FC = () => {
   }, [empresaId, accion, fechaDesde, fechaHasta, currentPage, pageSize]);
 
   useEffect(() => {
-    if (!authLoading && canViewAuditoria(user?.email)) {
+    if (!authLoading && canViewAuditoria(user?.rol)) {
       fetchLogs();
     }
   }, [fetchLogs, authLoading, user]);
@@ -137,7 +121,7 @@ const AuditoriaPage: React.FC = () => {
     return null;
   }
 
-  if (!canViewAuditoria(user?.email)) {
+  if (!canViewAuditoria(user?.rol)) {
     return (
       <div style={{ padding: 48 }}>
         <Result
@@ -274,14 +258,6 @@ const AuditoriaPage: React.FC = () => {
             }}
           >
             <Space wrap>
-              <Select
-                placeholder="Empresa"
-                style={{ width: 220 }}
-                allowClear
-                options={empresas}
-                value={empresaId ?? undefined}
-                onChange={handleFilterChange(setEmpresaId)}
-              />
               <Input
                 prefix={<SearchOutlined />}
                 placeholder="Email usuario"

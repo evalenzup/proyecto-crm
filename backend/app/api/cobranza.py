@@ -18,24 +18,33 @@ def get_aging_report(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
     empresa_id: UUID = Query(None),
+    rfc: Optional[str] = Query(None),
 ):
     """
     Obtiene el reporte de antigüedad de saldos.
+    Acepta empresa_id individual o rfc para agrupar múltiples empresas.
     """
-    effective_empresa_id = None
+    _ADMIN = (RolUsuario.SUPERADMIN, RolUsuario.ADMIN)
 
-    if current_user.rol == RolUsuario.SUPERVISOR:
+    # Roles no-admin: siempre su propia empresa
+    if current_user.rol not in _ADMIN:
         if not current_user.empresa_id:
-             raise HTTPException(status_code=400, detail="Usuario supervisor sin empresa.")
-        effective_empresa_id = current_user.empresa_id
-    else:
-        # Si es Admin, preferimos el query param, sino el del usuario
-        effective_empresa_id = empresa_id or current_user.empresa_id
+            raise HTTPException(status_code=400, detail="Usuario sin empresa asignada.")
+        return cobranza_service.get_aging_report(db, empresa_ids=[current_user.empresa_id])
 
-    if not effective_empresa_id:
-         raise HTTPException(status_code=400, detail="Se requiere contexto de empresa.")
+    # Admin/Superadmin con rfc → todas las empresas de ese RFC
+    if rfc:
+        from app.models.empresa import Empresa as EmpresaModel
+        ids = [r.id for r in db.query(EmpresaModel.id).filter(EmpresaModel.rfc == rfc.upper()).all()]
+        if not ids:
+            raise HTTPException(status_code=404, detail=f"No se encontraron empresas con RFC {rfc}.")
+        return cobranza_service.get_aging_report(db, empresa_ids=ids)
 
-    return cobranza_service.get_aging_report(db, effective_empresa_id)
+    # Admin/Superadmin con empresa_id individual
+    effective = empresa_id or current_user.empresa_id
+    if not effective:
+        raise HTTPException(status_code=400, detail="Se requiere empresa_id o rfc.")
+    return cobranza_service.get_aging_report(db, empresa_ids=[effective])
 
 @router.post("/notas", response_model=CobranzaNotaOut)
 def crear_nota_cobranza(
@@ -144,7 +153,7 @@ def eliminar_nota(
     empresa_id: UUID = Query(None),
 ):
     try:
-        is_admin = current_user.rol == RolUsuario.ADMIN
+        is_admin = current_user.rol in (RolUsuario.ADMIN, RolUsuario.SUPERADMIN)
         success = cobranza_service.delete_nota(db, nota_id, current_user.id, is_admin)
         if not success:
             raise HTTPException(status_code=404, detail="Nota no encontrada")

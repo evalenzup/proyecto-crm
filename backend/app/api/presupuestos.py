@@ -247,7 +247,7 @@ def descargar_presupuesto_pdf(
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=presupuesto_{presupuesto.folio}.pdf"}
+        headers={"Content-Disposition": f"inline; filename=presupuesto_{presupuesto.folio}.pdf"}
     )
 
 @router.post("/{id}/enviar", status_code=202)

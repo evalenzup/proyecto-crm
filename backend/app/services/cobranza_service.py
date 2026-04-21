@@ -12,14 +12,18 @@ from app.models.usuario import Usuario
 
 class CobranzaService:
     @staticmethod
-    def get_aging_report(db: Session, empresa_id: UUID) -> AgingReportResponse:
+    def get_aging_report(db: Session, empresa_id: UUID = None, empresa_ids: list = None) -> AgingReportResponse:
         today = datetime.now(timezone.utc).date()
-        
+
+        # Normalizar a lista de IDs
+        if empresa_ids is None:
+            empresa_ids = [empresa_id] if empresa_id else []
+
         # 1. Obtener todas las facturas NO PAGADAS y TIMBRADAS
         facturas = (
             db.query(Factura)
             .filter(
-                Factura.empresa_id == empresa_id,
+                Factura.empresa_id.in_(empresa_ids),
                 Factura.estatus == "TIMBRADA",
                 Factura.status_pago == "NO_PAGADA"
             )
@@ -106,7 +110,7 @@ class CobranzaService:
                 db.query(CobranzaNota)
                 .filter(
                     CobranzaNota.cliente_id.in_(client_ids),
-                    CobranzaNota.empresa_id == empresa_id
+                    CobranzaNota.empresa_id.in_(empresa_ids)
                 )
                 .order_by(CobranzaNota.creado_en.desc())
                 .first()

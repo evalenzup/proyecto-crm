@@ -1,7 +1,7 @@
 # app/services/factura_service.py
 from __future__ import annotations
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 from typing import List, Optional, Tuple, Literal
 from sqlalchemy.orm import Session, selectinload
@@ -127,11 +127,11 @@ def crear_factura(db: Session, payload: FacturaCreate) -> Factura:
     total_exacto = Decimal("0")
 
     for c in payload.conceptos:
-        base_calculo = ((c.cantidad or Decimal("0")) * c.valor_unitario - (c.descuento or Decimal("0"))).quantize(Decimal("0.01"))
-        iva_importe = (base_calculo * (c.iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
-        ret_iva_importe = (base_calculo * (c.ret_iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
-        ret_isr_importe = (base_calculo * (c.ret_isr_tasa or Decimal("0"))).quantize(Decimal("0.01"))
-        
+        base_calculo = ((c.cantidad or Decimal("0")) * c.valor_unitario - (c.descuento or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        iva_importe = (base_calculo * (c.iva_tasa or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        ret_iva_importe = (base_calculo * (c.ret_iva_tasa or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        ret_isr_importe = (base_calculo * (c.ret_isr_tasa or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
         importe_concepto = base_calculo + iva_importe - ret_iva_importe - ret_isr_importe
 
         subtotal_general += base_calculo
@@ -245,10 +245,10 @@ def actualizar_factura(
             total_exacto = Decimal("0")
 
             for c in payload.conceptos:
-                base_calculo = ((c.cantidad or Decimal("0")) * c.valor_unitario - (c.descuento or Decimal("0"))).quantize(Decimal("0.01"))
-                iva_importe = (base_calculo * (c.iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
-                ret_iva_importe = (base_calculo * (c.ret_iva_tasa or Decimal("0"))).quantize(Decimal("0.01"))
-                ret_isr_importe = (base_calculo * (c.ret_isr_tasa or Decimal("0"))).quantize(Decimal("0.01"))
+                base_calculo = ((c.cantidad or Decimal("0")) * c.valor_unitario - (c.descuento or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                iva_importe = (base_calculo * (c.iva_tasa or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ret_iva_importe = (base_calculo * (c.ret_iva_tasa or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ret_isr_importe = (base_calculo * (c.ret_isr_tasa or Decimal("0"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 
                 importe_concepto = base_calculo + iva_importe - ret_iva_importe - ret_isr_importe
 

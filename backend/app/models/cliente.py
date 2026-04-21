@@ -29,6 +29,13 @@ class Cliente(Base):
     numero_interior = Column(String(50))
     colonia = Column(String(100))
     codigo_postal = Column(String(10), nullable=False)
+    # Dirección de servicio / operativa
+    serv_calle = Column(String(100), nullable=True)
+    serv_numero_exterior = Column(String(50), nullable=True)
+    serv_numero_interior = Column(String(50), nullable=True)
+    serv_colonia = Column(String(100), nullable=True)
+    serv_codigo_postal = Column(String(10), nullable=True)
+    serv_referencia = Column(String(255), nullable=True)
     # Geolocalización
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)

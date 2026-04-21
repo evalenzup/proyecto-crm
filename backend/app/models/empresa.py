@@ -43,6 +43,7 @@ class Empresa(Base):
     clabe = Column(String(20), nullable=True)
     beneficiario = Column(String(255), nullable=True)
 
+
     creado_en = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     actualizado_en = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False

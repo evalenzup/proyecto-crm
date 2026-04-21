@@ -1,12 +1,12 @@
 // frontend-erp/src/hooks/usePresupuestoList.ts
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { presupuestoService, PresupuestoSimpleOut } from '@/services/presupuestoService';
-import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { clienteService, ClienteOut } from '@/services/clienteService';
 import { message } from 'antd';
 import { normalizeHttpError } from '@/utils/httpError';
 import { Dayjs } from 'dayjs';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 type RangeValue = [Dayjs | null, Dayjs | null] | null;
 
@@ -15,17 +15,13 @@ export const usePresupuestoList = () => {
   
   // State for pagination and filters
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
-  const [empresaId, setEmpresaId] = useState<string | undefined>(undefined);
   const [clienteId, setClienteId] = useState<string | undefined>(undefined);
   const [clienteQuery, setClienteQuery] = useState('');
   const [estatus, setEstatus] = useState<string | undefined>(undefined);
   const [rangoFechas, setRangoFechas] = useState<RangeValue>(null);
 
-  // Fetching data for filters
-  const { data: empresasOptions = [] } = useQuery({
-    queryKey: ['empresasForSelect'],
-    queryFn: () => empresaService.getEmpresas({ limit: 1000, offset: 0 }),
-  });
+  // Empresa global (from sidebar selector)
+  const { selectedEmpresaId: empresaId } = useEmpresaSelector();
 
   const { data: clienteOptionsData, isLoading: loadingClientes } = useQuery({
     queryKey: ['clientesForSearch', clienteQuery],
@@ -122,8 +118,37 @@ export const usePresupuestoList = () => {
     onError: (err) => message.error(normalizeHttpError(err) || 'Error al subir evidencia'),
   });
 
+  // ── PDF Preview ────────────────────────────────────────────────────────────
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewRow, setPreviewRow] = useState<PresupuestoSimpleOut | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const verPdf = useCallback(async (row: PresupuestoSimpleOut) => {
+    setPdfLoading(true);
+    try {
+      const blob = await presupuestoService.getPresupuestoPdf(row.id);
+      const url = window.URL.createObjectURL(blob);
+      setPreviewPdfUrl(url);
+      setPreviewRow(row);
+      setPreviewModalOpen(true);
+    } catch (err) {
+      message.error('No se pudo generar la vista previa del PDF');
+    } finally {
+      setPdfLoading(false);
+    }
+  }, []);
+
+  const cerrarPreview = useCallback(() => {
+    setPreviewModalOpen(false);
+    setPreviewRow(null);
+    if (previewPdfUrl) {
+      window.URL.revokeObjectURL(previewPdfUrl);
+      setPreviewPdfUrl(null);
+    }
+  }, [previewPdfUrl]);
+
   const filters = {
-    empresaId, setEmpresaId, empresasOptions,
     clienteId, setClienteId, clienteOptions, clienteQuery, setClienteQuery, debouncedBuscarClientes,
     estatus, setEstatus,
     rangoFechas, setRangoFechas,
@@ -141,5 +166,11 @@ export const usePresupuestoList = () => {
     conversionMutation,
     statusUpdateMutation,
     uploadEvidenciaMutation,
+    verPdf,
+    cerrarPreview,
+    previewModalOpen,
+    previewPdfUrl,
+    previewRow,
+    pdfLoading,
   };
 };

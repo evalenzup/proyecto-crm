@@ -158,7 +158,7 @@ const Notas: React.FC<NotasProps> = ({ visible, onClose, clienteId, clienteNombr
                                     <Text strong style={{ fontSize: 13 }}>
                                         {nota.nombre_creador || "Usuario"}
                                     </Text>
-                                    {(user?.rol === 'admin' || user?.id === nota.creado_po) && (
+                                    {(user?.rol === 'superadmin' || user?.rol === 'admin' || user?.id === nota.creado_po) && (
                                         <Button
                                             type="text"
                                             danger

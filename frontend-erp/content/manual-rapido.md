@@ -61,8 +61,19 @@ Al iniciar sesión verás el tablero con:
 
 ### Cancelar Factura
 1.  Abrir factura timbrada → botón **"Cancelar"**.
-2.  Motivo recomendado: **"02 - Comprobante emitido con errores sin relación"**.
+2.  Motivo recomendado: **"02 - Comprobante emitido con errores sin relación"** (se cancela al instante).
 3.  Para sustituirla: **Duplicar** la cancelada, corregir el error, relacionarla con tipo **"04"** y el UUID de la cancelada, luego **Timbrar**.
+
+### ⏳ Factura "EN CANCELACIÓN" (Motivo 01 — requiere aceptación del receptor)
+Cuando usas el Motivo 01, la factura queda en espera hasta **72 horas hábiles**.
+
+| Situación | Qué hacer |
+|---|---|
+| Quieres saber si ya fue aceptada | Botón **"Verificar con SAT"** (el sistema también lo hace automáticamente al abrir la factura y cada noche a las 3 AM) |
+| El receptor te avisó que rechazó | Botón **"Receptor rechazó cancelación"** → confirmar → vuelve a **TIMBRADA** |
+| No pasa nada después de 72 horas hábiles | El SAT la cancela automáticamente; usa "Verificar con SAT" para actualizar |
+
+> ⚠️ Mientras está **EN CANCELACIÓN** la factura no se puede editar. Sigue siendo fiscalmente válida.
 
 ### Cancelar Pago
 1.  Abrir pago timbrado → botón **"Cancelar"** → seleccionar motivo → confirmar.
@@ -152,3 +163,6 @@ Al iniciar sesión verás el tablero con:
 | **CSD** | Certificado de Sello Digital (.cer + .key) |
 | **CSF** | Constancia de Situación Fiscal |
 | **CFDI** | Factura electrónica oficial |
+| **EN CANCELACIÓN** | Estado intermedio: solicitud enviada, receptor aún no ha respondido (máx. 72 h hábiles) |
+| **Motivo 01** | Cancelación con sustitución — requiere aprobación del receptor (activa el período de 72 h) |
+| **Motivos 02/03/04** | Cancelación directa — no requiere aprobación, se procesa al instante |

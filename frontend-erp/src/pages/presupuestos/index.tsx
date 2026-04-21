@@ -2,9 +2,9 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Dropdown, Space, Tag, Modal, Form, Input, Card, Grid, theme, Select, DatePicker, Upload } from 'antd';
+import { Table, Button, Dropdown, Space, Tag, Modal, Form, Input, Card, Grid, theme, Select, DatePicker, Upload, Spin } from 'antd';
 import type { MenuProps } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined, ReloadOutlined, SearchOutlined, FileDoneOutlined, MoreOutlined, TagOutlined, UploadOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined, ReloadOutlined, SearchOutlined, FileDoneOutlined, MoreOutlined, TagOutlined, UploadOutlined, FilePdfOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 import { Breadcrumbs } from '@/components/Breadcrumb';
@@ -41,10 +41,15 @@ const PresupuestosPage: React.FC = () => {
     conversionMutation,
     statusUpdateMutation,
     uploadEvidenciaMutation,
+    verPdf,
+    cerrarPreview,
+    previewModalOpen,
+    previewPdfUrl,
+    previewRow,
+    pdfLoading,
   } = usePresupuestoList();
 
   const {
-    empresaId, setEmpresaId, empresasOptions,
     clienteId, setClienteId, clienteOptions, clienteQuery, setClienteQuery, debouncedBuscarClientes,
     estatus, setEstatus,
     rangoFechas, setRangoFechas,
@@ -53,7 +58,7 @@ const PresupuestosPage: React.FC = () => {
   // Auto-fetch on filter change
   React.useEffect(() => {
     fetchPresupuestos({ ...pagination, current: 1 });
-  }, [empresaId, clienteId, estatus, rangoFechas]);
+  }, [clienteId, estatus, rangoFechas]);
 
   // --- Modal Handlers ---
   const showSendModal = (presupuesto: PresupuestoSimpleOut) => {
@@ -145,6 +150,12 @@ const PresupuestosPage: React.FC = () => {
       render: (_, record) => {
         const items: MenuProps['items'] = [
           {
+            key: 'pdf',
+            label: 'Ver PDF',
+            icon: <FilePdfOutlined />,
+            onClick: () => verPdf(record),
+          },
+          {
             key: 'edit',
             label: 'Editar / Ver',
             icon: <EditOutlined />,
@@ -207,9 +218,11 @@ const PresupuestosPage: React.FC = () => {
         ];
 
         return (
-          <Dropdown menu={{ items }} trigger={['click']}>
-            <Button type="text" icon={<MoreOutlined />} onClick={e => e.preventDefault()} />
-          </Dropdown>
+          <Spin spinning={pdfLoading} size="small">
+            <Dropdown menu={{ items }} trigger={['click']}>
+              <Button type="text" icon={<MoreOutlined />} onClick={e => e.preventDefault()} />
+            </Dropdown>
+          </Spin>
         );
       },
     },
@@ -254,7 +267,6 @@ const PresupuestosPage: React.FC = () => {
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginTop: 4 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '8px', marginBottom: 8, background: token.colorBgContainer, borderRadius: 8, boxShadow: token.boxShadowSecondary }}>
             <Space wrap size={[8, 8]}>
-              <Select allowClear placeholder="Empresa" style={{ width: 220 }} options={empresasOptions.map(e => ({ label: e.nombre_comercial, value: e.id }))} value={empresaId} onChange={setEmpresaId} />
               <Select
                 allowClear showSearch placeholder="Cliente (escribe ≥ 3 letras)" style={{ width: 280 }}
                 filterOption={false}
@@ -302,6 +314,43 @@ const PresupuestosPage: React.FC = () => {
           />
         </Card>
       </div>
+
+      {/* Modal de Previsualización PDF */}
+      <Modal
+        open={previewModalOpen}
+        onCancel={cerrarPreview}
+        title={previewRow ? `PDF — ${previewRow.folio}` : 'Vista Previa PDF'}
+        width="90%"
+        style={{ top: 20 }}
+        styles={{ body: { height: '80vh', padding: 0 } }}
+        destroyOnHidden
+        footer={[
+          <Button key="close" onClick={cerrarPreview}>Cerrar</Button>,
+          previewPdfUrl && (
+            <Button
+              key="download"
+              type="primary"
+              icon={<DownloadOutlined />}
+              href={previewPdfUrl}
+              download={`presupuesto-${previewRow?.folio ?? 'pdf'}.pdf`}
+            >
+              Descargar
+            </Button>
+          ),
+        ]}
+      >
+        {previewPdfUrl ? (
+          <iframe
+            src={previewPdfUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Vista previa PDF"
+          />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <span>Cargando PDF...</span>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal para Enviar por Correo */}
       <Modal

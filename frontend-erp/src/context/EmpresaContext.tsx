@@ -1,33 +1,58 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
-import { empresaService, EmpresaOut } from '@/services/empresaService';
+import { empresaService, EmpresaOut, RfcGroup } from '@/services/empresaService';
+
+const EMPRESA_STORAGE_KEY = 'ui.empresa.selected';
 
 interface EmpresaContextType {
     selectedEmpresaId: string | undefined;
     setSelectedEmpresaId: (id: string | undefined) => void;
     empresas: EmpresaOut[];
+    rfcGroups: RfcGroup[];         // grupos de empresas con RFC compartido (≥2 empresas)
     loadingEmpresas: boolean;
-    isAdmin: boolean;
+    isAdmin: boolean;   // true para superadmin y admin (con selector multi-empresa)
 }
 
 const EmpresaContext = createContext<EmpresaContextType | undefined>(undefined);
 
 export const EmpresaProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
-    const [selectedEmpresaId, setSelectedEmpresaId] = useState<string | undefined>(undefined);
 
-    const isAdmin = user?.rol === 'admin';
+    // superadmin y admin tienen selector multi-empresa
+    const isAdmin = user?.rol === 'superadmin' || user?.rol === 'admin';
     const supervisorEmpresaId = !isAdmin && user?.empresa_id ? user.empresa_id : undefined;
 
-    // Fetch lista de empresas (admin) — cacheado 5 min por el QueryClient global
+    const [selectedEmpresaId, setSelectedEmpresaIdState] = useState<string | undefined>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem(EMPRESA_STORAGE_KEY) || undefined;
+        }
+        return undefined;
+    });
+
+    const setSelectedEmpresaId = useCallback((id: string | undefined) => {
+        setSelectedEmpresaIdState(id);
+        if (typeof window !== 'undefined') {
+            if (id) localStorage.setItem(EMPRESA_STORAGE_KEY, id);
+            else localStorage.removeItem(EMPRESA_STORAGE_KEY);
+        }
+    }, []);
+
+    // Admin/superadmin: el endpoint /empresas ya filtra por sus empresas asignadas
     const { data: empresasAdmin = [], isLoading: loadingAdmin } = useQuery({
-        queryKey: ['empresas'],
+        queryKey: ['empresas', user?.id],
         queryFn: () => empresaService.getEmpresas(),
         enabled: !!user && isAdmin,
     });
 
-    // Fetch empresa individual (supervisor) — cacheada 5 min
+    // RFC groups (solo para admin/superadmin)
+    const { data: rfcGroups = [] } = useQuery({
+        queryKey: ['rfc-groups', user?.id],
+        queryFn: () => empresaService.getRfcGroups(),
+        enabled: !!user && isAdmin,
+    });
+
+    // Supervisor/estandar: carga su única empresa
     const { data: empresaSupervisor, isLoading: loadingSupervisor } = useQuery({
         queryKey: ['empresa', supervisorEmpresaId],
         queryFn: () => empresaService.getEmpresa(supervisorEmpresaId!),
@@ -42,7 +67,6 @@ export const EmpresaProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     const loadingEmpresas = isAdmin ? loadingAdmin : loadingSupervisor;
 
-    // Auto-seleccionar empresa cuando cambia la lista o el usuario
     useEffect(() => {
         if (!user) {
             setSelectedEmpresaId(undefined);
@@ -55,18 +79,21 @@ export const EmpresaProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
 
         if (isAdmin && empresasAdmin.length > 0) {
-            setSelectedEmpresaId(prev => {
+            setSelectedEmpresaIdState(prev => {
                 if (prev && empresasAdmin.find(e => e.id === prev)) return prev;
-                return empresasAdmin[0].id;
+                const firstId = empresasAdmin[0].id;
+                if (typeof window !== 'undefined') localStorage.setItem(EMPRESA_STORAGE_KEY, firstId);
+                return firstId;
             });
         }
-    }, [isAdmin, supervisorEmpresaId, empresasAdmin, user]);
+    }, [isAdmin, supervisorEmpresaId, empresasAdmin, user, setSelectedEmpresaId]);
 
     return (
         <EmpresaContext.Provider value={{
             selectedEmpresaId,
             setSelectedEmpresaId,
             empresas,
+            rfcGroups,
             loadingEmpresas,
             isAdmin,
         }}>

@@ -913,20 +913,30 @@ class FacturacionModernaPAC:
         if hasattr(f, "cancelacion_message"):
             f.cancelacion_message = res.get("message")
 
-        # --- FIX: Actualizar estatus si es 201/202, GT05 O si está en cola o cancelado ---
+        # Determinar el estatus correcto según la respuesta del PAC
+        # 201 = Cancelado sin necesidad de aceptación (Motivos 02/03/04)
+        # GT05 = CFDI ya cancelado en SAT
+        # 202 = Solicitud enviada, requiere aceptación del receptor (Motivo 01, 72h)
+        # GT12 = Solicitud recibida por el SAT, pendiente de aceptación
+        # "cola" = En cola de procesamiento → pendiente
         code_str = (res.get("code") or "").strip()
         msg_str = (res.get("message") or "").lower()
-        
-        # Logging for debug (kept for safety, can be removed later)
-        # print(f"[DEBUG Cancelacion] code='{code_str}', message='{msg_str}'")
 
-        # GT05 = CFDI Cancelado, GT12 = Solicitud recibida (Facturacion Moderna)
-        if code_str in ["201", "202", "GT05", "GT12"] or "cola" in msg_str or "cancelado" in msg_str or "recibida" in msg_str:
-            # Use Enum member if imported, otherwise string is usually fine in SQLA but let's be safe
+        from datetime import datetime as _dt
+
+        # Cancelación inmediata (no requiere aceptación)
+        if code_str in ["201", "GT05"] or "cancelado" in msg_str:
             try:
                 f.estatus = EstatusFactura.CANCELADA
             except NameError:
                 f.estatus = "CANCELADA"
+            f.fecha_solicitud_cancelacion = None  # Ya cancelada, no está en espera
+
+        # Solicitud enviada, pendiente de aceptación del receptor (72h hábiles)
+        elif code_str in ["202", "GT12"] or "cola" in msg_str or "recibida" in msg_str or "proceso" in msg_str:
+            f.estatus = "EN_CANCELACION"
+            if hasattr(f, "fecha_solicitud_cancelacion"):
+                f.fecha_solicitud_cancelacion = _dt.utcnow()
         # ---------------------------------------------
 
         db.add(f)

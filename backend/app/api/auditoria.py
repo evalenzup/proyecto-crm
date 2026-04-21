@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.database import get_db
 from app.models.auditoria import AuditoriaLog
-from app.models.usuario import RolUsuario, Usuario
+from app.models.usuario import RolUsuario, Usuario  # noqa: F401 (RolUsuario used in checks)
 from app.schemas.auditoria import AuditoriaPageOut
 
 router = APIRouter()
@@ -31,13 +31,24 @@ def listar_auditoria(
     Retorna el historial de auditoría. Solo accesible para ADMIN.
     Los SUPERVISOR solo ven registros de su propia empresa.
     """
+    # Supervisores solo ven su propia empresa
     if current_user.rol == RolUsuario.SUPERVISOR:
         empresa_id = current_user.empresa_id
 
+    # ADMIN (sin SUPERADMIN) necesita especificar empresa_id
     if current_user.rol == RolUsuario.ADMIN and not empresa_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Debes especificar empresa_id.",
+        )
+
+    # Usuarios sin acceso
+    if current_user.rol not in (
+        RolUsuario.SUPERADMIN, RolUsuario.ADMIN, RolUsuario.SUPERVISOR
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para ver la auditoría.",
         )
 
     query = db.query(AuditoriaLog).filter(AuditoriaLog.empresa_id == empresa_id)

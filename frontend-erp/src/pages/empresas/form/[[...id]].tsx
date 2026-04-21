@@ -451,7 +451,6 @@ const EmpresaFormPage: React.FC = () => {
   const keysAll = Object.keys(schema.properties || {});
   const certKeys = ['archivo_cer', 'archivo_key', 'contrasena'];
   const bankKeys = ['nombre_banco', 'numero_cuenta', 'clabe', 'beneficiario'];
-
   const normalKeys = keysAll.filter(k => !certKeys.includes(k) && !bankKeys.includes(k));
   const certKeysPresent = certKeys.filter(k => keysAll.includes(k));
   const bankKeysPresent = bankKeys.filter(k => keysAll.includes(k));

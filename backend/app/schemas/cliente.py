@@ -21,10 +21,6 @@ class ClienteBase(BaseModel):
     rfc: Annotated[str, StringConstraints(max_length=13)] = Field(..., title="RFC")
     regimen_fiscal: Annotated[str, StringConstraints(max_length=100)] = Field(..., title="Régimen Fiscal")
 
-    @field_validator("rfc", mode="before")
-    @classmethod
-    def rfc_valido(cls, v: str) -> str:
-        return validate_rfc(v)
     # Dirección
     calle: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Calle")
     numero_exterior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(
@@ -35,6 +31,13 @@ class ClienteBase(BaseModel):
     )
     colonia: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Colonia")
     codigo_postal: Annotated[str, StringConstraints(max_length=10)] = Field(..., title="Código Postal")
+    # Dirección de servicio / operativa
+    serv_calle: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Calle (Servicio)")
+    serv_numero_exterior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(None, title="Número Exterior (Servicio)")
+    serv_numero_interior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(None, title="Número Interior (Servicio)")
+    serv_colonia: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Colonia (Servicio)")
+    serv_codigo_postal: Optional[Annotated[str, StringConstraints(max_length=10)]] = Field(None, title="Código Postal (Servicio)")
+    serv_referencia: Optional[Annotated[str, StringConstraints(max_length=255)]] = Field(None, title="Referencias (Servicio)")
     # Geolocalización
     latitud: Optional[float] = Field(None, title="Latitud")
     longitud: Optional[float] = Field(None, title="Longitud")
@@ -90,6 +93,11 @@ class ClienteCreate(ClienteBase):
         title="Empresas",
         description="Lista de IDs de empresas a las que pertenece el cliente",
     )
+
+    @field_validator("rfc", mode="before")
+    @classmethod
+    def rfc_valido(cls, v: str) -> str:
+        return validate_rfc(v)
 
 
 class ClienteVincular(BaseModel):

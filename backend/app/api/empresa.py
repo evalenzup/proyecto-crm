@@ -101,8 +101,9 @@ def get_form_schema():
 @router.get("/logos/{empresa_id}.png", summary="Descargar logo de la empresa")
 def descargar_logo(empresa_id: UUID, current_user: Usuario = Depends(deps.get_current_active_user)):
     # Validar acceso
-    if current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id != empresa_id:
-         raise HTTPException(status_code=403, detail="Acceso denegado a logo de otra empresa")
+    _MULTI = (RolUsuario.SUPERADMIN, RolUsuario.ADMIN)
+    if current_user.rol not in _MULTI and current_user.empresa_id != empresa_id:
+        raise HTTPException(status_code=403, detail="Acceso denegado a logo de otra empresa")
 
     filename = f"{empresa_id}.png"
 
@@ -158,8 +159,9 @@ def obtener_cert_info(
     current_user: Usuario = Depends(deps.get_current_active_user)
 ):
     # Validar acceso
-    if current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id != id:
-         raise HTTPException(status_code=403, detail="Acceso denegado")
+    _MULTI = (RolUsuario.SUPERADMIN, RolUsuario.ADMIN)
+    if current_user.rol not in _MULTI and current_user.empresa_id != id:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
 
     # Se obtiene la empresa a través del repo
     empresa = empresa_repo.get(db, id)
@@ -199,13 +201,38 @@ def listar_empresas(
     # get_multi de EmpresaRepo no soporta filtro por ID directo en kwargs standard, 
     # pero podemos hacerlo en memoria o wrapper.
     # Mejor: si es supervisor, ignorar params y retornar solo su empresa.
-    if current_user.rol == RolUsuario.SUPERVISOR:
+    _MULTI_EMPRESA_ROLES = (RolUsuario.SUPERADMIN, RolUsuario.ADMIN)
+
+    # SUPERVISOR / ESTANDAR / OPERATIVO → solo su empresa asignada
+    if current_user.rol not in _MULTI_EMPRESA_ROLES:
         if not current_user.empresa_id:
-             return {"items": [], "total": 0, "limit": limit, "offset": offset}
+            return {"items": [], "total": 0, "limit": limit, "offset": offset}
         empresa = empresa_repo.get(db, current_user.empresa_id)
         items = [empresa] if empresa else []
         return {"items": items, "total": len(items), "limit": limit, "offset": offset}
 
+    # ADMIN → solo las empresas que tiene asignadas
+    if current_user.rol == RolUsuario.ADMIN:
+        from app.models.usuario import UsuarioEmpresa
+        empresa_ids = [
+            r.empresa_id for r in
+            db.query(UsuarioEmpresa.empresa_id)
+            .filter(UsuarioEmpresa.usuario_id == current_user.id).all()
+        ]
+        if not empresa_ids:
+            return {"items": [], "total": 0, "limit": limit, "offset": offset}
+        from sqlalchemy import and_
+        from app.models.empresa import Empresa as EmpresaModel
+        query = db.query(EmpresaModel).filter(EmpresaModel.id.in_(empresa_ids))
+        if rfc:
+            query = query.filter(EmpresaModel.rfc.ilike(f"%{rfc}%"))
+        if nombre_comercial:
+            query = query.filter(EmpresaModel.nombre_comercial.ilike(f"%{nombre_comercial}%"))
+        total = query.count()
+        items = query.offset(offset).limit(limit).all()
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    # SUPERADMIN → todas
     items, total = empresa_repo.get_multi(
         db,
         skip=offset,
@@ -216,10 +243,63 @@ def listar_empresas(
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
+@router.get("/rfc-groups", summary="Agrupar empresas accesibles por RFC")
+def get_rfc_groups(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Devuelve los grupos de empresas que comparten RFC.
+    Solo se incluyen RFCs con 2 o más empresas (agrupables).
+    Respeta los permisos del usuario (superadmin ve todo, admin ve sus empresas).
+    """
+    from app.models.empresa import Empresa as EmpresaModel
+    from sqlalchemy import func as sa_func
+
+    _MULTI = (RolUsuario.SUPERADMIN, RolUsuario.ADMIN)
+
+    # Obtener empresas accesibles
+    if current_user.rol == RolUsuario.SUPERADMIN:
+        empresas = db.query(EmpresaModel).all()
+    elif current_user.rol == RolUsuario.ADMIN:
+        from app.models.usuario import UsuarioEmpresa
+        empresa_ids = [
+            r.empresa_id for r in
+            db.query(UsuarioEmpresa.empresa_id)
+            .filter(UsuarioEmpresa.usuario_id == current_user.id).all()
+        ]
+        empresas = db.query(EmpresaModel).filter(EmpresaModel.id.in_(empresa_ids)).all() if empresa_ids else []
+    else:
+        return []
+
+    # Agrupar por RFC
+    from collections import defaultdict
+    groups: dict = defaultdict(list)
+    for e in empresas:
+        groups[e.rfc].append({"id": str(e.id), "nombre_comercial": e.nombre_comercial, "nombre": e.nombre})
+
+    # Solo devolver RFCs con ≥ 2 empresas
+    result = [
+        {"rfc": rfc, "empresas": emps}
+        for rfc, emps in groups.items()
+        if len(emps) >= 2
+    ]
+    return result
+
+
 @router.get("/{id}", response_model=EmpresaOut, summary="Obtener empresa por ID")
 def obtener_empresa(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(deps.get_current_active_user)):
-    if current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id != id:
+    _MULTI = (RolUsuario.SUPERADMIN, RolUsuario.ADMIN)
+    if current_user.rol not in _MULTI and current_user.empresa_id != id:
         raise HTTPException(status_code=403, detail="Acceso denegado")
+    if current_user.rol == RolUsuario.ADMIN:
+        # verificar que la empresa esté en su lista asignada
+        from app.models.usuario import UsuarioEmpresa
+        row = (db.query(UsuarioEmpresa)
+               .filter(UsuarioEmpresa.usuario_id == current_user.id,
+                       UsuarioEmpresa.empresa_id == id).first())
+        if not row:
+            raise HTTPException(status_code=403, detail="No tienes acceso a esta empresa")
     empresa = empresa_repo.get(db, id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
@@ -235,12 +315,18 @@ def crear_empresa(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    if current_user.rol != RolUsuario.ADMIN:
+    if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN):
         raise HTTPException(status_code=403, detail="Solo administradores pueden crear empresas")
     data = _parse_json_form(empresa_data, EmpresaCreate)
     result = empresa_repo.create(
         db, obj_in=data, archivo_cer=archivo_cer, archivo_key=archivo_key, logo=logo
     )
+
+    # Si es ADMIN (no SUPERADMIN), auto-asignar la nueva empresa a su lista de acceso
+    if current_user.rol == RolUsuario.ADMIN:
+        from app.models.usuario import UsuarioEmpresa
+        db.add(UsuarioEmpresa(usuario_id=current_user.id, empresa_id=result.id))
+
     try:
         audit_svc.registrar(
             db=db, accion=audit_svc.CREAR_EMPRESA, entidad="empresa",
@@ -266,7 +352,7 @@ def actualizar_empresa(
 ):
     # Solo admin puede editar empresas (por seguridad fiscal)
     # Validar permisos: Admin total o Supervisor de su propia empresa
-    is_admin = current_user.rol == RolUsuario.ADMIN
+    is_admin = current_user.rol in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN)
     is_supervisor_own = (
         current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id == id
     )
@@ -304,7 +390,7 @@ def actualizar_empresa(
 
 @router.delete("/{id}", status_code=204, summary="Eliminar empresa")
 def eliminar_empresa(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(deps.get_current_active_user)):
-    if current_user.rol != RolUsuario.ADMIN:
+    if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN):
         raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar empresas")
     empresa = empresa_repo.remove(db, id=id)
     if not empresa:

@@ -1,14 +1,12 @@
 // src/components/Dashboard.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Select, Skeleton, DatePicker, Badge, Button } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined, WarningOutlined, FileTextOutlined, ClockCircleOutlined, CheckCircleOutlined, StopOutlined, RiseOutlined, FallOutlined, TeamOutlined, PieChartOutlined as PieChartIcon, DollarOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Statistic, Table, Typography, Tooltip, Space, Skeleton, DatePicker, Button, Switch, Tag } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, InfoCircleOutlined, CalendarOutlined, WarningOutlined, FileTextOutlined, ClockCircleOutlined, CheckCircleOutlined, StopOutlined, RiseOutlined, FallOutlined, TeamOutlined, PieChartOutlined as PieChartIcon, DollarOutlined, ApartmentOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import { dashboardService, IngresosEgresosOut, EgresoCategoriaMetric, AlertasMetrics, ReportesMetrics } from '@/services/dashboardService';
-import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { getAgingReport } from '@/services/cobranzaService';
 import { AgingReportResponse } from '@/types/cobranza';
-import { useAuth } from '@/context/AuthContext';
-import { useFilterContext } from '@/context/FilterContext';
+import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import dynamic from 'next/dynamic';
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), {
@@ -35,25 +33,28 @@ export const Dashboard: React.FC = () => {
 
   const [selectedMonth, setSelectedMonth] = useState<Dayjs | null>(dayjs());
 
-  // Use centralized filter state
-  const { dashboard, setDashboard } = useFilterContext();
-  const empresaId = dashboard.empresaId;
-  const [empresas, setEmpresas] = useState<EmpresaOut[]>([]);
+  // Empresa global del sidebar
+  const { selectedEmpresaId, rfcGroups } = useEmpresaSelector();
 
-  // 1. Cargar lista de empresas
+  // RFC group selector local al dashboard
+  // Si la empresa seleccionada pertenece a un grupo RFC, mostramos la opción de agrupar
+  const [useRfcGroup, setUseRfcGroup] = useState(false);
+  const currentRfcGroup = rfcGroups.find(g =>
+    g.empresas.some(e => e.id === selectedEmpresaId)
+  );
+  // Reset useRfcGroup if the selected empresa no longer belongs to a group
   useEffect(() => {
-    empresaService.getEmpresas().then(data => {
-      setEmpresas(data);
-      // Auto-select first if none in context
-      if (data.length > 0 && !empresaId) {
-        setDashboard(prev => ({ ...prev, empresaId: data[0].id }));
-      }
-    });
-  }, [empresaId, setDashboard]);
+    if (!currentRfcGroup) setUseRfcGroup(false);
+  }, [currentRfcGroup]);
+
+  const empresaId = useRfcGroup ? undefined : selectedEmpresaId;
+  const rfcFilter = useRfcGroup && currentRfcGroup ? currentRfcGroup.rfc : undefined;
+  // Guard: need either empresaId or rfc to fetch data
+  const hasFilter = !!(empresaId || rfcFilter);
 
   // 2. Fetch Finance Metrics (Cards - Filtered by Date)
   useEffect(() => {
-    if (!empresaId) return;
+    if (!hasFilter) return;
 
     let mounted = true;
     setLoadingFinance(true);
@@ -62,7 +63,7 @@ export const Dashboard: React.FC = () => {
     const year = date.year();
     const month = date.month() + 1;
 
-    dashboardService.getIngresosEgresos({ months: 12, empresaId, year, month })
+    dashboardService.getIngresosEgresos({ months: 12, empresaId, rfc: rfcFilter, year, month })
       .then((res) => {
         if (mounted) setCardsData(res);
       })
@@ -70,42 +71,42 @@ export const Dashboard: React.FC = () => {
         if (mounted) setLoadingFinance(false);
       });
 
-    dashboardService.getEgresosPorCategoria({ year, month, empresaId })
+    dashboardService.getEgresosPorCategoria({ year, month, empresaId, rfc: rfcFilter })
       .then(res => {
         if (mounted) setEgresosCatData(res);
       })
       .catch(console.error);
 
-    // Fetch Aging Data (always current snapshot, ignoring date picker)
-    getAgingReport(empresaId)
+    // Fetch Aging Data — soporta empresa individual y grupo RFC
+    getAgingReport(empresaId, rfcFilter)
       .then(res => {
         if (mounted) setAgingData(res);
       })
       .catch(console.error);
 
     // Fetch alertas KPIs
-    dashboardService.getAlertas({ empresaId })
+    dashboardService.getAlertas({ empresaId, rfc: rfcFilter })
       .then(res => { if (mounted) setAlertas(res); })
       .catch(console.error);
 
     // Fetch reportes KPIs
-    dashboardService.getReportes({ empresaId })
+    dashboardService.getReportes({ empresaId, rfc: rfcFilter })
       .then(res => { if (mounted) setReportes(res); })
       .catch(console.error);
 
     return () => {
       mounted = false;
     };
-  }, [empresaId, selectedMonth]);
+  }, [empresaId, rfcFilter, selectedMonth]);
 
   // 3. Fetch Finance Trend (Chart/Table - Always last 12 months relative to NOW)
   useEffect(() => {
-    if (!empresaId) return;
+    if (!hasFilter) return;
 
     let mounted = true;
     // We can share loading state or have separate. Sharing is fine for now.
 
-    dashboardService.getIngresosEgresos({ months: 12, empresaId }) // No year/month params = current time window
+    dashboardService.getIngresosEgresos({ months: 12, empresaId, rfc: rfcFilter }) // No year/month params = current time window
       .then((res) => {
         if (mounted) setTrendData(res);
       })
@@ -114,7 +115,7 @@ export const Dashboard: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [empresaId]);
+  }, [empresaId, rfcFilter]);
 
   const ccy = trendData?.currency || 'MXN';
 
@@ -300,22 +301,27 @@ export const Dashboard: React.FC = () => {
     };
   }, [agingData, ccy]);
 
-  // auth hook
-  const { user } = useAuth();
-
   return (
     <Row gutter={[16, 16]}>
       {/* Filtros */}
       <Col span={24} style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        {user?.rol === 'admin' && (
-          <Select
-            placeholder="Filtrar por Empresa"
-            style={{ width: 250 }}
-            allowClear
-            value={empresaId}
-            onChange={(val) => setDashboard(prev => ({ ...prev, empresaId: val }))}
-            options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
-          />
+        {currentRfcGroup && (
+          <Tooltip title={`Agrega los datos de: ${currentRfcGroup.empresas.map(e => e.nombre_comercial).join(', ')}`}>
+            <Space size={8}>
+              <ApartmentOutlined style={{ color: useRfcGroup ? '#1677ff' : 'rgba(0,0,0,0.45)' }} />
+              <span style={{ fontSize: 13 }}>Grupo RFC {currentRfcGroup.rfc}</span>
+              <Switch
+                size="small"
+                checked={useRfcGroup}
+                onChange={setUseRfcGroup}
+              />
+              {useRfcGroup && (
+                <Tag color="blue" style={{ margin: 0 }}>
+                  {currentRfcGroup.empresas.length} empresas
+                </Tag>
+              )}
+            </Space>
+          </Tooltip>
         )}
         <DatePicker
           picker="month"
@@ -595,19 +601,20 @@ export const Dashboard: React.FC = () => {
           <Statistic
             title={
               <Space>
-                Por pagar
-                <Tooltip title="Monto pendiente de pago. El valor principal es del mes seleccionado; el acumulado muestra lo del año.">
+                <FileTextOutlined style={{ color: '#1677ff' }} />
+                Total facturado
+                <Tooltip title="Suma de todas las facturas timbradas del mes (cobradas + por cobrar). Refleja el volumen real de ventas emitidas.">
                   <InfoCircleOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }} />
                 </Tooltip>
               </Space>
             }
-            value={cardsData?.mtd?.por_pagar ?? 0}
+            value={cardsData?.mtd?.total_facturado ?? 0}
             formatter={v => currency(Number(v), ccy)}
-            valueStyle={{ color: '#722ed1' }}
+            valueStyle={{ color: '#1677ff' }}
           />
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Año: <strong>{currency(cardsData?.ytd?.por_pagar ?? 0, ccy)}</strong>
+              Año: <strong>{currency(cardsData?.ytd?.total_facturado ?? 0, ccy)}</strong>
             </Typography.Text>
           </div>
         </Card>
@@ -778,7 +785,7 @@ export const Dashboard: React.FC = () => {
             <ReactECharts option={agingPieOption} style={{ width: '100%', height: 360 }} notMerge lazyUpdate />
           ) : (
             <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Typography.Text type="secondary">Cargando o Sin Datos</Typography.Text>
+              <Typography.Text type="secondary">Sin datos</Typography.Text>
             </div>
           )}
         </Card>

@@ -27,6 +27,13 @@ export interface ClienteOut {
   dias_pago: number;
   tamano?: 'CHICO' | 'MEDIANO' | 'GRANDE';
   actividad?: 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL';
+  // Dirección de servicio / operativa
+  serv_calle?: string;
+  serv_numero_exterior?: string;
+  serv_numero_interior?: string;
+  serv_colonia?: string;
+  serv_codigo_postal?: string;
+  serv_referencia?: string;
   creado_en: string;
   actualizado_en: string;
   empresas?: Array<{ id: string; nombre_comercial: string }>;
@@ -45,6 +52,12 @@ export interface ClienteCreate {
   dias_pago?: number;
   tamano?: 'CHICO' | 'MEDIANO' | 'GRANDE';
   actividad?: 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL';
+  serv_calle?: string;
+  serv_numero_exterior?: string;
+  serv_numero_interior?: string;
+  serv_colonia?: string;
+  serv_codigo_postal?: string;
+  serv_referencia?: string;
   empresa_id: string[];
 }
 
@@ -61,6 +74,12 @@ export interface ClienteUpdate {
   dias_pago?: number;
   tamano?: 'CHICO' | 'MEDIANO' | 'GRANDE';
   actividad?: 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL';
+  serv_calle?: string;
+  serv_numero_exterior?: string;
+  serv_numero_interior?: string;
+  serv_colonia?: string;
+  serv_codigo_postal?: string;
+  serv_referencia?: string;
   empresa_id?: string[];
 }
 

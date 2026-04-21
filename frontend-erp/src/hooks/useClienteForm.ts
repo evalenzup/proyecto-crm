@@ -1,5 +1,5 @@
 // frontend-erp/src/hooks/useClienteForm.ts
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { message, Form } from 'antd';
 import { clienteService, ClienteOut, ClienteCreate, ClienteUpdate } from '../services/clienteService';
 import { empresaService } from '../services/empresaService'; // Para obtener las empresas para el select
@@ -7,6 +7,7 @@ import { getContactosByCliente, createContacto, deleteContacto } from '../servic
 import { useRouter } from 'next/router';
 import { normalizeHttpError } from '@/utils/httpError';
 import { applyFormErrors } from '@/utils/formErrors';
+import { useEmpresaSelector } from './useEmpresaSelector';
 
 interface ClienteFormData {
   id?: string;
@@ -43,6 +44,11 @@ interface UseClienteFormResult {
 export const useClienteForm = (id?: string): UseClienteFormResult => {
   const [form] = Form.useForm();
   const router = useRouter();
+
+  // Empresa global del sidebar
+  const { selectedEmpresaId: globalEmpresaId } = useEmpresaSelector();
+  const globalEmpresaIdRef = useRef(globalEmpresaId);
+  useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
 
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [loadingEmpresas, setLoadingEmpresas] = useState(true);
@@ -107,9 +113,13 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
           }
         } else {
           setEmpresasOptions(accessibleOpts);
-          // Si estamos creando (no id) y solo hay una empresa disponible, seleccionarla por defecto
-          if (accessibleOpts.length === 1) {
-            form.setFieldValue('empresa_id', [accessibleOpts[0].value]);
+          // Auto-selección: preferir empresa global del sidebar, o empresa única
+          const globalId = globalEmpresaIdRef.current;
+          const defaultId = (globalId && accessibleOpts.some(o => o.value === globalId))
+            ? globalId
+            : accessibleOpts.length === 1 ? accessibleOpts[0].value : undefined;
+          if (defaultId) {
+            form.setFieldValue('empresa_id', [defaultId]);
           }
         }
       } catch (e) {

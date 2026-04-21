@@ -35,6 +35,7 @@ class EmpresaBase(BaseModel):
     beneficiario: Optional[str] = Field(None, title="Beneficiario")
 
 
+
 class EmpresaCreate(EmpresaBase):
     contrasena: constr(max_length=255) = Field(..., title="Contraseña del CSD (.key)")
 
