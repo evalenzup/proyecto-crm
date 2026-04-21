@@ -11,7 +11,8 @@ import { EmpresaProvider } from '@/context/EmpresaContext';
 import { FilterProvider } from '@/context/FilterContext';
 import { useRouter } from 'next/router';
 import { Layout as MainLayout } from '@/components/Layout';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 import '@/styles/pro-overrides.css';
 
 dayjs.locale('es');
@@ -86,15 +87,6 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 // - staleTime 5 min: no re-fetcha datos "frescos" al cambiar de tab o navegar
 // - refetchOnWindowFocus false: evita el re-fetch al volver al tab del navegador
 // - retry 1: un solo reintento en caso de error de red
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
 
 export default function App({ Component, pageProps }: AppProps) {
   // Ajuste para el build indicator de Next.js en dev

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { empresaService, EmpresaOut, RfcGroup } from '@/services/empresaService';
@@ -22,6 +22,9 @@ export const EmpresaProvider: React.FC<{ children: ReactNode }> = ({ children })
     // superadmin y admin tienen selector multi-empresa
     const isAdmin = user?.rol === 'superadmin' || user?.rol === 'admin';
     const supervisorEmpresaId = !isAdmin && user?.empresa_id ? user.empresa_id : undefined;
+
+    // Rastrea el ID del usuario anterior para detectar cambios de sesión
+    const prevUserIdRef = useRef<string | undefined>(undefined);
 
     const [selectedEmpresaId, setSelectedEmpresaIdState] = useState<string | undefined>(() => {
         if (typeof window !== 'undefined') {
@@ -66,6 +69,20 @@ export const EmpresaProvider: React.FC<{ children: ReactNode }> = ({ children })
         : [];
 
     const loadingEmpresas = isAdmin ? loadingAdmin : loadingSupervisor;
+
+    // Detecta cambio de usuario (distinto login) y descarta el selectedEmpresaId
+    // cacheado en localStorage para que el nuevo usuario empiece limpio.
+    useEffect(() => {
+        const currentUserId = user?.id;
+        if (prevUserIdRef.current && prevUserIdRef.current !== currentUserId) {
+            // Cambio de usuario detectado — borrar selección anterior
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem(EMPRESA_STORAGE_KEY);
+            }
+            setSelectedEmpresaIdState(undefined);
+        }
+        prevUserIdRef.current = currentUserId;
+    }, [user?.id]);
 
     useEffect(() => {
         if (!user) {

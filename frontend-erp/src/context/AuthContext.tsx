@@ -2,7 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Usuario, LoginResponse, AuthState } from '@/types/auth'; // Asegúrate que Usuario tenga los campos necesarios
 import { authService } from '@/services/authService';
+import { queryClient } from '@/lib/queryClient';
 import { message } from 'antd';
+
+const EMPRESA_STORAGE_KEY = 'ui.empresa.selected';
 
 interface AuthContextType extends AuthState {
     login: (email: string, password: string) => Promise<void>;
@@ -77,6 +80,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         localStorage.removeItem('token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem(EMPRESA_STORAGE_KEY);
+        // Limpiar todo el cache de React Query para que el siguiente usuario
+        // no vea datos (empresas, clientes, etc.) cacheados de esta sesión.
+        queryClient.clear();
         setUser(null);
         setIsAuthenticated(false);
         router.push('/login');

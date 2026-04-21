@@ -12,6 +12,7 @@ import { applyFormErrors } from '@/utils/formErrors';
 import { Presupuesto, PresupuestoDetalle } from '@/models/presupuesto';
 import dayjs, { Dayjs } from 'dayjs';
 import { useEmpresaSelector } from './useEmpresaSelector';
+import { useAuth } from '@/context/AuthContext';
 
 export const usePresupuestoForm = (id?: string) => {
   const [form] = Form.useForm();
@@ -39,6 +40,9 @@ export const usePresupuestoForm = (id?: string) => {
   const globalEmpresaIdRef = useRef(globalEmpresaId);
   useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
 
+  // Usuario actual — necesario para scopear el cache de React Query por sesión
+  const { user } = useAuth();
+
   // Watchers
   const empresaId = Form.useWatch('empresa_id', form);
 
@@ -47,10 +51,12 @@ export const usePresupuestoForm = (id?: string) => {
     setSelectedVersionId(id);
   }, [id]);
 
-  // Fetch data for select options
+  // Fetch data for select options — el queryKey incluye user.id para evitar que
+  // React Query sirva empresas cacheadas de un usuario diferente (stale cross-user).
   const { data: empresas, isLoading: loadingEmpresas } = useQuery({
-    queryKey: ['empresasForSelect'],
+    queryKey: ['empresasForSelect', user?.id],
     queryFn: () => empresaService.getEmpresas(),
+    enabled: !!user,
   });
 
   const [clientesOptions, setClientesOptions] = useState<{ label: string; value: string; }[]>([]);
