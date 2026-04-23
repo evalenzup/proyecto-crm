@@ -273,12 +273,14 @@ export const usePresupuestoForm = (id?: string) => {
       ...formattedValues,
       detalles: conceptos.map(c => ({
         producto_servicio_id: c.producto_servicio_id,
+        seccion: c.seccion,
         descripcion: c.descripcion,
         cantidad: c.cantidad,
         unidad: c.unidad,
         precio_unitario: c.precio_unitario,
         tasa_impuesto: c.tasa_impuesto,
         costo_estimado: c.costo_estimado,
+        costo_unitario_recarga: c.costo_unitario_recarga,
       })),
     };
 

@@ -27,13 +27,14 @@ PAGE_W, PAGE_H = letter
 MARGIN_X = 20 * mm
 MARGIN_Y = 20 * mm
 
-# Colores Corporativos (Tema Profesional: Azul Marino y Gris)
-COLOR_PRIMARY = colors.HexColor("#1A365D")  # Navy Blue
-COLOR_ACCENT = colors.HexColor("#2B6CB0")   # Lighter Blue
-COLOR_TEXT = colors.HexColor("#2D3748")     # Dark Gray
-COLOR_TEXT_LIGHT = colors.HexColor("#718096") # Light Gray
+# Colores Corporativos (Tema Gris Neutro)
+COLOR_PRIMARY = colors.HexColor("#4A5568")   # Medium-dark gray
+COLOR_ACCENT = colors.HexColor("#718096")    # Medium gray
+COLOR_TEXT = colors.HexColor("#2D3748")      # Dark Gray
+COLOR_TEXT_LIGHT = colors.HexColor("#A0AEC0") # Light Gray
 COLOR_BG_HEADER = colors.HexColor("#F7FAFC") # Very Light Gray
-COLOR_BORDER = colors.HexColor("#E2E8F0")   # Border Gray
+COLOR_BORDER = colors.HexColor("#E2E8F0")    # Border Gray
+COLOR_SECTION_BG = colors.HexColor("#EDF2F7") # Section header background
 
 # Fuentes
 FONT_REGULAR = "Helvetica"
@@ -550,9 +551,9 @@ def _draw_footer(c: canvas.Canvas, p: Presupuesto, y_start: float):
     c.drawCentredString(PAGE_W / 2, MARGIN_Y / 2 + 4, "Gracias por su preferencia.")
     c.drawCentredString(PAGE_W / 2, MARGIN_Y / 2 - 6, f"Página {c.getPageNumber()}")
 
-def _build_table(data: List[List], col_widths: List[float]) -> Table:
+def _build_table(data: List[List], col_widths: List[float], section_rows: Optional[List[int]] = None) -> Table:
     t = Table(data, colWidths=col_widths, repeatRows=1)
-    t.setStyle(TableStyle([
+    base_style = [
         # Header
         ('BACKGROUND', (0, 0), (-1, 0), COLOR_PRIMARY),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -561,21 +562,33 @@ def _build_table(data: List[List], col_widths: List[float]) -> Table:
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
         ('TOPPADDING', (0, 0), (-1, 0), 8),
-        
+
         # Body
         ('FONTNAME', (0, 1), (-1, -1), FONT_REGULAR),
         ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('TEXTCOLOR', (0, 1), (-1, -1), COLOR_TEXT),
-        ('ALIGN', (1, 1), (-1, -1), 'RIGHT'), # Cantidad, Precio, Importe a la derecha
+        ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        
+
         # Borders (Minimalist)
         ('LINEBELOW', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
-        ('LINEBELOW', (0, 0), (-1, 0), 0, COLOR_PRIMARY), # Header underline hidden by bg
-        
-        # Zebra Striping (Optional - clean look preferred)
-        # ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_BG_HEADER]),
-    ]))
+        ('LINEBELOW', (0, 0), (-1, 0), 0, COLOR_PRIMARY),
+    ]
+
+    # Aplicar estilo especial a filas de sección
+    for sr in (section_rows or []):
+        base_style += [
+            ('BACKGROUND', (0, sr), (-1, sr), COLOR_SECTION_BG),
+            ('TEXTCOLOR', (0, sr), (-1, sr), COLOR_PRIMARY),
+            ('FONTNAME', (0, sr), (-1, sr), FONT_BOLD),
+            ('FONTSIZE', (0, sr), (-1, sr), 8),
+            ('TOPPADDING', (0, sr), (-1, sr), 6),
+            ('BOTTOMPADDING', (0, sr), (-1, sr), 6),
+            ('SPAN', (0, sr), (-1, sr)),
+            ('LINEABOVE', (0, sr), (-1, sr), 1, COLOR_ACCENT),
+        ]
+
+    t.setStyle(TableStyle(base_style))
     return t
 
 def render_presupuesto_pdf_bytes(presupuesto: Presupuesto, db: Session) -> bytes:
@@ -590,17 +603,41 @@ def render_presupuesto_pdf_bytes(presupuesto: Presupuesto, db: Session) -> bytes
     if presupuesto.estado not in ["BORRADOR", "ENVIADO"]:
         watermark_text = presupuesto.estado
 
-    # Preparar datos de la tabla
+    # Preparar datos de la tabla (con soporte de secciones y costo_unitario_recarga)
     headers = ["Descripción", "Cant.", "Precio Unit.", "Importe"]
     data = [headers]
-    
+    # Rastrear índices de filas de sección para aplicar estilo diferente
+    section_row_indices: list[int] = []
+
+    last_seccion: Optional[str] = None
     for det in presupuesto.detalles:
+        seccion = getattr(det, "seccion", None) or None
+        # Insertar cabecera de sección cuando cambia
+        if seccion and seccion != last_seccion:
+            section_row_indices.append(len(data))
+            data.append([
+                Paragraph(f"<b>{seccion.upper()}</b>", style_bold),
+                "", "", "",
+            ])
+            last_seccion = seccion
+
         importe = (det.cantidad or 0) * (det.precio_unitario or 0)
+
+        # Descripción principal; añadir nota de recarga si existe
+        desc_parts = [det.descripcion or ""]
+        recarga = getattr(det, "costo_unitario_recarga", None)
+        if recarga is not None:
+            try:
+                desc_parts.append(f'<font size="7" color="#718096">Costo unitario recarga: {_money(recarga)}</font>')
+            except Exception:
+                pass
+        desc_paragraph = Paragraph("<br/>".join(desc_parts), style_normal)
+
         row = [
-            Paragraph(det.descripcion or "", style_normal),
-            f"{det.cantidad:g}", # Elimina ceros decimales innecesarios
+            desc_paragraph,
+            f"{det.cantidad:g}",
             _money(det.precio_unitario),
-            _money(importe)
+            _money(importe),
         ]
         data.append(row)
 
@@ -615,16 +652,15 @@ def render_presupuesto_pdf_bytes(presupuesto: Presupuesto, db: Session) -> bytes
 
     # Renderizado
     def draw_page_template():
-        # _draw_header_band(c) # REMOVED
         y_content_start = _draw_header_info(c, presupuesto, logo_path)
         if watermark_text:
             _draw_watermark(c, watermark_text)
         return y_content_start
 
     y_cursor = draw_page_template()
-    
+
     # Tabla
-    table = _build_table(data, col_widths)
+    table = _build_table(data, col_widths, section_row_indices)
     w, h = table.wrap(available_width, PAGE_H) # Wrap preliminar
     
     # Lógica de paginación manual básica para ReportLab Canvas

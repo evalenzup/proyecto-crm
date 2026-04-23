@@ -27,12 +27,14 @@ export interface PresupuestoPageOut {
 
 export interface PresupuestoDetalleCreate {
   producto_servicio_id?: string;
+  seccion?: string;
   descripcion: string;
   cantidad: number;
   unidad?: string;
   precio_unitario: number;
   tasa_impuesto: number;
   costo_estimado?: number;
+  costo_unitario_recarga?: number;
 }
 
 export interface PresupuestoCreate {

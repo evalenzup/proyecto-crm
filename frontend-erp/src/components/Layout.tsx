@@ -24,6 +24,9 @@ import {
   BarChartOutlined,
   GlobalOutlined,
   KeyOutlined,
+  TeamOutlined,
+  CarOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography, Select, Modal, Form, Input, message } from 'antd';
 import esES from 'antd/locale/es_ES';
@@ -172,17 +175,41 @@ const RightContent: React.FC = () => {
 // Definición base del menú
 const baseMenuData = [
   { path: '/', name: 'Dashboard', icon: <PieChartOutlined /> },
-  { path: '/empresas', name: 'Empresas', icon: <BankOutlined /> },
-  { path: '/clientes', name: 'Clientes', icon: <ContactsOutlined /> },
-  { path: '/productos-servicios', name: 'Productos', icon: <ProductOutlined /> },
-  { path: '/facturas', name: 'Facturación', icon: <ContainerOutlined /> },
-  { path: '/presupuestos', name: 'Presupuestos', icon: <FileTextOutlined /> },
-  { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
-  { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
-  { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
-  // { path: '/inventario', name: 'Inventario', icon: <SmileOutlined /> },
+  {
+    path: '/group-catalogos',
+    name: 'Catálogos',
+    type: 'group',
+    children: [
+      { path: '/empresas', name: 'Empresas', icon: <BankOutlined /> },
+      { path: '/clientes', name: 'Clientes', icon: <ContactsOutlined /> },
+      { path: '/productos-servicios', name: 'Productos', icon: <ProductOutlined /> },
+      { path: '/servicios-operativos', name: 'Servicios', icon: <ContainerOutlined /> },
+      { path: '/tecnicos', name: 'Técnicos', icon: <TeamOutlined /> },
+      { path: '/unidades', name: 'Unidades', icon: <CarOutlined /> },
+    ],
+  },
+  {
+    path: '/group-finanzas',
+    name: 'Finanzas',
+    type: 'group',
+    children: [
+      { path: '/facturas', name: 'Facturación', icon: <ContainerOutlined /> },
+      { path: '/presupuestos', name: 'Presupuestos', icon: <FileTextOutlined /> },
+      { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
+      { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
+      { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
+    ],
+  },
+  {
+    path: '/group-operativo',
+    name: 'Operativo',
+    type: 'group',
+    children: [
+      // Próximamente: órdenes de servicio, agenda, etc.
+    ],
+  },
   { path: '/ayuda', name: 'Ayuda', icon: <QuestionCircleOutlined /> },
-  // El ítem de Usuarios y Auditoría se agregan dinámicamente
+  // Usuarios, Reportes, Auditoría y Mapa se agregan dinámicamente según rol
 ];
 
 const STORAGE_KEY = 'ui.theme.mode';
@@ -373,18 +400,29 @@ export const Layout: React.FC<{
 
   const menuData = useMemo(() => {
     const menu = [...baseMenuData];
+
+    const adminChildren: any[] = [];
     if (user?.rol === 'superadmin' || user?.rol === 'admin') {
-      menu.push({ path: '/usuarios', name: 'Usuarios', icon: <UserOutlined /> });
+      adminChildren.push({ path: '/usuarios', name: 'Usuarios', icon: <UserOutlined /> });
     }
     if (canViewAuditoria(user?.rol)) {
       if (user?.rol === 'superadmin' || user?.rol === 'admin') {
-        menu.push({ path: '/reportes', name: 'Reportes', icon: <BarChartOutlined /> });
+        adminChildren.push({ path: '/reportes', name: 'Reportes', icon: <BarChartOutlined /> });
       }
-      menu.push({ path: '/auditoria', name: 'Auditoría', icon: <AuditOutlined /> });
+      adminChildren.push({ path: '/auditoria', name: 'Auditoría', icon: <AuditOutlined /> });
     }
     if (canViewMapa(user?.rol)) {
-      menu.push({ path: '/mapa', name: 'Mapa Clientes', icon: <GlobalOutlined /> });
+      adminChildren.push({ path: '/mapa', name: 'Mapa Clientes', icon: <GlobalOutlined /> });
     }
+    if (adminChildren.length > 0) {
+      menu.push({
+        path: '/group-administracion',
+        name: 'Administración',
+        type: 'group',
+        children: adminChildren,
+      } as any);
+    }
+
     return menu;
   }, [user]);
 

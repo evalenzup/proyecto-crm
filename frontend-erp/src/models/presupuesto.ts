@@ -3,12 +3,14 @@
 export interface PresupuestoDetalle {
   id: string;
   producto_servicio_id?: string;
+  seccion?: string;
   descripcion: string;
   cantidad: number;
   unidad?: string;
   precio_unitario: number;
   tasa_impuesto: number;
   costo_estimado?: number;
+  costo_unitario_recarga?: number;
   importe: number;
   margen_estimado?: number;
 }

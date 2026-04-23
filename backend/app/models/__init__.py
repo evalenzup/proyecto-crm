@@ -19,6 +19,11 @@ from .cobranza import CobranzaNota
 from .notificacion import Notificacion
 from .auditoria import AuditoriaLog
 from .refresh_token import RefreshToken
+from .servicio_operativo import ServicioOperativo
+from .tecnico import Tecnico
+from .unidad import Unidad
+from .mantenimiento_unidad import MantenimientoUnidad
+from .associations import tecnico_especialidades, unidad_servicios_compatibles
 
 # Usar uno de los Base como referencia unificada
 Base = BaseCliente
@@ -47,4 +52,10 @@ __all__ = [
     "Notificacion",
     "AuditoriaLog",
     "RefreshToken",
+    "ServicioOperativo",
+    "Tecnico",
+    "Unidad",
+    "MantenimientoUnidad",
+    "tecnico_especialidades",
+    "unidad_servicios_compatibles",
 ]

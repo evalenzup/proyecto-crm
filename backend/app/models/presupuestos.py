@@ -105,11 +105,13 @@ class PresupuestoDetalle(Base):
         index=True,
     )
 
+    seccion = Column(String(100), nullable=True)
     descripcion = Column(Text, nullable=False)
     cantidad = Column(Numeric(18, 2), nullable=False, default=1)
     unidad = Column(String(50), nullable=True)
     precio_unitario = Column(Numeric(18, 2), nullable=False, default=0)
     costo_estimado = Column(Numeric(18, 2), nullable=True)
+    costo_unitario_recarga = Column(Numeric(18, 2), nullable=True)
     tasa_impuesto = Column(Numeric(10, 4), nullable=False, default=0.08)
     impuesto_estimado = Column(Numeric(18, 2), nullable=True)
     importe = Column(Numeric(18, 2), nullable=False, default=0)

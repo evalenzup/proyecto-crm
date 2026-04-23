@@ -40,12 +40,14 @@ class StatusUpdatePayload(BaseModel):
 
 class PresupuestoDetalleBase(BaseModel):
     producto_servicio_id: Optional[UUID] = None
+    seccion: Optional[str] = None
     descripcion: str
     cantidad: Decimal = Field(..., max_digits=18, decimal_places=2)
     unidad: Optional[str] = None
     precio_unitario: Decimal = Field(..., max_digits=18, decimal_places=2)
     tasa_impuesto: Decimal = Field(Decimal('0.08'), max_digits=10, decimal_places=4)
     costo_estimado: Optional[Decimal] = Field(None, max_digits=18, decimal_places=2)
+    costo_unitario_recarga: Optional[Decimal] = Field(None, max_digits=18, decimal_places=2)
 
 
 class PresupuestoDetalleCreate(PresupuestoDetalleBase):

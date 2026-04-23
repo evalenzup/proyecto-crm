@@ -32,6 +32,7 @@ from app.api.health import router as health_router
 from app.api.auditoria import router as auditoria_router
 from app.api.mapa import router as mapa_router
 from app.api.reportes import router as reportes_router
+from app.api.operativo import servicios_router, tecnicos_router, unidades_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -269,6 +270,27 @@ app.include_router(
     reportes_router,
     prefix="/api/reportes",
     tags=["reportes"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    servicios_router,
+    prefix="/api/servicios-operativos",
+    tags=["servicios-operativos"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    tecnicos_router,
+    prefix="/api/tecnicos",
+    tags=["tecnicos"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    unidades_router,
+    prefix="/api/unidades",
+    tags=["unidades"],
     responses={404: {"description": "No encontrado"}},
 )
 

@@ -145,7 +145,28 @@ const PresupuestoFormPage: React.FC = () => {
   };
 
   const detalleColumns = [
-    { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
+    {
+      title: 'Sección',
+      dataIndex: 'seccion',
+      key: 'seccion',
+      width: 130,
+      render: (v: string) => v ? <Text type="secondary" style={{ fontSize: '0.85em' }}>{v}</Text> : '—',
+    },
+    {
+      title: 'Descripción',
+      dataIndex: 'descripcion',
+      key: 'descripcion',
+      render: (v: string, record: PresupuestoDetalle) => (
+        <div>
+          <div>{v}</div>
+          {record.costo_unitario_recarga != null && (
+            <div style={{ fontSize: '0.8em', color: '#718096', marginTop: 2 }}>
+              Costo recarga: {formatCurrency(record.costo_unitario_recarga)}
+            </div>
+          )}
+        </div>
+      ),
+    },
     { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', align: 'right' as const },
     {
       title: 'Precio Unitario',
@@ -409,6 +430,13 @@ const PresupuestoFormPage: React.FC = () => {
               disabled={!empresaId}
             />
           </Form.Item>
+          <Form.Item
+            label="Sección"
+            name="seccion"
+            tooltip="Agrupa este concepto bajo una sección en el PDF (ej. Control Químico, Mantenimiento)"
+          >
+            <Input placeholder="Ej. Control Químico" maxLength={100} allowClear />
+          </Form.Item>
           <Form.Item label="Descripción" name="descripcion" rules={[{ required: true }]}>
             <Input.TextArea rows={2} />
           </Form.Item>
@@ -435,6 +463,19 @@ const PresupuestoFormPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item
+            label="Costo Unitario Recarga"
+            name="costo_unitario_recarga"
+            tooltip="Costo por recarga/consumible. Se muestra como nota informativa en el PDF."
+          >
+            <InputNumber<number>
+              min={0}
+              style={{ width: '100%' }}
+              formatter={value => `$ ${value}`}
+              parser={value => value!.replace(/\$\s?|(,*)/g, '') as unknown as number}
+              placeholder="Opcional"
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
