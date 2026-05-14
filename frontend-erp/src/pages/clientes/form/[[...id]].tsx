@@ -65,8 +65,12 @@ const UPPERCASE_FIELDS = [
   'rfc',
   'calle',
   'colonia',
+  'ciudad',
+  'estado',
   'serv_calle',
   'serv_colonia',
+  'serv_ciudad',
+  'serv_estado',
 ];
 
 const ClienteFormPage: React.FC = () => {

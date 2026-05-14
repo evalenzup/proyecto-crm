@@ -13,6 +13,7 @@ La expresionImpresa tiene el formato:
 
 from __future__ import annotations
 
+import html
 import logging
 from dataclasses import dataclass
 from typing import Optional
@@ -86,7 +87,9 @@ def consultar_cfdi(
     Lanza RuntimeError si hay problemas de red o respuesta inválida.
     """
     expresion = _build_expresion(rfc_emisor, rfc_receptor, total, uuid)
-    body = SOAP_TEMPLATE.format(expresion=expresion)
+    # Los & de la query string deben escaparse como &amp; dentro de XML;
+    # de lo contrario el parser SOAP del SAT falla con DeserializationFailed.
+    body = SOAP_TEMPLATE.format(expresion=html.escape(expresion))
 
     headers = {
         "Content-Type": "text/xml; charset=utf-8",

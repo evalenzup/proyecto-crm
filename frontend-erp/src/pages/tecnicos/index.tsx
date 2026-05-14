@@ -22,7 +22,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { useTableHeight } from '@/hooks/useTableHeight';
-import { tecnicoService, TecnicoOut } from '@/services/tecnicoService';
+import { tecnicoService, TecnicoOut, TipoPersonal } from '@/services/tecnicoService';
 
 const { Option } = Select;
 
@@ -39,6 +39,7 @@ const TecnicosPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [searchInput, setSearchInput] = useState('');
   const [q, setQ] = useState<string | undefined>(undefined);
+  const [tipoPersonalFilter, setTipoPersonalFilter] = useState<TipoPersonal | undefined>(undefined);
 
   const fetchData = useCallback(
     async (page: number, size: number, query?: string) => {
@@ -47,13 +48,14 @@ const TecnicosPage: React.FC = () => {
         const result = await tecnicoService.getTecnicos({
           empresa_id: selectedEmpresaId ?? null,
           q: query,
+          tipo_personal: tipoPersonalFilter,
           limit: size,
           offset: (page - 1) * size,
         });
         setData(result.items);
         setTotal(result.total);
       } catch {
-        message.error('Error al cargar técnicos');
+        message.error('Error al cargar el personal');
       } finally {
         setLoading(false);
       }
@@ -67,7 +69,7 @@ const TecnicosPage: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedEmpresaId]);
+  }, [selectedEmpresaId, tipoPersonalFilter]);
 
   const handlePageChange = (page: number, size?: number) => {
     setCurrentPage(page);
@@ -77,10 +79,10 @@ const TecnicosPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     try {
       await tecnicoService.deleteTecnico(id);
-      message.success('Técnico eliminado');
+      message.success('Registro eliminado');
       fetchData(currentPage, pageSize, q);
     } catch {
-      message.error('Error al eliminar técnico');
+      message.error('Error al eliminar el registro');
     }
   };
 
@@ -100,18 +102,52 @@ const TecnicosPage: React.FC = () => {
     debouncedSearch(e.target.value);
   };
 
+  const TIPO_PERSONAL_COLOR: Record<string, string> = {
+    TECNICO: 'geekblue',
+    ADMINISTRATIVO: 'purple',
+    OPERATIVO: 'cyan',
+    SUPERVISOR: 'orange',
+    OTRO: 'default',
+  };
+  const TIPO_PERSONAL_LABEL: Record<string, string> = {
+    TECNICO: 'Técnico',
+    ADMINISTRATIVO: 'Administrativo',
+    OPERATIVO: 'Operativo',
+    SUPERVISOR: 'Supervisor',
+    OTRO: 'Otro',
+  };
+
   const columns: ColumnsType<TecnicoOut> = [
     {
-      title: 'Nombre Completo',
+      title: 'Nombre',
       dataIndex: 'nombre_completo',
       key: 'nombre_completo',
-      width: 200,
+      width: 220,
     },
     {
-      title: 'Teléfono',
-      dataIndex: 'telefono',
-      key: 'telefono',
-      width: 140,
+      title: 'Tipo',
+      dataIndex: 'tipo_personal',
+      key: 'tipo_personal',
+      width: 130,
+      render: (val: string) => (
+        <Tag color={TIPO_PERSONAL_COLOR[val] ?? 'default'}>
+          {TIPO_PERSONAL_LABEL[val] ?? val}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Puesto',
+      dataIndex: 'puesto',
+      key: 'puesto',
+      width: 160,
+      render: (val?: string | null) =>
+        val ?? <span style={{ color: token.colorTextDisabled }}>—</span>,
+    },
+    {
+      title: 'Celular',
+      dataIndex: 'celular',
+      key: 'celular',
+      width: 130,
       render: (val?: string | null) =>
         val ?? <span style={{ color: token.colorTextDisabled }}>—</span>,
     },
@@ -124,19 +160,11 @@ const TecnicosPage: React.FC = () => {
         val ?? <span style={{ color: token.colorTextDisabled }}>—</span>,
     },
     {
-      title: 'Max Servicios/Día',
-      dataIndex: 'max_servicios_dia',
-      key: 'max_servicios_dia',
-      width: 150,
-      render: (val?: number | null) =>
-        val != null ? val : <span style={{ color: token.colorTextDisabled }}>—</span>,
-    },
-    {
       title: 'Especialidades',
       key: 'especialidades',
       render: (_, record) => {
         const items = record.especialidades ?? [];
-        const visible = items.slice(0, 3);
+        const visible = items.slice(0, 2);
         const remaining = items.length - visible.length;
         return (
           <Space size={4} wrap>
@@ -146,7 +174,7 @@ const TecnicosPage: React.FC = () => {
               </Tag>
             ))}
             {remaining > 0 && (
-              <Tooltip title={items.slice(3).map((e) => e.nombre).join(', ')}>
+              <Tooltip title={items.slice(2).map((e) => e.nombre).join(', ')}>
                 <Tag>+{remaining}</Tag>
               </Tooltip>
             )}
@@ -181,7 +209,7 @@ const TecnicosPage: React.FC = () => {
           </Tooltip>
           <Tooltip title="Eliminar">
             <Popconfirm
-              title="¿Eliminar este técnico?"
+              title="¿Eliminar este registro?"
               onConfirm={() => handleDelete(record.id)}
               okText="Sí"
               cancelText="No"
@@ -199,7 +227,7 @@ const TecnicosPage: React.FC = () => {
       <div className="app-page-header">
         <div className="app-page-header__left">
           <Breadcrumbs />
-          <h1 className="app-title">Técnicos</h1>
+          <h1 className="app-title">Personal</h1>
         </div>
         <div className="app-page-header__right">
           <Button
@@ -225,12 +253,28 @@ const TecnicosPage: React.FC = () => {
             <Space wrap>
               <Input
                 prefix={<SearchOutlined />}
-                placeholder="Buscar (min 3 caracteres)"
-                style={{ width: 260 }}
+                placeholder="Buscar por nombre (min 3 caracteres)"
+                style={{ width: 280 }}
                 value={searchInput}
                 onChange={handleSearchChange}
                 allowClear
               />
+              <Select
+                allowClear
+                placeholder="Tipo de personal"
+                style={{ width: 180 }}
+                value={tipoPersonalFilter}
+                onChange={(val) => {
+                  setTipoPersonalFilter(val);
+                  setCurrentPage(1);
+                }}
+              >
+                <Option value="TECNICO">Técnico</Option>
+                <Option value="ADMINISTRATIVO">Administrativo</Option>
+                <Option value="OPERATIVO">Operativo</Option>
+                <Option value="SUPERVISOR">Supervisor</Option>
+                <Option value="OTRO">Otro</Option>
+              </Select>
             </Space>
           </div>
         </Card>
@@ -249,7 +293,7 @@ const TecnicosPage: React.FC = () => {
             showSizeChanger: true,
             showTotal: (t) => `${t} registros`,
           }}
-          locale={{ emptyText: 'No hay técnicos registrados' }}
+          locale={{ emptyText: 'No hay personal registrado' }}
         />
       </div>
     </>

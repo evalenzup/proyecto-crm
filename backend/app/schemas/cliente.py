@@ -30,12 +30,16 @@ class ClienteBase(BaseModel):
         None, title="Número Interior"
     )
     colonia: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Colonia")
+    ciudad: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Ciudad")
+    estado: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Estado")
     codigo_postal: Annotated[str, StringConstraints(max_length=10)] = Field(..., title="Código Postal")
     # Dirección de servicio / operativa
     serv_calle: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Calle (Servicio)")
     serv_numero_exterior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(None, title="Número Exterior (Servicio)")
     serv_numero_interior: Optional[Annotated[str, StringConstraints(max_length=50)]] = Field(None, title="Número Interior (Servicio)")
     serv_colonia: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Colonia (Servicio)")
+    serv_ciudad: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Ciudad (Servicio)")
+    serv_estado: Optional[Annotated[str, StringConstraints(max_length=100)]] = Field(None, title="Estado (Servicio)")
     serv_codigo_postal: Optional[Annotated[str, StringConstraints(max_length=10)]] = Field(None, title="Código Postal (Servicio)")
     serv_referencia: Optional[Annotated[str, StringConstraints(max_length=255)]] = Field(None, title="Referencias (Servicio)")
     # Geolocalización

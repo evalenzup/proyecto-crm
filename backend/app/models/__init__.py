@@ -23,6 +23,7 @@ from .servicio_operativo import ServicioOperativo
 from .tecnico import Tecnico
 from .unidad import Unidad
 from .mantenimiento_unidad import MantenimientoUnidad
+from .poliza_seguro import PolizaSeguro
 from .associations import tecnico_especialidades, unidad_servicios_compatibles
 
 # Usar uno de los Base como referencia unificada
@@ -56,6 +57,7 @@ __all__ = [
     "Tecnico",
     "Unidad",
     "MantenimientoUnidad",
+    "PolizaSeguro",
     "tecnico_especialidades",
     "unidad_servicios_compatibles",
 ]

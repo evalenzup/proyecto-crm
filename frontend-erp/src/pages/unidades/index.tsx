@@ -37,6 +37,8 @@ const TIPO_COLOR: Record<TipoUnidad, string> = {
   PICKUP: 'orange',
   CAMIONETA: 'green',
   MOTOCICLETA: 'purple',
+  VAN: 'cyan',
+  CAMION: 'geekblue',
   OTRO: 'default',
 };
 

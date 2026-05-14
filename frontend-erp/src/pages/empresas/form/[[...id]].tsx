@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '@/lib/axios';
 import {
-  Form, Input, Select, Button, Spin, Card, message, Space, Typography, Alert, Upload, Descriptions, Tag,
+  Form, Input, Select, Button, Spin, Card, message, Space, Typography, Alert, Upload, Descriptions, Tag, ColorPicker,
 } from 'antd';
 import type { UploadFile } from 'antd';
 import { UploadOutlined, DownloadOutlined, FilePdfOutlined } from '@ant-design/icons';
@@ -321,6 +321,19 @@ const EmpresaFormPage: React.FC = () => {
 
   const renderField = (key: string, prop: any) => {
     const required = schema.required?.includes(key);
+
+    if (key === 'color_credencial') {
+      return (
+        <Form.Item
+          key={key}
+          label={prop.title || 'Color de Credencial'}
+          name={key}
+          getValueFromEvent={(color: any) => color.toHexString()}
+        >
+          <ColorPicker format="hex" showText />
+        </Form.Item>
+      );
+    }
 
     if (key === 'logo') {
       return (

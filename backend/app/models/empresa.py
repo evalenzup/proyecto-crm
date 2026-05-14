@@ -36,6 +36,7 @@ class Empresa(Base):
     archivo_cer = Column(String(255), nullable=True)
     archivo_key = Column(String(255), nullable=True)
     logo = Column(String(255), nullable=True)
+    color_credencial = Column(String(7), nullable=True, default="#1a6b3a")
 
     # Datos Bancarios
     nombre_banco = Column(String(100), nullable=True)
@@ -69,4 +70,7 @@ class Empresa(Base):
         return self.email_config is not None
 
     def __repr__(self) -> str:
-        return f"<Empresa(nombre={self.nombre}, nombre_comercial={self.nombre_comercial}, ruc={self.ruc})>"
+        try:
+            return f"<Empresa(nombre={self.nombre}, nombre_comercial={self.nombre_comercial}, ruc={self.ruc})>"
+        except Exception:
+            return "<Empresa(detached)>"
