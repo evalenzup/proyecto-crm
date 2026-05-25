@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Usuario, LoginResponse, AuthState } from '@/types/auth'; // Asegúrate que Usuario tenga los campos necesarios
+import { Usuario, AuthState } from '@/types/auth';
 import { authService } from '@/services/authService';
+import { setAccessToken } from '@/lib/axios';
 import { queryClient } from '@/lib/queryClient';
 import { message } from 'antd';
 
@@ -21,26 +22,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
-    // Función para cargar el usuario inicial desde el token
+    // Restaurar sesión al cargar la app usando la cookie httpOnly del refresh token.
+    // Si la cookie es válida, el backend devuelve un nuevo access token; si no, el
+    // usuario no está autenticado y se redirigirá al login cuando sea necesario.
     useEffect(() => {
         const initAuth = async () => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                try {
-                    const userData = await authService.getMe();
-                    setUser(userData);
-                    setIsAuthenticated(true);
-                } catch (err) {
-                    // Si getMe() falla (p.ej. ambos tokens expirados), limpiar
-                    // todo para que el interceptor no quede con tokens basura.
-                    console.error("Error validando sesión:", err);
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('refresh_token');
-                    setUser(null);
-                    setIsAuthenticated(false);
-                }
+            try {
+                const tokens = await authService.refreshToken();
+                setAccessToken(tokens.access_token);
+                const userData = await authService.getMe();
+                setUser(userData);
+                setIsAuthenticated(true);
+            } catch {
+                // Sin cookie válida → sesión inexistente o expirada
+                setAccessToken(null);
+                setUser(null);
+                setIsAuthenticated(false);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
 
         initAuth();
@@ -50,19 +50,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         setError(null);
         try {
-            const response: LoginResponse = await authService.login(email, password);
-            localStorage.setItem('token', response.access_token);
-            localStorage.setItem('refresh_token', response.refresh_token);
+            const response = await authService.login(email, password);
+            // access_token en memoria; refresh_token llegó como httpOnly cookie
+            setAccessToken(response.access_token);
 
             const userData = await authService.getMe();
             setUser(userData);
             setIsAuthenticated(true);
             message.success('Bienvenido');
 
-            // Redirección post-login
             router.push('/');
         } catch (err: any) {
-            console.error("Login fallido:", err);
+            console.error('Login fallido:', err);
             const msg = err.response?.data?.detail || 'Credenciales inválidas';
             setError(msg);
             message.error(msg);
@@ -73,16 +72,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const logout = async () => {
-        // Invalidar el refresh token en el servidor antes de limpiar localmente
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-            await authService.logout(refreshToken);
-        }
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
+        // El backend invalida el JTI y borra la cookie usando el refresh_token de la cookie
+        await authService.logout();
+
+        // Limpiar estado local
+        setAccessToken(null);
         localStorage.removeItem(EMPRESA_STORAGE_KEY);
-        // Limpiar todo el cache de React Query para que el siguiente usuario
-        // no vea datos (empresas, clientes, etc.) cacheados de esta sesión.
         queryClient.clear();
         setUser(null);
         setIsAuthenticated(false);

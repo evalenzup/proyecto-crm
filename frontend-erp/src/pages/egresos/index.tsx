@@ -87,8 +87,8 @@ const EgresosListPage: React.FC = () => {
       });
       setEgresos(response.items);
       setTotal(response.total);
-    } catch (error) {
-      message.error('Error al cargar los egresos.');
+    } catch (error: any) {
+      if (!error?._handled) message.error('Error al cargar los egresos.');
     } finally {
       setLoading(false);
     }
@@ -109,8 +109,8 @@ const EgresosListPage: React.FC = () => {
         // setEmpresas((empresasData || []).map((e: any) => ({ label: e.nombre_comercial || e.nombre, value: e.id })));
         setCategorias(enumsData.categorias);
         setEstatusOptions(enumsData.estatus);
-      } catch (error) {
-        message.error('Error al cargar datos para filtros.');
+      } catch (error: any) {
+        if (!error?._handled) message.error('Error al cargar datos para filtros.');
       }
     };
     fetchFilterData();
@@ -156,9 +156,9 @@ const EgresosListPage: React.FC = () => {
       a.download = 'egresos.xlsx';
       a.click();
       window.URL.revokeObjectURL(url);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      message.error('Error al exportar egresos');
+      if (!e?._handled) message.error('Error al exportar egresos');
     }
   };
 
@@ -301,7 +301,7 @@ const EgresosListPage: React.FC = () => {
               <Select
                 showSearch
                 placeholder="Nombre Proveedor (min 3 letras)"
-                style={{ width: 250 }}
+                style={{ width: 250, minWidth: 160 }}
                 filterOption={false}
                 onSearch={handleSearchProveedores}
                 onChange={(value) => handleFilterChange('proveedor', value)}
@@ -316,14 +316,14 @@ const EgresosListPage: React.FC = () => {
               />
               <Select
                 placeholder="Categoría"
-                style={{ width: 200 }}
+                style={{ width: 200, minWidth: 140 }}
                 allowClear
                 options={categorias.map(c => ({ label: c, value: c }))}
                 onChange={(value) => handleFilterChange('categoria', value)}
               />
               <Select
                 placeholder="Estatus"
-                style={{ width: 200 }}
+                style={{ width: 160, minWidth: 130 }}
                 allowClear
                 options={estatusOptions.map(s => ({ label: s, value: s }))}
                 onChange={(value) => handleFilterChange('estatus', value)}
@@ -331,6 +331,7 @@ const EgresosListPage: React.FC = () => {
               <RangePicker
                 onChange={handleDateChange}
                 value={filters.fecha_desde && filters.fecha_hasta ? [dayjs(filters.fecha_desde), dayjs(filters.fecha_hasta)] : null}
+                style={{ minWidth: 200 }}
               />
             </Space>
           </div>

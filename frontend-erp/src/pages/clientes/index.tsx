@@ -91,9 +91,9 @@ const ClientesPage: React.FC = () => {
       a.download = 'clientes.xlsx';
       a.click();
       window.URL.revokeObjectURL(url);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      message.error('Error al exportar clientes');
+      if (!e?._handled) message.error('Error al exportar clientes');
     }
   };
 
@@ -166,10 +166,10 @@ const ClientesPage: React.FC = () => {
                 prefix={<SearchOutlined />}
                 value={rfcFiltro}
                 onChange={(e) => setRfcFiltro(e.target.value)}
-                style={{ width: 200 }}
+                style={{ width: 200, minWidth: 140 }}
               />
               <AutoComplete
-                style={{ width: 300 }}
+                style={{ width: 300, minWidth: 180 }}
                 placeholder="Nombre Comercial..."
                 onSearch={handleSearchClientesComercial}
                 onChange={(val) => setNombreFiltro(val)}
@@ -181,7 +181,7 @@ const ClientesPage: React.FC = () => {
                 }))}
               />
               <AutoComplete
-                style={{ width: 300 }}
+                style={{ width: 300, minWidth: 180 }}
                 placeholder="Razón Social..."
                 onSearch={handleSearchClientesFiscal}
                 onChange={(val) => setNombreFiscalFiltro(val)}

@@ -19,21 +19,35 @@ export interface ClienteOut {
   nombre_razon_social: string;
   rfc: string;
   regimen_fiscal: string;
+  // Dirección fiscal
+  calle?: string;
+  numero_exterior?: string;
+  numero_interior?: string;
+  colonia?: string;
+  ciudad?: string;
+  estado?: string;
   codigo_postal: string;
-  telefono?: string[];
-  email?: string[];
-  dias_credito: number;
-  dias_recepcion: number;
-  dias_pago: number;
-  tamano?: 'CHICO' | 'MEDIANO' | 'GRANDE';
-  actividad?: 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL';
   // Dirección de servicio / operativa
   serv_calle?: string;
   serv_numero_exterior?: string;
   serv_numero_interior?: string;
   serv_colonia?: string;
+  serv_ciudad?: string;
+  serv_estado?: string;
   serv_codigo_postal?: string;
   serv_referencia?: string;
+  // Geolocalización
+  latitud?: number | null;
+  longitud?: number | null;
+  // Contacto
+  telefono?: string[];
+  email?: string[];
+  // Financiero
+  dias_credito: number;
+  dias_recepcion: number;
+  dias_pago: number;
+  tamano?: 'CHICO' | 'MEDIANO' | 'GRANDE';
+  actividad?: 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL';
   creado_en: string;
   actualizado_en: string;
   empresas?: Array<{ id: string; nombre_comercial: string }>;

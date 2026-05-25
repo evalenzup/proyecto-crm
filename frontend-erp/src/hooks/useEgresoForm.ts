@@ -79,8 +79,8 @@ export const useEgresoForm = () => {
             metodo_pago: '03', // Default to Transferencia electrónica
           });
         }
-      } catch (error) {
-        message.error('Error al cargar datos iniciales.');
+      } catch (error: any) {
+        if (!error?._handled) message.error('Error al cargar datos iniciales.');
       } finally {
         setLoading(false);
       }
@@ -89,12 +89,26 @@ export const useEgresoForm = () => {
     fetchInitialData();
   }, [id, form]);
 
+  // Cuando un Form.Item con name envuelve un <Upload>, Ant Design guarda el objeto
+  // UploadFile como valor del campo en lugar del path string que seteamos con setFieldsValue.
+  // Este helper extrae el path string desde cualquiera de las dos formas posibles.
+  const extractFilePath = (val: any): string | null => {
+    if (!val) return null;
+    if (typeof val === 'string') return val;
+    // Objeto Ant Design Upload: { file: { response: { path_documento: '...' } }, fileList: [...] }
+    const fileObj = val?.file ?? val?.fileList?.[0];
+    return fileObj?.response?.path_documento ?? null;
+  };
+
   const onFinish = async (values: any) => {
     setSaving(true);
     try {
       const payload = {
         ...values,
         fecha_egreso: values.fecha_egreso ? dayjs(values.fecha_egreso).format('YYYY-MM-DD') : null,
+        archivo_xml:      extractFilePath(values.archivo_xml),
+        archivo_pdf:      extractFilePath(values.archivo_pdf),
+        path_documento:   extractFilePath(values.path_documento),
       };
 
       if (id) {
@@ -110,7 +124,7 @@ export const useEgresoForm = () => {
       message.success(`Egreso ${id ? 'actualizado' : 'creado'} con éxito.`);
       router.push('/egresos');
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || 'Error al guardar el egreso.');
+      if (!err?._handled) message.error(err?.response?.data?.detail || 'Error al guardar el egreso.');
     } finally {
       setSaving(false);
     }

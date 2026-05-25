@@ -218,7 +218,7 @@ const ServiciosOperativosPage: React.FC = () => {
               {isAdmin && (
                 <Select
                   placeholder="Todas las empresas"
-                  style={{ width: 220 }}
+                  style={{ width: 220, minWidth: 160 }}
                   allowClear
                   value={selectedEmpresaId}
                   onChange={(val) => {
@@ -237,14 +237,14 @@ const ServiciosOperativosPage: React.FC = () => {
               <Input
                 prefix={<SearchOutlined />}
                 placeholder="Buscar (min 3 caracteres)"
-                style={{ width: 260 }}
+                style={{ width: 260, minWidth: 170 }}
                 value={searchInput}
                 onChange={handleSearchChange}
                 allowClear
               />
               <Select
                 placeholder="Estado"
-                style={{ width: 140 }}
+                style={{ width: 140, minWidth: 120 }}
                 allowClear
                 onChange={(val: boolean | undefined) => {
                   setActivoFiltro(val);

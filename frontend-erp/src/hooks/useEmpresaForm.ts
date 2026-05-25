@@ -80,7 +80,7 @@ export const useEmpresaForm = (id?: string): UseEmpresaFormResult => {
   useEffect(() => {
     empresaService.getEmpresaSchema()
       .then(setSchema)
-      .catch((e) => message.error(normalizeHttpError(e)))
+      .catch((e: any) => { if (!e?._handled) message.error(normalizeHttpError(e)); })
       .finally(() => setLoadingSchema(false));
   }, []);
 
@@ -125,8 +125,8 @@ export const useEmpresaForm = (id?: string): UseEmpresaFormResult => {
           setCertInfo(null);
         }
       })
-      .catch((e) => {
-        message.error(normalizeHttpError(e) || 'Registro no encontrado');
+      .catch((e: any) => {
+        if (!e?._handled) message.error(normalizeHttpError(e) || 'Registro no encontrado');
         router.replace('/empresas'); // Redirigir si no se encuentra el registro
       })
       .finally(() => setLoadingRecord(false));
@@ -205,7 +205,7 @@ export const useEmpresaForm = (id?: string): UseEmpresaFormResult => {
     } catch (err: any) {
       // Marcar errores de validación en campos y mostrar mensaje amigable
       applyFormErrors(err, form);
-      message.error(normalizeHttpError(err));
+      if (!err?._handled) message.error(normalizeHttpError(err));
     }
   };
 

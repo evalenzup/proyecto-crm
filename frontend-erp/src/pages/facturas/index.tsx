@@ -41,7 +41,7 @@ const FacturasIndexPage: React.FC = () => {
       router.push(`/facturas/form/${newFactura.id}`);
     } catch (error: any) {
       console.error(error);
-      message.error({
+      if (!error?._handled) message.error({
         content: error.response?.data?.detail || 'Error al duplicar la factura',
         key: 'duplicating'
       });
@@ -78,8 +78,10 @@ const FacturasIndexPage: React.FC = () => {
         emailForm.resetFields();
       })
       .catch((e: any) => {
-        const detail = e?.response?.data?.detail;
-        message.error(typeof detail === 'string' ? detail : 'Error al enviar correo.');
+        if (!e?._handled) {
+          const detail = e?.response?.data?.detail;
+          message.error(typeof detail === 'string' ? detail : 'Error al enviar correo.');
+        }
       });
   };
 
@@ -232,7 +234,7 @@ const FacturasIndexPage: React.FC = () => {
           >
             <Space wrap size={[8, 8]}>
               <Select
-                showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220 }}
+                showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220, minWidth: 160 }}
                 filterOption={false}
                 onSearch={(val) => { setClienteQuery(val); debouncedBuscarClientesComercial(val); }}
                 onChange={(val) => setClienteId(val)}
@@ -243,7 +245,7 @@ const FacturasIndexPage: React.FC = () => {
                 notFoundContent={null}
               />
               <Select
-                showSearch allowClear placeholder="Razón Social" style={{ width: 220 }}
+                showSearch allowClear placeholder="Razón Social" style={{ width: 220, minWidth: 160 }}
                 filterOption={false}
                 onSearch={(val) => { setClienteQuery(val); debouncedBuscarClientesFiscal(val); }}
                 onChange={(val) => setClienteId(val)}
@@ -254,7 +256,7 @@ const FacturasIndexPage: React.FC = () => {
                 notFoundContent={null}
               />
               <Select
-                allowClear placeholder="Estatus CFDI" style={{ width: 180 }}
+                allowClear placeholder="Estatus CFDI" style={{ width: 160, minWidth: 140 }}
                 value={estatus} onChange={setEstatus}
                 options={[
                   { value: 'BORRADOR', label: 'BORRADOR' },
@@ -263,7 +265,7 @@ const FacturasIndexPage: React.FC = () => {
                 ]}
               />
               <Select
-                allowClear placeholder="Estatus Pago" style={{ width: 180 }}
+                allowClear placeholder="Estatus Pago" style={{ width: 160, minWidth: 140 }}
                 value={estatusPago} onChange={setEstatusPago}
                 options={[
                   { value: 'PAGADA', label: 'PAGADA' },
@@ -275,10 +277,11 @@ const FacturasIndexPage: React.FC = () => {
                 value={rangoFechas as any}
                 placeholder={['Desde', 'Hasta']}
                 allowClear
+                style={{ minWidth: 200 }}
               />
               <Input
                 placeholder="Folio (Enter)"
-                style={{ width: 120 }}
+                style={{ width: 120, minWidth: 100 }}
                 onPressEnter={(e) => setFolio(e.currentTarget.value)}
                 allowClear
                 onChange={(e) => { if (!e.target.value) setFolio(''); }}

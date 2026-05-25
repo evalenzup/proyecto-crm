@@ -121,7 +121,7 @@ const ProductosServiciosPage: React.FC = () => {
             <Space wrap>
               <Select
                 placeholder="Filtrar por tipo"
-                style={{ width: 160 }}
+                style={{ width: 160, minWidth: 140 }}
                 allowClear
                 onChange={(value: string) => {
                   // El hook useProductoServicioList no tiene un filtro por tipo directamente
@@ -139,7 +139,7 @@ const ProductosServiciosPage: React.FC = () => {
                 <Option value={TipoProductoServicio.SERVICIO}>SERVICIO</Option>
               </Select>
               <AutoComplete
-                style={{ width: 500 }}
+                style={{ width: 500, minWidth: 200 }}
                 placeholder="Descripción/Clave (min 3 letras)"
                 onSearch={handleSearchProducts}
                 onChange={(val: string) => setSearchTerm(val)}

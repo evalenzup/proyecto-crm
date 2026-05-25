@@ -33,6 +33,9 @@ from app.api.auditoria import router as auditoria_router
 from app.api.mapa import router as mapa_router
 from app.api.reportes import router as reportes_router
 from app.api.operativo import servicios_router, tecnicos_router, unidades_router
+from app.api.public import router as public_router
+from app.api.ordenes_servicio import router as ordenes_router
+from app.api.programacion_facturas import router as prog_facturas_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -46,24 +49,50 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 
 
+_SAT_SYNC_LOCK_KEY = 0x53415453  # "SATS" en hex — clave fija para pg_advisory_lock
+
+
 def _sync_cancelaciones_job():
-    """Cron 1x/día: verifica en el SAT todas las facturas EN_CANCELACION."""
+    """
+    Cron 1x/día: verifica en el SAT todas las facturas EN_CANCELACION.
+
+    Usa pg_try_advisory_lock para evitar ejecución doble si hay más de una instancia
+    del proceso web activa (blue/green deploy, reinicio sin apagado graceful, etc.).
+    Si otra instancia ya tiene el lock, este invocation se omite silenciosamente.
+    """
     from app.database import SessionLocal
     from app.models.factura import Factura
     from app.services import sat_cfdi_service as sat_svc
-    from datetime import datetime
+    from sqlalchemy import text
+    from sqlalchemy.orm import joinedload
 
     db = SessionLocal()
+    lock_acquired = False
     try:
+        # ── Lock distribuido vía PostgreSQL advisory lock ─────────────────────
+        lock_acquired = db.execute(
+            text("SELECT pg_try_advisory_lock(:key)"), {"key": _SAT_SYNC_LOCK_KEY}
+        ).scalar()
+
+        if not lock_acquired:
+            logger.info("[SAT Sync] Otra instancia ya ejecuta el cron — saltando.")
+            return
+
+        # ── Cargar facturas con joinedload para evitar N+1 ────────────────────
         pendientes = (
             db.query(Factura)
+            .options(
+                joinedload(Factura.empresa),
+                joinedload(Factura.cliente),
+            )
             .filter(Factura.estatus == "EN_CANCELACION", Factura.cfdi_uuid.isnot(None))
             .all()
         )
         logger.info("[SAT Sync] Verificando %d facturas EN_CANCELACION", len(pendientes))
+
         for f in pendientes:
-            rfc_emisor = getattr(getattr(f, "empresa", None), "rfc", None) or ""
-            rfc_receptor = getattr(getattr(f, "cliente", None), "rfc", None) or ""
+            rfc_emisor = getattr(f.empresa, "rfc", None) or ""
+            rfc_receptor = getattr(f.cliente, "rfc", None) or ""
             try:
                 acuse = sat_svc.consultar_cfdi(
                     rfc_emisor=rfc_emisor.strip().upper(),
@@ -71,25 +100,45 @@ def _sync_cancelaciones_job():
                     total=float(f.total or 0),
                     uuid=f.cfdi_uuid,
                 )
-                if acuse.cancelado_por_sat:
-                    f.estatus = "CANCELADA"
-                    f.fecha_solicitud_cancelacion = None
+                nuevo_estatus, hubo_cambio = sat_svc.aplicar_acuse_sat(f, acuse)
+                if hubo_cambio:
                     db.add(f)
-                    logger.info("[SAT Sync] Factura %s-%s → CANCELADA", f.serie, f.folio)
-                elif not acuse.en_proceso:
-                    # El receptor rechazó, volvemos a TIMBRADA
-                    f.estatus = "TIMBRADA"
-                    f.motivo_cancelacion = None
-                    f.folio_fiscal_sustituto = None
-                    f.fecha_solicitud_cancelacion = None
-                    db.add(f)
-                    logger.info("[SAT Sync] Factura %s-%s → TIMBRADA (receptor rechazó)", f.serie, f.folio)
+                    logger.info(
+                        "[SAT Sync] Factura %s-%s → %s",
+                        f.serie, f.folio, nuevo_estatus,
+                    )
+                else:
+                    logger.debug("[SAT Sync] Factura %s-%s sin cambio", f.serie, f.folio)
             except Exception as exc:
                 logger.warning("[SAT Sync] Error verificando factura %s: %s", f.id, exc)
+
         db.commit()
     except Exception as exc:
         logger.error("[SAT Sync] Error general en cron: %s", exc)
         db.rollback()
+    finally:
+        if lock_acquired:
+            try:
+                db.execute(
+                    text("SELECT pg_advisory_unlock(:key)"), {"key": _SAT_SYNC_LOCK_KEY}
+                )
+                db.commit()
+            except Exception:
+                pass
+        db.close()
+
+
+def _ejecutar_programaciones_job():
+    """Cron 1x/día (3:05 AM): genera las facturas programadas para hoy."""
+    from app.database import SessionLocal
+    from app.services.programacion_factura_service import ejecutar_programaciones_pendientes
+
+    db = SessionLocal()
+    try:
+        stats = ejecutar_programaciones_pendientes(db)
+        logger.info("[ProgFacturas] Cron finalizado: %s", stats)
+    except Exception as exc:
+        logger.error("[ProgFacturas] Error en cron: %s", exc)
     finally:
         db.close()
 
@@ -101,6 +150,14 @@ _scheduler.add_job(
     hour=3,        # 3:00 AM hora México
     minute=0,
     id="sync_cancelaciones_sat",
+    replace_existing=True,
+)
+_scheduler.add_job(
+    _ejecutar_programaciones_job,
+    trigger="cron",
+    hour=3,        # 3:05 AM hora México
+    minute=5,
+    id="ejecutar_programaciones_facturas",
     replace_existing=True,
 )
 
@@ -291,6 +348,26 @@ app.include_router(
     unidades_router,
     prefix="/api/unidades",
     tags=["unidades"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    public_router,
+    prefix="/api/public",
+    tags=["public"],
+)
+
+app.include_router(
+    ordenes_router,
+    prefix="/api/ordenes-servicio",
+    tags=["ordenes-servicio"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    prog_facturas_router,
+    prefix="/api/programacion-facturas",
+    tags=["programacion-facturas"],
     responses={404: {"description": "No encontrado"}},
 )
 

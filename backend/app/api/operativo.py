@@ -13,7 +13,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.api import deps
@@ -54,13 +54,35 @@ _FOTOS_DIR = os.path.join(settings.DATA_DIR, "unidades_fotos")
 _DOCS_DIR = os.path.join(settings.DATA_DIR, "unidades_docs")
 
 
-def _save_upload(file: UploadFile, directory: str) -> str:
-    """Guarda un UploadFile en el directorio indicado y devuelve el nombre relativo."""
-    os.makedirs(directory, exist_ok=True)
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024          # 10 MB
+_ALLOWED_IMAGE_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+_ALLOWED_DOC_EXTS   = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".webp"})
+
+
+def _save_upload(
+    file: UploadFile,
+    directory: str,
+    allowed_extensions: frozenset = _ALLOWED_DOC_EXTS,
+) -> str:
+    """
+    Guarda un UploadFile en el directorio indicado y devuelve el nombre relativo.
+    Valida extensión y tamaño máximo (10 MB) antes de escribir a disco.
+    """
     ext = os.path.splitext(file.filename or "")[1].lower()
+    if not ext or ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de archivo no permitido. Extensiones válidas: {', '.join(sorted(allowed_extensions))}",
+        )
+    content = file.file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"El archivo supera el tamaño máximo de {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+        )
+    os.makedirs(directory, exist_ok=True)
     filename = f"{_uuid.uuid4()}{ext}"
     dest = os.path.join(directory, filename)
-    content = file.file.read()
     with open(dest, "wb") as fh:
         fh.write(content)
     return filename
@@ -213,7 +235,7 @@ async def subir_foto_tecnico(
     """Sube o reemplaza la foto del personal."""
     tecnico = svc_tecnico.get_tecnico(db, tecnico_id)
     _delete_file(_TECNICOS_FOTOS_DIR, tecnico.foto)
-    filename = _save_upload(file, _TECNICOS_FOTOS_DIR)
+    filename = _save_upload(file, _TECNICOS_FOTOS_DIR, _ALLOWED_IMAGE_EXTS)
     tecnico.foto = filename
     db.commit()
     db.refresh(tecnico)
@@ -230,7 +252,7 @@ def descargar_credencial(
     tecnico = svc_tecnico.get_tecnico(db, tecnico_id)
     empresa = tecnico.empresa
 
-    qr_data = str(tecnico_id)
+    qr_data = f"{settings.APP_URL}/verificar/{tecnico_id}"
 
     pdf_bytes = generar_credencial_pdf(
         tecnico_id=tecnico_id,
@@ -261,6 +283,22 @@ def descargar_credencial(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
     )
+
+
+@tecnicos_router.get("/{tecnico_id}/foto")
+def obtener_foto_tecnico(
+    tecnico_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Devuelve la foto del técnico como archivo (autenticado)."""
+    tecnico = svc_tecnico.get_tecnico(db, tecnico_id)
+    if not tecnico.foto:
+        raise HTTPException(status_code=404, detail="Sin foto")
+    path = os.path.join(_TECNICOS_FOTOS_DIR, tecnico.foto)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @tecnicos_router.delete("/{tecnico_id}/foto", status_code=204)
@@ -403,11 +441,32 @@ async def subir_foto_unidad(
     unidad = svc_unidad.get_unidad(db, unidad_id)
     # Borrar foto anterior si existe
     _delete_file(_FOTOS_DIR, getattr(unidad, campo))
-    filename = _save_upload(file, _FOTOS_DIR)
+    filename = _save_upload(file, _FOTOS_DIR, _ALLOWED_IMAGE_EXTS)
     setattr(unidad, campo, filename)
     db.commit()
     db.refresh(unidad)
     return unidad
+
+
+@unidades_router.get("/{unidad_id}/fotos/{campo}")
+def obtener_foto_unidad(
+    unidad_id: UUID,
+    campo: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Devuelve una foto de la unidad como archivo (autenticado)."""
+    campos_validos = {"foto_frontal", "foto_lateral", "foto_placa"}
+    if campo not in campos_validos:
+        raise HTTPException(status_code=400, detail=f"Campo inválido. Use: {campos_validos}")
+    unidad = svc_unidad.get_unidad(db, unidad_id)
+    filename = getattr(unidad, campo)
+    if not filename:
+        raise HTTPException(status_code=404, detail="Sin foto")
+    path = os.path.join(_FOTOS_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @unidades_router.delete("/{unidad_id}/fotos/{campo}", status_code=204)

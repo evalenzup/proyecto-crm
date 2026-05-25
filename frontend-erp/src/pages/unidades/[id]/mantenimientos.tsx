@@ -314,7 +314,7 @@ const MantenimientosPage: React.FC = () => {
         cancelText="Cancelar"
         confirmLoading={saving}
         destroyOnClose
-        width={580}
+        width="min(95vw, 580px)"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
           <Form.Item name="tipo" label="Tipo" rules={[{ required: true }]}>

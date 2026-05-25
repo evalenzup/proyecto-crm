@@ -95,6 +95,9 @@ export interface FacturaOut extends FacturaRow {
   fecha_pago?: string | null;
   fecha_cobro?: string | null;
   observaciones?: string | null;
+  retencion_local_desc?: string | null;
+  retencion_local_tasa?: string | null;
+  retencion_local_monto?: number | null;
   conceptos?: Concepto[];
   actualizado_en: string;
   message?: string;

@@ -29,26 +29,44 @@ class EgresoPageOut(BaseModel):
     limit: int
     offset: int
 
+_EGRESOS_ALLOWED_EXTS = frozenset({".pdf", ".xml", ".jpg", ".jpeg", ".png"})
+_EGRESOS_MAX_BYTES    = 10 * 1024 * 1024  # 10 MB
+
+
 @router.post("/upload-documento/", response_model=dict)
-async def upload_documento(file: UploadFile = File(...)):
+async def upload_documento(
+    file: UploadFile = File(...),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if not ext or ext not in _EGRESOS_ALLOWED_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de archivo no permitido. Extensiones válidas: {', '.join(sorted(_EGRESOS_ALLOWED_EXTS))}",
+        )
+    content = await file.read()
+    if len(content) > _EGRESOS_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"El archivo supera el tamaño máximo de {_EGRESOS_MAX_BYTES // (1024 * 1024)} MB.",
+        )
     try:
         upload_dir = os.path.join(settings.DATA_DIR, "egresos")
         os.makedirs(upload_dir, exist_ok=True)
-        file_extension = os.path.splitext(file.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        unique_filename = f"{uuid.uuid4()}{ext}"
         file_path = os.path.join(upload_dir, unique_filename)
-        # Leer contenido para guardar
-        content = await file.read()
         with open(file_path, "wb") as buffer:
             buffer.write(content)
-        
         return {"path_documento": os.path.join("egresos", unique_filename)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al subir el archivo: {e}")
 
 
 @router.post("/parse-xml", response_model=dict)
-async def parse_xml_endpoint(file: UploadFile = File(...)):
+async def parse_xml_endpoint(
+    file: UploadFile = File(...),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     """
     Recibe un XML y retorna datos extraidos (fecha, monto, prov, etc).
     No guarda el archivo, solo lo procesa en memoria.

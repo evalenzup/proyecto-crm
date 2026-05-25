@@ -68,7 +68,7 @@ const ServicioOperativoForm: React.FC = () => {
           activo: data.activo,
         });
       })
-      .catch(() => message.error('Error al cargar el servicio'))
+      .catch((e: any) => { if (!e?._handled) message.error('Error al cargar el servicio'); })
       .finally(() => setLoading(false));
   }, [id, form]);
 
@@ -146,8 +146,8 @@ const ServicioOperativoForm: React.FC = () => {
         message.success('Servicio creado');
       }
       router.push('/servicios-operativos');
-    } catch {
-      message.error('Error al guardar el servicio');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al guardar el servicio');
     } finally {
       setSaving(false);
     }

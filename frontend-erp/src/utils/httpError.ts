@@ -63,6 +63,18 @@ export function normalizeHttpError(err: unknown): string {
   const status = error?.response?.status;
   const data = error?.response?.data;
 
+  // ── Sin respuesta del servidor (red cortada, CORS, timeout) ──────────────
+  if (!error?.response) {
+    if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
+      return 'La petición tardó demasiado. Verifica tu conexión e intenta de nuevo.';
+    }
+    // "Network Error" es el mensaje interno de axios — no mostrarlo tal cual
+    if ((error as any)?.message && (error as any).message !== 'Network Error') {
+      return (error as any).message;
+    }
+    return 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
+  }
+
   // Si el backend devolvió un string
   if (typeof data === 'string') {
     // 1. Intentar XML SOAP
@@ -131,8 +143,8 @@ export function normalizeHttpError(err: unknown): string {
   }
   if (status === 500) return 'Error interno del servidor. Intenta más tarde.';
 
-  // Fallback por statusText o mensaje
-  const byText = (error?.response as any)?.statusText || (error as any)?.message;
+  // Fallback genérico — nunca devolver el "Network Error" interno de axios
+  const byText = (error?.response as any)?.statusText;
   return byText || fallback;
 }
 

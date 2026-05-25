@@ -74,6 +74,7 @@ def debug_folios(
     empresa_id: uuid.UUID,
     serie: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     query = db.query(Pago).filter(Pago.empresa_id == empresa_id)
     if serie:

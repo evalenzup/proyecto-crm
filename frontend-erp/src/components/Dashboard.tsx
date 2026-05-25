@@ -75,24 +75,24 @@ export const Dashboard: React.FC = () => {
       .then(res => {
         if (mounted) setEgresosCatData(res);
       })
-      .catch(console.error);
+      .catch(() => { });
 
     // Fetch Aging Data — soporta empresa individual y grupo RFC
     getAgingReport(empresaId, rfcFilter)
       .then(res => {
         if (mounted) setAgingData(res);
       })
-      .catch(console.error);
+      .catch(() => { });
 
     // Fetch alertas KPIs
     dashboardService.getAlertas({ empresaId, rfc: rfcFilter })
       .then(res => { if (mounted) setAlertas(res); })
-      .catch(console.error);
+      .catch(() => { });
 
     // Fetch reportes KPIs
     dashboardService.getReportes({ empresaId, rfc: rfcFilter })
       .then(res => { if (mounted) setReportes(res); })
-      .catch(console.error);
+      .catch(() => { });
 
     return () => {
       mounted = false;
@@ -110,7 +110,7 @@ export const Dashboard: React.FC = () => {
       .then((res) => {
         if (mounted) setTrendData(res);
       })
-      .catch(console.error);
+      .catch(() => { });
 
     return () => {
       mounted = false;

@@ -39,13 +39,15 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
+  const isPublicRoute = router.pathname === '/login' || router.pathname.startsWith('/verificar');
+
   React.useEffect(() => {
-    if (!isLoading && !isAuthenticated && router.pathname !== '/login') {
+    if (!isLoading && !isAuthenticated && !isPublicRoute) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, router, isPublicRoute]);
 
-  if (isLoading) {
+  if (isLoading && !isPublicRoute) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: 16 }}>
         <Spin size="large" />
@@ -55,7 +57,7 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
 
   // No autenticado → nada (el useEffect ya redirige)
-  if (!isAuthenticated && router.pathname !== '/login') {
+  if (!isAuthenticated && !isPublicRoute) {
     return null;
   }
 
@@ -136,9 +138,9 @@ export default function App({ Component, pageProps }: AppProps) {
 // Helper para renderizar layout condicionalmente
 const RenderLayout = ({ Component, pageProps }: any) => {
   const router = useRouter();
-  const isLoginPage = router.pathname === '/login';
+  const isPublicPage = router.pathname === '/login' || router.pathname.startsWith('/verificar');
 
-  if (isLoginPage) {
+  if (isPublicPage) {
     return <Component {...pageProps} />;
   }
 

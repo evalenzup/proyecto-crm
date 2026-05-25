@@ -113,7 +113,7 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
         });
         setMapaClavesSat(newMapaClavesSat);
       })
-      .catch((e) => message.error(normalizeHttpError(e)))
+      .catch((e: any) => { if (!e?._handled) message.error(normalizeHttpError(e)); })
       .finally(() => {
         setLoadingEmpresas(false);
         setLoadingSchema(false);
@@ -137,8 +137,8 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
         form.setFieldsValue(initial);
         setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
       })
-      .catch((e) => {
-        message.error(normalizeHttpError(e) || 'Registro no encontrado');
+      .catch((e: any) => {
+        if (!e?._handled) message.error(normalizeHttpError(e) || 'Registro no encontrado');
         router.replace('/productos-servicios');
       })
       .finally(() => setLoadingRecord(false));
@@ -165,7 +165,7 @@ export const useProductoServicioForm = (id?: string): UseProductoServicioFormRes
       router.push('/productos-servicios');
     } catch (err: any) {
       applyFormErrors(err, form);
-      message.error(normalizeHttpError(err));
+      if (!err?._handled) message.error(normalizeHttpError(err));
     }
   };
 

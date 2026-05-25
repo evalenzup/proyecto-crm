@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { message } from 'antd';
 import { useRouter } from 'next/router';
 import { TablePaginationConfig } from 'antd/es/table';
 import { Dayjs } from 'dayjs';
-import debounce from 'lodash/debounce';
 import {
   getPagos,
   type PagoRow,
   type EstatusPagoCfdi,
 } from '@/services/pagoService';
-import { searchClientes } from '@/services/facturaService';
 import { useEmpresaSelector } from './useEmpresaSelector';
 import { useFilterContext } from '@/context/FilterContext';
+import { useClienteSearch } from './useClienteSearch';
+import { usePdfPreview } from './usePdfPreview';
+import { useEmailModal } from './useEmailModal';
 import dayjs from 'dayjs';
 
 interface Opcion { label: string; value: string }
@@ -71,8 +73,22 @@ export const usePagosList = () => {
     }));
   };
 
-  const [clienteOptionsComercial, setClienteOptionsComercial] = useState<Opcion[]>([]);
-  const [clienteOptionsFiscal, setClienteOptionsFiscal] = useState<Opcion[]>([]);
+  const {
+    clienteOptionsComercial, setClienteOptionsComercial,
+    clienteOptionsFiscal, setClienteOptionsFiscal,
+    debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
+    syncClienteById,
+  } = useClienteSearch(empresaId);
+
+  const {
+    previewModalOpen, previewPdfUrl, previewRow,
+    openPreview, cerrarPreview,
+  } = usePdfPreview<PagoRow>();
+
+  const {
+    emailModalOpen, emailRow, emailLoading, setEmailLoading,
+    abrirEmailModal, cerrarEmailModal,
+  } = useEmailModal<PagoRow>();
 
   const fetchPagos = useCallback(async (pag: TablePaginationConfig = pagination) => {
     if (!empresaId) {
@@ -96,8 +112,8 @@ export const usePagosList = () => {
       setRows(data.items || []);
       setTotalRows(data.total || 0);
       setPagination((p) => ({ ...p, current: pag.current, pageSize: pag.pageSize }));
-    } catch (error) {
-      console.error('Error fetching pagos', error);
+    } catch (error: any) {
+      if (!error?._handled) message.error('Error al cargar los pagos');
     } finally {
       setLoading(false);
     }
@@ -113,115 +129,28 @@ export const usePagosList = () => {
   }, [empresaId, clienteId, estatus, rangoFechas]);
 
 
-  const debouncedBuscarClientesComercial = useMemo(() =>
-    debounce(async (q: string) => {
-      if (!q || q.trim().length < 3) {
-        setClienteOptionsComercial([]);
-        return;
-      }
-      try {
-        const list = await searchClientes(q, empresaId, 'comercial');
-        setClienteOptionsComercial(
-          (list || []).slice(0, 20).map((c: any) => ({
-            value: c.id,
-            label: `${c.nombre_comercial} (${c.nombre_razon_social})`,
-          }))
-        );
-      } catch {
-        setClienteOptionsComercial([]);
-      }
-    }, 300)
-    , [empresaId]);
-
-  const debouncedBuscarClientesFiscal = useMemo(() =>
-    debounce(async (q: string) => {
-      if (!q || q.trim().length < 3) {
-        setClienteOptionsFiscal([]);
-        return;
-      }
-      try {
-        const list = await searchClientes(q, empresaId, 'fiscal');
-        setClienteOptionsFiscal(
-          (list || []).slice(0, 20).map((c: any) => ({
-            value: c.id,
-            label: `${c.nombre_razon_social} (${c.nombre_comercial})`,
-          }))
-        );
-      } catch {
-        setClienteOptionsFiscal([]);
-      }
-    }, 300)
-    , [empresaId]);
-
   // Sync client options when clienteId changes
   useEffect(() => {
-    if (clienteId) {
-      import('@/services/facturaService').then(({ getClienteById }) => {
-        getClienteById(clienteId).then(c => {
-          if (c) {
-            const labelCom = `${c.nombre_comercial} (${c.nombre_razon_social})`;
-            const labelFis = `${c.nombre_razon_social} (${c.nombre_comercial})`;
-            setClienteOptionsComercial([{ label: labelCom, value: c.id }]);
-            setClienteOptionsFiscal([{ label: labelFis, value: c.id }]);
-          }
-        }).catch(() => { });
-      });
-    } else {
-      setClienteOptionsComercial([]);
-      setClienteOptionsFiscal([]);
-    }
+    syncClienteById(clienteId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId]);
-
-  // Preview Modal logic
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
-  const [previewRow, setPreviewRow] = useState<PagoRow | null>(null);
-
-  // Email Modal logic
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  const [emailRow, setEmailRow] = useState<PagoRow | null>(null);
-  const [emailLoading, setEmailLoading] = useState(false);
-
-  const abrirEmailModal = (row: PagoRow) => {
-    setEmailRow(row);
-    setEmailModalOpen(true);
-  };
 
   const verPdf = async (row: PagoRow) => {
     setLoading(true);
     try {
-      // Importar getPagoPdf del servicio (asumiendo que existe y se llama así)
       const { getPagoPdf } = await import('@/services/pagoService');
       const blob = await getPagoPdf(row.id);
-      const url = window.URL.createObjectURL(blob);
-      setPreviewPdfUrl(url);
-      setPreviewRow(row);
-      setPreviewModalOpen(true);
-    } catch (error) {
-      console.error(error);
+      openPreview(blob, row);
+    } catch (error: any) {
+      if (!error?._handled) message.error('Error al generar la vista previa del PDF');
     } finally {
       setLoading(false);
     }
   };
 
-  const cerrarPreview = () => {
-    setPreviewModalOpen(false);
-    setPreviewRow(null);
-    if (previewPdfUrl) {
-      window.URL.revokeObjectURL(previewPdfUrl);
-      setPreviewPdfUrl(null);
-    }
-  };
-
-  const cerrarEmailModal = () => {
-    setEmailModalOpen(false);
-    setEmailRow(null);
-  };
-
   const enviarCorreo = async (id: string, recipients: string[]) => {
     setEmailLoading(true);
     try {
-      // Importar dinámicamente o usar la función exportada que ya existe
       const { enviarPagoEmail } = await import('@/services/pagoService');
       await enviarPagoEmail(id, recipients, 'Envío de Complemento de Pago', 'Se adjunta el complemento.');
     } finally {

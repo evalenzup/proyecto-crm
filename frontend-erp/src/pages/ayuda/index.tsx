@@ -105,7 +105,7 @@ const ManualUsuarioPage: React.FC<ManualProps> = ({ manualOperativo, manualRapid
                             Cerrar
                         </Button>
                     ]}
-                    width={800}
+                    width="min(95vw, 800px)"
                     style={{ top: 20 }}
                     bodyStyle={{ maxHeight: '80vh', overflowY: 'auto' }}
                 >

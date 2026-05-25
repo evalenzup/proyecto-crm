@@ -254,7 +254,7 @@ const TecnicosPage: React.FC = () => {
               <Input
                 prefix={<SearchOutlined />}
                 placeholder="Buscar por nombre (min 3 caracteres)"
-                style={{ width: 280 }}
+                style={{ width: 280, minWidth: 180 }}
                 value={searchInput}
                 onChange={handleSearchChange}
                 allowClear
@@ -262,7 +262,7 @@ const TecnicosPage: React.FC = () => {
               <Select
                 allowClear
                 placeholder="Tipo de personal"
-                style={{ width: 180 }}
+                style={{ width: 180, minWidth: 150 }}
                 value={tipoPersonalFilter}
                 onChange={(val) => {
                   setTipoPersonalFilter(val);

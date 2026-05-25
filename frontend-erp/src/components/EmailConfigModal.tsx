@@ -108,7 +108,7 @@ const EmailConfigModal: React.FC<EmailConfigModalProps> = ({
       message.success('Conexión SMTP exitosa.');
       setIsConnectionTestSuccessful(true);
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al probar la conexión SMTP.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al probar la conexión SMTP.');
       applyFormErrors(error, form);
       setIsConnectionTestSuccessful(false);
     } finally {
@@ -134,7 +134,7 @@ const EmailConfigModal: React.FC<EmailConfigModalProps> = ({
       onConfigSaved(response.data);
       onClose();
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al guardar la configuración de correo.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al guardar la configuración de correo.');
       applyFormErrors(error, form);
     }
   };

@@ -1,4 +1,6 @@
 //frontend-erp/src/hooks/useFacturaForm.ts
+// Composition hook: assembles useFacturaCatalogos + useFacturaConceptos + useFacturaAccionesCFDI
+// plus the integration logic (initial data load, empresa/cliente handlers, save).
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
@@ -9,93 +11,73 @@ import * as svc from '@/services/facturaService';
 import { normalizeHttpError } from '@/utils/httpError';
 import { normalizeISOToUTC } from '@/utils/formatDate';
 import { applyFormErrors } from '@/utils/formErrors';
+import { useEmpresaSelector } from './useEmpresaSelector';
+import { useFacturaCatalogos } from './useFacturaCatalogos';
+import { useFacturaConceptos } from './useFacturaConceptos';
+import { useFacturaAccionesCFDI } from './useFacturaAccionesCFDI';
 
 type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'EN_CANCELACION' | 'CANCELADA';
 type StatusPago = 'PAGADA' | 'NO_PAGADA';
-
-interface ConceptoForm {
-  ps_lookup?: any;
-  clave_producto?: string;
-  clave_unidad?: string;
-  descripcion?: string;
-  cantidad?: number;
-  valor_unitario?: number;
-  descuento?: number | null;
-  iva_tasa?: number | null;
-  ret_iva_tasa?: number | null;
-  ret_isr_tasa?: number | null;
-}
-
-import { useEmpresaSelector } from './useEmpresaSelector';
 
 export const useFacturaForm = () => {
   const router = useRouter();
   const raw = router.query.id;
   const id = Array.isArray(raw) ? raw[0] : (raw as string | undefined);
 
-  // forms
+  // ── Form instances ────────────────────────────────────────────────────────────
   const [form] = Form.useForm();
   const [conceptoForm] = Form.useForm();
   const [psForm] = Form.useForm();
   const [cancelForm] = Form.useForm();
 
-  // estado UI
+  // ── UI state ──────────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [accionLoading, setAccionLoading] = useState({ timbrar: false, cancelar: false, verificarSat: false, revertir: false });
-  const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
-  // modal cancelación
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-
-  // encabezados / metadatos
+  // ── Invoice metadata ──────────────────────────────────────────────────────────
   const [metadata, setMetadata] = useState<{ creado_en: string; actualizado_en: string } | null>(null);
   const [estatusCFDI, setEstatusCFDI] = useState<EstatusCFDI>('BORRADOR');
   const [statusPago, setStatusPago] = useState<StatusPago>('NO_PAGADA');
   const [rfcEmisor, setRfcEmisor] = useState<string>('');
   const [fechaSolicitudCancelacion, setFechaSolicitudCancelacion] = useState<string | null>(null);
-
-  // catálogos
-  const [empresas, setEmpresas] = useState<{ label: string; value: string }[]>([]);
-  const [regimenes, setRegimenes] = useState<{ value: string; label: string }[]>([]);
-  const [metodosPago, setMetodosPago] = useState<{ value: string; label: string }[]>([]);
-  const [formasPago, setFormasPago] = useState<{ value: string; label: string }[]>([]);
-  const [usosCfdi, setUsosCfdi] = useState<{ value: string; label: string }[]>([]);
-  const [tiposRelacion, setTiposRelacion] = useState<{ value: string; label: string }[]>([]);
-  const [motivosCancel, setMotivosCancel] = useState<{ value: string; label: string }[]>([]);
-  const [currentEmpresa, setCurrentEmpresa] = useState<any | null>(null);
-
-  // clientes / productos
   const [retencionLocalMonto, setRetencionLocalMonto] = useState<number | null>(null);
+
+  // ── Empresa / Cliente ─────────────────────────────────────────────────────────
+  const [currentEmpresa, setCurrentEmpresa] = useState<any | null>(null);
   const [clienteOpts, setClienteOpts] = useState<{ label: string; value: string }[]>([]);
   const [diasCreditoCliente, setDiasCreditoCliente] = useState<number>(0);
-  const [psOpts, setPsOpts] = useState<{ value: string; label: string; meta: any }[]>([]);
-  const [unidadOpts, setUnidadOpts] = useState<{ value: string; label: string }[]>([]);
-  const [claveSatOpts, setClaveSatOpts] = useState<{ value: string; label: string }[]>([]);
 
-  // conceptos
-  const [conceptos, setConceptos] = useState<ConceptoForm[]>([]);
-  const [isConceptoModalOpen, setIsConceptoModalOpen] = useState(false);
-  const [editingConcepto, setEditingConcepto] = useState<ConceptoForm | null>(null);
-  const [editingConceptoIndex, setEditingConceptoIndex] = useState<number | null>(null);
-
-  // PS modal
-  const [psModalOpen, setPsModalOpen] = useState(false);
-  const [psSaving, setPsSaving] = useState(false);
-
-  // Empresa global del sidebar
+  // Global empresa selector (sidebar)
   const { selectedEmpresaId: globalEmpresaId } = useEmpresaSelector();
   const globalEmpresaIdRef = useRef(globalEmpresaId);
   useEffect(() => { globalEmpresaIdRef.current = globalEmpresaId; }, [globalEmpresaId]);
 
-  // watchers
+  // ── Watchers ──────────────────────────────────────────────────────────────────
   const empresaId = Form.useWatch('empresa_id', form);
   const moneda = Form.useWatch('moneda', form);
   const metodoPago = Form.useWatch('metodo_pago', form);
-  const formaPago = Form.useWatch('forma_pago', form);
+  Form.useWatch('forma_pago', form); // side-effect watcher
 
-  // helpers bloqueo
-  const isFormDisabled = estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA';
+  // ── Sub-hooks ─────────────────────────────────────────────────────────────────
+  const catalogos = useFacturaCatalogos();
+
+  const conceptosHook = useFacturaConceptos(form, conceptoForm);
+
+  const acciones = useFacturaAccionesCFDI({
+    id,
+    estatusCFDI,
+    setEstatusCFDI,
+    setFechaSolicitudCancelacion,
+    form,
+    rfcEmisor,
+    motivosCancel: catalogos.motivosCancel,
+    cancelForm,
+    fetchInitialData: async () => { await fetchInitialData(); },
+  });
+
+  // ── Derived flags ─────────────────────────────────────────────────────────────
+  const isFormDisabled =
+    estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA';
   const fieldDisabled = (defaultDisabled: boolean) => (isFormDisabled ? true : defaultDisabled);
   const fieldAlwaysEditable = (name: string) => {
     if (name === 'fecha_pago') return estatusCFDI === 'CANCELADA' || estatusCFDI === 'EN_CANCELACION';
@@ -107,134 +89,28 @@ export const useFacturaForm = () => {
   const puedeVerificarSat = Boolean(id) && (estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'TIMBRADA');
   const puedeRevertir = Boolean(id) && estatusCFDI === 'EN_CANCELACION';
 
-  // -------- Carga inicial (catálogos + empresas + (opcional) factura) --------
-  const fetchInitialData = useCallback(async () => {
-    try {
-      const [
-        empresasData,
-        mpData,
-        fpData,
-        ucData,
-        rfData,
-        trData,
-        mcData,
-      ] = await Promise.all([
-        svc.getEmpresas(),
-        svc.getMetodosPago(),
-        svc.getFormasPago(),
-        svc.getUsosCfdi(),
-        svc.getRegimenesFiscales(),
-        svc.getTiposRelacion(),
-        svc.getMotivosCancelacion(),
-      ]);
+  // ── Forma de pago options (filtered by PUE/PPD) ───────────────────────────────
+  const formaPagoOptions = useMemo(() => {
+    const POR_DEFINIR = '99';
+    if (!metodoPago) return catalogos.formasPago;
+    if (metodoPago === 'PUE') return (catalogos.formasPago || []).filter((f) => f.value !== POR_DEFINIR);
+    if (metodoPago === 'PPD') return (catalogos.formasPago || []).filter((f) => f.value === POR_DEFINIR);
+    return catalogos.formasPago;
+  }, [catalogos.formasPago, metodoPago]);
 
-      const empOptions = (empresasData || []).map((e: any) => ({
-        value: e.id,
-        label: e.nombre_comercial ?? e.nombre,
-      }));
-      setEmpresas(empOptions);
-      setMetodosPago((mpData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
-      setFormasPago((fpData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
-      setUsosCfdi((ucData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
-      setRegimenes((rfData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
-      setTiposRelacion((trData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
-      setMotivosCancel((mcData || []).map((x: any) => ({ value: x.clave, label: `${x.clave} — ${x.descripcion}` })));
-
-      if (id) {
-        const data = await svc.getFacturaById(id);
-
-        setEstatusCFDI(data.estatus);
-        setStatusPago(data.status_pago);
-        setFechaSolicitudCancelacion(data.fecha_solicitud_cancelacion ?? null);
-        setRetencionLocalMonto(data.retencion_local_monto != null ? Number(data.retencion_local_monto) : null);
-
-        await onEmpresaChange(data.empresa_id);
-
-        if (data.cliente_id) {
-          try {
-            const cli = await svc.getClienteById(data.cliente_id);
-            const label = cli?.nombre_comercial ?? cli?.razon_social ?? cli?.nombre ?? 'Cliente';
-            setClienteOpts([{ value: data.cliente_id, label }]);
-            form.setFieldValue('cliente_id', data.cliente_id);
-            await onClienteChange(data.cliente_id);
-          } catch {
-            form.setFieldValue('cliente_id', data.cliente_id);
-          }
-        }
-
-        const conceptosCargados = (data.conceptos || []).map((c: any) => ({
-          ...c,
-          cantidad: Number(c.cantidad ?? 0),
-          valor_unitario: Number(c.valor_unitario ?? 0),
-          descuento: c.descuento != null ? Number(c.descuento) : null,
-          iva_tasa: c.iva_tasa != null ? Number(c.iva_tasa) : 0,
-          ret_iva_tasa: c.ret_iva_tasa != null ? Number(c.ret_iva_tasa) : 0,
-          ret_isr_tasa: c.ret_isr_tasa != null ? Number(c.ret_isr_tasa) : 0,
-        }));
-        setConceptos(conceptosCargados);
-
-        form.setFieldsValue({
-          empresa_id: data.empresa_id,
-          serie: data.serie ?? undefined,
-          folio: data.folio,
-          moneda: data.moneda,
-          tipo_cambio: data.tipo_cambio ?? undefined,
-          metodo_pago: data.metodo_pago ?? undefined,
-          forma_pago: data.forma_pago ?? undefined,
-          uso_cfdi: data.uso_cfdi ?? undefined,
-          lugar_expedicion: data.lugar_expedicion ?? undefined,
-          condiciones_pago: data.condiciones_pago ?? undefined,
-          cfdi_relacionados_tipo: data.cfdi_relacionados_tipo ?? undefined,
-          cfdi_relacionados: data.cfdi_relacionados ?? undefined,
-          tiene_relacion: !!(data.cfdi_relacionados_tipo || data.cfdi_relacionados),
-          status_pago: data.status_pago,
-          folio_fiscal: data.folio_fiscal ?? (data as any).cfdi_uuid ?? undefined,
-          fecha_emision: data.fecha_emision ? dayjs(normalizeISOToUTC(data.fecha_emision)) : dayjs(),
-          fecha_timbrado: data.fecha_timbrado ? dayjs(normalizeISOToUTC(data.fecha_timbrado)) : null,
-          fecha_pago: data.fecha_pago ? dayjs(normalizeISOToUTC(data.fecha_pago)) : null,
-          fecha_cobro: data.fecha_cobro ? dayjs(normalizeISOToUTC(data.fecha_cobro)) : null,
-          observaciones: data.observaciones ?? undefined,
-          retencion_local_desc: data.retencion_local_desc ?? undefined,
-          retencion_local_tasa: data.retencion_local_tasa != null ? Number(data.retencion_local_tasa) : undefined,
-        });
-
-        setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
-      } else {
-        // nuevo
-        setConceptos([]);
-        setEstatusCFDI('BORRADOR');
-        setStatusPago('NO_PAGADA');
-        form.setFieldsValue({
-          moneda: 'MXN',
-          tiene_relacion: false,
-          fecha_emision: dayjs(),
-          status_pago: 'NO_PAGADA',
-        });
-
-        // Auto-selección: preferir empresa global del sidebar, o empresa única
-        const globalId = globalEmpresaIdRef.current;
-        const defaultId = (globalId && empOptions.some(e => e.value === globalId))
-          ? globalId
-          : empOptions.length === 1 ? empOptions[0].value : undefined;
-        if (defaultId) {
-          form.setFieldValue('empresa_id', defaultId);
-          await onEmpresaChange(defaultId);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-      message.error(normalizeHttpError(e) || 'Error al cargar catálogos/empresas');
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
+  // Auto-set forma_pago when metodo_pago changes
   useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
+    const POR_DEFINIR = '99';
+    if (!metodoPago) return;
+    const current = form.getFieldValue('forma_pago');
+    if (metodoPago === 'PUE' && current === POR_DEFINIR) {
+      form.setFieldValue('forma_pago', undefined);
+    } else if (metodoPago === 'PPD' && current !== POR_DEFINIR) {
+      form.setFieldValue('forma_pago', POR_DEFINIR);
+    }
+  }, [metodoPago, form]);
 
-  // -------- Empresa / Cliente --------
+  // ── Empresa change ────────────────────────────────────────────────────────────
   const onEmpresaChange = useCallback(async (empId?: string) => {
     form.setFieldsValue({
       cliente_id: undefined,
@@ -266,28 +142,23 @@ export const useFacturaForm = () => {
     });
     setRfcEmisor((data?.rfc || '').toUpperCase());
 
-    // sugerir folio siguiente
     try {
       const res = await (await import('@/lib/axios')).default.get('/facturas/', {
         params: { empresa_id: empId, limit: 1, offset: 0, order_by: 'serie_folio', order_dir: 'desc' },
       });
       const last = res?.data?.items?.[0];
-      const nextFolio = last?.folio ? Number(last.folio) + 1 : 1;
-      form.setFieldValue('folio', nextFolio);
+      form.setFieldValue('folio', last?.folio ? Number(last.folio) + 1 : 1);
     } catch {
       form.setFieldValue('folio', 1);
     }
   }, [form]);
 
+  // ── Cliente search ────────────────────────────────────────────────────────────
   const buscarClientes = useMemo(
     () =>
       debounce(async (q: string) => {
         const empId = form.getFieldValue('empresa_id');
-        if (!empId) return;
-        if (!q || q.trim().length < 3) {
-          setClienteOpts([]);
-          return;
-        }
+        if (!empId || !q || q.trim().length < 3) { setClienteOpts([]); return; }
         try {
           const data = await svc.searchClientes(q, empId);
           setClienteOpts(
@@ -296,13 +167,12 @@ export const useFacturaForm = () => {
               label: c.nombre_comercial ?? c.razon_social ?? c.nombre ?? 'Cliente',
             })),
           );
-        } catch {
-          setClienteOpts([]);
-        }
+        } catch { setClienteOpts([]); }
       }, 350),
     [form],
   );
 
+  // ── Cliente change ────────────────────────────────────────────────────────────
   const onClienteChange = useCallback(async (cid?: string) => {
     if (!cid) {
       form.setFieldsValue({
@@ -321,225 +191,114 @@ export const useFacturaForm = () => {
       rfc_receptor: data.rfc,
       regimen_fiscal_receptor: data.regimen_fiscal,
       cp_receptor: data.codigo_postal,
-      cliente: { email: data.email }, // Add this line
+      cliente: { email: data.email },
     });
     const dias = Number(data.dias_credito ?? 0);
     setDiasCreditoCliente(dias);
-
     const fe = form.getFieldValue('fecha_emision') as Dayjs | undefined;
-    if (fe && dayjs.isDayjs(fe)) {
-      form.setFieldValue('fecha_pago', fe.add(dias, 'day'));
-    }
+    if (fe && dayjs.isDayjs(fe)) form.setFieldValue('fecha_pago', fe.add(dias, 'day'));
   }, [form]);
 
+  // ── Fecha emisión change ──────────────────────────────────────────────────────
   const onFechaEmisionChange = (d: Dayjs | null) => {
-    if (!d) {
-      form.setFieldsValue({ fecha_pago: null, fecha_cobro: null });
-      return;
-    }
-    const dias = diasCreditoCliente || 0;
+    if (!d) { form.setFieldsValue({ fecha_pago: null, fecha_cobro: null }); return; }
     form.setFieldsValue({
-      fecha_pago: d.add(dias, 'day'),
-      ...(form.getFieldValue('status_pago') === 'PAGADA' ? { fecha_cobro: d.add(dias, 'day') } : {}),
+      fecha_pago: d.add(diasCreditoCliente || 0, 'day'),
+      ...(form.getFieldValue('status_pago') === 'PAGADA' ? { fecha_cobro: d.add(diasCreditoCliente || 0, 'day') } : {}),
     });
   };
 
-  // -------- Formas de pago dependientes (PUE/PPD) --------
-  useEffect(() => {
-    const POR_DEFINIR = '99';
-    if (!metodoPago) return;
-    const current = form.getFieldValue('forma_pago');
-    if (metodoPago === 'PUE' && current === POR_DEFINIR) {
-      form.setFieldValue('forma_pago', undefined);
-    } else if (metodoPago === 'PPD' && current !== POR_DEFINIR) {
-      form.setFieldValue('forma_pago', POR_DEFINIR);
-    }
-  }, [metodoPago, form]);
-
-  const formaPagoOptions = useMemo(() => {
-    const POR_DEFINIR = '99';
-    if (!metodoPago) return formasPago;
-    if (metodoPago === 'PUE') return (formasPago || []).filter((f) => f.value !== POR_DEFINIR);
-    if (metodoPago === 'PPD') return (formasPago || []).filter((f) => f.value === POR_DEFINIR);
-    return formasPago;
-  }, [formasPago, metodoPago]);
-
-  // -------- Conceptos (modal) --------
-  const sugerirRetencionesSiAplica = async () => {
+  // ── Initial data fetch ────────────────────────────────────────────────────────
+  const fetchInitialData = useCallback(async () => {
     try {
-      const reg = form.getFieldValue('regimen_fiscal_emisor') as string | undefined;
-      if (!reg) return;
+      const empOptions = await catalogos.fetchCatalogos();
 
-      let receptorMoral = false;
-      const cid = form.getFieldValue('cliente_id');
-      if (cid) {
-        const data = await svc.getClienteById(cid);
-        receptorMoral = (data?.tipo_persona ?? '').toUpperCase() === 'MORAL';
+      if (id) {
+        const data = await svc.getFacturaById(id);
+        setEstatusCFDI(data.estatus);
+        setStatusPago(data.status_pago);
+        setFechaSolicitudCancelacion(data.fecha_solicitud_cancelacion ?? null);
+        setRetencionLocalMonto(data.retencion_local_monto != null ? Number(data.retencion_local_monto) : null);
+
+        await onEmpresaChange(data.empresa_id);
+
+        if (data.cliente_id) {
+          try {
+            const cli = await svc.getClienteById(data.cliente_id);
+            const label = cli?.nombre_comercial ?? cli?.razon_social ?? cli?.nombre ?? 'Cliente';
+            setClienteOpts([{ value: data.cliente_id, label }]);
+            form.setFieldValue('cliente_id', data.cliente_id);
+            await onClienteChange(data.cliente_id);
+          } catch {
+            form.setFieldValue('cliente_id', data.cliente_id);
+          }
+        }
+
+        const conceptosCargados = (data.conceptos || []).map((c: any) => ({
+          ...c,
+          cantidad: Number(c.cantidad ?? 0),
+          valor_unitario: Number(c.valor_unitario ?? 0),
+          descuento: c.descuento != null ? Number(c.descuento) : null,
+          iva_tasa: c.iva_tasa != null ? Number(c.iva_tasa) : 0,
+          ret_iva_tasa: c.ret_iva_tasa != null ? Number(c.ret_iva_tasa) : 0,
+          ret_isr_tasa: c.ret_isr_tasa != null ? Number(c.ret_isr_tasa) : 0,
+        }));
+        conceptosHook.setConceptos(conceptosCargados);
+
+        form.setFieldsValue({
+          empresa_id: data.empresa_id,
+          serie: data.serie ?? undefined,
+          folio: data.folio,
+          moneda: data.moneda,
+          tipo_cambio: data.tipo_cambio ?? undefined,
+          metodo_pago: data.metodo_pago ?? undefined,
+          forma_pago: data.forma_pago ?? undefined,
+          uso_cfdi: data.uso_cfdi ?? undefined,
+          lugar_expedicion: data.lugar_expedicion ?? undefined,
+          condiciones_pago: data.condiciones_pago ?? undefined,
+          cfdi_relacionados_tipo: data.cfdi_relacionados_tipo ?? undefined,
+          cfdi_relacionados: data.cfdi_relacionados ?? undefined,
+          tiene_relacion: !!(data.cfdi_relacionados_tipo || data.cfdi_relacionados),
+          status_pago: data.status_pago,
+          folio_fiscal: data.folio_fiscal ?? (data as any).cfdi_uuid ?? undefined,
+          fecha_emision: data.fecha_emision ? dayjs(normalizeISOToUTC(data.fecha_emision)) : dayjs(),
+          fecha_timbrado: data.fecha_timbrado ? dayjs(normalizeISOToUTC(data.fecha_timbrado)) : null,
+          fecha_pago: data.fecha_pago ? dayjs(normalizeISOToUTC(data.fecha_pago)) : null,
+          fecha_cobro: data.fecha_cobro ? dayjs(normalizeISOToUTC(data.fecha_cobro)) : null,
+          observaciones: data.observaciones ?? undefined,
+          retencion_local_desc: data.retencion_local_desc ?? undefined,
+          retencion_local_tasa: data.retencion_local_tasa != null ? Number(data.retencion_local_tasa) : undefined,
+        });
+        setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
+      } else {
+        conceptosHook.setConceptos([]);
+        setEstatusCFDI('BORRADOR');
+        setStatusPago('NO_PAGADA');
+        form.setFieldsValue({ moneda: 'MXN', tiene_relacion: false, fecha_emision: dayjs(), status_pago: 'NO_PAGADA' });
+
+        const globalId = globalEmpresaIdRef.current;
+        const defaultId =
+          globalId && empOptions.some((e) => e.value === globalId)
+            ? globalId
+            : empOptions.length === 1 ? empOptions[0].value : undefined;
+        if (defaultId) {
+          form.setFieldValue('empresa_id', defaultId);
+          await onEmpresaChange(defaultId);
+        }
       }
-
-      const esRIFoRESICO =
-        /Régimen Simplificado de Confianza/i.test(reg) ||
-        /Incorporación Fiscal/i.test(reg) ||
-        /RESICO/i.test(reg) ||
-        /RIF/i.test(reg);
-
-      if (esRIFoRESICO && receptorMoral) {
-        if (conceptoForm.getFieldValue('ret_iva_tasa') == null) conceptoForm.setFieldValue('ret_iva_tasa', 0.106667);
-        if (conceptoForm.getFieldValue('ret_isr_tasa') == null) conceptoForm.setFieldValue('ret_isr_tasa', 0.0125);
-        message.info('Sugeridas retenciones para RESICO/RIF a persona moral (ajústalas si es necesario).');
-      }
-    } catch { /* no-op */ }
-  };
-
-  const onSelectPSInModal = (_: any, option: any) => {
-    const meta = option?.meta || {};
-    conceptoForm.setFieldsValue({
-      clave_producto: meta.clave_producto,
-      clave_unidad: meta.clave_unidad,
-      descripcion: meta.descripcion,
-      valor_unitario: meta.valor_unitario,
-    });
-    sugerirRetencionesSiAplica();
-  };
-
-  const handleSaveConcepto = async () => {
-    const values = await conceptoForm.validateFields();
-    const newConcepto: ConceptoForm = {
-      ...values,
-      cantidad: Number(values.cantidad ?? 0),
-      valor_unitario: Number(values.valor_unitario ?? 0),
-      descuento: values.descuento != null ? Number(values.descuento) : null,
-      iva_tasa: values.iva_tasa != null ? Number(values.iva_tasa) : 0,
-      ret_iva_tasa: values.ret_iva_tasa != null ? Number(values.ret_iva_tasa) : 0,
-      ret_isr_tasa: values.ret_isr_tasa != null ? Number(values.ret_isr_tasa) : 0,
-    };
-
-    if (editingConceptoIndex !== null) {
-      const newConceptos = [...conceptos];
-      newConceptos[editingConceptoIndex] = newConcepto;
-      setConceptos(newConceptos);
-    } else {
-      setConceptos([...conceptos, newConcepto]);
+    } catch (e) {
+      console.error(e);
+      message.error(normalizeHttpError(e) || 'Error al cargar catálogos/empresas');
+    } finally {
+      setLoading(false);
     }
-    setIsConceptoModalOpen(false);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-  // buscar PS (existentes por empresa)
-  const buscarPS = useMemo(
-    () =>
-      debounce(async (q: string) => {
-        const empId = form.getFieldValue('empresa_id');
-        if (!empId) return;
-        if (!q || q.trim().length < 2) {
-          setPsOpts([]);
-          return;
-        }
-        try {
-          const data = await svc.searchProductosServicios(empId, q);
-          const opts = (data || []).map((it: any) => ({
-            value: it.id,
-            label: `${it.clave_producto} — ${it.descripcion}`,
-            meta: {
-              id: it.id,
-              clave_producto: it.clave_producto,
-              clave_unidad: it.clave_unidad,
-              descripcion: it.descripcion,
-              valor_unitario: Number(it.valor_unitario ?? 0),
-            },
-          }));
-          setPsOpts(opts);
-        } catch {
-          setPsOpts([]);
-        }
-      }, 300),
-    [form],
-  );
+  useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
 
-  // SAT: claves producto / unidades (para alta PS)
-  const buscarClavesProductoSAT = useMemo(
-    () =>
-      debounce(async (q: string) => {
-        if (!q || q.trim().length < 3) {
-          setClaveSatOpts([]);
-          return;
-        }
-        try {
-          const data = await svc.searchSatProductos(q);
-          setClaveSatOpts((data || []).map((x: any) => {
-            const value = x?.value ?? x?.clave;
-            const desc = x?.descripcion ?? x?.label;
-            const label = value && desc ? `${value} - ${desc}` : String(value ?? desc ?? '');
-            return { value, label };
-          }));
-        } catch {
-          setClaveSatOpts([]);
-        }
-      }, 350),
-    [],
-  );
-
-  const buscarUnidadesSAT = useMemo(
-    () =>
-      debounce(async (q: string) => {
-        if (!q || q.trim().length < 2) {
-          setUnidadOpts([]);
-          return;
-        }
-        try {
-          const data = await svc.searchSatUnidades(q);
-          setUnidadOpts((data || []).map((u: any) => {
-            const value = u?.value ?? u?.clave;
-            const desc = u?.descripcion ?? u?.label;
-            const label = value && desc ? `${value} - ${desc}` : String(value ?? desc ?? '');
-            return { value, label };
-          }));
-        } catch {
-          setUnidadOpts([]);
-        }
-      }, 250),
-    [],
-  );
-
-  // -------- Totales (como en tu render actual: strings formateadas) --------
-  const resumen = useMemo(() => {
-    let subtotal = 0;
-    let traslados = 0;
-    let retencionesList = 0;
-
-    conceptos.forEach((c) => {
-      const cantidad = Number(c.cantidad || 0);
-      const valor_unitario = Number(c.valor_unitario || 0);
-      const descuento = Number(c.descuento || 0);
-      const iva_tasa = Number(c.iva_tasa || 0);
-      const ret_iva_tasa = Number(c.ret_iva_tasa || 0);
-      const ret_isr_tasa = Number(c.ret_isr_tasa || 0);
-
-      // Base calculation
-      const base = Math.max(cantidad * valor_unitario - descuento, 0);
-
-      // Taxes
-      const iva = base * iva_tasa;
-      const ret_iva = base * ret_iva_tasa;
-      const ret_isr = base * ret_isr_tasa;
-
-      subtotal += base;
-      traslados += iva;
-      retencionesList += ret_iva + ret_isr;
-    });
-
-    const total = subtotal + traslados - retencionesList;
-    const fmt = (n: number) => n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-
-    return {
-      subtotal: fmt(subtotal),
-      traslados: fmt(traslados),
-      retenciones: fmt(retencionesList),
-      total: fmt(total),
-    };
-  }, [conceptos]);
-
-  // -------- Guardar --------
-  const normalizeConcepto = (c: ConceptoForm) => ({
+  // ── Save ──────────────────────────────────────────────────────────────────────
+  const normalizeConcepto = (c: any) => ({
     clave_producto: c.clave_producto,
     clave_unidad: c.clave_unidad,
     descripcion: c.descripcion || 'Concepto sin descripción',
@@ -559,7 +318,6 @@ export const useFacturaForm = () => {
         setSaving(false);
         return;
       }
-
       const POR_DEFINIR = '99';
       if (values.metodo_pago === 'PUE' && values.forma_pago === POR_DEFINIR) {
         message.error('Con método PUE la forma de pago no puede ser "Por definir (99)".');
@@ -591,16 +349,16 @@ export const useFacturaForm = () => {
         observaciones: values.observaciones || null,
         folio_fiscal: values.folio_fiscal || null,
         retencion_local_desc: values.retencion_local_desc || null,
-        retencion_local_tasa: values.retencion_local_tasa != null ? Number(values.retencion_local_tasa) : null,
-        conceptos: conceptos.map(normalizeConcepto),
+        retencion_local_tasa:
+          values.retencion_local_tasa != null ? Number(values.retencion_local_tasa) : null,
+        conceptos: conceptosHook.conceptos.map(normalizeConcepto),
       };
 
       if (id) {
         await svc.updateFactura(id, payload);
         message.success('Factura actualizada');
-        fetchInitialData(); // Recargar datos para ver cambios
+        fetchInitialData();
       } else {
-        // server asigna folio
         const payload2: any = { ...payload };
         delete payload2.folio;
         const nuevaFactura = await svc.createFactura(payload2);
@@ -608,222 +366,62 @@ export const useFacturaForm = () => {
         router.push(`/facturas/form/${nuevaFactura.id}`);
       }
     } catch (err: any) {
-      // Marcar errores de validación en los campos y mostrar mensaje amigable
       applyFormErrors(err, form);
-      message.error(normalizeHttpError(err));
+      if (!err?._handled) message.error(normalizeHttpError(err));
     } finally {
       setSaving(false);
     }
   };
 
-  // -------- Acciones CFDI / archivos --------
-  const timbrarFactura = async () => {
-    if (!id) return;
-    setAccionLoading((s) => ({ ...s, timbrar: true }));
-    try {
-      await svc.timbrarFactura(id);
-      message.success('Factura timbrada');
-      fetchInitialData(); // Recargar todos los datos de la factura
-    } catch (e: any) {
-      message.error(normalizeHttpError(e) || 'No se pudo timbrar');
-    } finally {
-      setAccionLoading((s) => ({ ...s, timbrar: false }));
-    }
-  };
-
-  const abrirModalCancelacion = () => {
-    cancelForm.resetFields();
-    const defaultMotivo = motivosCancel?.[0]?.value || '02';
-    cancelForm.setFieldsValue({ motivo: defaultMotivo, folio_sustitucion: undefined });
-    setCancelModalOpen(true);
-  };
-
-  const submitCancel = async () => {
-    if (!id) return;
-    try {
-      const vals = await cancelForm.validateFields();
-      const motivo = String(vals.motivo || '');
-      const folio = motivo === '01' ? (vals.folio_sustitucion || '').trim() || null : null;
-
-      setCancelSubmitting(true);
-      const data = await svc.cancelarFactura(id, motivo, folio || undefined);
-      setEstatusCFDI(data.estatus || 'CANCELADA');
-      message.success(data?.message || 'Solicitud de cancelación enviada');
-      setCancelModalOpen(false);
-    } catch (e: any) {
-      if (!e?.errorFields) {
-        // Intentar marcar errores del formulario de cancelación si vienen como 422
-        applyFormErrors(e, cancelForm);
-        message.error(normalizeHttpError(e) || 'No se pudo cancelar');
-      }
-    } finally {
-      setCancelSubmitting(false);
-    }
-  };
-
-  const openBlobInNewTab = (blob: Blob) => {
-    const url = window.URL.createObjectURL(blob);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
-  };
-
-  // modal preview PDF
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
-
-  const verPDF = async () => {
-    if (!id) {
-      message.info('Guarda la factura para generar la vista previa.');
-      return;
-    }
-    try {
-      const blob =
-        estatusCFDI === 'BORRADOR'
-          ? await svc.getPdfPreview(id)
-          : await svc.getPdf(id);
-
-      const url = window.URL.createObjectURL(blob);
-      setPreviewPdfUrl(url);
-      setPreviewModalOpen(true);
-    } catch (e: any) {
-      message.error(normalizeHttpError(e) || 'No se pudo abrir el PDF');
-    }
-  };
-
-  const cerrarPreview = () => {
-    setPreviewModalOpen(false);
-    if (previewPdfUrl) {
-      URL.revokeObjectURL(previewPdfUrl);
-      setPreviewPdfUrl(null);
-    }
-  };
-
-  const descargarPDF = async () => {
-    if (!id) return;
-    try {
-      const blob =
-        estatusCFDI === 'BORRADOR'
-          ? await svc.getPdfPreview(id)
-          : await svc.downloadPdf(id);
-      const url = window.URL.createObjectURL(blob);
-      const rfc = (rfcEmisor || 'RFC').toUpperCase().replace(/\s+/g, '');
-      const serie = (form.getFieldValue('serie') || 'S/N').toString().replace(/\s+/g, '');
-      const folio = (form.getFieldValue('folio') || id).toString().replace(/\s+/g, '');
-      const safe = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '');
-      const filename = `${safe(rfc)}-factura-${safe(serie)}-${safe(folio)}.pdf`;
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    } catch (e: any) {
-      const msg = await import('@/utils/httpError').then((m) => m.parseBlobError(e));
-      message.error(msg || 'No se pudo descargar el PDF');
-    }
-  };
-
-  const descargarXML = async () => {
-    if (!id) return;
-    try {
-      const blob = await svc.downloadXml(id);
-      const url = window.URL.createObjectURL(blob);
-      const rfc = (rfcEmisor || 'RFC').toUpperCase().replace(/\s+/g, '');
-      const serie = (form.getFieldValue('serie') || 'S/N').toString().replace(/\s+/g, '');
-      const folio = (form.getFieldValue('folio') || id).toString().replace(/\s+/g, '');
-      const safe = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '');
-      const filename = `${safe(rfc)}-factura-${safe(serie)}-${safe(folio)}.xml`;
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (e: any) {
-      message.error(normalizeHttpError(e) || 'No se pudo descargar el XML');
-    }
-  };
-
-  // -------- acciones SAT --------
-  const handleVerificarSAT = async () => {
-    if (!id) return;
-    setAccionLoading((p) => ({ ...p, verificarSat: true }));
-    try {
-      const result = await svc.verificarEstadoSAT(id);
-      if (result.actualizado) {
-        setEstatusCFDI(result.estatus_nuevo as EstatusCFDI);
-        if (result.estatus_nuevo !== 'EN_CANCELACION') setFechaSolicitudCancelacion(null);
-        message.success(`Estado actualizado: ${result.estatus_anterior} → ${result.estatus_nuevo}`);
-      } else {
-        message.info(`Sin cambios. SAT reporta: ${result.sat_estado} — ${result.sat_estatus_cancelacion || 'sin estatus de cancelación'}`);
-      }
-    } catch (e: any) {
-      message.error(normalizeHttpError(e) || 'Error al consultar el SAT');
-    } finally {
-      setAccionLoading((p) => ({ ...p, verificarSat: false }));
-    }
-  };
-
-  const handleRevertirCancelacion = async () => {
-    if (!id) return;
-    setAccionLoading((p) => ({ ...p, revertir: true }));
-    try {
-      await svc.revertirCancelacion(id);
-      setEstatusCFDI('TIMBRADA');
-      setFechaSolicitudCancelacion(null);
-      message.success('Factura revertida a TIMBRADA correctamente');
-    } catch (e: any) {
-      message.error(normalizeHttpError(e) || 'Error al revertir la cancelación');
-    } finally {
-      setAccionLoading((p) => ({ ...p, revertir: false }));
-    }
-  };
-
-  // -------- return --------
+  // ── Return ────────────────────────────────────────────────────────────────────
   return {
-    // estado
-    id, loading, saving, accionLoading, cancelSubmitting, metadata, estatusCFDI, statusPago, rfcEmisor,
+    // state
+    id, loading, saving, metadata, estatusCFDI, statusPago, rfcEmisor,
     fechaSolicitudCancelacion,
 
     // forms
     form, conceptoForm, psForm, cancelForm,
 
-    // catálogos / opciones
-    empresas, regimenes, metodosPago, formaPagoOptions, usosCfdi, tiposRelacion, motivosCancel,
-    clienteOpts, psOpts, unidadOpts, claveSatOpts, currentEmpresa,
+    // catalogs (from useFacturaCatalogos)
+    empresas: catalogos.empresas,
+    regimenes: catalogos.regimenes,
+    metodosPago: catalogos.metodosPago,
+    formaPagoOptions,
+    usosCfdi: catalogos.usosCfdi,
+    tiposRelacion: catalogos.tiposRelacion,
+    motivosCancel: catalogos.motivosCancel,
+
+    // empresa/cliente
+    clienteOpts, currentEmpresa,
 
     // watchers / flags
     empresaId, moneda, isFormDisabled, fieldDisabled, fieldAlwaysEditable,
     puedeTimbrar, puedeCancelar, puedeVerificarSat, puedeRevertir,
 
-    // conceptos
-    conceptos, setConceptos, isConceptoModalOpen, setIsConceptoModalOpen, editingConcepto,
-    setEditingConcepto, setEditingConceptoIndex,
+    // conceptos (from useFacturaConceptos)
+    ...conceptosHook,
 
-    // calculados
-    resumen, retencionLocalMonto,
+    // calculated
+    retencionLocalMonto,
 
-    // handlers (empresa/cliente/fechas)
+    // handlers
     onFinish, onEmpresaChange, buscarClientes, onClienteChange, onFechaEmisionChange,
 
-    // handlers (conceptos)
-    buscarPS, onSelectPSInModal, handleSaveConcepto,
-
-    // handlers (PS modal SAT)
-    buscarClavesProductoSAT, buscarUnidadesSAT, psModalOpen, setPsModalOpen, psSaving,
-
-    // modal cancelación
-    cancelModalOpen, setCancelModalOpen, abrirModalCancelacion, submitCancel,
-
-    // acciones (CFDI / archivos)
-    timbrarFactura, verPDF, descargarPDF, descargarXML,
-
-    // acciones SAT
-    handleVerificarSAT, handleRevertirCancelacion,
-
-    // preview PDF
-    previewModalOpen, previewPdfUrl, cerrarPreview,
+    // CFDI actions (from useFacturaAccionesCFDI)
+    accionLoading: acciones.accionLoading,
+    cancelSubmitting: acciones.cancelSubmitting,
+    cancelModalOpen: acciones.cancelModalOpen,
+    setCancelModalOpen: acciones.setCancelModalOpen,
+    previewModalOpen: acciones.previewModalOpen,
+    previewPdfUrl: acciones.previewPdfUrl,
+    timbrarFactura: acciones.timbrarFactura,
+    abrirModalCancelacion: acciones.abrirModalCancelacion,
+    submitCancel: acciones.submitCancel,
+    verPDF: acciones.verPDF,
+    cerrarPreview: acciones.cerrarPreview,
+    descargarPDF: acciones.descargarPDF,
+    descargarXML: acciones.descargarXML,
+    handleVerificarSAT: acciones.handleVerificarSAT,
+    handleRevertirCancelacion: acciones.handleRevertirCancelacion,
   };
 };

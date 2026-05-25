@@ -1,8 +1,12 @@
 import axios from 'axios';
-import api from '@/lib/axios';
+import api, { getAccessToken } from '@/lib/axios';
 import { LoginResponse, Usuario } from '@/types/auth';
 
 export const authService = {
+    /**
+     * Inicia sesión. El backend devuelve el access_token en body
+     * y establece el refresh_token como cookie httpOnly automáticamente.
+     */
     login: async (email: string, password: string): Promise<LoginResponse> => {
         const formData = new URLSearchParams();
         formData.append('username', email);
@@ -14,24 +18,34 @@ export const authService = {
         return response.data;
     },
 
-    refreshToken: async (refreshToken: string): Promise<LoginResponse> => {
-        // Usamos axios directo (no la instancia `api`) para evitar que el interceptor
-        // de 401 capture este request y genere un bucle infinito.
+    /**
+     * Renueva el access token usando la cookie httpOnly del refresh token.
+     * No se envía ningún body — el navegador adjunta la cookie automáticamente.
+     * Se usa axios directo (no la instancia `api`) para evitar bucle infinito
+     * con el interceptor de 401.
+     */
+    refreshToken: async (): Promise<LoginResponse> => {
         const response = await axios.post<LoginResponse>(
             `${process.env.NEXT_PUBLIC_API_URL}/login/refresh-token`,
-            { refresh_token: refreshToken },
+            {},
+            { withCredentials: true },
         );
         return response.data;
     },
 
-    logout: async (refreshToken: string): Promise<void> => {
-        // Invalida el refresh token en el servidor (lo saca de la whitelist)
-        // Usamos axios directo para no depender del interceptor de auth.
+    /**
+     * Cierra la sesión. El backend invalida el JTI leyendo la cookie httpOnly
+     * y borra la cookie en la respuesta.
+     */
+    logout: async (): Promise<void> => {
         try {
             await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/login/logout`,
-                { refresh_token: refreshToken },
-                { headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` } },
+                {},
+                {
+                    withCredentials: true,
+                    headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+                },
             );
         } catch {
             // Si falla (token ya expirado, red caída) no bloqueamos el logout local

@@ -16,7 +16,8 @@ from __future__ import annotations
 import html
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from datetime import datetime
+from typing import Any, Optional, Tuple
 
 import httpx
 from lxml import etree
@@ -159,3 +160,76 @@ def _parse_response(content: bytes) -> AcuseSAT:
         es_cancelable=es_cancelable,
         estatus_cancelacion=estatus_cancelacion,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Lógica canónica de aplicación del acuse SAT a una factura
+# ─────────────────────────────────────────────────────────────────────────────
+
+VENTANA_72H = 72.0  # horas antes de considerar que el receptor rechazó
+
+
+def aplicar_acuse_sat(
+    factura: Any,
+    acuse: AcuseSAT,
+    ahora: Optional[datetime] = None,
+) -> Tuple[str, bool]:
+    """
+    Aplica el resultado del acuse SAT al objeto ``factura`` (lo muta en sus campos
+    de estatus y fecha_solicitud_cancelacion).
+
+    Lógica canónica — única fuente de verdad para los 3 consumidores:
+      - endpoint  POST /facturas/{id}/verificar-sat
+      - cron      _sync_cancelaciones_job  (main.py)
+      - script    scripts/verificar_timbradas_en_sat.py
+
+    Reglas:
+      · SAT dice Cancelado          → estatus = "CANCELADA"
+      · SAT dice En proceso         → estatus = "EN_CANCELACION"
+                                      registra fecha_solicitud_cancelacion si no existe
+      · SAT dice Vigente (no en proceso):
+          - Si la factura estaba EN_CANCELACION:
+              · Sin fecha de solicitud registrada → revertir a TIMBRADA
+              · Con fecha y han pasado ≥72 h      → revertir a TIMBRADA (receptor rechazó)
+              · Con fecha y dentro de las 72 h    → NO tocar (SAT puede tardar en actualizarse)
+          - Si estaba TIMBRADA/CANCELADA → sin cambio
+
+    No llama a db.add() ni db.commit() — responsabilidad del llamador.
+
+    Returns:
+        (nuevo_estatus: str, hubo_cambio: bool)
+    """
+    if ahora is None:
+        ahora = datetime.utcnow()
+
+    estatus_anterior: str = factura.estatus
+    nuevo_estatus: str = estatus_anterior  # por defecto no cambia
+
+    if acuse.cancelado_por_sat:
+        nuevo_estatus = "CANCELADA"
+        factura.fecha_solicitud_cancelacion = None
+
+    elif acuse.en_proceso:
+        nuevo_estatus = "EN_CANCELACION"
+        # Registrar la fecha de solicitud si aún no existe
+        if not factura.fecha_solicitud_cancelacion:
+            factura.fecha_solicitud_cancelacion = ahora
+
+    else:
+        # SAT reporta Vigente y no en proceso
+        if estatus_anterior == "EN_CANCELACION":
+            fecha_sol = factura.fecha_solicitud_cancelacion
+            if fecha_sol is None:
+                # Sin fecha → no hay forma de calcular las 72 h → revertir
+                nuevo_estatus = "TIMBRADA"
+                factura.fecha_solicitud_cancelacion = None
+            else:
+                horas = (ahora - fecha_sol).total_seconds() / 3600
+                if horas >= VENTANA_72H:
+                    # Pasó la ventana y SAT sigue Vigente → receptor rechazó
+                    nuevo_estatus = "TIMBRADA"
+                    factura.fecha_solicitud_cancelacion = None
+                # else: dentro de 72 h → esperamos, no tocar el estatus
+
+    factura.estatus = nuevo_estatus
+    return nuevo_estatus, estatus_anterior != nuevo_estatus

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Card, Row, Col, Typography, Statistic, Tag, Button, Tooltip, message, Modal, Form, Input } from 'antd';
 import { DollarOutlined, SolutionOutlined, CommentOutlined, WarningOutlined, FilePdfOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
+import { Breadcrumbs } from '@/components/Breadcrumb';
 import { AgingReportResponse, ClienteAging } from '@/types/cobranza';
 import { getAgingReport, fetchEstadoCuentaBlob, sendEstadoCuentaEmail } from '@/services/cobranzaService';
 import Notas from '@/components/Cobranza/Notas';
@@ -196,13 +197,14 @@ const CobranzaPage: React.FC = () => {
     ];
 
     return (
-        <div style={{ padding: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <Title level={2} style={{ margin: 0 }}>
-                    <WarningOutlined style={{ marginRight: 10 }} />
-                    Cobranza y Antigüedad de Saldos
-                </Title>
+        <>
+            <div className="app-page-header">
+                <div className="app-page-header__left">
+                    <Breadcrumbs />
+                    <h1 className="app-title">Cobranza y Antigüedad de Saldos</h1>
+                </div>
             </div>
+            <div className="app-content">
 
             <CobranzaDashboard data={data} loading={loading} />
 
@@ -214,7 +216,7 @@ const CobranzaPage: React.FC = () => {
                         placeholder="Buscar cliente..."
                         prefix={<SearchOutlined style={{ color: '#bbb' }} />}
                         allowClear
-                        style={{ width: 260 }}
+                        style={{ width: 260, maxWidth: '100%' }}
                         value={clienteSearch}
                         onChange={e => setClienteSearch(e.target.value)}
                     />
@@ -228,6 +230,7 @@ const CobranzaPage: React.FC = () => {
                     )}
                     rowKey="cliente_id"
                     loading={loading}
+                    scroll={{ x: 900 }}
                     pagination={{
                         defaultPageSize: 20,
                         showSizeChanger: true,
@@ -312,7 +315,8 @@ const CobranzaPage: React.FC = () => {
                     </Typography.Text>
                 </Form>
             </Modal>
-        </div>
+            </div>
+        </>
     );
 };
 

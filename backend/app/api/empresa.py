@@ -127,7 +127,10 @@ def descargar_logo(empresa_id: UUID, current_user: Usuario = Depends(deps.get_cu
 
 
 @router.get("/certificados/{filename}", summary="Descargar .cer/.key")
-def descargar_certificado(filename: str = Path(..., regex=r"^[\w.\-]+$")):
+def descargar_certificado(
+    filename: str = Path(..., regex=r"^[\w.\-]+$"),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     # --- Path sanitization ---
     cert_dir_real = os.path.realpath(CERT_DIR)
     unsafe_path = os.path.join(cert_dir_real, filename)

@@ -1,77 +1,25 @@
 // src/pages/clientes/form/[[...id]].tsx
-
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import {
-  Form,
-  Input,
-  Select,
-  Button,
-  Spin,
-  Card,
-  Space,
-  Typography,
-  message, // Importar message para notificaciones
-  Divider,
-  Modal,
-  Alert,
-  Tag,
-  Upload,
-  Popconfirm,
+  Form, Input, Select, Button, Spin, Card, Space, Typography,
+  message, Divider, Modal, Alert, Tag, Upload, Popconfirm,
+  Row, Col, InputNumber,
 } from 'antd';
-import { MinusCircleOutlined, PlusOutlined, FilePdfOutlined, DeleteOutlined } from '@ant-design/icons';
+import {
+  MinusCircleOutlined, PlusOutlined, FilePdfOutlined,
+  DeleteOutlined, EnvironmentOutlined,
+} from '@ant-design/icons';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
-// Importar el servicio necesario para obtener los catálogos
 import { getRegimenesFiscales } from '@/services/facturaService';
 
 const { Text } = Typography;
 
-// --- INICIO: Sub-componente para Geolocalización ---
-const GeolocationFields = () => {
-  const form = Form.useFormInstance(); // Obtiene la instancia del formulario actual
-  const lat = Form.useWatch('latitud', form);
-  const lon = Form.useWatch('longitud', form);
-
-  return (
-    <>
-      <Form.Item label="Latitud" name="latitud">
-        <Input type="number" placeholder="Ej. 19.4326" />
-      </Form.Item>
-      <Form.Item label="Longitud" name="longitud">
-        <Input type="number" placeholder="Ej. -99.1332" />
-      </Form.Item>
-      {lat && lon && (
-        <Form.Item>
-          <a
-            href={`https://www.google.com/maps?q=${lat},${lon}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Ver Ubicación en Google Maps
-          </a>
-        </Form.Item>
-      )}
-    </>
-  );
-};
-// --- FIN: Sub-componente para Geolocalización ---
-
-// Campos que deben forzar mayúsculas
-const UPPERCASE_FIELDS = [
-  'nombre_comercial',
-  'nombre_razon_social',
-  'rfc',
-  'calle',
-  'colonia',
-  'ciudad',
-  'estado',
-  'serv_calle',
-  'serv_colonia',
-  'serv_ciudad',
-  'serv_estado',
-];
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const toUpper = (e: React.ChangeEvent<HTMLInputElement>) =>
+  String(e.target.value).toUpperCase();
 
 const ClienteFormPage: React.FC = () => {
   const router = useRouter();
@@ -84,325 +32,62 @@ const ClienteFormPage: React.FC = () => {
     metadata,
     empresasOptions,
     onFinish,
-    schema,
     existingClientCandidate,
     confirmAssignment,
     cancelAssignment,
     lockedEmpresaIds,
   } = useClienteForm(id);
 
-  // --- NUEVO ESTADO PARA GUARDAR LAS OPCIONES DEL CATÁLOGO ---
   const [regimenesOptions, setRegimenesOptions] = useState<{ label: string; value: string }[]>([]);
+  const lat = Form.useWatch('latitud', form);
+  const lon = Form.useWatch('longitud', form);
 
-  // --- NUEVO EFECTO PARA CARGAR EL CATÁLOGO AL INICIAR ---
   useEffect(() => {
-    const fetchRegimenes = async () => {
-      try {
-        const data = await getRegimenesFiscales();
-        const options = (data || []).map((r: any) => ({
-          value: r.clave,
-          label: `${r.clave} — ${r.descripcion}`,
-        }));
-        setRegimenesOptions(options);
-      } catch (error) {
-        message.error('Error al cargar los regímenes fiscales');
-      }
-    };
-    fetchRegimenes();
+    getRegimenesFiscales()
+      .then((data: any[]) =>
+        setRegimenesOptions(
+          (data || []).map((r) => ({ value: r.clave, label: `${r.clave} — ${r.descripcion}` }))
+        )
+      )
+      .catch(() => message.error('Error al cargar los regímenes fiscales'));
   }, []);
 
+  // ─── Importar CSF ────────────────────────────────────────────────────────────
   const handleImportCSF = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     try {
       message.loading({ content: 'Analizando Constancia...', key: 'csf' });
-      // Usamos el servicio de utilidades a través de axios directamente o un servicio wrapper
-      // Si no tenemos un servicio wrapper para esto, usamos api.post directo como en empresas
-      // Necesitamos importar api de axios si no está disponible, pero useClienteForm tal vez ya tenga algo?
-      // Revisando imports: no hay 'api' importado en este archivo. Importaremos api.
       const { default: api } = await import('@/lib/axios');
-
       const { data } = await api.post('/utils/parse-csf', formData);
-
-      const updates: any = {};
-      if (data.rfc) updates.rfc = data.rfc;
+      const updates: Record<string, any> = {};
+      if (data.rfc)          updates.rfc = data.rfc;
       if (data.razon_social) {
         updates.nombre_razon_social = data.razon_social;
-        // Si no tiene nombre comercial, usar el mismo
-        if (!form.getFieldValue('nombre_comercial')) {
-          updates.nombre_comercial = data.razon_social;
-        }
+        if (!form.getFieldValue('nombre_comercial')) updates.nombre_comercial = data.razon_social;
       }
-      if (data.codigo_postal) {
-        // Intentamos ambos nombres comunes
-        updates.codigo_postal = data.codigo_postal;
-        updates.cp = data.codigo_postal;
-      }
-      if (data.direccion) {
-        // Si tenemos campos desglosados, damos prioridad a ellos
-        if (data.calle) updates.calle = data.calle;
-        else updates.calle = data.direccion; // Fallback si no detectó desglose
-
-        if (data.numero_exterior) updates.numero_exterior = data.numero_exterior;
-        if (data.numero_interior) updates.numero_interior = data.numero_interior;
-        if (data.colonia) updates.colonia = data.colonia;
-      }
-      if (data.regimen_fiscal) {
-        updates.regimen_fiscal = data.regimen_fiscal;
-      }
-
+      if (data.codigo_postal)   updates.codigo_postal = data.codigo_postal;
+      if (data.calle)            updates.calle = data.calle;
+      else if (data.direccion)   updates.calle = data.direccion;
+      if (data.numero_exterior)  updates.numero_exterior = data.numero_exterior;
+      if (data.numero_interior)  updates.numero_interior = data.numero_interior;
+      if (data.colonia)          updates.colonia = data.colonia;
+      if (data.regimen_fiscal)   updates.regimen_fiscal = data.regimen_fiscal;
       form.setFieldsValue(updates);
       message.success({ content: 'Datos extraídos de la CSF', key: 'csf' });
-
-      let msg = 'Se encontraron: ';
-      if (data.rfc) msg += 'RFC, ';
-      if (data.razon_social) msg += 'Razón Social, ';
-      if (data.codigo_postal) msg += 'CP, ';
-      if (data.direccion) msg += 'Dirección, ';
-      if (data.regimen_fiscal) msg += ` (Régimen: ${data.regimen_fiscal})`;
-      message.info(msg);
-
-    } catch (error) {
-      console.error(error);
+    } catch {
       message.error({ content: 'Error al analizar la CSF', key: 'csf' });
     }
-    return false; // Prevent auto upload
+    return false;
   };
 
-
-  // Opciones estáticas para selects
-  const tamanoOptions = [
-    { value: 'CHICO', label: 'CHICO' },
-    { value: 'MEDIANO', label: 'MEDIANO' },
-    { value: 'GRANDE', label: 'GRANDE' },
-  ];
-  const actividadOptions = [
-    { value: 'RESIDENCIAL', label: 'RESIDENCIAL' },
-    { value: 'COMERCIAL', label: 'COMERCIAL' },
-    { value: 'INDUSTRIAL', label: 'INDUSTRIAL' },
-  ];
-
-  if (loading && regimenesOptions.length === 0) { // Ajustar condición de carga
-    return (
-      <Spin spinning tip="Cargando...">
-        <div style={{ minHeight: 200 }} />
-      </Spin>
-    );
+  if (loading && regimenesOptions.length === 0) {
+    return <Spin spinning tip="Cargando..."><div style={{ minHeight: 200 }} /></Spin>;
   }
-
-  // Función para renderizar campos del formulario
-  const renderField = (key: string, prop: any) => {
-    const required = schema.required?.includes(key);
-
-    if (key === 'empresa_id') {
-      return (
-        <Form.Item
-          key={key}
-          label={prop.title}
-          name={key}
-          rules={
-            required
-              ? [{ required: true, message: `Se requiere ${prop.title}` }]
-              : []
-          }
-        >
-
-          <Select
-            mode="multiple"
-            placeholder="Selecciona una o más empresas"
-            tagRender={(props) => {
-              const { label, value, closable, onClose } = props;
-              const isLocked = lockedEmpresaIds.includes(value);
-              const handleClose = (e: React.MouseEvent<HTMLElement>) => {
-                if (isLocked) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  return;
-                }
-                onClose(e);
-              };
-              return (
-                <Tag
-                  color={isLocked ? "default" : undefined}
-                  closable={!isLocked} // Ocultar X si está bloqueado, o mostrarla pero inactiva? AntD closable=false oculta la X.
-                  onClose={handleClose}
-                  style={{ marginRight: 3, cursor: isLocked ? 'not-allowed' : 'default' }}
-                >
-                  {label} {isLocked && "(Sin acceso)"}
-                </Tag>
-              );
-            }}
-          >
-            {empresasOptions.map((opt: any) => (
-              <Select.Option key={opt.value} value={opt.value}>
-                {opt.label}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
-      );
-    }
-
-    // --- REGÍMEN FISCAL (CORREGIDO) ---
-    if (key === 'regimen_fiscal') {
-      return (
-        <Form.Item
-          key={key}
-          label={prop.title}
-          name={key}
-          rules={
-            required
-              ? [{ required: true, message: `Se requiere ${prop.title}` }]
-              : []
-          }
-        >
-          <Select
-            showSearch
-            placeholder="Selecciona un régimen fiscal"
-            optionFilterProp="label" // Buscar por el texto de la etiqueta
-            options={regimenesOptions} // Usar las opciones cargadas en el estado
-            loading={regimenesOptions.length === 0} // Mostrar ícono de carga
-          />
-        </Form.Item>
-      );
-    }
-
-    // --- Dirección de servicio: inyectar divider antes del primer campo ---
-    if (key === 'serv_calle') {
-      return (
-        <React.Fragment key={key}>
-          <Divider orientation="left">Dirección de Servicio</Divider>
-          <Form.Item label="Calle (Servicio)" name="serv_calle" getValueFromEvent={(e) => String(e.target.value).toUpperCase()}>
-            <Input maxLength={100} style={{ textTransform: 'uppercase' }} placeholder="Calle donde se realizará el servicio" />
-          </Form.Item>
-        </React.Fragment>
-      );
-    }
-
-    // --- INICIO: Lógica para renderizar campos de Geolocalización ---
-    if (key === 'latitud') {
-      return <GeolocationFields key="geo-fields" />;
-    }
-    if (key === 'longitud') {
-      return null; // Se renderiza dentro de GeolocationFields
-    }
-    // --- FIN: Lógica para renderizar campos de Geolocalización ---
-
-    if (key === 'tamano') {
-      return (
-        <Form.Item
-          key={key}
-          label={prop.title}
-          name={key}
-          rules={
-            required
-              ? [{ required: true, message: `Se requiere ${prop.title}` }]
-              : []
-          }
-        >
-          <Select
-            placeholder="Selecciona tamaño"
-            options={tamanoOptions}
-          />
-        </Form.Item>
-      );
-    }
-
-    if (key === 'actividad') {
-      return (
-        <Form.Item
-          key={key}
-          label={prop.title}
-          name={key}
-          rules={
-            required
-              ? [{ required: true, message: `Se requiere ${prop.title}` }]
-              : []
-          }
-        >
-          <Select
-            placeholder="Selecciona actividad"
-            options={actividadOptions}
-          />
-        </Form.Item>
-      );
-    }
-
-    if (key === 'email' || key === 'telefono') {
-      const placeholder =
-        key === 'email'
-          ? 'correo1@dominio.com, correo2@dominio.com'
-          : '+521234567890, +529876543210';
-      return (
-        <Form.Item
-          key={key}
-          label={prop.title}
-          name={key}
-          rules={
-            required
-              ? [{ required: true, message: `Se requiere ${prop.title}` }]
-              : []
-          }
-        >
-          <Input placeholder={placeholder} />
-        </Form.Item>
-      );
-    }
-
-    if (prop.enum || prop['x-options']) {
-      return (
-        <Form.Item
-          key={key}
-          label={prop.title}
-          name={key}
-          rules={
-            required
-              ? [{ required: true, message: `Se requiere ${prop.title}` }]
-              : []
-          }
-        >
-          <Select>
-            {prop['x-options']?.map((opt: any) => (
-              <Select.Option key={opt.value} value={opt.value}>
-                {opt.label}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
-      );
-    }
-
-    return (
-      <Form.Item
-        key={key}
-        label={prop.title}
-        name={key}
-        rules={
-          required
-            ? [{ required: true, message: `Se requiere ${prop.title}` }]
-            : []
-        }
-        getValueFromEvent={(e) => {
-          const val = e.target.value;
-          return UPPERCASE_FIELDS.includes(key) && val != null ? String(val).toUpperCase() : val;
-        }}
-      >
-        <Input
-          maxLength={prop.maxLength}
-          type={prop.format === 'password' ? 'password' : 'text'}
-          style={
-            UPPERCASE_FIELDS.includes(key)
-              ? { textTransform: 'uppercase' }
-              : undefined
-          }
-        />
-      </Form.Item>
-    );
-  };
 
   return (
     <>
-      {/* Modal para confirmación de cliente existente */}
+      {/* ── Modal: cliente existente ── */}
       <Modal
         title="Cliente existente encontrado"
         open={!!existingClientCandidate}
@@ -410,16 +95,13 @@ const ClienteFormPage: React.FC = () => {
         onCancel={cancelAssignment}
         okText="Asignar a esta empresa"
         cancelText="Cancelar y corregir"
-        okButtonProps={{ danger: false }}
       >
         {existingClientCandidate && (
           <div>
             <Alert
               message="Coincidencia Exacta"
-              description="Se ha encontrado un cliente con el mismo RFC y Nombre Comercial registrado en otra(s) empresa(s)."
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
+              description="Se encontró un cliente con el mismo RFC y Nombre Comercial en otra(s) empresa(s)."
+              type="info" showIcon style={{ marginBottom: 16 }}
             />
             <p><strong>Nombre Comercial:</strong> {existingClientCandidate.nombre_comercial}</p>
             <p><strong>RFC:</strong> {existingClientCandidate.rfc}</p>
@@ -427,151 +109,450 @@ const ClienteFormPage: React.FC = () => {
             <p><strong>CP:</strong> {existingClientCandidate.codigo_postal}</p>
             <Divider />
             <p>¿Deseas <b>asignar este cliente existente</b> a tu empresa en lugar de crear uno nuevo?</p>
-            <p style={{ fontSize: '0.85em', color: '#666' }}>Esto compartirá la ficha del cliente, pero mantendrá los datos sincronizados.</p>
+            <p style={{ fontSize: '0.85em', color: '#888' }}>
+              Esto compartirá la ficha del cliente y mantendrá los datos sincronizados.
+            </p>
           </div>
         )}
       </Modal>
 
+      {/* ── Header ── */}
       <div className="app-page-header">
         <div className="app-page-header__left">
           <Breadcrumbs />
           <h1 className="app-title">{id ? 'Editar Cliente' : 'Nuevo Cliente'}</h1>
         </div>
       </div>
+
       <div className="app-content">
-        <Card>
+        <Form form={form} layout="vertical" onFinish={onFinish}>
+
+          {/* ── Metadata ── */}
           {metadata && (
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: '0.85em' }}>
-                Creado: {formatDate(metadata.creado_en)} &nbsp;|&nbsp; Actualizado:{' '}
-                {formatDate(metadata.actualizado_en)}
+            <div style={{ marginBottom: 12 }}>
+              <Text type="secondary" style={{ fontSize: '0.82em' }}>
+                Creado: {formatDate(metadata.creado_en)} &nbsp;|&nbsp;
+                Actualizado: {formatDate(metadata.actualizado_en)}
               </Text>
             </div>
           )}
 
-          {/* Importar CSF Button */}
-          <div style={{ marginBottom: 24, padding: 16, background: '#f5f5f5', borderRadius: 8 }}>
-            <Space align="center">
-              <Text strong>Autocompletar con Constancia (CSF):</Text>
-              <div
-                onClick={(e) => e.stopPropagation()} /* Evitar propagación si está dentro de un form submit area implícita */
-              >
-                <Upload
-                  accept=".pdf"
-                  showUploadList={false}
-                  beforeUpload={handleImportCSF}
+          {/* ── Importar CSF ── */}
+          <Card
+            size="small"
+            style={{ marginBottom: 16 }}
+            styles={{ body: { padding: '10px 16px' } }}
+          >
+            <Space align="center" wrap>
+              <Text strong>Autocompletar con Constancia de Situación Fiscal:</Text>
+              <Upload accept=".pdf" showUploadList={false} beforeUpload={handleImportCSF}>
+                <Button
+                  icon={<FilePdfOutlined />}
+                  type="dashed"
+                  style={{ borderColor: '#d32f2f', color: '#d32f2f' }}
                 >
-                  <Button icon={<FilePdfOutlined />} type="dashed" style={{ borderColor: '#d32f2f', color: '#d32f2f' }}>
-                    Subir PDF Constancia
-                  </Button>
-                </Upload>
-              </div>
+                  Subir PDF Constancia (CSF)
+                </Button>
+              </Upload>
             </Space>
-          </div>
+          </Card>
 
-          <Form form={form} layout="vertical" onFinish={onFinish}>
-            {Object.entries(schema.properties || {}).map(([key, prop]) =>
-              renderField(key, { ...prop, required: schema.required?.includes(key) })
-            )}
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN 1 — Identificación
+          ══════════════════════════════════════════════════════════════════ */}
+          <Card title="Identificación" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="Nombre Comercial"
+                  name="nombre_comercial"
+                  rules={[{ required: true, message: 'Requerido' }]}
+                  getValueFromEvent={toUpper}
+                >
+                  <Input style={{ textTransform: 'uppercase' }} placeholder="Como lo conoces (ej. FARMACIAS DEL SUR)" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="Nombre Fiscal / Razón Social"
+                  name="nombre_razon_social"
+                  rules={[{ required: true, message: 'Requerido' }]}
+                  getValueFromEvent={toUpper}
+                >
+                  <Input style={{ textTransform: 'uppercase' }} placeholder="Exactamente como aparece en la CSF" />
+                </Form.Item>
+              </Col>
+            </Row>
 
-            {/* --- INICIO: SECCIÓN DE CONTACTOS DINÁMICOS --- */}
-            <Divider>Contactos</Divider>
+            <Row gutter={16}>
+              <Col xs={24} sm={8}>
+                <Form.Item
+                  label="RFC"
+                  name="rfc"
+                  rules={[{ required: true, message: 'Requerido' }]}
+                  getValueFromEvent={toUpper}
+                >
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={13} placeholder="XAXX010101000" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={16}>
+                <Form.Item
+                  label="Régimen Fiscal"
+                  name="regimen_fiscal"
+                  rules={[{ required: true, message: 'Requerido' }]}
+                >
+                  <Select
+                    showSearch
+                    placeholder="Selecciona un régimen fiscal"
+                    optionFilterProp="label"
+                    options={regimenesOptions}
+                    loading={regimenesOptions.length === 0}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item label="Empresa(s)" name="empresa_id">
+              <Select
+                mode="multiple"
+                placeholder="Selecciona una o más empresas"
+                tagRender={(props) => {
+                  const { label, value, closable, onClose } = props;
+                  const isLocked = lockedEmpresaIds.includes(value);
+                  return (
+                    <Tag
+                      color={isLocked ? 'default' : undefined}
+                      closable={!isLocked}
+                      onClose={(e) => {
+                        if (isLocked) { e.preventDefault(); return; }
+                        onClose(e);
+                      }}
+                      style={{ marginRight: 3, cursor: isLocked ? 'not-allowed' : 'default' }}
+                    >
+                      {label}{isLocked && ' (Sin acceso)'}
+                    </Tag>
+                  );
+                }}
+              >
+                {empresasOptions.map((opt: any) => (
+                  <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Card>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN 2 — Datos de Contacto
+          ══════════════════════════════════════════════════════════════════ */}
+          <Card title="Datos de Contacto" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="Teléfono(s)"
+                  name="telefono"
+                  extra="Separa varios números con coma"
+                >
+                  <Input placeholder="+52 55 1234 5678, +52 33 9876 5432" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="Correo(s) Electrónico(s)"
+                  name="email"
+                  extra="Separa varios correos con coma"
+                >
+                  <Input placeholder="ventas@empresa.com, admin@empresa.com" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN 3 — Dirección Fiscal
+          ══════════════════════════════════════════════════════════════════ */}
+          <Card title="Dirección Fiscal" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col xs={24} sm={14}>
+                <Form.Item label="Calle" name="calle" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={5}>
+                <Form.Item label="No. Exterior" name="numero_exterior" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={50} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={5}>
+                <Form.Item label="No. Interior" name="numero_interior" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={50} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Colonia" name="colonia" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={8}>
+                <Form.Item label="Ciudad" name="ciudad" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={4}>
+                <Form.Item
+                  label="C.P."
+                  name="codigo_postal"
+                  rules={[{ required: true, message: 'Requerido' }]}
+                >
+                  <Input maxLength={10} placeholder="00000" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={8}>
+                <Form.Item label="Estado" name="estado" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN 4 — Dirección de Servicio
+          ══════════════════════════════════════════════════════════════════ */}
+          <Card title="Dirección de Servicio" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col xs={24} sm={14}>
+                <Form.Item label="Calle" name="serv_calle" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={5}>
+                <Form.Item label="No. Exterior" name="serv_numero_exterior" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={50} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={5}>
+                <Form.Item label="No. Interior" name="serv_numero_interior" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={50} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Colonia" name="serv_colonia" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={8}>
+                <Form.Item label="Ciudad" name="serv_ciudad" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={4}>
+                <Form.Item label="C.P." name="serv_codigo_postal">
+                  <Input maxLength={10} placeholder="00000" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={8}>
+                <Form.Item label="Estado" name="serv_estado" getValueFromEvent={toUpper}>
+                  <Input style={{ textTransform: 'uppercase' }} maxLength={100} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={16}>
+                <Form.Item label="Referencias / Indicaciones" name="serv_referencia">
+                  <Input maxLength={255} placeholder="Ej. Portón azul, preguntar por recepción" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            {/* Geolocalización */}
+            <Divider orientation="left" plain style={{ marginTop: 4 }}>
+              <EnvironmentOutlined /> Geolocalización
+            </Divider>
+            <Row gutter={16}>
+              <Col xs={12} sm={6}>
+                <Form.Item label="Latitud" name="latitud">
+                  <Input type="number" placeholder="19.4326" />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Form.Item label="Longitud" name="longitud">
+                  <Input type="number" placeholder="-99.1332" />
+                </Form.Item>
+              </Col>
+              {lat && lon && (
+                <Col xs={24} sm={12} style={{ display: 'flex', alignItems: 'center', paddingTop: 8 }}>
+                  <a
+                    href={`https://www.google.com/maps?q=${lat},${lon}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <EnvironmentOutlined /> Ver en Google Maps
+                  </a>
+                </Col>
+              )}
+            </Row>
+          </Card>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN 5 — Clasificación y Crédito
+          ══════════════════════════════════════════════════════════════════ */}
+          <Card title="Clasificación y Crédito" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col xs={12} sm={8}>
+                <Form.Item label="Tamaño" name="tamano">
+                  <Select placeholder="Selecciona" allowClear>
+                    <Select.Option value="CHICO">Chico</Select.Option>
+                    <Select.Option value="MEDIANO">Mediano</Select.Option>
+                    <Select.Option value="GRANDE">Grande</Select.Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={8}>
+                <Form.Item label="Actividad" name="actividad">
+                  <Select placeholder="Selecciona" allowClear>
+                    <Select.Option value="RESIDENCIAL">Residencial</Select.Option>
+                    <Select.Option value="COMERCIAL">Comercial</Select.Option>
+                    <Select.Option value="INDUSTRIAL">Industrial</Select.Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={8} sm={6}>
+                <Form.Item label="Días de Crédito" name="dias_credito">
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+              <Col xs={8} sm={6}>
+                <Form.Item label="Días de Recepción" name="dias_recepcion">
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+              <Col xs={8} sm={6}>
+                <Form.Item label="Días de Pago" name="dias_pago">
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN 6 — Contactos Adicionales
+          ══════════════════════════════════════════════════════════════════ */}
+          <Card title="Contactos Adicionales" size="small" style={{ marginBottom: 16 }}>
             <Form.List name="contactos">
               {(fields, { add, remove }) => (
                 <>
                   {fields.map(({ key, name, ...restField }) => (
-                    <Card size="small" key={key} style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <MinusCircleOutlined onClick={() => remove(name)} />
-                      </div>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'nombre']}
-                        label="Nombre del Contacto"
-                        rules={[{ required: true, message: 'El nombre es requerido' }]}
-                      >
-                        <Input placeholder="Nombre completo" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'puesto']}
-                        label="Puesto"
-                      >
-                        <Input placeholder="Ej. Gerente de Compras" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'email']}
-                        label="Email"
-                        rules={[{ type: 'email', message: 'Email no válido' }]}
-                      >
-                        <Input placeholder="contacto@email.com" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'telefono']}
-                        label="Teléfono"
-                      >
-                        <Input placeholder="+52 123 456 7890" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'tipo']}
-                        label="Tipo de Contacto"
-                        initialValue="PRINCIPAL"
-                      >
-                        <Select placeholder="Selecciona un tipo">
-                          <Select.Option value="PRINCIPAL">PRINCIPAL</Select.Option>
-                          <Select.Option value="ADMINISTRATIVO">ADMINISTRATIVO</Select.Option>
-                          <Select.Option value="COBRANZA">COBRANZA</Select.Option>
-                          <Select.Option value="OPERATIVO">OPERATIVO</Select.Option>
-                          <Select.Option value="OTRO">OTRO</Select.Option>
-                        </Select>
-                      </Form.Item>
+                    <Card
+                      key={key}
+                      size="small"
+                      style={{ marginBottom: 12, background: 'var(--color-bg-layout, #f5f5f5)' }}
+                      extra={
+                        <Button
+                          type="text"
+                          danger
+                          size="small"
+                          icon={<MinusCircleOutlined />}
+                          onClick={() => remove(name)}
+                        >
+                          Eliminar
+                        </Button>
+                      }
+                    >
+                      <Row gutter={16}>
+                        <Col xs={24} sm={12}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'nombre']}
+                            label="Nombre"
+                            rules={[{ required: true, message: 'Requerido' }]}
+                          >
+                            <Input placeholder="Nombre completo" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12}>
+                          <Form.Item {...restField} name={[name, 'puesto']} label="Puesto">
+                            <Input placeholder="Ej. Gerente de Compras" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={10}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'email']}
+                            label="Email"
+                            rules={[{ type: 'email', message: 'Email no válido' }]}
+                          >
+                            <Input placeholder="contacto@empresa.com" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <Form.Item {...restField} name={[name, 'telefono']} label="Teléfono">
+                            <Input placeholder="+52 55 1234 5678" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={6}>
+                          <Form.Item
+                            {...restField}
+                            name={[name, 'tipo']}
+                            label="Tipo"
+                            initialValue="PRINCIPAL"
+                          >
+                            <Select>
+                              <Select.Option value="PRINCIPAL">Principal</Select.Option>
+                              <Select.Option value="ADMINISTRATIVO">Administrativo</Select.Option>
+                              <Select.Option value="COBRANZA">Cobranza</Select.Option>
+                              <Select.Option value="OPERATIVO">Operativo</Select.Option>
+                              <Select.Option value="OTRO">Otro</Select.Option>
+                            </Select>
+                          </Form.Item>
+                        </Col>
+                      </Row>
                     </Card>
                   ))}
-                  <Form.Item>
-                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                      Añadir Contacto
-                    </Button>
-                  </Form.Item>
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                    Agregar Contacto
+                  </Button>
                 </>
               )}
             </Form.List>
-            {/* --- FIN: SECCIÓN DE CONTACTOS DINÁMICOS --- */}
+          </Card>
 
-            <Form.Item style={{ textAlign: 'right', marginTop: 16 }}>
-              <Space>
-                {id && (
-                  <Popconfirm
-                    title="¿Estás seguro de eliminar este cliente?"
-                    onConfirm={async () => {
-                      try {
-                        const { clienteService } = await import('@/services/clienteService');
-                        await clienteService.deleteCliente(String(id));
-                        message.success('Cliente eliminado correctamente');
-                        router.push('/clientes');
-                      } catch (error) {
-                        console.error(error);
-                        message.error('Error al eliminar cliente');
-                      }
-                    }}
-                    okText="Sí"
-                    cancelText="No"
-                  >
-                    <Button danger icon={<DeleteOutlined />}>
-                      Eliminar
-                    </Button>
-                  </Popconfirm>
-                )}
-                <Button onClick={() => router.push('/clientes')}>Cancelar</Button>
-                <Button type="primary" htmlType="submit">
-                  {id ? 'Actualizar' : 'Guardar'}
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Card>
+          {/* ── Botones ── */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Space>
+              {id && (
+                <Popconfirm
+                  title="¿Eliminar este cliente?"
+                  onConfirm={async () => {
+                    try {
+                      const { clienteService } = await import('@/services/clienteService');
+                      await clienteService.deleteCliente(String(id));
+                      message.success('Cliente eliminado');
+                      router.push('/clientes');
+                    } catch {
+                      message.error('Error al eliminar cliente');
+                    }
+                  }}
+                  okText="Sí, eliminar"
+                  cancelText="Cancelar"
+                >
+                  <Button danger icon={<DeleteOutlined />}>Eliminar</Button>
+                </Popconfirm>
+              )}
+              <Button onClick={() => router.push('/clientes')}>Cancelar</Button>
+              <Button type="primary" htmlType="submit">
+                {id ? 'Actualizar' : 'Guardar'}
+              </Button>
+            </Space>
+          </div>
+
+        </Form>
       </div>
     </>
   );

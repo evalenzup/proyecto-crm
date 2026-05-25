@@ -167,8 +167,8 @@ export const usePagoForm = () => {
           setClientesComercial([]);
           setClientesFiscal([]);
         }
-      } catch (error) {
-        message.error(normalizeHttpError(error) || 'Error al cargar datos iniciales.');
+      } catch (error: any) {
+        if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al cargar datos iniciales.');
       } finally {
         setLoading(false);
       }
@@ -185,8 +185,8 @@ export const usePagoForm = () => {
           // Default series is 'P' in backend, so we must ask for 'P' to get the correct consecutive
           const nextFolio = await pagoService.getSiguienteFolioPago(empresaId, 'P');
           form.setFieldsValue({ folio: nextFolio.toString() });
-        } catch (error) {
-          message.error(normalizeHttpError(error) || 'Error al obtener el siguiente folio.');
+        } catch (error: any) {
+          if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al obtener el siguiente folio.');
         }
       };
       fetchFolio();
@@ -306,7 +306,7 @@ export const usePagoForm = () => {
         // Si el usuario cambió el cliente (o es nuevo), limpiar asignaciones
         setPaymentAllocation({});
       })
-      .catch((e) => message.error(normalizeHttpError(e) || 'Error al cargar facturas pendientes.'));
+      .catch((e: any) => { if (!e?._handled) message.error(normalizeHttpError(e) || 'Error al cargar facturas pendientes.'); });
 
     // Re-fetch when crossCompanyMode changes
     // Re-fetch when crossCompanyMode changes
@@ -406,11 +406,13 @@ export const usePagoForm = () => {
     } catch (err: any) {
       applyFormErrors(err, form);
       // Debug: If 422, show the specific message because documents list errors are hidden
-      if (err?.response?.status === 422 && Array.isArray(err?.response?.data?.detail)) {
-        const details = err.response.data.detail.map((d: any) => `${d.loc.slice(-1)}: ${d.msg}`).join(', ');
-        message.error(`Validación fallida: ${details}`);
-      } else {
-        message.error(normalizeHttpError(err) || 'Error al guardar el pago.');
+      if (!err?._handled) {
+        if (err?.response?.status === 422 && Array.isArray(err?.response?.data?.detail)) {
+          const details = err.response.data.detail.map((d: any) => `${d.loc.slice(-1)}: ${d.msg}`).join(', ');
+          message.error(`Validación fallida: ${details}`);
+        } else {
+          message.error(normalizeHttpError(err) || 'Error al guardar el pago.');
+        }
       }
     } finally {
       setSaving(false);
@@ -426,7 +428,7 @@ export const usePagoForm = () => {
       setPago(updated);
       message.success(result?.message || 'Pago timbrado con éxito.');
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al timbrar el pago.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al timbrar el pago.');
     } finally {
       setAccionLoading((s) => ({ ...s, timbrando: false }));
     }
@@ -454,7 +456,7 @@ export const usePagoForm = () => {
       setPago(updated);
       cerrarCancelacion();
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al cancelar el pago.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al cancelar el pago.');
     } finally {
       setAccionLoading((s) => ({ ...s, cancelando: false }));
     }
@@ -479,7 +481,7 @@ export const usePagoForm = () => {
       message.success('Correo enviado correctamente.');
       cerrarEmailModal();
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al enviar el correo.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al enviar el correo.');
     } finally {
       setAccionLoading((s) => ({ ...s, enviando: false }));
     }
@@ -522,7 +524,7 @@ export const usePagoForm = () => {
       setPreviewTitle("Vista Previa de Pago");
       setPreviewModalOpen(true);
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al generar el PDF.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al generar el PDF.');
     } finally {
       setAccionLoading((s) => ({ ...s, visualizando: false }));
     }
@@ -541,7 +543,7 @@ export const usePagoForm = () => {
       setPreviewTitle(`Vista Previa Factura ${folio || ''}`);
       setPreviewModalOpen(true);
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al obtener el PDF de la factura.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al obtener el PDF de la factura.');
     } finally {
       setAccionLoading((s) => ({ ...s, visualizando: false }));
     }
@@ -563,7 +565,7 @@ export const usePagoForm = () => {
       const blob = await pagoService.getPagoPdf(id); // <— nombre correcto
       forceDownload(blob, `pago-${pago?.folio || id}.pdf`);
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al descargar el PDF.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al descargar el PDF.');
     } finally {
       setAccionLoading((s) => ({ ...s, descargando: false }));
     }
@@ -576,7 +578,7 @@ export const usePagoForm = () => {
       const blob = await pagoService.downloadPagoXml(id);
       forceDownload(blob, `pago-${pago?.folio || id}.xml`);
     } catch (error: any) {
-      message.error(normalizeHttpError(error) || 'Error al descargar el XML.');
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al descargar el XML.');
     } finally {
       setAccionLoading((s) => ({ ...s, descargando: false }));
     }

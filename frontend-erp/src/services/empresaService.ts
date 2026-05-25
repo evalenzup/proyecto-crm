@@ -116,4 +116,30 @@ export const empresaService = {
     const response = await api.get<RfcGroup[]>('/empresas/rfc-groups');
     return response.data;
   },
+
+  /** Returns the empresa logo as an authenticated Blob */
+  getLogoBlob: async (id: string): Promise<Blob> => {
+    const response = await api.get(`/empresas/logos/${id}.png`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  /** Returns a certificate file as a Blob (used to verify presence on server) */
+  getCertificadoBlob: async (filename: string): Promise<Blob> => {
+    const response = await api.get(`/empresas/certificados/${filename}`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  /** Returns the email SMTP configuration for an empresa */
+  getEmailConfig: async (id: string): Promise<any> => {
+    const response = await api.get(`/empresas/${id}/email-config`);
+    return response.data;
+  },
+
+  /** Parses a Constancia de Situación Fiscal PDF and returns extracted fields */
+  parseCSF: async (file: File): Promise<{ rfc?: string; razon_social?: string; codigo_postal?: string; direccion?: string; regimen_fiscal?: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/utils/parse-csf', formData);
+    return response.data;
+  },
 };

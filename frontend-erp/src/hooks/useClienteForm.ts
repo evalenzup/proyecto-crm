@@ -105,8 +105,8 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
             };
             form.setFieldsValue(initial);
             setMetadata({ creado_en: clienteData.creado_en, actualizado_en: clienteData.actualizado_en });
-          } catch (e) {
-            message.error(normalizeHttpError(e) || 'Registro no encontrado');
+          } catch (e: any) {
+            if (!e?._handled) message.error(normalizeHttpError(e) || 'Registro no encontrado');
             router.replace('/clientes');
           } finally {
             setLoadingRecord(false);
@@ -122,8 +122,8 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
             form.setFieldValue('empresa_id', [defaultId]);
           }
         }
-      } catch (e) {
-        message.error(normalizeHttpError(e));
+      } catch (e: any) {
+        if (!e?._handled) message.error(normalizeHttpError(e));
       } finally {
         setLoadingEmpresas(false);
         setLoadingSchema(false);
@@ -154,7 +154,7 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
       await executeSave(values);
     } catch (err: any) {
       applyFormErrors(err, form);
-      message.error(normalizeHttpError(err));
+      if (!err?._handled) message.error(normalizeHttpError(err));
     }
   };
 
@@ -215,7 +215,7 @@ export const useClienteForm = (id?: string): UseClienteFormResult => {
     try {
       await executeSave(values, existingClientCandidate.id);
     } catch (err: any) {
-      message.error(normalizeHttpError(err));
+      if (!err?._handled) message.error(normalizeHttpError(err));
     }
   };
 

@@ -33,7 +33,10 @@ router = APIRouter()
 
 # El schema dinámico se mantiene por ahora, ya que está muy acoplado a la vista.
 @router.get("/schema")
-def get_form_schema(db: Session = Depends(get_db)):
+def get_form_schema(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     # Pydantic v2
     try:
         schema = ClienteCreate.model_json_schema()
@@ -44,7 +47,15 @@ def get_form_schema(db: Session = Depends(get_db)):
 
     props["empresa_id"]["type"] = "array"
     props["empresa_id"]["items"] = {"type": "string", "format": "uuid"}
-    empresas = db.query(Empresa).all()
+
+    # ADMIN y SUPERADMIN ven todas las empresas; el resto solo la suya
+    if current_user.rol in (RolUsuario.ADMIN, RolUsuario.SUPERADMIN):
+        empresas = db.query(Empresa).all()
+    else:
+        empresas = db.query(Empresa).filter(
+            Empresa.id == current_user.empresa_id
+        ).all()
+
     props["empresa_id"]["x-options"] = [
         {"value": str(e.id), "label": e.nombre_comercial} for e in empresas
     ]
@@ -69,8 +80,8 @@ def buscar_clientes(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Busca clientes por nombre comercial o razón social; admite filtro por empresa."""
-    # Si es supervisor, forzar empresa_id
-    if current_user.rol == RolUsuario.SUPERVISOR:
+    # Forzar empresa_id para cualquier rol que no sea ADMIN o SUPERADMIN
+    if current_user.rol not in (RolUsuario.ADMIN, RolUsuario.SUPERADMIN):
         empresa_id = current_user.empresa_id
 
     return cliente_repo.search_by_name(
@@ -121,8 +132,8 @@ def listar_clientes(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Obtiene una lista paginada y filtrada de todos los clientes."""
-    # Si es supervisor, forzar empresa_id
-    if current_user.rol == RolUsuario.SUPERVISOR:
+    # Forzar empresa_id para cualquier rol que no sea ADMIN o SUPERADMIN
+    if current_user.rol not in (RolUsuario.ADMIN, RolUsuario.SUPERADMIN):
         empresa_id = current_user.empresa_id
 
     items, total = cliente_repo.get_multi(

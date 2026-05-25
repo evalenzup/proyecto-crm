@@ -20,8 +20,9 @@ SECRET_KEY_ENCRYPTION = settings.ENCRYPTION_KEY.encode()
 if not SECRET_KEY_ENCRYPTION:
     raise ValueError("La clave de encriptación (ENCRYPTION_KEY) no está configurada.")
 
-# Usamos una secret key distinta para JWT si es posible, si no, usamos la misma pero decodificada si es string
-SECRET_KEY_JWT = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else "SUPER_SECRET_KEY_CHANGE_ME"
+# SECRET_KEY es requerido en .env (declarado sin default en config.py); pydantic-settings
+# fallará en el arranque si no está presente, por lo que el acceso es siempre seguro.
+SECRET_KEY_JWT = settings.SECRET_KEY
 
 fernet = Fernet(SECRET_KEY_ENCRYPTION)
 

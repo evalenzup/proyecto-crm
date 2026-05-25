@@ -2,9 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import api from '@/lib/axios';
+import { empresaService } from '@/services/empresaService';
 import {
-  Form, Input, Select, Button, Spin, Card, message, Space, Typography, Alert, Upload, Descriptions, Tag, ColorPicker,
+  Form, Input, Select, Button, Spin, Card, message, Space, Typography, Alert, Upload, Descriptions, Tag, ColorPicker, Row, Col,
 } from 'antd';
 import type { UploadFile } from 'antd';
 import { UploadOutlined, DownloadOutlined, FilePdfOutlined } from '@ant-design/icons';
@@ -61,29 +61,29 @@ const EmpresaFormPage: React.FC = () => {
 
   useEffect(() => {
     if (!id) return;
-    api.get(`/empresas/${id}/email-config`)
-      .then(({ data }) => setEmailConfig(data))
-      .catch((err) => {
+    empresaService.getEmailConfig(id)
+      .then((data) => setEmailConfig(data))
+      .catch((err: any) => {
         if (err.response && err.response.status === 404) {
           setEmailConfig(null);
         } else if (err.response && err.response.status !== 404) {
-          message.error('Error al cargar configuración de correo.');
+          if (!err?._handled) message.error('Error al cargar configuración de correo.');
         }
       });
   }, [id]);
 
   useEffect(() => {
-    api.get<JSONSchema>('/empresas/form-schema')
-      .then(({ data }) => setSchema(data))
-      .catch(() => message.error('Error al cargar esquema'))
+    empresaService.getEmpresaSchema()
+      .then((data) => setSchema(data))
+      .catch((e: any) => { if (!e?._handled) message.error('Error al cargar esquema'); })
       .finally(() => setLoadingSchema(false));
   }, []);
 
   useEffect(() => {
     if (!id) return;
     setLoadingRecord(true);
-    api.get(`/empresas/${id}`)
-      .then(async ({ data }) => {
+    empresaService.getEmpresa(id)
+      .then(async (data) => {
         const initial: any = { ...data };
         const ts = Date.now();
 
@@ -93,11 +93,9 @@ const EmpresaFormPage: React.FC = () => {
         // Cargar logo como Blob para enviar headers de auth
         if (data.logo && typeof data.logo === 'string' && data.logo.trim().length > 0) {
           try {
-            const logoBlob = await api.get(`/empresas/logos/${id}.png`, { responseType: 'blob' });
-            const logoUrl = URL.createObjectURL(logoBlob.data);
-            setCurrentLogoUrl(logoUrl);
-          } catch (ignored) {
-            // Si falla (ej. 404), simplemente no mostramos logo
+            const logoBlob = await empresaService.getLogoBlob(id);
+            setCurrentLogoUrl(URL.createObjectURL(logoBlob));
+          } catch {
             setCurrentLogoUrl(null);
           }
         } else {
@@ -108,10 +106,10 @@ const EmpresaFormPage: React.FC = () => {
         setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
 
         const cerOk = data.archivo_cer
-          ? await api.get(`/empresas/certificados/${data.archivo_cer}`, { responseType: 'blob' }).then(() => true).catch(() => false)
+          ? await empresaService.getCertificadoBlob(data.archivo_cer).then(() => true).catch(() => false)
           : false;
         const keyOk = data.archivo_key
-          ? await api.get(`/empresas/certificados/${data.archivo_key}`, { responseType: 'blob' }).then(() => true).catch(() => false)
+          ? await empresaService.getCertificadoBlob(data.archivo_key).then(() => true).catch(() => false)
           : false;
         const missing = !(cerOk && keyOk);
         setMustReuploadCerts(missing);
@@ -122,15 +120,15 @@ const EmpresaFormPage: React.FC = () => {
 
         if (data.archivo_cer && !missing) {
           try {
-            const { data: info } = await api.get<CertInfo>(`/empresas/${id}/cert-info`);
+            const info = await empresaService.getCertInfo(id);
             setCertInfo(info);
           } catch { setCertInfo(null); }
         } else {
           setCertInfo(null);
         }
       })
-      .catch(() => {
-        message.error('Registro no encontrado');
+      .catch((e: any) => {
+        if (!e?._handled) message.error('Registro no encontrado');
         router.replace('/empresas');
       })
       .finally(() => setLoadingRecord(false));
@@ -206,11 +204,11 @@ const EmpresaFormPage: React.FC = () => {
 
     try {
       if (id) {
-        await api.put(`/empresas/${id}`, payload);
+        await empresaService.updateEmpresa(id, payload);
         message.success('Empresa actualizada');
         router.push('/empresas');
       } else {
-        const { data } = await api.post(`/empresas/`, payload);
+        const data = await empresaService.createEmpresa(payload);
         message.success('Empresa creada. Ahora puedes configurar el correo.');
         if (data && data.id) {
           router.push(`/empresas/form/${data.id}`);
@@ -219,17 +217,17 @@ const EmpresaFormPage: React.FC = () => {
         }
       }
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      message.error(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : 'Error inesperado');
+      if (!err?._handled) {
+        const detail = err?.response?.data?.detail;
+        message.error(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : 'Error inesperado');
+      }
     }
   };
 
   const handleImportCSF = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
     try {
       message.loading({ content: 'Analizando Constancia...', key: 'csf' });
-      const { data } = await api.post('/utils/parse-csf', formData);
+      const data = await empresaService.parseCSF(file);
 
       const updates: any = {};
       if (data.rfc) {
@@ -269,9 +267,9 @@ const EmpresaFormPage: React.FC = () => {
       if (data.regimen_fiscal) msg += ` (Régimen: ${data.regimen_fiscal})`;
       message.info(msg);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      message.error({ content: 'Error al analizar la CSF', key: 'csf' });
+      if (!error?._handled) message.error({ content: 'Error al analizar la CSF', key: 'csf' });
     }
     return false; // Prevent auto upload
   };
@@ -508,15 +506,27 @@ const EmpresaFormPage: React.FC = () => {
           </div>
 
           <Form form={form} layout="vertical" onFinish={onFinish}>
-            {/* Campos normales primero */}
-            {normalKeys.map((k) => renderField(k, (schema.properties as any)[k]))}
+            {/* Campos normales — 2 columnas en desktop, 1 en móvil */}
+            <Row gutter={[16, 0]}>
+              {normalKeys.map((k) => (
+                <Col key={k} xs={24} md={12}>
+                  {renderField(k, (schema.properties as any)[k])}
+                </Col>
+              ))}
+            </Row>
 
             {/* Datos Bancarios */}
             {bankKeysPresent.length > 0 && (
               <Card size="small" style={{ marginTop: 16 }}>
                 <Text strong>Datos Bancarios</Text>
                 <div style={{ height: 8 }} />
-                {bankKeysPresent.map((k) => renderField(k, (schema.properties as any)[k]))}
+                <Row gutter={[16, 0]}>
+                  {bankKeysPresent.map((k) => (
+                    <Col key={k} xs={24} md={12}>
+                      {renderField(k, (schema.properties as any)[k])}
+                    </Col>
+                  ))}
+                </Row>
               </Card>
             )}
 

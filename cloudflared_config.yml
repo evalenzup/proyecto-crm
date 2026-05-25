@@ -1,6 +1,12 @@
 tunnel: 4635b9ed-bf62-40cb-91e7-bf413106722b
 credentials-file: /Users/alonso/.cloudflared/4635b9ed-bf62-40cb-91e7-bf413106722b.json
 
+# Forzar HTTP/2 evita los timeouts de QUIC/UDP que causan intermitencias
+protocol: http2
+
+# Reintentar conexiones automáticamente con mayor tolerancia
+retries: 10
+
 ingress:
   # Frontend
   - hostname: app.sistemas-erp.com

@@ -37,7 +37,8 @@ class EmailSchema(BaseModel):
 @router.get("/siguiente-folio", response_model=FolioOut)
 def obtener_siguiente_folio(
     empresa_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Sugiere el siguiente folio para un nuevo presupuesto para una empresa.
@@ -142,7 +143,6 @@ def actualizar_presupuesto(
     if current_user.rol == RolUsuario.SUPERVISOR:
         if db_obj.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
-        payload.empresa_id = current_user.empresa_id
 
     result = presupuesto_repo.update(db, db_obj=db_obj, obj_in=payload)
     try:
@@ -162,6 +162,7 @@ def actualizar_estado_presupuesto(
     id: UUID,
     payload: StatusUpdatePayload,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Actualiza el estado de un presupuesto sin crear una nueva versión.
@@ -189,6 +190,7 @@ def subir_evidencia_presupuesto(
     id: UUID,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Sube un archivo de evidencia para un presupuesto, lo cual también lo marca como ACEPTADO.
@@ -233,7 +235,8 @@ def eliminar_presupuesto(
 @router.get("/{id}/pdf", response_class=StreamingResponse)
 def descargar_presupuesto_pdf(
     id: UUID = Path(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Genera y descarga el presupuesto en formato PDF.
@@ -256,8 +259,7 @@ def enviar_presupuesto_email(
     payload: EmailSchema,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    # TODO: Get user from token
-    # current_user: models.Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
     Programa el envío del presupuesto por correo electrónico en segundo plano.
@@ -270,8 +272,7 @@ def enviar_presupuesto_email(
     presupuesto.estado = "ENVIADO"
     evento = PresupuestoEvento(
         presupuesto_id=id,
-        # TODO: Usar el ID del usuario autenticado
-        usuario_id=presupuesto.responsable_id,
+        usuario_id=current_user.id,
         accion="ENVIADO",
         comentario=f"Enviado a {payload.recipient_email}",
     )
@@ -288,7 +289,7 @@ def enviar_presupuesto_email(
     try:
         audit_svc.registrar(
             db=db, accion=audit_svc.ENVIAR_PRESUPUESTO, entidad="presupuesto",
-            usuario_id=presupuesto.responsable_id, empresa_id=presupuesto.empresa_id,
+            usuario_id=current_user.id, empresa_id=presupuesto.empresa_id,
             entidad_id=str(id),
             detalle={"folio": presupuesto.folio, "destinatario": payload.recipient_email},
         )

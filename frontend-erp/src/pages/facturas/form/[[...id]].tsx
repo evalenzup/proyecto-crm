@@ -228,8 +228,10 @@ const FacturaFormPage: React.FC = () => {
       setIsEmailModalOpen(false);
       emailForm.resetFields();
     } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      message.error(typeof detail === 'string' ? detail : 'Error al enviar factura por correo.');
+      if (!error?._handled) {
+        const detail = error?.response?.data?.detail;
+        message.error(typeof detail === 'string' ? detail : 'Error al enviar factura por correo.');
+      }
     } finally {
       setIsSendingEmail(false);
       setIsSendingPreview(false); // Reset the state
@@ -240,7 +242,6 @@ const FacturaFormPage: React.FC = () => {
   React.useEffect(() => {
     if (isEmailModalOpen && id) {
       const clienteEmail = form.getFieldValue(['cliente', 'email']);
-      console.log('Cliente Email from main form:', clienteEmail);
       emailForm.setFieldsValue({ recipient_emails: clienteEmail });
     }
   }, [isEmailModalOpen, id, form, emailForm]);
@@ -265,7 +266,7 @@ const FacturaFormPage: React.FC = () => {
       router.push(`/facturas/form/${newFactura.id}`);
     } catch (error: any) {
       console.error(error);
-      message.error({
+      if (!error?._handled) message.error({
         content: error.response?.data?.detail || 'Error al duplicar la factura',
         key: 'duplicating'
       });
@@ -864,7 +865,7 @@ const FacturaFormPage: React.FC = () => {
         open={isConceptoModalOpen}
         onOk={handleSaveConcepto}
         onCancel={() => setIsConceptoModalOpen(false)}
-        width={840}
+        width="min(95vw, 840px)"
         destroyOnHidden
         okButtonProps={{ disabled: isFormDisabled }}
       >

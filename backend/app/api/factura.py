@@ -353,6 +353,7 @@ def marcar_pago(
     fecha_pago: Optional[date] = Query(None),
     fecha_cobro: Optional[date] = Query(None),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Factura:
     return srv.marcar_pago_factura(db, id, status, fecha_pago, fecha_cobro)
 
@@ -429,11 +430,12 @@ def solicitar_cancelacion_endpoint(
 @router.post("/{id}/verificar-sat", summary="Consulta el estado del CFDI en el SAT y actualiza el estatus")
 def verificar_estado_sat(
     id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     from app.services import sat_cfdi_service as sat_svc
-    from datetime import datetime
+    from app.services import auditoria_service as aud
 
     factura = db.query(Factura).filter(Factura.id == id).first()
     if not factura:
@@ -457,27 +459,33 @@ def verificar_estado_sat(
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=f"Error al consultar SAT: {e}")
 
-    estatus_anterior = factura.estatus
-    nuevo_estatus = estatus_anterior  # por defecto no cambia
-
     if not acuse.encontrado:
         raise HTTPException(status_code=404, detail=f"CFDI no encontrado en SAT: {acuse.codigo_estatus}")
 
-    if acuse.cancelado_por_sat:
-        nuevo_estatus = "CANCELADA"
-        factura.fecha_solicitud_cancelacion = None
-    elif acuse.en_proceso:
-        nuevo_estatus = "EN_CANCELACION"
-        if not factura.fecha_solicitud_cancelacion:
-            factura.fecha_solicitud_cancelacion = datetime.utcnow()
-    else:
-        # Vigente (receptor rechazó o nunca se inició cancelación)
-        if estatus_anterior == "EN_CANCELACION":
-            nuevo_estatus = "TIMBRADA"
-            factura.fecha_solicitud_cancelacion = None
-
-    factura.estatus = nuevo_estatus
+    estatus_anterior = factura.estatus
+    nuevo_estatus, _ = sat_svc.aplicar_acuse_sat(factura, acuse)
     db.add(factura)
+
+    aud.registrar(
+        db,
+        accion=aud.VERIFICAR_SAT,
+        entidad="Factura",
+        usuario_id=current_user.id,
+        usuario_email=current_user.email,
+        empresa_id=factura.empresa_id,
+        entidad_id=str(factura.id),
+        detalle={
+            "cfdi_uuid": factura.cfdi_uuid,
+            "estatus_anterior": estatus_anterior,
+            "estatus_nuevo": nuevo_estatus,
+            "sat_codigo": acuse.codigo_estatus,
+            "sat_estado": acuse.estado,
+            "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+            "actualizado": estatus_anterior != nuevo_estatus,
+        },
+        ip=aud.get_ip(request),
+    )
+
     db.commit()
     db.refresh(factura)
 
@@ -535,13 +543,21 @@ def revertir_cancelacion(
 
 
 @router.post("/{id}/xml-preview", summary="Genera XML CFDI 4.0 sin timbrar")
-def generar_xml_preview(id: UUID, db: Session = Depends(get_db)):
+def generar_xml_preview(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     xml_bytes = srv.generar_xml_preview_bytes(db, id)
     return Response(content=xml_bytes, media_type="application/xml")
 
 
 @router.get("/{id}/preview-pdf", summary="PDF de vista previa (marca BORRADOR)")
-def preview_pdf(id: UUID, db: Session = Depends(get_db)):
+def preview_pdf(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     pdf_bytes = srv.generar_pdf_bytes(db, id, preview=True)
     return Response(
         content=pdf_bytes,
@@ -551,7 +567,11 @@ def preview_pdf(id: UUID, db: Session = Depends(get_db)):
 
 
 @router.get("/{id}/pdf", summary="PDF final (TIMBRADA o CANCELADA)")
-def factura_pdf(id: UUID, db: Session = Depends(get_db)):
+def factura_pdf(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     pdf_bytes = srv.generar_pdf_bytes(db, id, preview=False)
     # El nombre del archivo se podría obtener del servicio también si se quisiera.
     return Response(
@@ -562,7 +582,11 @@ def factura_pdf(id: UUID, db: Session = Depends(get_db)):
 
 
 @router.get("/{id}/xml", summary="Descargar XML timbrado")
-def descargar_xml_timbrado(id: UUID, db: Session = Depends(get_db)):
+def descargar_xml_timbrado(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     xml_path_from_db, filename = srv.obtener_ruta_xml_timbrado(db, id)
 
     base_dir = os.path.realpath(getattr(settings, "DATA_DIR", "/data"))

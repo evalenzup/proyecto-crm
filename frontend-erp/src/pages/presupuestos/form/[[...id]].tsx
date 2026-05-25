@@ -415,7 +415,7 @@ const PresupuestoFormPage: React.FC = () => {
         open={isConceptoModalOpen}
         onOk={handleSaveConcepto}
         onCancel={() => setIsConceptoModalOpen(false)}
-        width={840}
+        width="min(95vw, 840px)"
         destroyOnClose
       >
         <Form form={conceptoForm} layout="vertical">

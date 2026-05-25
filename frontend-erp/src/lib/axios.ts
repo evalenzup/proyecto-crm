@@ -3,13 +3,25 @@ import axios from 'axios';
 import { message } from 'antd';
 import { normalizeHttpError } from '@/utils/httpError';
 
+// ─── Access token en memoria (no en localStorage) ────────────────────────────
+// El refresh token viaja como httpOnly cookie y el navegador lo adjunta solo.
+// Este módulo es la fuente de verdad del access token vigente.
+let _accessToken: string | null = null;
+
+export const setAccessToken = (token: string | null): void => {
+  _accessToken = token;
+};
+
+export const getAccessToken = (): string | null => _accessToken;
+
+// ─── Instancia de axios ───────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
+  withCredentials: true, // envía la cookie httpOnly del refresh token automáticamente
 });
 
 // ─── Cola para peticiones que llegan mientras se está renovando el token ──────
 // Evita que múltiples 401 simultáneos lancen N llamadas de refresh en paralelo.
-// Solo la primera petición hace el refresh; las demás esperan en esta cola.
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: any) => void }> = [];
 
@@ -22,27 +34,25 @@ const processQueue = (error: any, token: string | null) => {
 };
 
 const clearSessionAndRedirect = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('refresh_token');
+  setAccessToken(null);
   if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
     window.location.href = '/login';
   }
 };
 
-// ─── Interceptor de request: adjunta el token vigente ────────────────────────
+// ─── Interceptor de request: adjunta el access token vigente ─────────────────
 api.interceptors.request.use(
   (config) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (_accessToken) {
+      config.headers.Authorization = `Bearer ${_accessToken}`;
     }
     return config;
   },
   (error) => Promise.reject(error),
 );
 
-// ─── Interceptor de response: muestra errores genéricos ──────────────────────
-// Los 401 se manejan silenciosamente en el siguiente interceptor.
+// ─── Interceptor de response: errores genéricos ───────────────────────────────
+// Los 401/403 se manejan silenciosamente en el siguiente interceptor.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -50,9 +60,12 @@ api.interceptors.response.use(
     const isEmailConfigNotFound = status === 404 && error?.config?.url?.includes('/email-config');
     const isValidationError = status === 422;
     const isAuthError = status === 401 || status === 403;
+    const isSilent = error?.config?.silentError === true;
 
-    if (!isEmailConfigNotFound && !isValidationError && !isAuthError) {
-      message.error(normalizeHttpError(error));
+    if (!isEmailConfigNotFound && !isValidationError && !isAuthError && !isSilent) {
+      const msg = normalizeHttpError(error);
+      if (msg) message.error(msg);
+      error._handled = true;
     }
     return Promise.reject(error);
   },
@@ -66,19 +79,10 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const isRefreshEndpoint = originalRequest?.url?.includes('/login/refresh-token');
 
-    // Solo actuar ante 401/403 en peticiones que aún no se han reintentado
-    if ((status === 401 || status === 403) && !originalRequest._retry && !isRefreshEndpoint) {
-      const refreshToken = typeof window !== 'undefined'
-        ? localStorage.getItem('refresh_token')
-        : null;
-
-      // Sin refresh token → sesión inválida, ir a login
-      if (!refreshToken) {
-        clearSessionAndRedirect();
-        return Promise.reject(error);
-      }
-
-      // Si YA hay un refresh en curso, encolar esta petición y esperar
+    // Solo refrescamos en 401 (token expirado/inválido).
+    // El 403 es "acceso denegado" (permiso), no un problema de token — no refrescar.
+    if (status === 401 && !originalRequest._retry && !isRefreshEndpoint) {
+      // Si ya hay un refresh en curso, encolar esta petición y esperar
       if (isRefreshing) {
         return new Promise<string>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -94,30 +98,24 @@ api.interceptors.response.use(
           .catch((err) => Promise.reject(err));
       }
 
-      // Primera petición en fallar — iniciar refresh
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        // Usamos axios directo para evitar que este request también pase
-        // por nuestro interceptor y genere un bucle infinito.
+        // Importación dinámica para evitar dependencia circular en inicialización
         const { authService } = await import('@/services/authService');
-        const tokens = await authService.refreshToken(refreshToken);
+        // El refresh token viaja automáticamente como cookie — no se envía en body
+        const tokens = await authService.refreshToken();
 
-        localStorage.setItem('token', tokens.access_token);
-        localStorage.setItem('refresh_token', tokens.refresh_token);
-
-        // Desencolar todas las peticiones en espera con el nuevo token
+        setAccessToken(tokens.access_token);
         processQueue(null, tokens.access_token);
 
-        // Reintentar la petición original
         originalRequest.headers = {
           ...originalRequest.headers,
           Authorization: `Bearer ${tokens.access_token}`,
         };
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh falló (token expirado o inválido) → cerrar sesión
         processQueue(refreshError, null);
         clearSessionAndRedirect();
         return Promise.reject(refreshError);

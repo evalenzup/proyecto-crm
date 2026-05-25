@@ -5,6 +5,8 @@ import uuid
 from app.database import get_db
 from app.schemas import email_config
 from app.services.email_config_service import email_config_repo
+from app.models.usuario import Usuario
+from app.api import deps
 
 router = APIRouter()
 
@@ -15,6 +17,7 @@ def test_email_config_connection(
     empresa_id: uuid.UUID,
     email_config_test: email_config.EmailConfigTest,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Prueba la conexión a un servidor SMTP. Si no se envía `smtp_password`, usa la contraseña guardada en la empresa."""
     email_config_repo.test_connection(db, empresa_id=empresa_id, email_config_test=email_config_test)
@@ -28,13 +31,18 @@ def create_email_config(
     empresa_id: uuid.UUID,
     email_config_in: email_config.EmailConfigCreate,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Crea una nueva configuración de email para una empresa."""
     return email_config_repo.create_for_empresa(db, empresa_id=empresa_id, obj_in=email_config_in)
 
 
 @router.get("/", response_model=email_config.EmailConfig, summary="Obtener configuración de email")
-def read_email_config(empresa_id: uuid.UUID, db: Session = Depends(get_db)):
+def read_email_config(
+    empresa_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     """Obtiene la configuración de email de una empresa."""
     db_email_config = email_config_repo.get_by_empresa(db, empresa_id=empresa_id)
     if not db_email_config:
@@ -49,13 +57,18 @@ def update_email_config(
     empresa_id: uuid.UUID,
     email_config_in: email_config.EmailConfigUpdate,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Actualiza la configuración de email de una empresa."""
     return email_config_repo.update_for_empresa(db, empresa_id=empresa_id, obj_in=email_config_in)
 
 
 @router.delete("/", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar configuración de email")
-def delete_email_config(empresa_id: uuid.UUID, db: Session = Depends(get_db)):
+def delete_email_config(
+    empresa_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     """Elimina la configuración de email de una empresa."""
     db_email_config = email_config_repo.remove_for_empresa(db, empresa_id=empresa_id)
     if not db_email_config:

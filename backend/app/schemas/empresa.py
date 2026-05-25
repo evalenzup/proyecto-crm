@@ -50,7 +50,7 @@ class EmpresaOut(EmpresaBase):
     creado_en: TijuanaDatetime = Field(..., title="Creado en")
     actualizado_en: TijuanaDatetime = Field(..., title="Actualizado en")
     clientes: Optional[List[ClienteSimpleOut]] = Field(None, title="Clientes")
-    contrasena: Optional[str] = Field(None, title="Contraseña del CSD (.key)")
+    # contrasena del CSD excluida intencionalmente — no se expone en respuestas de API
     tiene_config_email: bool = Field(False, title="¿Tiene configuración de email?")
 
     class Config:

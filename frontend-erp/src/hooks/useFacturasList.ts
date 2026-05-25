@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { message } from 'antd';
 import { TablePaginationConfig } from 'antd/es/table';
 import { Dayjs } from 'dayjs';
-import debounce from 'lodash/debounce';
 import {
   getFacturas,
-  searchClientes,
   type FacturaListParams,
   type FacturaRow,
 } from '@/services/facturaService';
 import { useEmpresaSelector } from './useEmpresaSelector';
 import { useFilterContext } from '@/context/FilterContext';
+import { useClienteSearch } from './useClienteSearch';
+import { usePdfPreview } from './usePdfPreview';
+import { useEmailModal } from './useEmailModal';
 import dayjs from 'dayjs';
 
 type EstatusCFDI = 'BORRADOR' | 'TIMBRADA' | 'CANCELADA';
@@ -75,8 +77,22 @@ export const useFacturasList = () => {
     }));
   };
 
-  const [clienteOptionsComercial, setClienteOptionsComercial] = useState<Opcion[]>([]);
-  const [clienteOptionsFiscal, setClienteOptionsFiscal] = useState<Opcion[]>([]);
+  const {
+    clienteOptionsComercial, setClienteOptionsComercial,
+    clienteOptionsFiscal, setClienteOptionsFiscal,
+    debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
+    syncClienteById,
+  } = useClienteSearch(empresaId);
+
+  const {
+    previewModalOpen, previewPdfUrl, previewRow,
+    openPreview, cerrarPreview,
+  } = usePdfPreview<FacturaRow>();
+
+  const {
+    emailModalOpen, emailRow, emailLoading, setEmailLoading,
+    abrirEmailModal, cerrarEmailModal,
+  } = useEmailModal<FacturaRow>();
 
   const fetchFacturas = useCallback(async (pag: TablePaginationConfig = pagination) => {
     if (!empresaId) {
@@ -105,9 +121,8 @@ export const useFacturasList = () => {
       setRows(data.items || []);
       setTotalRows(data.total || 0);
       setPagination((p) => ({ ...p, current: pag.current, pageSize: pag.pageSize }));
-    } catch (error) {
-      // Puedes mostrar un message.error aquí si quieres
-      console.error('Error fetching facturas', error);
+    } catch (error: any) {
+      if (!error?._handled) message.error('Error al cargar las facturas');
     } finally {
       setLoading(false);
     }
@@ -124,125 +139,24 @@ export const useFacturasList = () => {
 
   // Ya no necesitamos fetchEmpresas, el hook lo hace
 
-  const debouncedBuscarClientesComercial = useMemo(() =>
-    debounce(async (q: string) => {
-      if (!q || q.trim().length < 3) {
-        setClienteOptionsComercial([]);
-        return;
-      }
-      try {
-        const list = await searchClientes(q, empresaId, 'comercial');
-        setClienteOptionsComercial(
-          (list || []).slice(0, 20).map((c: any) => ({
-            value: c.id,
-            label: `${c.nombre_comercial} (${c.nombre_razon_social})`,
-          }))
-        );
-      } catch {
-        setClienteOptionsComercial([]);
-      }
-    }, 300)
-    , [empresaId]);
-
-  const debouncedBuscarClientesFiscal = useMemo(() =>
-    debounce(async (q: string) => {
-      if (!q || q.trim().length < 3) {
-        setClienteOptionsFiscal([]);
-        return;
-      }
-      try {
-        const list = await searchClientes(q, empresaId, 'fiscal');
-        setClienteOptionsFiscal(
-          (list || []).slice(0, 20).map((c: any) => ({
-            value: c.id,
-            label: `${c.nombre_razon_social} (${c.nombre_comercial})`,
-          }))
-        );
-      } catch {
-        setClienteOptionsFiscal([]);
-      }
-    }, 300)
-    , [empresaId]);
-
   // Sync client options when clienteId changes
   useEffect(() => {
-    if (clienteId) {
-      // Reusamos getClienteById del servicio si está exportado, o searchClientes para obtener nombre si no tenemos getById directo.
-      // Asumiendo que podemos obtener el cliente para mostrar su nombre.
-      // Como no tenemos getClienteById importado explícitamente, vamos a importarlo dinámicamente o asumir que searchById existe.
-      // Si no existe, podemos llamar a searchClientes con el ID? No, search busca por texto.
-      // Mejor importar getClienteById desde facturaService o clienteService.
-      // En usePagoForm importamos getClienteById de facturaService (o similar).
-      import('@/services/facturaService').then(({ getClienteById }) => {
-        // Nota: getClienteById podría no existir en facturaService si no lo verifiqué.
-        // En usePagosList usé: import('@/services/facturaService').then(({ getClienteById }) ...
-        // Verifiquemos si existe. Si no, usaremos un truco o fallback.
-        // Asumiré que existe por paridad con usePagosList.
-        if (getClienteById) {
-          getClienteById(clienteId).then((c: any) => {
-            if (c) {
-              const labelCom = `${c.nombre_comercial} (${c.nombre_razon_social})`;
-              const labelFis = `${c.nombre_razon_social} (${c.nombre_comercial})`;
-              setClienteOptionsComercial([{ label: labelCom, value: c.id }]);
-              setClienteOptionsFiscal([{ label: labelFis, value: c.id }]);
-            }
-          }).catch(() => { });
-        }
-      });
-    } else {
-      setClienteOptionsComercial([]);
-      setClienteOptionsFiscal([]);
-    }
+    syncClienteById(clienteId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId]);
-
-  // Preview Modal
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
-  const [previewRow, setPreviewRow] = useState<FacturaRow | null>(null);
 
   const verPdf = async (row: FacturaRow) => {
     setLoading(true);
     try {
-      // Importar servicio dinámicamente o añadir imports arriba si no conflicituan
-      // Asumiendo imports: getPdf, getPdfPreview
       const blob = row.estatus === 'BORRADOR'
         ? await import('@/services/facturaService').then(m => m.getPdfPreview(row.id))
         : await import('@/services/facturaService').then(m => m.getPdf(row.id));
-
-      const url = window.URL.createObjectURL(blob);
-      setPreviewPdfUrl(url);
-      setPreviewRow(row); // Guardar row para nombre de archivo
-      setPreviewModalOpen(true);
-    } catch (error) {
-      console.error(error);
-      // Podrías añadir un toast message aquí si importas 'message' de antd
+      openPreview(blob, row);
+    } catch (error: any) {
+      if (!error?._handled) message.error('Error al generar la vista previa del PDF');
     } finally {
       setLoading(false);
     }
-  };
-
-  const cerrarPreview = () => {
-    setPreviewModalOpen(false);
-    setPreviewRow(null);
-    if (previewPdfUrl) {
-      window.URL.revokeObjectURL(previewPdfUrl);
-      setPreviewPdfUrl(null);
-    }
-  };
-
-  // Email Modal logic
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  const [emailRow, setEmailRow] = useState<FacturaRow | null>(null);
-  const [emailLoading, setEmailLoading] = useState(false);
-
-  const abrirEmailModal = (row: FacturaRow) => {
-    setEmailRow(row);
-    setEmailModalOpen(true);
-  };
-
-  const cerrarEmailModal = () => {
-    setEmailModalOpen(false);
-    setEmailRow(null);
   };
 
   const enviarCorreo = async (id: string, recipients: string[]) => {

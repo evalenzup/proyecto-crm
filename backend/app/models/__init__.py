@@ -25,6 +25,7 @@ from .unidad import Unidad
 from .mantenimiento_unidad import MantenimientoUnidad
 from .poliza_seguro import PolizaSeguro
 from .associations import tecnico_especialidades, unidad_servicios_compatibles
+from .orden_servicio import OrdenServicio, HistorialEstadoOS
 
 # Usar uno de los Base como referencia unificada
 Base = BaseCliente
@@ -60,4 +61,6 @@ __all__ = [
     "PolizaSeguro",
     "tecnico_especialidades",
     "unidad_servicios_compatibles",
+    "OrdenServicio",
+    "HistorialEstadoOS",
 ]

@@ -415,6 +415,179 @@ El módulo de Auditoría está disponible únicamente para usuarios autorizados.
 
 ---
 
+## 🔧 13. Catálogos Operativos
+
+Antes de usar la Agenda y las Órdenes de Servicio, es necesario registrar los tres catálogos base: **Técnicos**, **Servicios** y **Unidades**.
+
+### 13.1 Técnicos
+Registra al personal que realiza los trabajos en campo.
+
+1. Ve al menú **Catálogos → Técnicos** y presiona **"+ Nuevo Técnico"**.
+2. Llena los datos:
+   - **Nombre completo**: Nombre tal como aparecerá en las órdenes.
+   - **Teléfono / Correo**: Para contactarlo cuando se le asigne un servicio.
+   - **Activo**: Desmarca esta casilla si el técnico ya no labora, sin necesidad de eliminarlo.
+3. Haz clic en **Guardar**.
+
+> 💡 Solo los técnicos marcados como **Activos** aparecerán disponibles al crear órdenes de servicio.
+
+### 13.2 Servicios Operativos
+Define los tipos de servicios que ofrece tu empresa (ej. fumigación, jardinería, recarga de extintores).
+
+1. Ve al menú **Catálogos → Servicios** y presiona **"+ Nuevo Servicio"**.
+2. Llena los datos:
+   - **Nombre**: Nombre del servicio (ej. "Fumigación Residencial").
+   - **Descripción**: Detalle adicional (opcional).
+   - **Duración estimada**: Tiempo promedio para planificar la agenda.
+   - **Color**: Elige un color para identificar visualmente este tipo en la agenda.
+3. Haz clic en **Guardar**.
+
+### 13.3 Unidades (Vehículos y Equipos)
+Registra los vehículos o equipos que se utilizan en los servicios.
+
+1. Ve al menú **Catálogos → Unidades** y presiona **"+ Nueva Unidad"**.
+2. Llena los datos:
+   - **Nombre / Alias**: Cómo la identificas internamente (ej. "Pickup Blanca").
+   - **Marca / Modelo / Año**.
+   - **Placas**.
+   - **Técnico asignado**: Quién usa normalmente esta unidad.
+3. Haz clic en **Guardar**.
+
+#### 📋 Mantenimientos de Unidades
+Cada unidad tiene su propio historial de mantenimiento:
+1. Abre la unidad que quieres actualizar.
+2. Haz clic en **"Ver Mantenimientos"**.
+3. Presiona **"+ Nuevo Mantenimiento"** y registra: tipo de servicio, fecha, costo y notas.
+4. El sistema guarda el historial para que puedas saber cuándo fue el último cambio de aceite, revisión, etc.
+
+---
+
+## 📅 14. Agenda
+
+La Agenda te permite visualizar y programar todos los servicios del mes de forma visual.
+
+### 14.1 Vista de la Agenda
+- Al entrar, verás un **calendario mensual** con los servicios programados.
+- Cada evento tiene el color del tipo de servicio para identificarlo de un vistazo.
+- Puedes cambiar entre vista **mensual**, **semanal** o **diaria**.
+
+### 14.2 Crear un Evento desde la Agenda
+1. Haz clic en cualquier **día vacío** del calendario.
+2. Se abrirá el formulario de nueva orden de servicio con la fecha pre-seleccionada.
+3. Completa los datos y guarda (ver sección 15 para el detalle).
+
+### 14.3 Filtros de la Agenda
+- **Por Técnico**: Muestra solo los servicios asignados a un técnico específico.
+- **Por Empresa**: Si tienes varias razones sociales.
+- **Por Tipo de Servicio**: Filtra por fumigación, jardinería, etc.
+
+---
+
+## 📋 15. Órdenes de Servicio
+
+Las Órdenes de Servicio son el registro central del trabajo operativo. Desde aquí controlas qué se hace, quién lo hace, cuándo y para qué cliente.
+
+### 15.1 Crear una Orden de Servicio
+1. Ve al menú **Operativo → Órdenes de Servicio** y presiona **"+ Nueva Orden"**.
+2. **Datos principales**:
+   - **Cliente**: Busca al cliente al que se le prestará el servicio.
+   - **Tipo de Servicio**: Elige de tu catálogo de servicios.
+   - **Fecha programada**: Cuándo se realizará el trabajo.
+   - **Técnico asignado**: Quién irá al lugar.
+   - **Unidad asignada**: Qué vehículo/equipo se usará.
+3. **Datos adicionales** (opcionales):
+   - **Dirección del servicio**: Si es diferente al domicilio del cliente.
+   - **Observaciones**: Instrucciones especiales para el técnico.
+4. Haz clic en **Guardar**. La orden queda en estado **PENDIENTE**.
+
+### 15.2 Estados de una Orden de Servicio
+| Estado | Significado |
+|---|---|
+| **Pendiente** | Programada, aún no iniciada |
+| **En progreso** | El técnico ya está realizando el trabajo |
+| **Completada** | El servicio fue terminado |
+| **Cancelada** | La orden fue cancelada |
+
+Para cambiar el estado, abre la orden y usa el selector de estado en la parte superior.
+
+### 15.3 Agregar Evidencias
+Una vez completado el servicio, el técnico (o el operador) puede adjuntar fotos como evidencia:
+1. Abre la orden completada.
+2. Busca la sección **"Evidencias"** y haz clic en **"Subir Foto"**.
+3. Selecciona una o varias imágenes desde tu dispositivo.
+4. Haz clic en **Guardar**.
+
+### 15.4 Generar Factura desde una Orden
+Si el servicio requiere factura:
+1. Con la orden en estado **Completada**, busca el botón **"Generar Factura"**.
+2. El sistema creará un borrador de factura con los datos del cliente y el servicio pre-llenados.
+3. Revisa, ajusta si es necesario y timbra desde el módulo de Facturas.
+
+---
+
+## 🗓️ 16. Programación de Facturas (Facturación Recurrente)
+
+Este módulo permite automatizar la creación de facturas periódicas para clientes con servicios contratados regularmente (mensual, quincenal, anual, etc.). El sistema genera las facturas automáticamente cada madrugada en la fecha programada.
+
+### 16.1 Crear una Programación
+1. Ve al menú **Fact. Programadas** y presiona **"+ Nueva Programación"**.
+2. **Datos del cliente y factura**:
+   - **Nombre interno**: Un nombre que te ayude a identificar esta programación (ej. "Fumigación Mensual - Empresa ABC").
+   - **Cliente**: A quién se facturará.
+   - **Empresa**: Tu razón social que emitirá la factura.
+   - Completa los datos fiscales: Serie, Tipo de Comprobante, Forma de Pago, Método de Pago, Uso CFDI, Moneda.
+3. **Conceptos**: Agrega los productos/servicios que irán en la factura cada vez que se genere.
+   - Haz clic en **"+ Agregar Concepto"**.
+   - Puedes buscar en tu catálogo de productos o capturarlo manualmente.
+   - Configura cantidad, precio, IVA y retenciones.
+4. **Configuración de recurrencia**:
+   - **Periodicidad**: Cada cuánto se genera (Única vez, Semanal, Quincenal, Mensual, Bimestral, Trimestral, Semestral, Anual).
+   - **Primera ejecución**: La fecha de la primera factura.
+   - **Fecha fin** (opcional): Cuándo dejar de generar. Si no se establece, la programación corre indefinidamente.
+5. **Automatización**:
+   - **Timbrar automáticamente**: Si está activo, la factura se timbra (envía al SAT) sin intervención manual. Si está inactivo, se crea como borrador para que la revises antes.
+   - **Enviar automáticamente**: Si está activo, el sistema envía la factura por correo al cliente al timbrarla.
+   - **Correos destino**: Escribe los correos que recibirán la factura (puede haber más de uno).
+6. Haz clic en **Guardar**.
+
+### 16.2 Gestionar Programaciones
+Desde el listado de **Fact. Programadas** puedes ver y controlar todas las programaciones activas:
+
+| Columna | Qué muestra |
+|---|---|
+| **Nombre / Cliente** | Identificación de la programación |
+| **Periodicidad** | Frecuencia con color distintivo |
+| **Próxima ejecución** | Cuándo se generará la siguiente factura. Si aparece en **rojo** con la etiqueta "Pendiente", significa que la fecha ya pasó y está por ejecutarse en el siguiente ciclo nocturno |
+| **Auto** | Indicadores "Timbra" y/o "Envía" si tiene automatización activa |
+| **Generadas** | Cuántas facturas ha producido esta programación hasta hoy |
+| **Fecha fin** | Cuándo termina (o "Indefinido") |
+| **Estado** | Activa o Pausada |
+
+### 16.3 Pausar y Reactivar
+Para detener temporalmente una programación sin eliminarla:
+1. En el listado, haz clic en el ícono de **Pausa** ⏸ de la programación.
+2. El estado cambiará a **Pausada** y no se generarán más facturas hasta que la reactives.
+3. Para reactivar, haz clic en el ícono de **Play** ▶.
+
+> 💡 Útil para clientes que suspenden temporalmente su contrato.
+
+### 16.4 Ejecutar Ahora
+Si necesitas generar la factura de inmediato sin esperar la fecha programada:
+1. En el listado, haz clic en el ícono de **Ejecutar** (calendario con palomita) de la programación.
+2. Confirma la acción en la ventana emergente.
+3. El sistema generará (y timbará/enviará si tienes esas opciones activas) la factura en ese momento.
+
+> ⚠️ Esta acción también avanza la fecha de la próxima ejecución como si hubiera corrido de forma normal.
+
+### 16.5 Ciclo automático nocturno
+El sistema revisa automáticamente cada madrugada (3:05 AM) todas las programaciones activas:
+- Si la **próxima ejecución** es hoy o anterior a hoy, genera la factura.
+- Si tiene **auto timbrar** activo, la timbra ante el SAT.
+- Si tiene **auto enviar** activo, la envía por correo a los destinatarios configurados.
+- Actualiza la fecha de próxima ejecución según la periodicidad.
+
+---
+
 ## ⚠️ Glosario Rápido
 *   **Timbrar**: Avisarle al SAT que hiciste una factura. Es irreversible (tienes que cancelar si te equivocas).
 *   **UUID**: Es el "Folio Fiscal". Un código largo que es la verdadera identificación de la factura ante el SAT.
@@ -427,5 +600,9 @@ El módulo de Auditoría está disponible únicamente para usuarios autorizados.
 *   **EN CANCELACIÓN**: Estado intermedio de una factura. La solicitud de cancelación ya fue enviada al SAT pero el receptor aún no ha respondido. La factura sigue siendo válida hasta que se confirme la cancelación.
 *   **Motivo 01**: Motivo de cancelación que requiere aprobación del receptor (implica sustitución por otra factura). Activa el período de espera de 72 horas hábiles.
 *   **Motivos 02/03/04**: Motivos de cancelación que no requieren aprobación del receptor. Se procesan de inmediato.
+*   **Orden de Servicio**: Registro del trabajo operativo asignado a un técnico y una unidad para un cliente en una fecha específica.
+*   **Periodicidad**: Frecuencia con la que se genera una factura programada (Mensual, Quincenal, Anual, etc.).
+*   **Auto Timbrar**: Opción de una programación de factura que envía automáticamente al SAT sin intervención manual.
+*   **Auto Enviar**: Opción que envía la factura generada por correo al cliente automáticamente tras timbrarla.
 
 ---

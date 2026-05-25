@@ -261,7 +261,7 @@ const AuditoriaPage: React.FC = () => {
               <Input
                 prefix={<SearchOutlined />}
                 placeholder="Email usuario"
-                style={{ width: 220 }}
+                style={{ width: 220, minWidth: 160 }}
                 allowClear
                 value={usuarioEmail}
                 onChange={(e) => {
@@ -271,7 +271,7 @@ const AuditoriaPage: React.FC = () => {
               />
               <Select
                 placeholder="Acción"
-                style={{ width: 220 }}
+                style={{ width: 220, minWidth: 160 }}
                 allowClear
                 showSearch
                 optionFilterProp="label"
@@ -286,6 +286,7 @@ const AuditoriaPage: React.FC = () => {
                     ? [dayjs(fechaDesde), dayjs(fechaHasta)]
                     : null
                 }
+                style={{ minWidth: 200 }}
               />
             </Space>
           </div>

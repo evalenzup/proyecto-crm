@@ -151,6 +151,74 @@ Cuando usas el Motivo 01, la factura queda en espera hasta **72 horas hábiles**
 
 ---
 
+## 🔧 Catálogos Operativos
+
+### Técnicos
+1. **Catálogos → Técnicos → "+ Nuevo Técnico"**.
+2. Nombre, teléfono, correo → **Guardar**.
+3. Solo los técnicos **Activos** aparecen disponibles en órdenes de servicio.
+
+### Servicios Operativos
+1. **Catálogos → Servicios → "+ Nuevo Servicio"**.
+2. Nombre, descripción, duración estimada, color → **Guardar**.
+
+### Unidades (Vehículos / Equipos)
+1. **Catálogos → Unidades → "+ Nueva Unidad"**.
+2. Alias, marca, modelo, año, placas, técnico asignado → **Guardar**.
+3. Para ver/agregar mantenimientos: abrir la unidad → **"Ver Mantenimientos"** → **"+ Nuevo Mantenimiento"**.
+
+---
+
+## 📅 Agenda
+
+*   Ve a **Operativo → Agenda** para ver el calendario mensual de servicios.
+*   Haz clic en un día vacío para crear una nueva orden con esa fecha pre-seleccionada.
+*   Filtra por técnico, empresa o tipo de servicio para acotar la vista.
+*   Cada tipo de servicio aparece con su color asignado en el catálogo.
+
+---
+
+## 📋 Órdenes de Servicio
+
+### Crear
+1. **Operativo → Órdenes de Servicio → "+ Nueva Orden"**.
+2. Cliente, tipo de servicio, fecha, técnico, unidad → **Guardar** (queda en estado *Pendiente*).
+
+### Cambiar estado
+*   Abre la orden → selector de estado en la parte superior: **Pendiente → En progreso → Completada**.
+
+### Agregar evidencias
+*   Orden completada → sección **"Evidencias"** → **"Subir Foto"** → **Guardar**.
+
+### Generar factura
+*   Orden completada → botón **"Generar Factura"** → se crea borrador pre-llenado → timbrar desde Facturas.
+
+---
+
+## 🗓️ Programación de Facturas (Recurrente)
+
+### Crear programación
+1. **Fact. Programadas → "+ Nueva Programación"**.
+2. Nombre interno, cliente, empresa, datos fiscales.
+3. Agregar conceptos (productos/servicios de la factura).
+4. Periodicidad (Mensual, Quincenal, Anual, etc.), fecha de primera ejecución, fecha fin (opcional).
+5. Activar/desactivar: **Timbrar automáticamente** y **Enviar automáticamente**.
+6. Agregar correos destino → **Guardar**.
+
+### Gestión rápida desde el listado
+| Acción | Cómo |
+|---|---|
+| Pausar / Reactivar | Ícono ⏸ / ▶ en la fila |
+| Ejecutar ahora (forzar generación) | Ícono de calendario ✔ → confirmar |
+| Editar datos | Ícono ✏️ |
+| Eliminar | Ícono 🗑️ → confirmar |
+
+> 💡 El sistema genera automáticamente las facturas cada noche a las **3:05 AM** para todas las programaciones activas cuya fecha ya llegó.
+
+> ⚠️ Si la columna "Próxima ejecución" aparece en **rojo** con etiqueta "Pendiente", la fecha ya pasó y se ejecutará en el siguiente ciclo nocturno (o usa "Ejecutar ahora" para forzarla).
+
+---
+
 ## ⚠️ Glosario
 
 | Término | Significado |
@@ -166,3 +234,6 @@ Cuando usas el Motivo 01, la factura queda en espera hasta **72 horas hábiles**
 | **EN CANCELACIÓN** | Estado intermedio: solicitud enviada, receptor aún no ha respondido (máx. 72 h hábiles) |
 | **Motivo 01** | Cancelación con sustitución — requiere aprobación del receptor (activa el período de 72 h) |
 | **Motivos 02/03/04** | Cancelación directa — no requiere aprobación, se procesa al instante |
+| **Orden de Servicio** | Registro operativo de un trabajo asignado a técnico, unidad y cliente |
+| **Auto Timbrar** | La programación timbra la factura al SAT sin intervención manual |
+| **Auto Enviar** | La programación envía la factura por correo al cliente automáticamente |

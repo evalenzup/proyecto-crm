@@ -148,7 +148,7 @@ export default function MapaPage() {
 
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                     {/* Mapa principal */}
-                    <div style={{ flex: 1, minWidth: 320 }}>
+                    <div style={{ flex: 1, minWidth: 280 }}>
                         <Card
                             bodyStyle={{ padding: 0, overflow: 'hidden', borderRadius: 8 }}
                             style={{ borderRadius: 8 }}
@@ -169,7 +169,7 @@ export default function MapaPage() {
                     </div>
 
                     {/* Panel lateral */}
-                    <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div className="mapa-sidebar" style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
                         {/* Filtros */}
                         <Card

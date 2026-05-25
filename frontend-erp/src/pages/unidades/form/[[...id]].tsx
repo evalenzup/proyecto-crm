@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import {
   Form,
+  Image,
   Input,
   Select,
   InputNumber,
@@ -68,12 +69,9 @@ const TIPOS_UNIDAD: { value: TipoUnidad; label: string }[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const API_STATIC = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api')
-  .replace('/api', '')
-  .replace(/\/$/, '');
-
-const fotoUrl = (filename: string | null | undefined, dir: string) =>
-  filename ? `${API_STATIC}/data/${dir}/${filename}` : null;
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/$/, '');
+const docUrl = (filename: string | null | undefined, dir: string) =>
+  filename ? `${API_BASE.replace('/api', '')}/data/${dir}/${filename}` : null;
 
 function toDateValue(v: string | null | undefined): Dayjs | null {
   return v ? dayjs(v) : null;
@@ -83,68 +81,56 @@ function toDateValue(v: string | null | undefined): Dayjs | null {
 
 interface FotoUploadProps {
   label: string;
-  filename: string | null | undefined;
+  blobUrl: string | null | undefined;
   onUpload: (file: File) => Promise<void>;
   onDelete: () => Promise<void>;
   uploading: boolean;
-  dir?: string;
 }
 
-const FotoUpload: React.FC<FotoUploadProps> = ({
-  label,
-  filename,
-  onUpload,
-  onDelete,
-  uploading,
-  dir = 'unidades_fotos',
-}) => {
-  const url = fotoUrl(filename, dir);
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
-        {label}
-      </Text>
-      {url ? (
-        <div style={{ position: 'relative', display: 'inline-block' }}>
-          <img
-            src={url}
-            alt={label}
-            width={160}
-            height={110}
-            onClick={() => window.open(url, '_blank')}
-            style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #d9d9d9', cursor: 'zoom-in', display: 'block' }}
-          />
-          <Popconfirm title="¿Eliminar foto?" onConfirm={onDelete} okText="Sí" cancelText="No">
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              style={{ position: 'absolute', top: 4, right: 4 }}
-              loading={uploading}
-            />
-          </Popconfirm>
-        </div>
-      ) : (
-        <Upload
-          accept="image/*"
-          showUploadList={false}
-          beforeUpload={(file) => {
-            onUpload(file as unknown as File);
-            return false;
-          }}
-        >
+const FotoUpload: React.FC<FotoUploadProps> = ({ label, blobUrl, onUpload, onDelete, uploading }) => (
+  <div style={{ textAlign: 'center' }}>
+    <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+      {label}
+    </Text>
+    {blobUrl ? (
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <Image
+          src={blobUrl}
+          alt={label}
+          width={160}
+          height={110}
+          style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #d9d9d9', display: 'block' }}
+        />
+        <Popconfirm title="¿Eliminar foto?" onConfirm={onDelete} okText="Sí" cancelText="No">
           <Button
-            icon={<UploadOutlined />}
+            danger
+            size="small"
+            icon={<DeleteOutlined />}
+            style={{ position: 'absolute', top: 4, right: 4, zIndex: 10 }}
             loading={uploading}
-            style={{ width: 160, height: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <span style={{ marginTop: 4, fontSize: 12 }}>Subir imagen</span>
-          </Button>
-        </Upload>
-      )}
-    </div>
-  );
-};
+          />
+        </Popconfirm>
+      </div>
+    ) : (
+      <Upload
+        accept="image/*"
+        showUploadList={false}
+        beforeUpload={(file) => {
+          onUpload(file as unknown as File);
+          return false;
+        }}
+      >
+        <Button
+          icon={<UploadOutlined />}
+          loading={uploading}
+          style={{ width: 160, height: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <span style={{ marginTop: 4, fontSize: 12 }}>Subir imagen</span>
+        </Button>
+      </Upload>
+    )}
+  </div>
+);
 
 // ─── Componente DocUpload ─────────────────────────────────────────────────────
 
@@ -157,7 +143,7 @@ interface DocUploadProps {
 }
 
 const DocUpload: React.FC<DocUploadProps> = ({ label, filename, onUpload, onDelete, uploading }) => {
-  const url = fotoUrl(filename, 'unidades_docs');
+  const url = docUrl(filename, 'unidades_docs');
   return (
     <Space>
       {url ? (
@@ -242,8 +228,8 @@ const PolizaModal: React.FC<PolizaModalProps> = ({ open, unidadId, poliza, onClo
       }
       onSaved(result);
       onClose();
-    } catch {
-      message.error('Error al guardar la póliza');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al guardar la póliza');
     } finally {
       setSaving(false);
     }
@@ -255,7 +241,7 @@ const PolizaModal: React.FC<PolizaModalProps> = ({ open, unidadId, poliza, onClo
       title={poliza ? 'Editar Póliza de Seguro' : 'Nueva Póliza de Seguro'}
       onCancel={onClose}
       footer={null}
-      width={480}
+      width="min(95vw, 480px)"
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item label="Número de Póliza" name="num_poliza" rules={[{ required: true }]}>
@@ -312,6 +298,7 @@ const UnidadForm: React.FC = () => {
 
   // Fotos
   const [uploadingFoto, setUploadingFoto] = useState<Record<string, boolean>>({});
+  const [fotosBlob, setFotosBlob] = useState<Record<string, string | null>>({});
 
   // Docs
   const [uploadingDoc, setUploadingDoc] = useState<Record<string, boolean>>({});
@@ -328,10 +315,10 @@ const UnidadForm: React.FC = () => {
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    unidadService
-      .getUnidad(id)
-      .then((data) => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await unidadService.getUnidad(id);
         setRecord(data);
         setPolizas(data.polizas_seguro);
         form.setFieldsValue({
@@ -358,9 +345,29 @@ const UnidadForm: React.FC = () => {
           fecha_expedicion_tc: toDateValue(data.fecha_expedicion_tc),
           fecha_vencimiento_tc: toDateValue(data.fecha_vencimiento_tc),
         });
-      })
-      .catch(() => message.error('Error al cargar la unidad'))
-      .finally(() => setLoading(false));
+
+        // Cargar fotos como blobs autenticados
+        const campos = ['foto_frontal', 'foto_lateral', 'foto_placa'] as const;
+        const blobs: Record<string, string | null> = {};
+        await Promise.all(campos.map(async (campo) => {
+          if (data[campo]) {
+            try {
+              blobs[campo] = await unidadService.getFotoBlob(id, campo);
+            } catch {
+              blobs[campo] = null;
+            }
+          } else {
+            blobs[campo] = null;
+          }
+        }));
+        setFotosBlob(blobs);
+      } catch (e: any) {
+        if (!e?._handled) message.error('Error al cargar la unidad');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, [id, form]);
 
   // Set empresa default para nuevos registros
@@ -446,8 +453,8 @@ const UnidadForm: React.FC = () => {
         router.push(`/unidades/form/${created.id}`);
         return;
       }
-    } catch {
-      message.error('Error al guardar la unidad');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al guardar la unidad');
     } finally {
       setSaving(false);
     }
@@ -461,9 +468,10 @@ const UnidadForm: React.FC = () => {
     try {
       const updated = await unidadService.subirFoto(id, campo, file);
       setRecord(updated);
+      setFotosBlob((p) => ({ ...p, [campo]: URL.createObjectURL(file) }));
       message.success('Foto subida correctamente');
-    } catch {
-      message.error('Error al subir la foto');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al subir la foto');
     } finally {
       setUploadingFoto((p) => ({ ...p, [campo]: false }));
     }
@@ -475,9 +483,10 @@ const UnidadForm: React.FC = () => {
     try {
       await unidadService.eliminarFoto(id, campo);
       setRecord((prev) => prev ? { ...prev, [campo]: null } : prev);
+      setFotosBlob((p) => ({ ...p, [campo]: null }));
       message.success('Foto eliminada');
-    } catch {
-      message.error('Error al eliminar la foto');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al eliminar la foto');
     } finally {
       setUploadingFoto((p) => ({ ...p, [campo]: false }));
     }
@@ -492,8 +501,8 @@ const UnidadForm: React.FC = () => {
       const updated = await unidadService.subirDocTarjetaCirculacion(id, file);
       setRecord(updated);
       message.success('Documento subido correctamente');
-    } catch {
-      message.error('Error al subir el documento');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al subir el documento');
     } finally {
       setUploadingDoc((p) => ({ ...p, tc: false }));
     }
@@ -506,8 +515,8 @@ const UnidadForm: React.FC = () => {
       await unidadService.eliminarDocTarjetaCirculacion(id);
       setRecord((prev) => prev ? { ...prev, doc_tarjeta_circulacion: null } : prev);
       message.success('Documento eliminado');
-    } catch {
-      message.error('Error al eliminar el documento');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al eliminar el documento');
     } finally {
       setUploadingDoc((p) => ({ ...p, tc: false }));
     }
@@ -521,8 +530,8 @@ const UnidadForm: React.FC = () => {
       await unidadService.eliminarPoliza(id, polizaId);
       setPolizas((prev) => prev.filter((p) => p.id !== polizaId));
       message.success('Póliza eliminada');
-    } catch {
-      message.error('Error al eliminar la póliza');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al eliminar la póliza');
     }
   };
 
@@ -533,8 +542,8 @@ const UnidadForm: React.FC = () => {
       const updated = await unidadService.subirDocPoliza(id, polizaId, file);
       setPolizas((prev) => prev.map((p) => (p.id === polizaId ? updated : p)));
       message.success('Documento de póliza subido');
-    } catch {
-      message.error('Error al subir el documento');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al subir el documento');
     } finally {
       setUploadingDocPoliza((p) => ({ ...p, [polizaId]: false }));
     }
@@ -547,8 +556,8 @@ const UnidadForm: React.FC = () => {
       await unidadService.eliminarDocPoliza(id, polizaId);
       setPolizas((prev) => prev.map((p) => (p.id === polizaId ? { ...p, documento: null } : p)));
       message.success('Documento eliminado');
-    } catch {
-      message.error('Error al eliminar el documento');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al eliminar el documento');
     } finally {
       setUploadingDocPoliza((p) => ({ ...p, [polizaId]: false }));
     }
@@ -594,12 +603,12 @@ const UnidadForm: React.FC = () => {
       width: 160,
       render: (_: any, row: PolizaSeguroOut) => {
         if (!id) return null;
-        const docUrl = fotoUrl(row.documento, 'unidades_docs');
+        const rowDocUrl = docUrl(row.documento, 'unidades_docs');
         return (
           <Space size="small">
-            {docUrl ? (
+            {rowDocUrl ? (
               <>
-                <a href={docUrl} target="_blank" rel="noreferrer">
+                <a href={rowDocUrl} target="_blank" rel="noreferrer">
                   <Button size="small" icon={<FilePdfOutlined />} />
                 </a>
                 <Popconfirm
@@ -879,7 +888,7 @@ const UnidadForm: React.FC = () => {
                       <Col>
                         <FotoUpload
                           label="Foto Frontal"
-                          filename={record?.foto_frontal}
+                          blobUrl={fotosBlob['foto_frontal']}
                           onUpload={(f) => handleFotoUpload('foto_frontal', f)}
                           onDelete={() => handleFotoDelete('foto_frontal')}
                           uploading={!!uploadingFoto['foto_frontal']}
@@ -888,7 +897,7 @@ const UnidadForm: React.FC = () => {
                       <Col>
                         <FotoUpload
                           label="Foto Lateral"
-                          filename={record?.foto_lateral}
+                          blobUrl={fotosBlob['foto_lateral']}
                           onUpload={(f) => handleFotoUpload('foto_lateral', f)}
                           onDelete={() => handleFotoDelete('foto_lateral')}
                           uploading={!!uploadingFoto['foto_lateral']}
@@ -897,7 +906,7 @@ const UnidadForm: React.FC = () => {
                       <Col>
                         <FotoUpload
                           label="Foto de Placa"
-                          filename={record?.foto_placa}
+                          blobUrl={fotosBlob['foto_placa']}
                           onUpload={(f) => handleFotoUpload('foto_placa', f)}
                           onDelete={() => handleFotoDelete('foto_placa')}
                           uploading={!!uploadingFoto['foto_placa']}

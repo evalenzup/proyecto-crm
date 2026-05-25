@@ -37,7 +37,7 @@ export const NotificationBell: React.FC<Props> = ({ collapsed = false }) => {
   const [open, setOpen] = useState(false);
 
   const content = (
-    <div style={{ width: 320 }}>
+    <div style={{ width: 'min(320px, calc(100vw - 24px))' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <Typography.Text strong>Notificaciones</Typography.Text>
         {noLeidas > 0 && (

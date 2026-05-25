@@ -72,21 +72,42 @@ const EgresoFormPage: React.FC = () => {
   const categoriaOptions = categorias.map(c => ({ label: c, value: c }));
   const estatusOptions = estatus.map(e => ({ label: e, value: e }));
 
+  // customRequest usa api (axios) que inyecta el Authorization header automáticamente.
+  // Ant Design's `action` usa XHR nativo que no tiene acceso al access token en memoria.
+  const makeCustomRequest = (
+    onSuccess: (path: string) => void,
+    onError?: () => void,
+  ) => async (options: any) => {
+    const { file, onSuccess: done, onError: fail } = options;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const { data } = await api.post('/egresos/upload-documento/', formData);
+      onSuccess(data.path_documento);
+      done(data);
+    } catch (e) {
+      fail?.(e);
+      onError?.();
+    }
+  };
+
   const uploadProps: UploadProps = {
     name: 'file',
-    action: `${api.defaults.baseURL}/egresos/upload-documento/`,
     fileList,
     maxCount: 1,
+    customRequest: makeCustomRequest(
+      (path) => form.setFieldsValue({ path_documento: path }),
+      () => message.error('Error al subir el documento'),
+    ),
     onChange(info) {
       setFileList(info.fileList);
       if (info.file.status === 'done') {
-        message.success(`${info.file.name} file uploaded successfully`);
-        form.setFieldsValue({ path_documento: info.file.response.path_documento });
+        message.success(`${info.file.name} subido correctamente`);
       } else if (info.file.status === 'error') {
-        message.error(`${info.file.name} file upload failed.`);
+        message.error(`${info.file.name} error al subir`);
       }
     },
-    onRemove: (file) => {
+    onRemove: () => {
       form.setFieldsValue({ path_documento: null });
       return true;
     },
@@ -153,38 +174,36 @@ const EgresoFormPage: React.FC = () => {
               <Col xs={24} md={8}>
                 <Form.Item label="Archivo XML" name="archivo_xml">
                   <Upload
-                    name="file"
-                    action={`${api.defaults.baseURL}/egresos/upload-documento/`}
                     maxCount={1}
+                    accept=".xml"
                     defaultFileList={egreso?.archivo_xml ? [{ uid: '-1', name: egreso.archivo_xml.split('/').pop() || 'xml', status: 'done', url: `${getBaseUrl()}/data/${egreso.archivo_xml}` }] : []}
-                    onChange={async (info) => {
+                    customRequest={makeCustomRequest(
+                      (path) => form.setFieldsValue({ archivo_xml: path }),
+                    )}
+                    onChange={(info) => {
                       if (info.file.status === 'done') {
                         message.success(`${info.file.name} subido correctamente`);
-                        form.setFieldsValue({ archivo_xml: info.file.response.path_documento });
-
-                        // Auto-llenado
-                        if (info.file.originFileObj) {
-                          try {
-                            const formData = new FormData();
-                            formData.append('file', info.file.originFileObj);
-                            const { data } = await api.post('/egresos/parse-xml', formData);
-                            if (data) {
+                        // Auto-llenado de campos desde el contenido del XML
+                        const orig = info.file.originFileObj;
+                        if (orig) {
+                          const fd = new FormData();
+                          fd.append('file', orig);
+                          api.post('/egresos/parse-xml', fd)
+                            .then(({ data }) => {
+                              if (!data) return;
                               const updates: any = {};
                               if (data.fecha_egreso) updates.fecha_egreso = dayjs(data.fecha_egreso);
-                              if (data.monto) updates.monto = data.monto;
-                              if (data.moneda) updates.moneda = data.moneda;
-                              if (data.proveedor) updates.proveedor = data.proveedor;
-                              if (data.metodo_pago) updates.metodo_pago = data.metodo_pago; // Asumiendo que el método venga como clave compatible
-
+                              if (data.monto)        updates.monto = data.monto;
+                              if (data.moneda)       updates.moneda = data.moneda;
+                              if (data.proveedor)    updates.proveedor = data.proveedor;
+                              if (data.metodo_pago)  updates.metodo_pago = data.metodo_pago;
                               form.setFieldsValue(updates);
                               message.info('Datos auto-completados desde XML');
-                            }
-                          } catch (e) {
-                            console.error('Error auto-llenado XML', e);
-                          }
+                            })
+                            .catch(() => { /* parse fallido — no bloquea */ });
                         }
                       } else if (info.file.status === 'error') {
-                        message.error(`${info.file.name} error al subir.`);
+                        message.error(`${info.file.name} error al subir`);
                       } else if (info.file.status === 'removed') {
                         form.setFieldsValue({ archivo_xml: null });
                       }
@@ -198,16 +217,17 @@ const EgresoFormPage: React.FC = () => {
               <Col xs={24} md={8}>
                 <Form.Item label="Archivo PDF" name="archivo_pdf">
                   <Upload
-                    name="file"
-                    action={`${api.defaults.baseURL}/egresos/upload-documento/`}
                     maxCount={1}
+                    accept=".pdf"
                     defaultFileList={egreso?.archivo_pdf ? [{ uid: '-2', name: egreso.archivo_pdf.split('/').pop() || 'pdf', status: 'done', url: `${getBaseUrl()}/data/${egreso.archivo_pdf}` }] : []}
+                    customRequest={makeCustomRequest(
+                      (path) => form.setFieldsValue({ archivo_pdf: path }),
+                    )}
                     onChange={(info) => {
                       if (info.file.status === 'done') {
                         message.success(`${info.file.name} subido correctamente`);
-                        form.setFieldsValue({ archivo_pdf: info.file.response.path_documento });
                       } else if (info.file.status === 'error') {
-                        message.error(`${info.file.name} error al subir.`);
+                        message.error(`${info.file.name} error al subir`);
                       } else if (info.file.status === 'removed') {
                         form.setFieldsValue({ archivo_pdf: null });
                       }

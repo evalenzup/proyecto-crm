@@ -199,6 +199,14 @@ export const unidadService = {
     await api.delete(`/unidades/${unidadId}/fotos/${campo}`);
   },
 
+  getFotoBlob: async (
+    unidadId: string,
+    campo: 'foto_frontal' | 'foto_lateral' | 'foto_placa'
+  ): Promise<string> => {
+    const response = await api.get(`/unidades/${unidadId}/fotos/${campo}`, { responseType: 'blob' });
+    return URL.createObjectURL(response.data);
+  },
+
   // ── Documentos ────────────────────────────────────────────────────────────
 
   subirDocTarjetaCirculacion: async (

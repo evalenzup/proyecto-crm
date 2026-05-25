@@ -1,6 +1,7 @@
 // frontend-erp/src/hooks/usePresupuestoList.ts
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/router';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { presupuestoService, PresupuestoSimpleOut } from '@/services/presupuestoService';
 import { clienteService, ClienteOut } from '@/services/clienteService';
 import { message } from 'antd';
@@ -12,6 +13,7 @@ type RangeValue = [Dayjs | null, Dayjs | null] | null;
 
 export const usePresupuestoList = () => {
   const queryClient = useQueryClient();
+  const router = useRouter();
   
   // State for pagination and filters
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
@@ -55,7 +57,7 @@ export const usePresupuestoList = () => {
         fecha_inicio: rangoFechas?.[0]?.format('YYYY-MM-DD'),
         fecha_fin: rangoFechas?.[1]?.format('YYYY-MM-DD'),
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const fetchPresupuestos = useCallback((pag = pagination) => {
@@ -74,7 +76,7 @@ export const usePresupuestoList = () => {
       message.success('Presupuesto eliminado con éxito');
       queryClient.invalidateQueries({ queryKey: ['presupuestos'] });
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al eliminar'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al eliminar'); },
   });
 
   const sendMutation = useMutation({
@@ -84,7 +86,7 @@ export const usePresupuestoList = () => {
       message.success('Presupuesto enviado con éxito');
       queryClient.invalidateQueries({ queryKey: ['presupuestos'] });
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al enviar'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al enviar'); },
   });
 
   const conversionMutation = useMutation({
@@ -92,10 +94,9 @@ export const usePresupuestoList = () => {
     onSuccess: (data) => {
       message.success('Presupuesto convertido a factura con éxito');
       queryClient.invalidateQueries({ queryKey: ['presupuestos'] });
-      // TODO: Redirect to the new invoice
-      // router.push(`/facturas/form/${data.id}`);
+      router.push(`/facturas/form/${data.id}`);
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al convertir a factura'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al convertir a factura'); },
   });
 
   const statusUpdateMutation = useMutation({
@@ -105,7 +106,7 @@ export const usePresupuestoList = () => {
       message.success('Estado del presupuesto actualizado');
       queryClient.invalidateQueries({ queryKey: ['presupuestos'] });
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al actualizar estado'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al actualizar estado'); },
   });
 
   const uploadEvidenciaMutation = useMutation({
@@ -115,7 +116,7 @@ export const usePresupuestoList = () => {
       message.success('Evidencia subida y presupuesto aceptado');
       queryClient.invalidateQueries({ queryKey: ['presupuestos'] });
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al subir evidencia'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al subir evidencia'); },
   });
 
   // ── PDF Preview ────────────────────────────────────────────────────────────
@@ -132,8 +133,8 @@ export const usePresupuestoList = () => {
       setPreviewPdfUrl(url);
       setPreviewRow(row);
       setPreviewModalOpen(true);
-    } catch (err) {
-      message.error('No se pudo generar la vista previa del PDF');
+    } catch (err: any) {
+      if (!err?._handled) message.error('No se pudo generar la vista previa del PDF');
     } finally {
       setPdfLoading(false);
     }

@@ -118,9 +118,9 @@ export const usePresupuestoForm = (id?: string) => {
       setIsClienteModalOpen(false);
       quickClienteForm.resetFields();
 
-    } catch (err) {
+    } catch (err: any) {
       applyFormErrors(err, quickClienteForm);
-      message.error(normalizeHttpError(err));
+      if (!err?._handled) message.error(normalizeHttpError(err));
     }
   };
 
@@ -296,9 +296,9 @@ export const usePresupuestoForm = (id?: string) => {
         message.success('Presupuesto creado con éxito');
         router.push(`/presupuestos/form/${newPresupuesto.id}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       applyFormErrors(err, form);
-      message.error(normalizeHttpError(err));
+      if (!err?._handled) message.error(normalizeHttpError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -312,7 +312,7 @@ export const usePresupuestoForm = (id?: string) => {
       queryClient.invalidateQueries({ queryKey: ['presupuesto', selectedVersionId] });
       queryClient.invalidateQueries({ queryKey: ['presupuestoHistory', presupuesto?.folio] });
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al actualizar estado'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al actualizar estado'); },
   });
 
   const uploadEvidenciaMutation = useMutation({
@@ -323,7 +323,7 @@ export const usePresupuestoForm = (id?: string) => {
       queryClient.invalidateQueries({ queryKey: ['presupuesto', selectedVersionId] });
       queryClient.invalidateQueries({ queryKey: ['presupuestoHistory', presupuesto?.folio] });
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al subir evidencia'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al subir evidencia'); },
   });
 
 
@@ -337,7 +337,7 @@ export const usePresupuestoForm = (id?: string) => {
       // Opcional: Redirigir a la factura creada
       // router.push(`/facturas/form/${factura.id}`);
     },
-    onError: (err) => message.error(normalizeHttpError(err) || 'Error al convertir a factura'),
+    onError: (err: any) => { if (!err?._handled) message.error(normalizeHttpError(err) || 'Error al convertir a factura'); },
   });
 
   // ── PDF Preview Modal ───────────────────────────────────────────────────────
@@ -355,7 +355,7 @@ export const usePresupuestoForm = (id?: string) => {
       setPreviewPdfUrl(url);
       setPreviewModalOpen(true);
     } catch (e: any) {
-      message.error(normalizeHttpError(e) || 'No se pudo abrir el PDF');
+      if (!e?._handled) message.error(normalizeHttpError(e) || 'No se pudo abrir el PDF');
     }
   };
 

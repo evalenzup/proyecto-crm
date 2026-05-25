@@ -146,6 +146,11 @@ export const tecnicoService = {
     await api.delete(`/tecnicos/${id}/foto`);
   },
 
+  getFotoBlob: async (id: string): Promise<string> => {
+    const response = await api.get(`/tecnicos/${id}/foto`, { responseType: 'blob' });
+    return URL.createObjectURL(response.data);
+  },
+
   descargarCredencial: async (id: string, nombreArchivo: string): Promise<void> => {
     const response = await api.get(`/tecnicos/${id}/credencial`, { responseType: 'blob' });
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));

@@ -27,6 +27,8 @@ import {
   TeamOutlined,
   CarOutlined,
   ToolOutlined,
+  CalendarOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography, Select, Modal, Form, Input, message } from 'antd';
 import esES from 'antd/locale/es_ES';
@@ -194,6 +196,7 @@ const baseMenuData = [
     type: 'group',
     children: [
       { path: '/facturas', name: 'Facturación', icon: <ContainerOutlined /> },
+      { path: '/programacion-facturas', name: 'Fact. Programadas', icon: <CalendarOutlined /> },
       { path: '/presupuestos', name: 'Presupuestos', icon: <FileTextOutlined /> },
       { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
       { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
@@ -205,7 +208,8 @@ const baseMenuData = [
     name: 'Operativo',
     type: 'group',
     children: [
-      // Próximamente: órdenes de servicio, agenda, etc.
+      { path: '/ordenes-servicio', name: 'Órdenes de Servicio', icon: <UnorderedListOutlined /> },
+      { path: '/agenda', name: 'Agenda', icon: <CalendarOutlined /> },
     ],
   },
   { path: '/ayuda', name: 'Ayuda', icon: <QuestionCircleOutlined /> },
@@ -445,16 +449,12 @@ export const Layout: React.FC<{
         menuHeaderRender={() => {
           // eslint-disable-next-line react-hooks/rules-of-hooks
           const screens = Grid.useBreakpoint();
-          // Ocultar logo en pantallas pequeñas (xs y sm)
-          // Si no es md (desktop), asumimos que es móvil o tablet vertical
-          if (!screens.md) {
-            return null;
-          }
+          const isMobile = !screens.md;
 
           return (
             <div
               style={{
-                padding: '0 0 8px',
+                padding: isMobile ? '4px 0 6px' : '0 0 8px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -462,23 +462,26 @@ export const Layout: React.FC<{
                 gap: 8,
               }}
             >
-              {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={logoUrl}
-                  alt="Logo empresa"
-                  style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
-                  onError={(e) => {
-                    const t = e.currentTarget as HTMLImageElement;
-                    if (t.src.endsWith('/vercel.svg')) return;
-                    t.src = '/vercel.svg';
-                  }}
-                />
-              ) : (
-                <div style={{ width: '100%', height: 40, background: 'var(--ant-color-fill-tertiary)' }} />
+              {/* Logo: solo en desktop */}
+              {!isMobile && (
+                logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl}
+                    alt="Logo empresa"
+                    style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'contain', display: 'block' }}
+                    onError={(e) => {
+                      const t = e.currentTarget as HTMLImageElement;
+                      if (t.src.endsWith('/vercel.svg')) return;
+                      t.src = '/vercel.svg';
+                    }}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: 40, background: 'var(--ant-color-fill-tertiary)' }} />
+                )
               )}
 
-              {/* Selector global de empresa */}
+              {/* Selector global de empresa — visible siempre, incluso en móvil */}
               <div style={{ width: '100%', padding: '0 8px' }}>
                 {isAdmin ? (
                   <Select
@@ -488,6 +491,10 @@ export const Layout: React.FC<{
                     onChange={setSelectedEmpresaId}
                     options={empresas.map(e => ({ label: e.nombre_comercial, value: e.id }))}
                     placeholder="Seleccionar empresa"
+                    showSearch
+                    filterOption={(input, opt) =>
+                      (opt?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                   />
                 ) : (
                   <Typography.Text

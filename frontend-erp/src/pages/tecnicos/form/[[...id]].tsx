@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import {
   Form,
+  Image,
   Input,
   Select,
   InputNumber,
@@ -51,9 +52,6 @@ const { TextArea } = Input;
 const { Text } = Typography;
 const { Option } = Select;
 
-const API_STATIC = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api')
-  .replace('/api', '')
-  .replace(/\/$/, '');
 
 const TIPOS_PERSONAL: { value: TipoPersonal; label: string }[] = [
   { value: 'TECNICO', label: 'Técnico' },
@@ -88,6 +86,7 @@ const PersonalForm: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [record, setRecord] = useState<TecnicoOut | null>(null);
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [fotoBlob, setFotoBlob] = useState<string | null>(null);
   const [generandoCredencial, setGenerandoCredencial] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -104,8 +103,18 @@ const PersonalForm: React.FC = () => {
     setLoading(true);
     tecnicoService
       .getTecnico(id)
-      .then((data) => {
+      .then(async (data) => {
         setRecord(data);
+        if (data.foto) {
+          try {
+            const blobUrl = await tecnicoService.getFotoBlob(id);
+            setFotoBlob(blobUrl);
+          } catch {
+            setFotoBlob(null);
+          }
+        } else {
+          setFotoBlob(null);
+        }
         form.setFieldsValue({
           empresa_id: data.empresa_id,
           nombre: data.nombre ?? undefined,
@@ -134,7 +143,7 @@ const PersonalForm: React.FC = () => {
           especialidades_ids: data.especialidades.map((e) => e.id),
         });
       })
-      .catch(() => message.error('Error al cargar el registro'))
+      .catch((e: any) => { if (!e?._handled) message.error('Error al cargar el registro'); })
       .finally(() => setLoading(false));
   }, [id, form]);
 
@@ -214,8 +223,8 @@ const PersonalForm: React.FC = () => {
         router.push(`/tecnicos/form/${created.id}`);
         return;
       }
-    } catch {
-      message.error('Error al guardar');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al guardar');
     } finally {
       setSaving(false);
     }
@@ -229,9 +238,10 @@ const PersonalForm: React.FC = () => {
     try {
       const updated = await tecnicoService.subirFoto(id, file);
       setRecord(updated);
+      setFotoBlob(URL.createObjectURL(file));
       message.success('Foto actualizada');
-    } catch {
-      message.error('Error al subir la foto');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al subir la foto');
     } finally {
       setUploadingFoto(false);
     }
@@ -243,17 +253,14 @@ const PersonalForm: React.FC = () => {
     try {
       await tecnicoService.eliminarFoto(id);
       setRecord((prev) => prev ? { ...prev, foto: null } : prev);
+      setFotoBlob(null);
       message.success('Foto eliminada');
-    } catch {
-      message.error('Error al eliminar la foto');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al eliminar la foto');
     } finally {
       setUploadingFoto(false);
     }
   };
-
-  const fotoUrl = record?.foto
-    ? `${API_STATIC}/data/tecnicos_fotos/${record.foto}`
-    : null;
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -414,28 +421,31 @@ const PersonalForm: React.FC = () => {
                     <Row gutter={32} align="top">
                       <Col>
                         <div style={{ textAlign: 'center' }}>
-                          {fotoUrl ? (
+                          {fotoBlob ? (
                             <div style={{ position: 'relative', display: 'inline-block' }}>
-                              <img
-                                src={fotoUrl}
+                              <Image
+                                src={fotoBlob}
                                 alt="Foto personal"
-                                onClick={() => window.open(fotoUrl, '_blank')}
-                                style={{ width: 140, height: 180, objectFit: 'cover', borderRadius: 4, border: '1px solid #d9d9d9', display: 'block', cursor: 'zoom-in' }}
+                                width={140}
+                                height={180}
+                                style={{ objectFit: 'cover', borderRadius: 4, border: '1px solid #d9d9d9', display: 'block' }}
                               />
-                              <Popconfirm
-                                title="¿Eliminar foto?"
-                                onConfirm={handleFotoDelete}
-                                okText="Sí"
-                                cancelText="No"
-                              >
-                                <Button
-                                  danger
-                                  size="small"
-                                  icon={<DeleteOutlined />}
-                                  style={{ position: 'absolute', top: 4, right: 4 }}
-                                  loading={uploadingFoto}
-                                />
-                              </Popconfirm>
+                              {isEditing && (
+                                <Popconfirm
+                                  title="¿Eliminar foto?"
+                                  onConfirm={handleFotoDelete}
+                                  okText="Sí"
+                                  cancelText="No"
+                                >
+                                  <Button
+                                    danger
+                                    size="small"
+                                    icon={<DeleteOutlined />}
+                                    style={{ position: 'absolute', top: 4, right: 4, zIndex: 10 }}
+                                    loading={uploadingFoto}
+                                  />
+                                </Popconfirm>
+                              )}
                             </div>
                           ) : (
                             <div style={{
@@ -458,7 +468,7 @@ const PersonalForm: React.FC = () => {
                                 }}
                               >
                                 <Button size="small" icon={<UploadOutlined />} loading={uploadingFoto}>
-                                  {fotoUrl ? 'Cambiar Foto' : 'Subir Foto'}
+                                  {fotoBlob ? 'Cambiar Foto' : 'Subir Foto'}
                                 </Button>
                               </Upload>
                             </div>
@@ -623,8 +633,8 @@ const PersonalForm: React.FC = () => {
                       const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
                       setPreviewUrl(url);
                       setPreviewOpen(true);
-                    } catch {
-                      message.error('Error al generar la credencial');
+                    } catch (e: any) {
+                      if (!e?._handled) message.error('Error al generar la credencial');
                     } finally {
                       setGenerandoCredencial(false);
                     }

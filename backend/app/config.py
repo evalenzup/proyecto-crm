@@ -18,17 +18,27 @@ class Settings(BaseSettings):
     DATA_DIR: str = "/data"
     CADENA40_XSLT_PATH: str = "/data/sat/cadenaoriginal_4_0.xslt"
     
-    # Facturación Moderna (PAC)
-    FM_USER_ID: str = "BORO850708SZ7"  # Default de prueba, sobreescribir en .env para prod
-    FM_USER_PASS: str = "ddf6f5be0deeac05a0c144a81cad9d5da63c7bba"             # Contraseña del PAC
-    FM_TIMBRADO_URL: str = "http://t1.facturacionmoderna.com/timbrado/soap" # URL Producción por default
-    # Para pruebas: http://t1.facturacionmoderna.com/timbrado/soap
+    # Facturación Moderna (PAC) — requeridos en .env, sin defaults en código
+    FM_USER_ID: str
+    FM_USER_PASS: str
+    FM_TIMBRADO_URL: str = "http://t1.facturacionmoderna.com/timbrado/soap"
+
+    # URL pública del frontend (para QR de credenciales)
+    APP_URL: str = "https://app.sistemas-erp.com"
 
     # HERE Maps API
     HERE_API_KEY: str = ""
 
     # API Prefix
     API_V1_STR: str = "/api"
+
+    # Cookie para refresh token httpOnly
+    # En producción (HTTPS) debe ser True. En desarrollo local, False.
+    COOKIE_SECURE: bool = True
+    COOKIE_SAMESITE: str = "lax"   # "lax" es suficiente — frontend y API son same-site
+    # Domain para que la cookie sea válida en todos los subdominios.
+    # En desarrollo déjalo vacío. En producción: ".sistemas-erp.com"
+    COOKIE_DOMAIN: str = ""
 
     # CORS
     ALLOWED_ORIGINS: List[str] = [

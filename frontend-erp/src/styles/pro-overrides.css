@@ -14,19 +14,62 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 16px 0 16px; /* casi sin top padding */
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px 0 16px;
 }
 
-.app-page-header__left { display: flex; flex-direction: column; gap: 4px; }
+.app-page-header__left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.app-page-header__right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .app-title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
 .app-breadcrumbs { font-size: 12px; opacity: 0.8; }
 .app-breadcrumbs .sep { opacity: 0.5; padding: 0 6px; }
 
 .app-content {
-  padding: 12px 16px 16px 16px;  /* compacto y consistente */
+  padding: 12px 16px 16px 16px;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* ── Mobile breakpoint ──────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .app-page-header {
+    padding: 6px 10px 0 10px;
+    gap: 6px;
+  }
+  .app-title {
+    font-size: 16px;
+    line-height: 22px;
+  }
+  .app-content {
+    padding: 8px 10px 12px 10px;
+  }
+  /* Filter bars: make every direct child grow to fill available width */
+  .app-content .ant-space-wrap > .ant-space-item {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .app-content .ant-space-wrap > .ant-space-item .ant-select,
+  .app-content .ant-space-wrap > .ant-space-item .ant-input,
+  .app-content .ant-space-wrap > .ant-space-item .ant-input-affix-wrapper,
+  .app-content .ant-space-wrap > .ant-space-item .ant-picker {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  /* Modals fill most of the screen */
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+  }
+  .ant-modal-content {
+    padding: 16px 12px !important;
+  }
+  /* Mapa: sidebar stacks full-width below the map */
+  .mapa-sidebar {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 }
 
 /* 3) Ajuste fino del body de ProLayout: quita paddings exteriores extra */

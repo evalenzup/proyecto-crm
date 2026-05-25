@@ -29,6 +29,7 @@ const PagosIndexPage: React.FC = () => {
     // Email
     emailModalOpen, emailRow, emailLoading, abrirEmailModal, cerrarEmailModal, enviarCorreo
   } = usePagosList();
+  const { empresas } = filters;
 
   const [emailForm] = Form.useForm();
 
@@ -61,8 +62,10 @@ const PagosIndexPage: React.FC = () => {
         emailForm.resetFields();
       })
       .catch((e: any) => {
-        const detail = e?.response?.data?.detail;
-        message.error(typeof detail === 'string' ? detail : 'Error al enviar correo.');
+        if (!e?._handled) {
+          const detail = e?.response?.data?.detail;
+          message.error(typeof detail === 'string' ? detail : 'Error al enviar correo.');
+        }
       });
   };
 
@@ -207,7 +210,7 @@ const PagosIndexPage: React.FC = () => {
           >
             <Space wrap size={[8, 8]}>
               <Select
-                showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220 }}
+                showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220, minWidth: 160 }}
                 filterOption={false}
                 onSearch={(val) => { setClienteQuery(val); debouncedBuscarClientesComercial(val); }}
                 onChange={(val) => setClienteId(val)}
@@ -218,7 +221,7 @@ const PagosIndexPage: React.FC = () => {
                 notFoundContent={null}
               />
               <Select
-                showSearch allowClear placeholder="Razón Social" style={{ width: 220 }}
+                showSearch allowClear placeholder="Razón Social" style={{ width: 220, minWidth: 160 }}
                 filterOption={false}
                 onSearch={(val) => { setClienteQuery(val); debouncedBuscarClientesFiscal(val); }}
                 onChange={(val) => setClienteId(val)}
@@ -229,7 +232,7 @@ const PagosIndexPage: React.FC = () => {
                 notFoundContent={null}
               />
               <Select
-                allowClear placeholder="Estatus" style={{ width: 180 }}
+                allowClear placeholder="Estatus" style={{ width: 160, minWidth: 140 }}
                 value={estatus} onChange={setEstatus}
                 options={[
                   { value: 'BORRADOR', label: 'BORRADOR' },
@@ -242,6 +245,7 @@ const PagosIndexPage: React.FC = () => {
                 value={rangoFechas as any}
                 placeholder={['Desde', 'Hasta']}
                 allowClear
+                style={{ minWidth: 200 }}
               />
             </Space>
           </div>
