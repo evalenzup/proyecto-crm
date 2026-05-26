@@ -30,6 +30,7 @@ import type { CalendarProps } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/es';
 import { Breadcrumbs } from '@/components/Breadcrumb';
+import OrdenServicioModal from '@/components/OrdenServicioModal';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import ordenServicioService, {
   OrdenServicioListOut,
@@ -86,6 +87,7 @@ export default function AgendaPage() {
   const [currentMonth, setCurrentMonth] = useState(dayjs());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
+  const [modalOrdenId, setModalOrdenId] = useState<string | null>(null);
   const [estadoFilter, setEstadoFilter] = useState<EstadoOS | undefined>(undefined);
   const [viewMode, setViewMode] = useState<'month' | 'day'>('month');
 
@@ -390,7 +392,7 @@ export default function AgendaPage() {
                         key={o.id}
                         color={ESTADO_HEX[o.estado]}
                         style={{ cursor: 'pointer', marginBottom: 2 }}
-                        onClick={() => router.push(`/ordenes-servicio/${o.id}`)}
+                        onClick={() => setModalOrdenId(o.id)}
                       >
                         {o.folio_os}
                         {o.tecnico_nombre ? ` · ${o.tecnico_nombre.split(' ')[0]}` : ''}
@@ -494,7 +496,7 @@ export default function AgendaPage() {
                         }
                       >
                         <div
-                          onClick={() => router.push(`/ordenes-servicio/${o.id}`)}
+                          onClick={() => setModalOrdenId(o.id)}
                           style={{
                             position: 'absolute',
                             top,
@@ -593,7 +595,7 @@ export default function AgendaPage() {
                     key="ver"
                     size="small"
                     icon={<EyeOutlined />}
-                    onClick={() => router.push(`/ordenes-servicio/${o.id}`)}
+                    onClick={() => setModalOrdenId(o.id)}
                   />,
                   <Button
                     key="edit"
@@ -634,6 +636,19 @@ export default function AgendaPage() {
           />
         )}
       </Drawer>
+
+      {/* Modal de detalle (vista diaria) */}
+      <OrdenServicioModal
+        ordenId={modalOrdenId}
+        onClose={() => setModalOrdenId(null)}
+        onEstadoChanged={() => {
+          // Refresca las órdenes del día para que el color del bloque se actualice
+          fetchRange(
+            selectedDate.format('YYYY-MM-DD'),
+            selectedDate.format('YYYY-MM-DD')
+          );
+        }}
+      />
     </>
   );
 }
