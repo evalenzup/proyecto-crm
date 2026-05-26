@@ -38,15 +38,10 @@ import {
 const { Text } = Typography;
 const { Option } = Select;
 
-const TRANSICIONES: Record<EstadoOS, EstadoOS[]> = {
-  PENDIENTE:   ['ASIGNADO', 'CANCELADO'],
-  ASIGNADO:    ['EN_CAMINO', 'REAGENDADO', 'CANCELADO'],
-  EN_CAMINO:   ['EN_PROGRESO', 'REAGENDADO'],
-  EN_PROGRESO: ['COMPLETADO', 'REAGENDADO'],
-  COMPLETADO:  [],
-  CANCELADO:   ['PENDIENTE'],
-  REAGENDADO:  ['PENDIENTE', 'ASIGNADO'],
-};
+// Todos los estados posibles en el orden en que aparecen en el selector
+const TODOS_ESTADOS: EstadoOS[] = [
+  'PENDIENTE', 'ASIGNADO', 'EN_CAMINO', 'EN_PROGRESO', 'COMPLETADO', 'CANCELADO', 'REAGENDADO',
+];
 
 interface Props {
   ordenId: string | null;       // null = cerrado
@@ -103,7 +98,8 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }
     }
   };
 
-  const transiciones = data ? (TRANSICIONES[data.estado] ?? []) : [];
+  // Muestra todos los estados excepto el actual
+  const transiciones = data ? TODOS_ESTADOS.filter(e => e !== data.estado) : [];
 
   return (
     <Modal

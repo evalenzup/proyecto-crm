@@ -33,15 +33,9 @@ import { ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD_COLOR } from '@/utils/ordenServic
 const { Text } = Typography;
 const { Option } = Select;
 
-const TRANSICIONES: Record<EstadoOS, EstadoOS[]> = {
-  PENDIENTE: ['ASIGNADO', 'CANCELADO'],
-  ASIGNADO: ['EN_CAMINO', 'REAGENDADO', 'CANCELADO'],
-  EN_CAMINO: ['EN_PROGRESO', 'REAGENDADO'],
-  EN_PROGRESO: ['COMPLETADO', 'REAGENDADO'],
-  COMPLETADO: [],
-  CANCELADO: ['PENDIENTE'],
-  REAGENDADO: ['PENDIENTE', 'ASIGNADO'],
-};
+const TODOS_ESTADOS: EstadoOS[] = [
+  'PENDIENTE', 'ASIGNADO', 'EN_CAMINO', 'EN_PROGRESO', 'COMPLETADO', 'CANCELADO', 'REAGENDADO',
+];
 
 export default function OrdenServicioDetalle() {
   const router = useRouter();
@@ -100,7 +94,7 @@ export default function OrdenServicioDetalle() {
 
   if (!data) return null;
 
-  const transicionesDisponibles = TRANSICIONES[data.estado] ?? [];
+  const transicionesDisponibles = TODOS_ESTADOS.filter(e => e !== data.estado);
 
   return (
     <>
