@@ -22,6 +22,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   ExportOutlined,
+  EnvironmentOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import ordenServicioService, {
@@ -165,9 +166,35 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }
             <Descriptions.Item label="Hora fin">
               {data.hora_fin ? data.hora_fin.slice(0, 5) : '—'}
             </Descriptions.Item>
-            {data.direccion_servicio && (
+            {(data.direccion_servicio || data.latitud) && (
               <Descriptions.Item label="Dirección" span={2}>
-                {data.direccion_servicio}
+                <Space size={8} align="start">
+                  <span>{data.direccion_servicio ?? '—'}</span>
+                  {(data.latitud && data.longitud)
+                    ? (
+                      <a
+                        href={`https://www.google.com/maps?q=${data.latitud},${data.longitud}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Ver en Google Maps (coordenadas exactas)"
+                      >
+                        <EnvironmentOutlined style={{ color: '#cf1322', fontSize: 16 }} />
+                      </a>
+                    )
+                    : data.direccion_servicio
+                    ? (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.direccion_servicio)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Buscar dirección en Google Maps"
+                      >
+                        <EnvironmentOutlined style={{ color: '#cf1322', fontSize: 16 }} />
+                      </a>
+                    )
+                    : null
+                  }
+                </Space>
               </Descriptions.Item>
             )}
           </Descriptions>
