@@ -3,10 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import {
   Calendar,
-  Badge,
   Tag,
   Button,
-  Drawer,
   List,
   Typography,
   Spin,
@@ -20,7 +18,6 @@ import {
 import {
   PlusOutlined,
   UnorderedListOutlined,
-  EyeOutlined,
   EditOutlined,
   CalendarOutlined,
   LeftOutlined,
@@ -36,7 +33,13 @@ import ordenServicioService, {
   OrdenServicioListOut,
   EstadoOS,
 } from '@/services/ordenServicioService';
-import { ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD_COLOR } from '@/utils/ordenServicioConstants';
+import {
+  ESTADO_COLOR,
+  ESTADO_HEX,
+  ESTADO_BG,
+  ESTADO_LABEL,
+  PRIORIDAD_COLOR,
+} from '@/utils/ordenServicioConstants';
 
 dayjs.locale('es');
 
@@ -44,29 +47,9 @@ const { Text } = Typography;
 const { Option } = Select;
 
 // ── Constantes de la vista diaria ────────────────────────────────────────────
-const HOUR_START = 7;   // 7:00 AM
-const HOUR_END   = 21;  // 9:00 PM
-const HOUR_HEIGHT = 60; // px por hora
-
-// Color por estado (hex) para bloques en el timeline
-const ESTADO_HEX: Record<EstadoOS, string> = {
-  PENDIENTE:   '#faad14',
-  ASIGNADO:    '#722ed1',
-  EN_CAMINO:   '#13c2c2',
-  EN_PROGRESO: '#1677ff',
-  COMPLETADO:  '#52c41a',
-  CANCELADO:   '#ff4d4f',
-  REAGENDADO:  '#eb2f96',
-};
-const ESTADO_BG: Record<EstadoOS, string> = {
-  PENDIENTE:   '#fffbe6',
-  ASIGNADO:    '#f9f0ff',
-  EN_CAMINO:   '#e6fffb',
-  EN_PROGRESO: '#e6f4ff',
-  COMPLETADO:  '#f6ffed',
-  CANCELADO:   '#fff2f0',
-  REAGENDADO:  '#fff0f6',
-};
+const HOUR_START  = 7;   // 7:00 AM
+const HOUR_END    = 21;  // 9:00 PM
+const HOUR_HEIGHT = 60;  // px por hora
 
 // Convierte "HH:MM:SS" o "HH:MM" → minutos desde medianoche
 function toMinutes(time: string | null | undefined): number | null {
@@ -82,16 +65,46 @@ export default function AgendaPage() {
   const { token } = theme.useToken();
   const { selectedEmpresaId } = useEmpresaSelector();
 
-  const [ordenes, setOrdenes] = useState<OrdenServicioListOut[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(dayjs());
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
-  const [modalOrdenId, setModalOrdenId] = useState<string | null>(null);
-  const [estadoFilter, setEstadoFilter] = useState<EstadoOS | undefined>(undefined);
-  const [viewMode, setViewMode] = useState<'month' | 'day'>('month');
+  // ── Estado sincronizado con la URL ──────────────────────────────────────────
+  // /agenda?view=day&fecha=2026-05-25&estado=PENDIENTE
+  const [ready, setReady] = useState(false); // esperar a que Next.js popule router.query
 
-  // ── Carga de datos ──────────────────────────────────────────────────────────
+  const viewMode: 'month' | 'day' = (() => {
+    const v = router.query.view;
+    return v === 'day' ? 'day' : 'month';
+  })();
+
+  const selectedDate: Dayjs = (() => {
+    const f = router.query.fecha;
+    const s = Array.isArray(f) ? f[0] : f;
+    return s && dayjs(s).isValid() ? dayjs(s) : dayjs();
+  })();
+
+  const currentMonth: Dayjs = selectedDate; // el mes del calendario sigue la fecha seleccionada
+
+  const estadoFilter: EstadoOS | undefined = (() => {
+    const e = router.query.estado;
+    const s = Array.isArray(e) ? e[0] : e;
+    return s ? (s as EstadoOS) : undefined;
+  })();
+
+  // Helper para actualizar parámetros de la URL sin recargar la página
+  const setQuery = useCallback((patch: Record<string, string | undefined>) => {
+    const q = { ...router.query, ...patch };
+    // Eliminar claves undefined
+    Object.keys(q).forEach(k => q[k] === undefined && delete q[k]);
+    router.replace({ pathname: '/agenda', query: q }, undefined, { shallow: true });
+  }, [router]);
+
+  useEffect(() => {
+    if (router.isReady) setReady(true);
+  }, [router.isReady]);
+
+  // ── Datos ───────────────────────────────────────────────────────────────────
+
+  const [ordenes, setOrdenes] = useState<OrdenServicioListOut[]>([]);
+  const [loading, setLoading]  = useState(false);
+  const [modalOrdenId, setModalOrdenId] = useState<string | null>(null);
 
   const fetchRange = useCallback(
     async (desde: string, hasta: string) => {
@@ -117,10 +130,11 @@ export default function AgendaPage() {
   );
 
   useEffect(() => {
+    if (!ready) return;
     if (viewMode === 'month') {
       fetchRange(
-        currentMonth.startOf('month').format('YYYY-MM-DD'),
-        currentMonth.endOf('month').format('YYYY-MM-DD')
+        selectedDate.startOf('month').format('YYYY-MM-DD'),
+        selectedDate.endOf('month').format('YYYY-MM-DD')
       );
     } else {
       fetchRange(
@@ -128,7 +142,7 @@ export default function AgendaPage() {
         selectedDate.format('YYYY-MM-DD')
       );
     }
-  }, [fetchRange, currentMonth, selectedDate, viewMode]);
+  }, [fetchRange, selectedDate, viewMode, ready]);
 
   // ── Agrupar por día ─────────────────────────────────────────────────────────
 
@@ -153,16 +167,14 @@ export default function AgendaPage() {
       <ul style={{ padding: 0, margin: 0, listStyle: 'none' }}>
         {items.slice(0, 3).map((o) => (
           <li key={o.id} style={{ marginBottom: 2 }}>
-            <Badge
-              status={ESTADO_COLOR[o.estado] as any}
-              text={
-                <span style={{ fontSize: 11 }}>
-                  {o.hora_inicio ? `${o.hora_inicio.slice(0, 5)} ` : ''}
-                  {o.folio_os}
-                  {o.tecnico_nombre ? ` · ${o.tecnico_nombre.split(' ')[0]}` : ''}
-                </span>
-              }
-            />
+            <Tag
+              color={ESTADO_COLOR[o.estado]}
+              style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', marginRight: 0 }}
+            >
+              {o.hora_inicio ? `${o.hora_inicio.slice(0, 5)} ` : ''}
+              {o.folio_os}
+              {o.tecnico_nombre ? ` · ${o.tecnico_nombre.split(' ')[0]}` : ''}
+            </Tag>
           </li>
         ))}
         {items.length > 3 && (
@@ -179,23 +191,21 @@ export default function AgendaPage() {
     return info.originNode;
   };
 
-  // ── Vista mensual: selección de día ────────────────────────────────────────
+  // ── Vista mensual: click en día → ir a vista diaria ─────────────────────────
 
   const handleDateSelect = (date: Dayjs) => {
-    setSelectedDate(date);
-    const key = date.format('YYYY-MM-DD');
-    if (viewMode === 'month') {
-      if (ordenesByDate[key]?.length) {
-        setDrawerOpen(true);
-      }
-    }
+    // Siempre navega a la vista diaria del día seleccionado
+    setQuery({
+      view: 'day',
+      fecha: date.format('YYYY-MM-DD'),
+    });
   };
 
   const handlePanelChange = (date: Dayjs) => {
-    setCurrentMonth(date);
+    setQuery({ fecha: date.format('YYYY-MM-DD') });
   };
 
-  // ── Vista diaria: cálculo de posición de eventos ────────────────────────────
+  // ── Vista diaria: datos del día ─────────────────────────────────────────────
 
   const dayOrdenes = React.useMemo(() => {
     const key = selectedDate.format('YYYY-MM-DD');
@@ -206,11 +216,9 @@ export default function AgendaPage() {
     });
   }, [ordenesByDate, selectedDate]);
 
-  // Separa órdenes con hora de las que no tienen hora ("todo el día")
   const timedOrdenes  = dayOrdenes.filter(o => o.hora_inicio);
   const allDayOrdenes = dayOrdenes.filter(o => !o.hora_inicio);
 
-  // Calcula top y height de cada evento en el timeline
   function eventStyle(o: OrdenServicioListOut) {
     const startMin = toMinutes(o.hora_inicio)!;
     const endMin   = toMinutes(o.hora_fin) ?? (startMin + 60);
@@ -219,7 +227,6 @@ export default function AgendaPage() {
     return { top, height };
   }
 
-  // Resolución de solapamientos: asigna columna (lane) a cada evento
   type Lane = { orden: OrdenServicioListOut; lane: number; totalLanes: number };
   const timedWithLanes: Lane[] = React.useMemo(() => {
     const result: Lane[] = timedOrdenes.map(o => ({ orden: o, lane: 0, totalLanes: 1 }));
@@ -230,15 +237,12 @@ export default function AgendaPage() {
       for (let j = 0; j < i; j++) {
         const bStart = toMinutes(result[j].orden.hora_inicio)!;
         const bEnd   = toMinutes(result[j].orden.hora_fin) ?? (bStart + 60);
-        if (aStart < bEnd && aEnd > bStart) {
-          usedLanes.push(result[j].lane);
-        }
+        if (aStart < bEnd && aEnd > bStart) usedLanes.push(result[j].lane);
       }
       let lane = 0;
       while (usedLanes.includes(lane)) lane++;
       result[i].lane = lane;
     }
-    // Calcular totalLanes para cada grupo solapado
     for (let i = 0; i < result.length; i++) {
       const aStart = toMinutes(result[i].orden.hora_inicio)!;
       const aEnd   = toMinutes(result[i].orden.hora_fin) ?? (aStart + 60);
@@ -256,7 +260,7 @@ export default function AgendaPage() {
 
   const totalTimelineHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
 
-  const drawerOrdenes = ordenesByDate[selectedDate.format('YYYY-MM-DD')] ?? [];
+  if (!ready) return null;
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -274,10 +278,12 @@ export default function AgendaPage() {
               allowClear
               style={{ width: 160 }}
               value={estadoFilter}
-              onChange={(v) => setEstadoFilter(v)}
+              onChange={(v) => setQuery({ estado: v ?? undefined })}
             >
               {(Object.keys(ESTADO_LABEL) as EstadoOS[]).map((e) => (
-                <Option key={e} value={e}>{ESTADO_LABEL[e]}</Option>
+                <Option key={e} value={e}>
+                  <Tag color={ESTADO_COLOR[e]} style={{ margin: 0 }}>{ESTADO_LABEL[e]}</Tag>
+                </Option>
               ))}
             </Select>
 
@@ -286,13 +292,13 @@ export default function AgendaPage() {
               <Button
                 icon={<CalendarOutlined />}
                 type={viewMode === 'month' ? 'primary' : 'default'}
-                onClick={() => setViewMode('month')}
+                onClick={() => setQuery({ view: 'month' })}
               >
                 Mes
               </Button>
               <Button
                 type={viewMode === 'day' ? 'primary' : 'default'}
-                onClick={() => { setViewMode('day'); setSelectedDate(selectedDate); }}
+                onClick={() => setQuery({ view: 'day', fecha: selectedDate.format('YYYY-MM-DD') })}
               >
                 Día
               </Button>
@@ -324,6 +330,7 @@ export default function AgendaPage() {
           {/* ── Vista mensual ── */}
           {viewMode === 'month' && (
             <Calendar
+              value={currentMonth}
               cellRender={cellRender}
               onSelect={handleDateSelect}
               onPanelChange={handlePanelChange}
@@ -349,11 +356,10 @@ export default function AgendaPage() {
                 justifyContent: 'space-between',
                 padding: '12px 20px',
                 borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                background: token.colorBgContainer,
               }}>
                 <Button
                   icon={<LeftOutlined />}
-                  onClick={() => setSelectedDate(d => d.subtract(1, 'day'))}
+                  onClick={() => setQuery({ fecha: selectedDate.subtract(1, 'day').format('YYYY-MM-DD') })}
                 />
                 <Space direction="vertical" align="center" size={0}>
                   <Text strong style={{ fontSize: 16 }}>
@@ -366,19 +372,19 @@ export default function AgendaPage() {
                 <Space>
                   <Button
                     size="small"
-                    onClick={() => setSelectedDate(dayjs())}
+                    onClick={() => setQuery({ fecha: dayjs().format('YYYY-MM-DD') })}
                     disabled={selectedDate.isSame(dayjs(), 'day')}
                   >
                     Hoy
                   </Button>
                   <Button
                     icon={<RightOutlined />}
-                    onClick={() => setSelectedDate(d => d.add(1, 'day'))}
+                    onClick={() => setQuery({ fecha: selectedDate.add(1, 'day').format('YYYY-MM-DD') })}
                   />
                 </Space>
               </div>
 
-              {/* Órdenes sin hora ("todo el día") */}
+              {/* Órdenes sin hora */}
               {allDayOrdenes.length > 0 && (
                 <div style={{
                   padding: '8px 16px 8px 72px',
@@ -390,7 +396,7 @@ export default function AgendaPage() {
                     {allDayOrdenes.map(o => (
                       <Tag
                         key={o.id}
-                        color={ESTADO_HEX[o.estado]}
+                        color={ESTADO_COLOR[o.estado]}
                         style={{ cursor: 'pointer', marginBottom: 2 }}
                         onClick={() => setModalOrdenId(o.id)}
                       >
@@ -409,17 +415,14 @@ export default function AgendaPage() {
                   {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => {
                     const hour = HOUR_START + i;
                     return (
-                      <div
-                        key={hour}
-                        style={{
-                          position: 'absolute',
-                          top: i * HOUR_HEIGHT - 8,
-                          right: 8,
-                          fontSize: 11,
-                          color: token.colorTextTertiary,
-                          userSelect: 'none',
-                        }}
-                      >
+                      <div key={hour} style={{
+                        position: 'absolute',
+                        top: i * HOUR_HEIGHT - 8,
+                        right: 8,
+                        fontSize: 11,
+                        color: token.colorTextTertiary,
+                        userSelect: 'none',
+                      }}>
                         {`${String(hour).padStart(2, '0')}:00`}
                       </div>
                     );
@@ -428,50 +431,30 @@ export default function AgendaPage() {
 
                 {/* Grid + eventos */}
                 <div style={{ flex: 1, position: 'relative', height: totalTimelineHeight, minWidth: 0 }}>
-                  {/* Líneas horizontales de hora */}
+                  {/* Líneas de hora */}
                   {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        position: 'absolute',
-                        top: i * HOUR_HEIGHT,
-                        left: 0,
-                        right: 0,
-                        borderTop: `1px solid ${token.colorBorderSecondary}`,
-                      }}
-                    />
+                    <div key={i} style={{
+                      position: 'absolute', top: i * HOUR_HEIGHT, left: 0, right: 0,
+                      borderTop: `1px solid ${token.colorBorderSecondary}`,
+                    }} />
                   ))}
-                  {/* Líneas de media hora (más suaves) */}
+                  {/* Líneas de media hora */}
                   {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
-                    <div
-                      key={`half-${i}`}
-                      style={{
-                        position: 'absolute',
-                        top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2,
-                        left: 0,
-                        right: 0,
-                        borderTop: `1px dashed ${token.colorBorderSecondary}`,
-                        opacity: 0.5,
-                      }}
-                    />
+                    <div key={`half-${i}`} style={{
+                      position: 'absolute', top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2, left: 0, right: 0,
+                      borderTop: `1px dashed ${token.colorBorderSecondary}`, opacity: 0.5,
+                    }} />
                   ))}
 
-                  {/* Línea "ahora" si es hoy */}
+                  {/* Línea "ahora" */}
                   {selectedDate.isSame(dayjs(), 'day') && (() => {
                     const now = dayjs();
-                    const nowMin = now.hour() * 60 + now.minute();
-                    const nowTop = (nowMin - HOUR_START * 60) * (HOUR_HEIGHT / 60);
+                    const nowTop = (now.hour() * 60 + now.minute() - HOUR_START * 60) * (HOUR_HEIGHT / 60);
                     if (nowTop < 0 || nowTop > totalTimelineHeight) return null;
                     return (
                       <div style={{
-                        position: 'absolute',
-                        top: nowTop,
-                        left: 0,
-                        right: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        zIndex: 10,
-                        pointerEvents: 'none',
+                        position: 'absolute', top: nowTop, left: 0, right: 0,
+                        display: 'flex', alignItems: 'center', zIndex: 10, pointerEvents: 'none',
                       }}>
                         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff4d4f', flexShrink: 0 }} />
                         <div style={{ flex: 1, height: 2, background: '#ff4d4f' }} />
@@ -489,8 +472,8 @@ export default function AgendaPage() {
                         title={
                           <div>
                             <div><strong>{o.folio_os}</strong></div>
-                            {o.cliente_nombre && <div>👤 {o.cliente_nombre}</div>}
-                            {o.tecnico_nombre && <div>🔧 {o.tecnico_nombre}</div>}
+                            {o.cliente_nombre    && <div>👤 {o.cliente_nombre}</div>}
+                            {o.tecnico_nombre    && <div>🔧 {o.tecnico_nombre}</div>}
                             {o.direccion_servicio && <div>📍 {o.direccion_servicio}</div>}
                           </div>
                         }
@@ -518,7 +501,7 @@ export default function AgendaPage() {
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                             <Text strong style={{ fontSize: 11, fontFamily: 'monospace' }}>{o.folio_os}</Text>
-                            <Tag color={ESTADO_HEX[o.estado]} style={{ margin: 0, fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>
+                            <Tag color={ESTADO_COLOR[o.estado]} style={{ margin: 0, fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>
                               {ESTADO_LABEL[o.estado]}
                             </Tag>
                           </div>
@@ -538,23 +521,15 @@ export default function AgendaPage() {
                     );
                   })}
 
-                  {/* Mensaje cuando no hay eventos con hora */}
+                  {/* Empty state */}
                   {timedOrdenes.length === 0 && allDayOrdenes.length === 0 && (
                     <div style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      textAlign: 'center',
-                      pointerEvents: 'none',
+                      position: 'absolute', top: '50%', left: '50%',
+                      transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none',
                     }}>
                       <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={
-                          <span style={{ color: token.colorTextTertiary }}>
-                            Sin órdenes para este día
-                          </span>
-                        }
+                        description={<span style={{ color: token.colorTextTertiary }}>Sin órdenes para este día</span>}
                       />
                     </div>
                   )}
@@ -566,83 +541,11 @@ export default function AgendaPage() {
         </Spin>
       </div>
 
-      {/* Drawer: órdenes del día seleccionado (vista mensual) */}
-      <Drawer
-        title={`Órdenes del ${selectedDate.format('DD [de] MMMM [de] YYYY')}`}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        width={420}
-        extra={
-          <Button
-            size="small"
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => router.push(`/ordenes-servicio/form/nuevo?fecha=${selectedDate.format('YYYY-MM-DD')}`)}
-          >
-            Nueva
-          </Button>
-        }
-      >
-        {drawerOrdenes.length === 0 ? (
-          <Empty description="Sin órdenes este día" />
-        ) : (
-          <List
-            dataSource={drawerOrdenes}
-            renderItem={(o) => (
-              <List.Item
-                actions={[
-                  <Button
-                    key="ver"
-                    size="small"
-                    icon={<EyeOutlined />}
-                    onClick={() => setModalOrdenId(o.id)}
-                  />,
-                  <Button
-                    key="edit"
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={() => router.push(`/ordenes-servicio/form/${o.id}`)}
-                  />,
-                ]}
-              >
-                <List.Item.Meta
-                  title={
-                    <Space>
-                      <Text strong style={{ fontFamily: 'monospace' }}>{o.folio_os}</Text>
-                      <Badge status={ESTADO_COLOR[o.estado] as any} text={ESTADO_LABEL[o.estado]} />
-                      <Tag color={PRIORIDAD_COLOR[o.prioridad]}>{o.prioridad}</Tag>
-                    </Space>
-                  }
-                  description={
-                    <div>
-                      {o.hora_inicio && (
-                        <div style={{ fontSize: 12 }}>
-                          🕐 {o.hora_inicio.slice(0, 5)}
-                          {o.hora_fin ? ` – ${o.hora_fin.slice(0, 5)}` : ''}
-                        </div>
-                      )}
-                      {o.cliente_nombre && <div style={{ fontSize: 12 }}>👤 {o.cliente_nombre}</div>}
-                      {o.tecnico_nombre && <div style={{ fontSize: 12 }}>🔧 {o.tecnico_nombre}</div>}
-                      {o.direccion_servicio && (
-                        <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
-                          📍 {o.direccion_servicio}
-                        </div>
-                      )}
-                    </div>
-                  }
-                />
-              </List.Item>
-            )}
-          />
-        )}
-      </Drawer>
-
       {/* Modal de detalle (vista diaria) */}
       <OrdenServicioModal
         ordenId={modalOrdenId}
         onClose={() => setModalOrdenId(null)}
         onEstadoChanged={() => {
-          // Refresca las órdenes del día para que el color del bloque se actualice
           fetchRange(
             selectedDate.format('YYYY-MM-DD'),
             selectedDate.format('YYYY-MM-DD')

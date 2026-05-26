@@ -27,38 +27,16 @@ import dayjs from 'dayjs';
 import ordenServicioService, {
   OrdenServicioOut,
   EstadoOS,
-  PrioridadOS,
 } from '@/services/ordenServicioService';
+import {
+  ESTADO_COLOR,
+  ESTADO_BADGE,
+  ESTADO_LABEL,
+  PRIORIDAD_COLOR,
+} from '@/utils/ordenServicioConstants';
 
 const { Text } = Typography;
 const { Option } = Select;
-
-const ESTADO_COLOR: Record<EstadoOS, string> = {
-  PENDIENTE:   'default',
-  ASIGNADO:    'blue',
-  EN_CAMINO:   'cyan',
-  EN_PROGRESO: 'processing',
-  COMPLETADO:  'success',
-  CANCELADO:   'error',
-  REAGENDADO:  'warning',
-};
-
-const ESTADO_LABEL: Record<EstadoOS, string> = {
-  PENDIENTE:   'Pendiente',
-  ASIGNADO:    'Asignado',
-  EN_CAMINO:   'En camino',
-  EN_PROGRESO: 'En progreso',
-  COMPLETADO:  'Completado',
-  CANCELADO:   'Cancelado',
-  REAGENDADO:  'Reagendado',
-};
-
-const PRIORIDAD_COLOR: Record<PrioridadOS, string> = {
-  BAJA:    'green',
-  MEDIA:   'blue',
-  ALTA:    'orange',
-  URGENTE: 'red',
-};
 
 const TRANSICIONES: Record<EstadoOS, EstadoOS[]> = {
   PENDIENTE:   ['ASIGNADO', 'CANCELADO'],
@@ -137,7 +115,7 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }
         data ? (
           <Space>
             <Text strong style={{ fontFamily: 'monospace', fontSize: 15 }}>{data.folio_os}</Text>
-            <Badge status={ESTADO_COLOR[data.estado] as any} text={ESTADO_LABEL[data.estado]} />
+            <Tag color={ESTADO_COLOR[data.estado]}>{ESTADO_LABEL[data.estado]}</Tag>
             <Tag color={PRIORIDAD_COLOR[data.prioridad]}>{data.prioridad}</Tag>
           </Space>
         ) : 'Cargando…'
@@ -229,7 +207,7 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }
                 >
                   {transiciones.map((e) => (
                     <Option key={e} value={e}>
-                      <Badge status={ESTADO_COLOR[e] as any} text={ESTADO_LABEL[e]} />
+                      <Tag color={ESTADO_COLOR[e]}>{ESTADO_LABEL[e]}</Tag>
                     </Option>
                   ))}
                 </Select>
@@ -265,9 +243,9 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }
                     <div>
                       <div>
                         {h.estado_anterior && (
-                          <><Tag>{h.estado_anterior}</Tag>{' → '}</>
+                          <><Tag color={ESTADO_COLOR[h.estado_anterior as EstadoOS] ?? 'default'}>{ESTADO_LABEL[h.estado_anterior as EstadoOS] ?? h.estado_anterior}</Tag>{' → '}</>
                         )}
-                        <Tag color="blue">{h.estado_nuevo}</Tag>
+                        <Tag color={ESTADO_COLOR[h.estado_nuevo as EstadoOS] ?? 'blue'}>{ESTADO_LABEL[h.estado_nuevo as EstadoOS] ?? h.estado_nuevo}</Tag>
                       </div>
                       {h.notas && (
                         <Text type="secondary" style={{ fontSize: 12 }}>{h.notas}</Text>

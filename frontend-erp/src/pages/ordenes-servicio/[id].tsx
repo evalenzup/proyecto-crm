@@ -27,38 +27,11 @@ import { Breadcrumbs } from '@/components/Breadcrumb';
 import ordenServicioService, {
   OrdenServicioOut,
   EstadoOS,
-  PrioridadOS,
 } from '@/services/ordenServicioService';
+import { ESTADO_COLOR, ESTADO_LABEL, PRIORIDAD_COLOR } from '@/utils/ordenServicioConstants';
 
 const { Text } = Typography;
 const { Option } = Select;
-
-const ESTADO_COLOR: Record<EstadoOS, string> = {
-  PENDIENTE: 'default',
-  ASIGNADO: 'blue',
-  EN_CAMINO: 'cyan',
-  EN_PROGRESO: 'processing',
-  COMPLETADO: 'success',
-  CANCELADO: 'error',
-  REAGENDADO: 'warning',
-};
-
-const ESTADO_LABEL: Record<EstadoOS, string> = {
-  PENDIENTE: 'Pendiente',
-  ASIGNADO: 'Asignado',
-  EN_CAMINO: 'En camino',
-  EN_PROGRESO: 'En progreso',
-  COMPLETADO: 'Completado',
-  CANCELADO: 'Cancelado',
-  REAGENDADO: 'Reagendado',
-};
-
-const PRIORIDAD_COLOR: Record<PrioridadOS, string> = {
-  BAJA: 'green',
-  MEDIA: 'blue',
-  ALTA: 'orange',
-  URGENTE: 'red',
-};
 
 const TRANSICIONES: Record<EstadoOS, EstadoOS[]> = {
   PENDIENTE: ['ASIGNADO', 'CANCELADO'],
@@ -137,7 +110,7 @@ export default function OrdenServicioDetalle() {
           <h1 className="app-title">
             {data.folio_os}
             <Space size={8} style={{ marginLeft: 12, fontWeight: 'normal', fontSize: 14 }}>
-              <Badge status={ESTADO_COLOR[data.estado] as any} text={ESTADO_LABEL[data.estado]} />
+              <Tag color={ESTADO_COLOR[data.estado]}>{ESTADO_LABEL[data.estado]}</Tag>
               <Tag color={PRIORIDAD_COLOR[data.prioridad]}>{data.prioridad}</Tag>
             </Space>
           </h1>
@@ -235,7 +208,7 @@ export default function OrdenServicioDetalle() {
               >
                 {transicionesDisponibles.map((e) => (
                   <Option key={e} value={e}>
-                    <Badge status={ESTADO_COLOR[e] as any} text={ESTADO_LABEL[e]} />
+                    <Tag color={ESTADO_COLOR[e]}>{ESTADO_LABEL[e]}</Tag>
                   </Option>
                 ))}
               </Select>
