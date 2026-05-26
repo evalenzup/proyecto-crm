@@ -22,6 +22,7 @@ import {
   CalendarOutlined,
   LeftOutlined,
   RightOutlined,
+  FilePdfOutlined,
 } from '@ant-design/icons';
 import type { CalendarProps } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
@@ -261,6 +262,103 @@ export default function AgendaPage() {
 
   const totalTimelineHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
 
+  // ── Exportar PDF (impresión de la vista diaria) ─────────────────────────────
+
+  const handlePrint = useCallback(() => {
+    const sorted = dayOrdenes.slice().sort((a, b) => {
+      const am = toMinutes(a.hora_inicio) ?? -1;
+      const bm = toMinutes(b.hora_inicio) ?? -1;
+      return am - bm;
+    });
+
+    const formatHora = (h?: string | null) => h ? h.slice(0, 5) : '—';
+    const estadoBadgeStyle: Record<EstadoOS, string> = {
+      PENDIENTE:   'background:#fffbe6;color:#d48806;border:1px solid #ffe58f',
+      ASIGNADO:    'background:#e6f4ff;color:#1677ff;border:1px solid #91caff',
+      EN_CAMINO:   'background:#e6fffb;color:#08979c;border:1px solid #87e8de',
+      EN_PROGRESO: 'background:#f0f5ff;color:#2f54eb;border:1px solid #adc6ff',
+      COMPLETADO:  'background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f',
+      CANCELADO:   'background:#fff2f0;color:#cf1322;border:1px solid #ffccc7',
+      REAGENDADO:  'background:#fff7e6;color:#d46b08;border:1px solid #ffd591',
+    };
+
+    const rows = sorted.map((o) => `
+      <tr>
+        <td style="white-space:nowrap;font-weight:600;font-family:monospace">${o.folio_os}</td>
+        <td style="white-space:nowrap">
+          ${formatHora(o.hora_inicio)}${o.hora_fin ? ` – ${formatHora(o.hora_fin)}` : ''}
+        </td>
+        <td>${o.cliente_nombre ?? '—'}</td>
+        <td>${o.tecnico_nombre ?? '—'}</td>
+        <td style="color:#555;font-size:12px">${o.direccion_servicio ?? '—'}</td>
+        <td>
+          <span style="border-radius:4px;padding:2px 8px;font-size:11px;${estadoBadgeStyle[o.estado]}">
+            ${ESTADO_LABEL[o.estado]}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Agenda ${selectedDate.format('DD-MM-YYYY')}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #1a1a1a; padding: 24px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #0a5c91; padding-bottom: 12px; }
+    .header-left h1 { font-size: 22px; color: #0a5c91; font-weight: 700; }
+    .header-left p  { font-size: 13px; color: #555; margin-top: 3px; text-transform: capitalize; }
+    .header-right   { text-align: right; font-size: 12px; color: #888; }
+    .badge-total    { background: #0a5c91; color: #fff; border-radius: 12px; padding: 2px 10px; font-size: 12px; display: inline-block; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th { background: #f0f7ff; color: #0a5c91; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 7px 10px; text-align: left; border-bottom: 2px solid #cce0f5; }
+    td { padding: 8px 10px; border-bottom: 1px solid #edf2f7; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #fafcff; }
+    .footer { margin-top: 18px; font-size: 11px; color: #aaa; text-align: center; border-top: 1px solid #eee; padding-top: 8px; }
+    @media print {
+      body { padding: 12px; }
+      @page { margin: 1cm; size: A4 landscape; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>Agenda del día</h1>
+      <p>${selectedDate.format('dddd D [de] MMMM [de] YYYY')}</p>
+    </div>
+    <div class="header-right">
+      <div>NORTON CRM/ERP</div>
+      <div class="badge-total">${sorted.length} ${sorted.length === 1 ? 'orden' : 'órdenes'}</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Folio</th>
+        <th>Horario</th>
+        <th>Cliente</th>
+        <th>Técnico</th>
+        <th>Dirección</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">Sin órdenes para este día</td></tr>'}</tbody>
+  </table>
+  <div class="footer">Generado el ${dayjs().format('DD/MM/YYYY HH:mm')} · Sistema NORTON CRM/ERP</div>
+  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=1000,height=700');
+    if (!win) { message.warning('Permite ventanas emergentes para exportar el PDF'); return; }
+    win.document.write(html);
+    win.document.close();
+  }, [dayOrdenes, selectedDate]);
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -379,6 +477,13 @@ export default function AgendaPage() {
                     icon={<RightOutlined />}
                     onClick={() => setQuery({ fecha: selectedDate.add(1, 'day').format('YYYY-MM-DD') })}
                   />
+                  <Button
+                    icon={<FilePdfOutlined />}
+                    onClick={handlePrint}
+                    title="Exportar agenda del día como PDF"
+                  >
+                    PDF
+                  </Button>
                 </Space>
               </div>
 
