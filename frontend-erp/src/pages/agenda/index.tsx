@@ -67,38 +67,40 @@ export default function AgendaPage() {
 
   // ── Estado sincronizado con la URL ──────────────────────────────────────────
   // /agenda?view=day&fecha=2026-05-25&estado=PENDIENTE
-  const [ready, setReady] = useState(false); // esperar a que Next.js popule router.query
+  //
+  // IMPORTANTE: todos los valores derivados de router.query se memorizan para
+  // que las dependencias del useEffect sean estables entre renders.
 
-  const viewMode: 'month' | 'day' = (() => {
+  const viewMode: 'month' | 'day' = React.useMemo(() => {
     const v = router.query.view;
     return v === 'day' ? 'day' : 'month';
-  })();
+  }, [router.query.view]);
 
-  const selectedDate: Dayjs = (() => {
+  // Usamos un string YYYY-MM-DD como dep estable; el objeto Dayjs lo derivamos aparte.
+  const fechaStr: string = React.useMemo(() => {
     const f = router.query.fecha;
     const s = Array.isArray(f) ? f[0] : f;
-    return s && dayjs(s).isValid() ? dayjs(s) : dayjs();
-  })();
+    return s && dayjs(s).isValid() ? s : dayjs().format('YYYY-MM-DD');
+  }, [router.query.fecha]);
 
-  const currentMonth: Dayjs = selectedDate; // el mes del calendario sigue la fecha seleccionada
+  const selectedDate: Dayjs = React.useMemo(() => dayjs(fechaStr), [fechaStr]);
 
-  const estadoFilter: EstadoOS | undefined = (() => {
+  const estadoFilter: EstadoOS | undefined = React.useMemo(() => {
     const e = router.query.estado;
     const s = Array.isArray(e) ? e[0] : e;
     return s ? (s as EstadoOS) : undefined;
-  })();
+  }, [router.query.estado]);
 
-  // Helper para actualizar parámetros de la URL sin recargar la página
+  // Helper para actualizar parámetros de la URL sin recargar la página.
+  // Usamos ref para evitar que router sea una dependencia inestable.
+  const routerRef = React.useRef(router);
+  useEffect(() => { routerRef.current = router; });
+
   const setQuery = useCallback((patch: Record<string, string | undefined>) => {
-    const q = { ...router.query, ...patch };
-    // Eliminar claves undefined
-    Object.keys(q).forEach(k => q[k] === undefined && delete q[k]);
-    router.replace({ pathname: '/agenda', query: q }, undefined, { shallow: true });
-  }, [router]);
-
-  useEffect(() => {
-    if (router.isReady) setReady(true);
-  }, [router.isReady]);
+    const q = { ...routerRef.current.query, ...patch };
+    Object.keys(q).forEach(k => { if (q[k] === undefined) delete q[k]; });
+    routerRef.current.replace({ pathname: '/agenda', query: q }, undefined, { shallow: true });
+  }, []); // dependencias vacías: es estable toda la vida del componente
 
   // ── Datos ───────────────────────────────────────────────────────────────────
 
@@ -130,19 +132,18 @@ export default function AgendaPage() {
   );
 
   useEffect(() => {
-    if (!ready) return;
+    if (!router.isReady) return;
     if (viewMode === 'month') {
+      const d = dayjs(fechaStr);
       fetchRange(
-        selectedDate.startOf('month').format('YYYY-MM-DD'),
-        selectedDate.endOf('month').format('YYYY-MM-DD')
+        d.startOf('month').format('YYYY-MM-DD'),
+        d.endOf('month').format('YYYY-MM-DD')
       );
     } else {
-      fetchRange(
-        selectedDate.format('YYYY-MM-DD'),
-        selectedDate.format('YYYY-MM-DD')
-      );
+      fetchRange(fechaStr, fechaStr);
     }
-  }, [fetchRange, selectedDate, viewMode, ready]);
+  // fechaStr y viewMode son strings primitivos → dependencias estables
+  }, [router.isReady, fetchRange, fechaStr, viewMode]);
 
   // ── Agrupar por día ─────────────────────────────────────────────────────────
 
@@ -260,8 +261,6 @@ export default function AgendaPage() {
 
   const totalTimelineHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
 
-  if (!ready) return null;
-
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -330,7 +329,6 @@ export default function AgendaPage() {
           {/* ── Vista mensual ── */}
           {viewMode === 'month' && (
             <Calendar
-              value={currentMonth}
               cellRender={cellRender}
               onSelect={handleDateSelect}
               onPanelChange={handlePanelChange}
