@@ -37,9 +37,7 @@ import ordenServicioService, {
 import {
   ESTADO_COLOR,
   ESTADO_HEX,
-  ESTADO_BG,
   ESTADO_LABEL,
-  PRIORIDAD_COLOR,
 } from '@/utils/ordenServicioConstants';
 
 dayjs.locale('es');
@@ -574,8 +572,10 @@ export default function AgendaPage() {
                             left: `calc(${lane * laneW}% + 4px)`,
                             width: `calc(${laneW}% - 8px)`,
                             height,
-                            background: ESTADO_BG[o.estado],
+                            background: `${ESTADO_HEX[o.estado]}22`,
                             borderLeft: `3px solid ${ESTADO_HEX[o.estado]}`,
+                            border: `1px solid ${ESTADO_HEX[o.estado]}55`,
+                            borderLeftWidth: 3,
                             borderRadius: 4,
                             padding: '3px 6px',
                             overflow: 'hidden',
@@ -584,7 +584,7 @@ export default function AgendaPage() {
                             boxSizing: 'border-box',
                             transition: 'filter 0.15s',
                           }}
-                          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.95)')}
+                          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.15)')}
                           onMouseLeave={e => (e.currentTarget.style.filter = '')}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
