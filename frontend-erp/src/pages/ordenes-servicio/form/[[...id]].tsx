@@ -76,6 +76,13 @@ const OrdenServicioForm: React.FC = () => {
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
   const isNew = !id || id === 'nuevo';
 
+  // Si viene ?fecha=YYYY-MM-DD desde la agenda (vista diaria), pre-seleccionar esa fecha
+  const fechaFromQuery = (() => {
+    const f = router.query.fecha;
+    const s = Array.isArray(f) ? f[0] : f;
+    return s && dayjs(s).isValid() ? dayjs(s) : null;
+  })();
+
   const { selectedEmpresaId } = useEmpresaSelector();
 
   const [form] = Form.useForm();
@@ -331,7 +338,11 @@ const OrdenServicioForm: React.FC = () => {
         form={form}
         layout="vertical"
         onFinish={handleSubmit}
-        initialValues={{ estado: 'PENDIENTE', prioridad: 'MEDIA' }}
+        initialValues={{
+          estado: 'PENDIENTE',
+          prioridad: 'MEDIA',
+          fecha_programada: fechaFromQuery ?? undefined,
+        }}
       >
         {/* ── Sección: Datos principales ── */}
         <Card title="Datos Principales" style={{ marginBottom: 16 }}>
