@@ -90,6 +90,7 @@ def listar_ordenes(
                 tecnico_nombre=o.tecnico.nombre_completo if o.tecnico else None,
                 direccion_servicio=o.direccion_servicio,
                 precio_acordado=o.precio_acordado,
+                notas_tecnico=o.notas_tecnico,
             )
         )
 

@@ -178,5 +178,6 @@ class OrdenServicioListOut(BaseModel):
     tecnico_nombre: Optional[str] = None
     direccion_servicio: Optional[str]
     precio_acordado: Optional[Decimal]
+    notas_tecnico: Optional[str] = None
 
     model_config = {"from_attributes": True}

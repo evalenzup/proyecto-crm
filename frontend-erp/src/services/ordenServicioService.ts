@@ -88,6 +88,7 @@ export interface OrdenServicioListOut {
   tecnico_nombre?: string | null;
   direccion_servicio?: string | null;
   precio_acordado?: number | null;
+  notas_tecnico?: string | null;
 }
 
 export interface OrdenServicioCreate {

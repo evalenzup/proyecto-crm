@@ -272,29 +272,16 @@ export default function AgendaPage() {
     });
 
     const formatHora = (h?: string | null) => h ? h.slice(0, 5) : '—';
-    const estadoBadgeStyle: Record<EstadoOS, string> = {
-      PENDIENTE:   'background:#fffbe6;color:#d48806;border:1px solid #ffe58f',
-      ASIGNADO:    'background:#e6f4ff;color:#1677ff;border:1px solid #91caff',
-      EN_CAMINO:   'background:#e6fffb;color:#08979c;border:1px solid #87e8de',
-      EN_PROGRESO: 'background:#f0f5ff;color:#2f54eb;border:1px solid #adc6ff',
-      COMPLETADO:  'background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f',
-      CANCELADO:   'background:#fff2f0;color:#cf1322;border:1px solid #ffccc7',
-      REAGENDADO:  'background:#fff7e6;color:#d46b08;border:1px solid #ffd591',
-    };
-
     const rows = sorted.map((o) => `
       <tr>
-        <td style="white-space:nowrap;font-weight:600;font-family:monospace">${o.folio_os}</td>
         <td style="white-space:nowrap">
           ${formatHora(o.hora_inicio)}${o.hora_fin ? ` – ${formatHora(o.hora_fin)}` : ''}
         </td>
         <td>${o.cliente_nombre ?? '—'}</td>
         <td>${o.tecnico_nombre ?? '—'}</td>
-        <td style="color:#555;font-size:12px">${o.direccion_servicio ?? '—'}</td>
-        <td>
-          <span style="border-radius:4px;padding:2px 8px;font-size:11px;${estadoBadgeStyle[o.estado]}">
-            ${ESTADO_LABEL[o.estado]}
-          </span>
+        <td style="font-size:12px">
+          ${o.direccion_servicio ?? '—'}
+          ${o.notas_tecnico ? `<div style="margin-top:4px;color:#0a5c91;font-style:italic;font-size:11px">📝 ${o.notas_tecnico}</div>` : ''}
         </td>
       </tr>
     `).join('');
@@ -338,12 +325,10 @@ export default function AgendaPage() {
   <table>
     <thead>
       <tr>
-        <th>Folio</th>
-        <th>Horario</th>
+        <th style="width:90px">Horario</th>
         <th>Cliente</th>
-        <th>Técnico</th>
-        <th>Dirección</th>
-        <th>Estado</th>
+        <th style="width:140px">Técnico</th>
+        <th>Dirección / Notas al técnico</th>
       </tr>
     </thead>
     <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">Sin órdenes para este día</td></tr>'}</tbody>
