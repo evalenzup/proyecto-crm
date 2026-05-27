@@ -20,7 +20,8 @@ import {
   Tag,
   Space,
 } from 'antd';
-import { SaveOutlined } from '@ant-design/icons';
+import { SaveOutlined, UserAddOutlined } from '@ant-design/icons';
+import ClienteRapidoModal from '@/components/ClienteRapidoModal';
 import debounce from 'lodash/debounce';
 import dayjs from 'dayjs';
 import { Breadcrumbs } from '@/components/Breadcrumb';
@@ -94,6 +95,7 @@ const OrdenServicioForm: React.FC = () => {
   const [clientes, setClientes] = useState<{ value: string; label: string }[]>([]);
   const [clientesBuscando, setClientesBuscando] = useState(false);
   const [loadingCliente, setLoadingCliente] = useState(false);
+  const [modalClienteOpen, setModalClienteOpen] = useState(false);
   const [tecnicos, setTecnicos] = useState<{ value: string; label: string }[]>([]);
   const [unidades, setUnidades] = useState<{ value: string; label: string }[]>([]);
   const [servicios, setServicios] = useState<{ value: string; label: string }[]>([]);
@@ -170,6 +172,20 @@ const OrdenServicioForm: React.FC = () => {
       setLoadingCliente(false);
     }
   }, [form, isNew]);
+
+  // ── Cliente creado desde el modal rápido ─────────────────────────────────────
+  const handleClienteCreado = useCallback(
+    ({ id: cliId, nombre_comercial }: { id: string; nombre_comercial: string }) => {
+      const nuevaOpcion = { value: cliId, label: nombre_comercial };
+      // Agrega la nueva opción al listado para que el Select la encuentre
+      setClientes((prev) => [nuevaOpcion, ...prev]);
+      // Selecciónala automáticamente en el form
+      form.setFieldValue('cliente_id', nuevaOpcion);
+      // Dispara el auto-fill de dirección (mismo flujo que al seleccionar uno existente)
+      handleClienteChange(nuevaOpcion);
+    },
+    [form, handleClienteChange],
+  );
 
   // ── Carga inicial ─────────────────────────────────────────────────────────────
   // Usamos labelInValue en los Select: el form guarda { value, label } en lugar
@@ -364,6 +380,22 @@ const OrdenServicioForm: React.FC = () => {
                   allowClear
                   notFoundContent={clientesBuscando ? 'Buscando…' : 'Sin resultados'}
                   onChange={handleClienteChange}
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      <div style={{ padding: '4px 8px 2px', borderTop: '1px solid #f0f0f0' }}>
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<UserAddOutlined />}
+                          onClick={() => setModalClienteOpen(true)}
+                          style={{ padding: '0 4px' }}
+                        >
+                          + Nuevo cliente
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 />
               </Form.Item>
             </Col>
@@ -529,6 +561,13 @@ const OrdenServicioForm: React.FC = () => {
         </Form.Item>
       </Form>
       </div>
+
+      {/* Modal para crear cliente rápido */}
+      <ClienteRapidoModal
+        open={modalClienteOpen}
+        onClose={() => setModalClienteOpen(false)}
+        onCreated={handleClienteCreado}
+      />
     </>
   );
 };
