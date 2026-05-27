@@ -37,14 +37,18 @@ def get_current_user(
         token_data = TokenPayload(**payload)
     except (JWTError, ValidationError):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     try:
         user_id = _uuid.UUID(str(token_data.sub))
     except (TypeError, ValueError):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Could not validate credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     user = db.query(Usuario).filter(Usuario.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
