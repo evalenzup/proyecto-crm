@@ -61,9 +61,18 @@ interface NominatimResult {
 
 async function lookupCP(cp: string): Promise<NominatimResult> {
   const url = `${NOMINATIM_URL}?postalcode=${cp}&country=MX&format=json&addressdetails=1&limit=1`;
-  const res = await fetch(url, {
-    headers: { 'User-Agent': USER_AGENT },
-  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+
+  let res: Response;
+  try {
+    // Nota: User-Agent es un header restringido en browsers; se omite aquí
+    res = await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+
   if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
   const data = await res.json();
   console.log('[Nominatim] CP lookup raw response:', JSON.stringify(data, null, 2));
@@ -151,8 +160,14 @@ const ClienteRapidoModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
       } else {
         message.warning(`No se encontró información para el CP ${cp}`, 3);
       }
-    } catch {
-      message.warning('No se pudo consultar el código postal', 3);
+    } catch (err: any) {
+      const isTimeout = err?.name === 'AbortError';
+      message.warning(
+        isTimeout
+          ? `Tiempo de espera agotado al consultar el CP ${cp}. Llena ciudad y estado manualmente.`
+          : 'No se pudo consultar el código postal',
+        4,
+      );
     } finally {
       setBuscandoCP(false);
     }
