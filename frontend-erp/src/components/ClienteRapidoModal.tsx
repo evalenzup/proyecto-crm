@@ -61,14 +61,21 @@ interface NominatimResult {
 
 async function lookupCP(cp: string): Promise<NominatimResult> {
   const url = `${NOMINATIM_URL}?postalcode=${cp}&country=MX&format=json&addressdetails=1&limit=1`;
+  console.log('[Nominatim] Iniciando fetch →', url);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => {
+    console.warn('[Nominatim] Timeout alcanzado (8s) — abortando');
+    controller.abort();
+  }, 8000);
 
   let res: Response;
   try {
-    // Nota: User-Agent es un header restringido en browsers; se omite aquí
     res = await fetch(url, { signal: controller.signal });
+    console.log('[Nominatim] Respuesta HTTP:', res.status, res.statusText);
+  } catch (err: any) {
+    console.error('[Nominatim] Error en fetch:', err?.name, err?.message);
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -244,7 +251,7 @@ const ClienteRapidoModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
           Crear cliente
         </Button>,
       ]}
-      destroyOnClose
+      destroyOnHidden
     >
       <Spin spinning={buscandoCP} tip="Consultando código postal…">
         <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
@@ -325,7 +332,7 @@ const ClienteRapidoModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
                   placeholder="Ej. 22000"
                   maxLength={5}
                   onChange={handleCPChange}
-                  suffix={buscandoCP ? <Spin size="small" /> : null}
+                  suffix={<span style={{ width: 14, display: 'inline-block' }}>{buscandoCP ? <Spin size="small" /> : null}</span>}
                 />
               </Form.Item>
             </Col>
