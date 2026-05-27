@@ -54,6 +54,7 @@ const USER_AGENT = 'proyecto-crm/1.0 (netov1@gmail.com)';
 interface NominatimResult {
   ciudad: string | null;
   estado: string | null;
+  colonia: string | null;
   lat: number | null;
   lon: number | null;
 }
@@ -65,7 +66,7 @@ async function lookupCP(cp: string): Promise<NominatimResult> {
   });
   if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
   const data = await res.json();
-  if (!data || data.length === 0) return { ciudad: null, estado: null, lat: null, lon: null };
+  if (!data || data.length === 0) return { ciudad: null, estado: null, colonia: null, lat: null, lon: null };
 
   const item = data[0];
   const address = item.address ?? {};
@@ -85,9 +86,17 @@ async function lookupCP(cp: string): Promise<NominatimResult> {
 
   const estado: string = address.state ?? '';
 
+  // Colonia: Nominatim la devuelve como suburb, neighbourhood o quarter (no siempre disponible)
+  const colonia: string =
+    address.suburb ||
+    address.neighbourhood ||
+    address.quarter ||
+    '';
+
   return {
     ciudad: ciudad.trim() || null,
     estado: estado.trim() || null,
+    colonia: colonia.trim() || null,
     lat: item.lat ? parseFloat(item.lat) : null,
     lon: item.lon ? parseFloat(item.lon) : null,
   };
@@ -103,11 +112,14 @@ const ClienteRapidoModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
 
   // Evita disparar el lookup si el CP ya fue procesado
   const lastCPRef = useRef<string>('');
+  // Coordenadas obtenidas de Nominatim para mostrarlas como feedback visual
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
 
   // ── Reset al abrir ─────────────────────────────────────────────────────────
   const handleAfterOpen = () => {
     form.resetFields();
     lastCPRef.current = '';
+    setCoords(null);
   };
 
   // ── Lookup de CP via Nominatim ─────────────────────────────────────────────
@@ -122,12 +134,18 @@ const ClienteRapidoModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
     try {
       const result = await lookupCP(cp);
       if (result.ciudad || result.estado) {
+        // Solo auto-llenar colonia si está vacía (no pisar lo que el usuario ya escribió)
+        const coloniaActual = form.getFieldValue('serv_colonia');
         form.setFieldsValue({
-          serv_ciudad: result.ciudad ?? form.getFieldValue('serv_ciudad'),
-          serv_estado: result.estado ?? form.getFieldValue('serv_estado'),
-          _latitud: result.lat ?? undefined,
-          _longitud: result.lon ?? undefined,
+          serv_ciudad:  result.ciudad  ?? form.getFieldValue('serv_ciudad'),
+          serv_estado:  result.estado  ?? form.getFieldValue('serv_estado'),
+          serv_colonia: coloniaActual || result.colonia || undefined,
+          _latitud:     result.lat  ?? undefined,
+          _longitud:    result.lon  ?? undefined,
         });
+        if (result.lat && result.lon) {
+          setCoords({ lat: result.lat, lon: result.lon });
+        }
         message.success(`CP ${cp}: ${result.ciudad ?? '?'}, ${result.estado ?? '?'}`, 2);
       } else {
         message.warning(`No se encontró información para el CP ${cp}`, 3);
@@ -318,6 +336,39 @@ const ClienteRapidoModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
           {/* Latitud/Longitud ocultas — se rellenan desde Nominatim */}
           <Form.Item name="_latitud" hidden><Input /></Form.Item>
           <Form.Item name="_longitud" hidden><Input /></Form.Item>
+
+          {/* Feedback visual de coordenadas cuando Nominatim las devuelve */}
+          {coords && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginTop: -4,
+                marginBottom: 12,
+                padding: '6px 10px',
+                background: 'rgba(22,119,255,0.06)',
+                border: '1px solid rgba(22,119,255,0.2)',
+                borderRadius: 6,
+                fontSize: 12,
+                color: '#1677ff',
+              }}
+            >
+              <EnvironmentOutlined />
+              <span>
+                Geolocalizado: <strong>{coords.lat.toFixed(6)}</strong>,&nbsp;
+                <strong>{coords.lon.toFixed(6)}</strong>
+              </span>
+              <a
+                href={`https://www.google.com/maps?q=${coords.lat},${coords.lon}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ marginLeft: 'auto', fontSize: 11 }}
+              >
+                Ver en mapa ↗
+              </a>
+            </div>
+          )}
 
           <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: -8 }}>
             Podrás completar los datos fiscales y dirección de facturación desde el módulo de Clientes.
