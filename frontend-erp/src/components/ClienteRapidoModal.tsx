@@ -66,6 +66,7 @@ async function lookupCP(cp: string): Promise<NominatimResult> {
   });
   if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
   const data = await res.json();
+  console.log('[Nominatim] CP lookup raw response:', JSON.stringify(data, null, 2));
   if (!data || data.length === 0) return { ciudad: null, estado: null, colonia: null, lat: null, lon: null };
 
   const item = data[0];
