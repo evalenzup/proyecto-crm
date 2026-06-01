@@ -138,7 +138,7 @@ export default function App({ Component, pageProps }: AppProps) {
 // Helper para renderizar layout condicionalmente
 const RenderLayout = ({ Component, pageProps }: any) => {
   const router = useRouter();
-  const isPublicPage = router.pathname === '/login' || router.pathname.startsWith('/verificar');
+  const isPublicPage = router.pathname === '/login' || router.pathname.startsWith('/verificar') || router.pathname.startsWith('/p/');
 
   if (isPublicPage) {
     return <Component {...pageProps} />;

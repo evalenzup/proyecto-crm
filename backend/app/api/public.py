@@ -22,6 +22,73 @@ _TECNICOS_FOTOS_DIR = os.path.join(settings.DATA_DIR, "tecnicos_fotos")
 _LOGOS_DIR = os.path.join(settings.DATA_DIR, "logos")
 
 
+# ── Agenda pública ────────────────────────────────────────────────────────────
+
+class AgendaItemOut(BaseModel):
+    id: str
+    folio_os: str
+    fecha_programada: str
+    hora_inicio: str | None
+    hora_fin: str | None
+    estado: str
+    prioridad: str
+    cliente_nombre: str | None
+    tecnico_nombre: str | None
+    direccion_servicio: str | None
+    notas_tecnico: str | None
+
+
+@router.get("/agenda", response_model=dict)
+def agenda_publica(
+    empresa_id: UUID,
+    fecha: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve las órdenes de servicio del día para una empresa (sin auth).
+    Usado por la página pública de agenda para técnicos.
+    """
+    from datetime import date as date_type, datetime
+    from app.models.orden_servicio import OrdenServicio
+    from app.models.cliente import Cliente
+    from app.models.tecnico import Tecnico
+
+    # Fecha: hoy si no se especifica
+    try:
+        target_date = datetime.strptime(fecha, "%Y-%m-%d").date() if fecha else date_type.today()
+    except ValueError:
+        target_date = date_type.today()
+
+    rows = (
+        db.query(OrdenServicio)
+        .filter(
+            OrdenServicio.empresa_id == empresa_id,
+            OrdenServicio.fecha_programada == target_date,
+            OrdenServicio.activo == True,
+        )
+        .order_by(OrdenServicio.hora_inicio.asc().nullslast())
+        .all()
+    )
+
+    items = []
+    for o in rows:
+        items.append(AgendaItemOut(
+            id=str(o.id),
+            folio_os=o.folio_os,
+            fecha_programada=str(o.fecha_programada),
+            hora_inicio=str(o.hora_inicio)[:5] if o.hora_inicio else None,
+            hora_fin=str(o.hora_fin)[:5] if o.hora_fin else None,
+            estado=o.estado,
+            prioridad=o.prioridad,
+            cliente_nombre=o.cliente.nombre_comercial if o.cliente else None,
+            tecnico_nombre=o.tecnico.nombre_completo if o.tecnico else None,
+            direccion_servicio=o.direccion_servicio,
+            notas_tecnico=o.notas_tecnico,
+        ))
+
+    return {"items": items, "fecha": str(target_date), "total": len(items)}
+
+
 class VerificacionOut(BaseModel):
     id: str
     nombre_completo: str
