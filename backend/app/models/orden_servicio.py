@@ -2,7 +2,7 @@
 import uuid
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, ForeignKey,
-    Integer, Numeric, String, Text, Time,
+    Integer, Numeric, String, Text, Time, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -13,6 +13,9 @@ from app.models.base import Base
 
 class OrdenServicio(Base):
     __tablename__ = "ordenes_servicio"
+    __table_args__ = (
+        UniqueConstraint('folio_os', 'empresa_id', name='uq_os_folio_empresa'),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False, index=True)

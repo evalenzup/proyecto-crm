@@ -10,6 +10,7 @@ from sqlalchemy import (
     func,
     Enum as SQLAlchemyEnum,
     JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,6 +25,9 @@ class EstatusPago(str, enum.Enum):
 
 class Pago(Base):
     __tablename__ = "pagos"
+    __table_args__ = (
+        UniqueConstraint('folio', 'empresa_id', name='uq_pago_folio_empresa'),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     empresa_id = Column(
