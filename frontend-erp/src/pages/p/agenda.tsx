@@ -22,6 +22,11 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.sistemas-erp.c
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
+interface AgendaEmpresa {
+  nombre: string;
+  color: string;
+}
+
 interface AgendaItem {
   id: string;
   folio_os: string;
@@ -80,6 +85,7 @@ const PRIORIDAD_COLOR: Record<string, string> = {
 export default function AgendaPublica() {
   const router = useRouter();
   const [items, setItems] = useState<AgendaItem[]>([]);
+  const [empresa, setEmpresa] = useState<AgendaEmpresa | null>(null);
   const [loading, setLoading] = useState(true);
   const [fecha, setFecha] = useState('');
   const [empresaId, setEmpresaId] = useState('');
@@ -105,6 +111,7 @@ export default function AgendaPublica() {
         params: { empresa_id: eid, fecha: f },
       });
       setItems(data.items ?? []);
+      if (data.empresa) setEmpresa(data.empresa);
     } catch {
       setError(true);
     } finally {
@@ -141,7 +148,7 @@ export default function AgendaPublica() {
   return (
     <>
       <Head>
-        <title>Agenda del día</title>
+        <title>{empresa ? `Agenda · ${empresa.nombre}` : 'Agenda del día'}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <meta name="theme-color" content="#0a5c91" />
       </Head>
@@ -150,12 +157,14 @@ export default function AgendaPublica() {
 
         {/* ── Header ── */}
         <div style={{
-          background: 'linear-gradient(135deg, #0D2137 0%, #0a5c91 100%)',
+          background: empresa
+            ? `linear-gradient(135deg, ${empresa.color}dd 0%, ${empresa.color} 100%)`
+            : 'linear-gradient(135deg, #0D2137 0%, #0a5c91 100%)',
           padding: '16px 16px 20px',
           color: '#fff',
         }}>
           <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.7, marginBottom: 4 }}>
-            Agenda de servicios
+            {empresa ? empresa.nombre : 'Agenda de servicios'}
           </div>
 
           {/* Navegación de fecha */}

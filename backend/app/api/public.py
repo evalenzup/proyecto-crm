@@ -38,6 +38,11 @@ class AgendaItemOut(BaseModel):
     notas_tecnico: str | None
 
 
+class AgendaEmpresaOut(BaseModel):
+    nombre: str
+    color: str
+
+
 @router.get("/agenda", response_model=dict)
 def agenda_publica(
     empresa_id: UUID,
@@ -50,8 +55,12 @@ def agenda_publica(
     """
     from datetime import date as date_type, datetime
     from app.models.orden_servicio import OrdenServicio
-    from app.models.cliente import Cliente
-    from app.models.tecnico import Tecnico
+    from app.models.empresa import Empresa
+
+    # Verificar que la empresa existe
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
 
     # Fecha: hoy si no se especifica
     try:
@@ -86,7 +95,15 @@ def agenda_publica(
             notas_tecnico=o.notas_tecnico,
         ))
 
-    return {"items": items, "fecha": str(target_date), "total": len(items)}
+    return {
+        "items": items,
+        "fecha": str(target_date),
+        "total": len(items),
+        "empresa": AgendaEmpresaOut(
+            nombre=empresa.nombre_comercial or empresa.nombre,
+            color=empresa.color_credencial or "#0a5c91",
+        ),
+    }
 
 
 class VerificacionOut(BaseModel):
