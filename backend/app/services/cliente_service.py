@@ -74,9 +74,13 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
         if len(empresas_a_asociar) != len(obj_in.empresa_id):
             raise HTTPException(status_code=404, detail="Una o más empresas no existen")
 
+        # Deduplicar por nombre_comercial + rfc combinados.
+        # Mismo nombre con diferente RFC = clientes distintos (ej. escuelas con
+        # RFC genérico en una empresa vs. RFC real en otra).
         cliente_existente = (
             db.query(Cliente)
             .filter(Cliente.nombre_comercial == obj_in.nombre_comercial)
+            .filter(Cliente.rfc == obj_in.rfc)
             .first()
         )
 
