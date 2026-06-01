@@ -11,6 +11,7 @@ from sqlalchemy import (
     Date,
     Integer,
     Enum,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlalchemy.orm import relationship, backref
@@ -22,8 +23,12 @@ from app.models.base import Base
 class Presupuesto(Base):
     __tablename__ = "presupuestos"
 
+    __table_args__ = (
+        UniqueConstraint('folio', 'empresa_id', name='uq_presupuesto_folio_empresa'),
+    )
+
     id = Column(pgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    folio = Column(String, nullable=False, unique=True)
+    folio = Column(String, nullable=False)
     version = Column(Integer, nullable=False, default=1)
 
     empresa_id = Column(
