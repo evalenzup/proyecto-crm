@@ -35,6 +35,11 @@ DRIVE_FOLDER  = os.getenv("BACKUP_DRIVE_FOLDER", "1Q-ASbDZA2AMUQGh1bq78B8Fng2Zhy
 TOKEN_FILE    = os.getenv("BACKUP_TOKEN_FILE",   "/app/data/secrets/drive_token.json")
 KEEP_LAST     = int(os.getenv("BACKUP_KEEP",     "30"))
 TMP_DIR       = Path("/tmp/backups")
+DATA_DIR      = Path("/app/data")
+
+# Subcarpetas de data/ a respaldar (excluye secrets y logs)
+DATA_INCLUDE  = ["certificados", "cfdis", "logos", "tecnicos_fotos",
+                 "presupuestos_evidencia", "pagos_comprobantes"]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -118,6 +123,28 @@ def upload_to_drive(service, file_path: Path, folder_id: str) -> str:
     return uploaded["id"]
 
 
+def compress_data_folder(output_path: Path) -> Path:
+    """Comprime las subcarpetas críticas de /app/data en un tar.gz"""
+    import tarfile
+
+    gz_path = Path(str(output_path) + ".tar.gz")
+    log(f"Comprimiendo carpeta data/ → {gz_path.name}")
+
+    with tarfile.open(gz_path, "w:gz") as tar:
+        for folder_name in DATA_INCLUDE:
+            folder_path = DATA_DIR / folder_name
+            if folder_path.exists():
+                tar.add(str(folder_path), arcname=folder_name)
+                count = sum(1 for _ in folder_path.rglob("*") if _.is_file())
+                log(f"  + {folder_name}/ ({count} archivos)")
+            else:
+                log(f"  - {folder_name}/ (no existe, omitido)")
+
+    size_mb = gz_path.stat().st_size / 1_048_576
+    log(f"Archivo data listo: {gz_path.name} ({size_mb:.2f} MB)")
+    return gz_path
+
+
 def rotate_old_backups(service, folder_id: str, keep: int):
     """Elimina backups antiguos en Drive, conservando solo los últimos `keep`."""
     log(f"Revisando backups en Drive (conservar últimos {keep})")
@@ -144,20 +171,25 @@ def main():
     log("=== Inicio de backup ===")
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-    timestamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
-    dump_file  = TMP_DIR / f"backup_{DB_NAME}_{timestamp}.sql"
-    gz_file    = Path(str(dump_file) + ".gz")  # ruta conocida desde el inicio
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dump_file = TMP_DIR / f"backup_db_{DB_NAME}_{timestamp}.sql"
+    data_file = TMP_DIR / f"backup_data_{timestamp}"
+    gz_db     = Path(str(dump_file) + ".gz")
+    gz_data   = Path(str(data_file) + ".tar.gz")
 
     try:
-        # 1. Dump + compresión
-        gz_file = dump_database(dump_file)
-
-        # 2. Conectar a Drive y subir
         svc = drive_service()
-        upload_to_drive(svc, gz_file, DRIVE_FOLDER)
 
-        # 3. Rotar backups viejos
+        # 1. Backup de base de datos
+        log("--- Base de datos ---")
+        gz_db = dump_database(dump_file)
+        upload_to_drive(svc, gz_db, DRIVE_FOLDER)
         rotate_old_backups(svc, DRIVE_FOLDER, KEEP_LAST)
+
+        # 2. Backup de archivos (certificados, cfdis, logos, etc.)
+        log("--- Archivos data/ ---")
+        gz_data = compress_data_folder(data_file)
+        upload_to_drive(svc, gz_data, DRIVE_FOLDER)
 
         log("=== Backup completado exitosamente ===")
 
@@ -166,10 +198,10 @@ def main():
         sys.exit(1)
 
     finally:
-        # Limpiar archivos temporales
-        if gz_file.exists():
-            gz_file.unlink()
-            log("Archivo temporal eliminado")
+        for f in [gz_db, gz_data]:
+            if f.exists():
+                f.unlink()
+        log("Archivos temporales eliminados")
 
 
 if __name__ == "__main__":
