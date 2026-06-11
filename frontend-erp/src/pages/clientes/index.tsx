@@ -7,7 +7,7 @@ import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOu
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useClienteList } from '@/hooks/useClienteList'; // Importamos el hook
 import { ClienteOut, clienteService } from '@/services/clienteService'; // Importamos la interfaz ClienteOut
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -137,14 +137,11 @@ const ClientesPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Clientes</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space>
-            <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
+      <PageHeader
+        title="Clientes"
+        extra={
+          <>
+            <Button icon={<FileExcelOutlined />} onClick={handleExport}>
               Exportar
             </Button>
             <Button
@@ -154,9 +151,9 @@ const ClientesPage: React.FC = () => {
             >
               Agregar
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>

@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
   Button,
@@ -26,7 +27,6 @@ import {
 import type { MenuProps } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, FilePdfOutlined, DownOutlined, UploadOutlined, PaperClipOutlined, FileDoneOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd/es/upload/interface';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePresupuestoForm } from '@/hooks/usePresupuestoForm';
 import { formatCurrency } from '@/utils/format';
 import { PresupuestoDetalle } from '@/models/presupuesto';
@@ -215,12 +215,7 @@ const PresupuestoFormPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{presupuestoId ? `Presupuesto: ${presupuesto?.folio || ''}` : 'Nuevo Presupuesto'}</h1>
-        </div>
-      </div>
+      <PageHeader title="{presupuestoId ? `Presupuesto: ${presupuesto?.folio || ''}` : 'Nuevo Presupuesto'}" />
       <div className="app-content">
 
         {/* Version Selector outside the form */}

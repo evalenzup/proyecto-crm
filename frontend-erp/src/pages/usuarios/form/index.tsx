@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
     Form, Input, Button, Card, Select, Switch, message,
     Spin, Row, Col, Checkbox, Divider, Typography,
 } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usuarioService, UsuarioCreate, UsuarioUpdate } from '@/services/usuarioService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { useAuth } from '@/context/AuthContext';
@@ -148,12 +148,7 @@ const UsuarioFormPage: React.FC = () => {
 
     return (
         <>
-            <div className="app-page-header">
-                <div className="app-page-header__left">
-                    <Breadcrumbs />
-                    <h1 className="app-title">{isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}</h1>
-                </div>
-            </div>
+            <PageHeader title="{isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}" />
             <div className="app-content">
                 <Card>
                     {loading && isEditing ? (

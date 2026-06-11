@@ -1,6 +1,7 @@
 // pages/agenda/index.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Calendar,
   Tag,
@@ -27,7 +28,6 @@ import {
 import type { CalendarProps } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/es';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import OrdenServicioModal from '@/components/OrdenServicioModal';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import ordenServicioService, {
@@ -356,13 +356,10 @@ export default function AgendaPage() {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Agenda</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space wrap>
+      <PageHeader
+        title="Agenda"
+        extra={
+          <>
             <Select
               placeholder="Filtrar por estado"
               allowClear
@@ -410,9 +407,9 @@ export default function AgendaPage() {
             >
               Nueva Orden
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="app-content">
         <Spin spinning={loading}>

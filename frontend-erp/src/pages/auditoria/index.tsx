@@ -16,7 +16,7 @@ import {
   Grid,
 } from 'antd';
 import { SearchOutlined, AuditOutlined } from '@ant-design/icons';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import {
   getAuditoria,
   AuditoriaLog,
@@ -236,15 +236,14 @@ const AuditoriaPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">
+      <PageHeader
+        title={
+          <>
             <AuditOutlined style={{ marginRight: 8 }} />
             Auditoría
-          </h1>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 4 }}>

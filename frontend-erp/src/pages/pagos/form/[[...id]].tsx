@@ -22,7 +22,7 @@ import {
   Radio,
   Popconfirm,
 } from 'antd';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { formatDate, formatDateOnly } from '@/utils/formatDate';
 import { usePagoForm } from '@/hooks/usePagoForm';
 import { FacturaPendiente } from '@/services/pagoService';
@@ -243,15 +243,14 @@ const PagoFormPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{id ? 'Editar Pago' : 'Nuevo Pago'}</h1>
-        </div>
-        <div className="app-page-header__right">
-          {getStatusTag()}
-        </div>
-      </div>
+      <PageHeader
+        title="{id ? 'Editar Pago' : 'Nuevo Pago'}"
+        extra={
+          <>
+            {getStatusTag()}
+          </>
+        }
+      />
 
       <div className="app-content">
         <Form form={form} layout="vertical" onFinish={onFinish} disabled={isTimbrado}>

@@ -3,10 +3,10 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePagosList } from '@/hooks/usePagosList';
 import { PagoRow, timbrarPago, exportPagosExcel } from '@/services/pagoService';
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -177,13 +177,10 @@ const PagosIndexPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Complementos de Pago</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space wrap>
+      <PageHeader
+        title="Complementos de Pago"
+        extra={
+          <>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push('/pagos/form')}>
               Nuevo Pago
             </Button>
@@ -193,9 +190,9 @@ const PagosIndexPage: React.FC = () => {
             <Button icon={<ReloadOutlined />} onClick={() => fetchPagos()}>
               Recargar
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 0 } }} style={{ marginTop: 4 }}>
           <div

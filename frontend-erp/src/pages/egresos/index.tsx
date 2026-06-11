@@ -1,9 +1,9 @@
 // src/pages/egresos/index.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Card, Pagination, Tooltip, theme, Grid } from 'antd';
 import { PlusOutlined, EditOutlined, PaperClipOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { getEgresos, Egreso, getEgresoEnums, exportEgresosExcel, searchProveedores } from '@/services/egresoService';
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
@@ -276,13 +276,10 @@ const EgresosListPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Egresos</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space>
+      <PageHeader
+        title="Egresos"
+        extra={
+          <>
             <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
               Exportar
             </Button>
@@ -293,9 +290,9 @@ const EgresosListPage: React.FC = () => {
             >
               Nuevo Egreso
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 4 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: screens.lg ? '4px' : '8px', background: token.colorBgContainer }}>

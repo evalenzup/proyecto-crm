@@ -10,7 +10,7 @@ import {
   PlayCircleOutlined, PauseOutlined, CarryOutOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import {
@@ -227,21 +227,20 @@ const ProgramacionFacturasPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Programación de Facturas</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Button
+      <PageHeader
+        title="Programación de Facturas"
+        extra={
+          <>
+            <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => router.push('/programacion-facturas/form')}
           >
             Nueva Programación
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>

@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
   Image,
@@ -40,7 +41,6 @@ import {
 import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs, { Dayjs } from 'dayjs';
 import api from '@/lib/axios';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import {
   unidadService,
@@ -707,12 +707,7 @@ const UnidadForm: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{isEditing ? 'Editar Unidad' : 'Nueva Unidad'}</h1>
-        </div>
-      </div>
+      <PageHeader title="{isEditing ? 'Editar Unidad' : 'Nueva Unidad'}" />
 
       <div className="app-content">
         <Form

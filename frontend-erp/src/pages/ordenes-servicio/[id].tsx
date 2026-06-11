@@ -24,7 +24,7 @@ import {
   EnvironmentOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import ordenServicioService, {
   OrdenServicioOut,
   EstadoOS,
@@ -99,26 +99,25 @@ export default function OrdenServicioDetalle() {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">
+      <PageHeader
+        title={
+          <>
             {data.folio_os}
             <Space size={8} style={{ marginLeft: 12, fontWeight: 'normal', fontSize: 14 }}>
               <Tag color={ESTADO_COLOR[data.estado]}>{ESTADO_LABEL[data.estado]}</Tag>
               <Tag color={PRIORIDAD_COLOR[data.prioridad]}>{data.prioridad}</Tag>
             </Space>
-          </h1>
-        </div>
-        <div className="app-page-header__right">
+          </>
+        }
+        extra={
           <Button
             icon={<EditOutlined />}
             onClick={() => router.push(`/ordenes-servicio/form/${data.id}`)}
           >
             Editar
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="app-content">
       <Row gutter={16}>

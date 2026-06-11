@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
   Input,
@@ -13,7 +14,6 @@ import {
   Space,
   Typography,
 } from 'antd';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useProductoServicioForm } from '@/hooks/useProductoServicioForm'; // Importamos el hook
 import { TipoProductoServicio } from '@/services/productoServicioService';
@@ -132,12 +132,7 @@ const FormularioProductoServicio: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{id ? 'Editar Producto/Servicio' : 'Nuevo Producto/Servicio'}</h1>
-        </div>
-      </div>
+      <PageHeader title="{id ? 'Editar Producto/Servicio' : 'Nuevo Producto/Servicio'}" />
       <div className="app-content">
         <Card>
           {metadata && (

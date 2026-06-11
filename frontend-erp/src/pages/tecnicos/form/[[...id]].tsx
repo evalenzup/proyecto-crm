@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
   Image,
@@ -33,7 +34,6 @@ import {
   FilePdfOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import {
   tecnicoService,
@@ -276,12 +276,7 @@ const PersonalForm: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{isEditing ? 'Modificar personal' : 'Nuevo personal'}</h1>
-        </div>
-      </div>
+      <PageHeader title="{isEditing ? 'Modificar personal' : 'Nuevo personal'}" />
 
       <div className="app-content">
         <Form

@@ -19,7 +19,7 @@ import {
   message,
   Popconfirm,
 } from 'antd';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useEgresoForm } from '@/hooks/useEgresoForm';
 import { SaveOutlined, ArrowLeftOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -128,10 +128,7 @@ const EgresoFormPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <Breadcrumbs />
-        <h1 className="app-title">{id ? 'Editar Egreso' : 'Nuevo Egreso'}</h1>
-      </div>
+      <PageHeader title={id ? 'Editar Egreso' : 'Nuevo Egreso'} />
 
       <div className="app-content">
         <Form form={form} layout="vertical" onFinish={onFinish}>

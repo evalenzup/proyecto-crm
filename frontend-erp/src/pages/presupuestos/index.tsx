@@ -2,12 +2,12 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import { Table, Button, Dropdown, Space, Tag, Modal, Form, Input, Card, Grid, theme, Select, DatePicker, Upload, Spin } from 'antd';
 import type { MenuProps } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined, ReloadOutlined, SearchOutlined, FileDoneOutlined, MoreOutlined, TagOutlined, UploadOutlined, FilePdfOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { usePresupuestoList } from '@/hooks/usePresupuestoList';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { PresupuestoSimpleOut } from '@/services/presupuestoService';
@@ -247,22 +247,19 @@ const PresupuestosPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Presupuestos</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space wrap>
+      <PageHeader
+        title="Presupuestos"
+        extra={
+          <>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push('/presupuestos/form')}>
               Nuevo Presupuesto
             </Button>
             <Button icon={<ReloadOutlined />} onClick={() => fetchPresupuestos()}>
               Recargar
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginTop: 4 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '8px', marginBottom: 8, background: token.colorBgContainer, borderRadius: 8, boxShadow: token.boxShadowSecondary }}>

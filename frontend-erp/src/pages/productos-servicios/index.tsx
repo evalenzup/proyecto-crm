@@ -7,7 +7,7 @@ import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useProductoServicioList } from '@/hooks/useProductoServicioList'; // Importamos el hook
 import { ProductoServicioOut, TipoProductoServicio, productoServicioService } from '@/services/productoServicioService'; // Importamos la interfaz ProductoServicioOut
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -100,21 +100,20 @@ const ProductosServiciosPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Productos y Servicios</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Button
+      <PageHeader
+        title="Productos y Servicios"
+        extra={
+          <>
+            <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => router.push('/productos-servicios/form')}
           >
             Agregar
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>

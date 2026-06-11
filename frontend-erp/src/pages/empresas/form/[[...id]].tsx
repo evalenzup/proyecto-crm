@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import { empresaService } from '@/services/empresaService';
 import {
   Form, Input, Select, Button, Spin, Card, message, Space, Typography, Alert, Upload, Descriptions, Tag, ColorPicker, Row, Col,
@@ -9,7 +10,6 @@ import {
 import type { UploadFile } from 'antd';
 import { UploadOutlined, DownloadOutlined, FilePdfOutlined, CalendarOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '@/lib/axios';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import LogoCropperModal from '@/components/LogoCropperModal';
 import EmailConfigModal from '@/components/EmailConfigModal';
@@ -473,12 +473,7 @@ const EmpresaFormPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{id ? 'Editar Empresa' : 'Nueva Empresa'}</h1>
-        </div>
-      </div>
+      <PageHeader title="{id ? 'Editar Empresa' : 'Nueva Empresa'}" />
 
       <div className="app-content">
         <Card>

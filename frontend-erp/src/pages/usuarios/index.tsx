@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { Table, Button, Popconfirm, Space, Tag, message, Tooltip } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { usuarioService, Usuario } from '@/services/usuarioService';
 import { useAuth } from '@/context/AuthContext';
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -103,21 +103,20 @@ const UsuariosPage: React.FC = () => {
 
     return (
         <>
-            <div className="app-page-header">
-                <div className="app-page-header__left">
-                    <Breadcrumbs />
-                    <h1 className="app-title">Gestión de Usuarios</h1>
-                </div>
-                <div className="app-page-header__right">
-                    <Button
+            <PageHeader
+        title="Gestión de Usuarios"
+        extra={
+          <>
+            <Button
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => router.push('/usuarios/form')}
                     >
                         Agregar Usuario
                     </Button>
-                </div>
-            </div>
+          </>
+        }
+      />
             <div className="app-content" ref={containerRef}>
                 <Table<Usuario>
                     rowKey="id"

@@ -25,7 +25,7 @@ import {
 } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { unidadService, UnidadOut, TipoUnidad } from '@/services/unidadService';
@@ -212,21 +212,20 @@ const UnidadesPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Unidades</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Button
+      <PageHeader
+        title="Unidades"
+        extra={
+          <>
+            <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => router.push('/unidades/form')}
           >
             Agregar
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
           <div

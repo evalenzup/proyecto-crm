@@ -6,7 +6,7 @@ import { Table, message, Button, Popconfirm, Space, Tooltip, Input, Card, theme 
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { EmpresaOut } from '@/services/empresaService'; // Usamos la interfaz del servicio
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useEmpresasList } from '@/hooks/useEmpresasList'; // Importamos el hook
 import { useAuth } from '@/context/AuthContext';
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -66,13 +66,11 @@ const EmpresasPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Empresas</h1>
-        </div>
-        <div className="app-page-header__right">
-          {(user?.rol === 'superadmin' || user?.rol === 'admin') && (
+      <PageHeader
+        title="Empresas"
+        extra={
+          <>
+            {(user?.rol === 'superadmin' || user?.rol === 'admin') && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -81,8 +79,9 @@ const EmpresasPage: React.FC = () => {
               Agregar
             </Button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>

@@ -12,7 +12,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { debounce } from 'lodash';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import {
   programacionFacturaService,
@@ -282,15 +282,11 @@ const ProgramacionFacturaForm: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">
-            {isEdit ? 'Editar Programación' : 'Nueva Programación de Factura'}
-          </h1>
-        </div>
-        <div className="app-page-header__right">
-          <Button onClick={() => router.back()}>Cancelar</Button>
+      <PageHeader
+        title="{isEdit ? 'Editar Programación' : 'Nueva Programación de Factura'}"
+        extra={
+          <>
+            <Button onClick={() => router.back()}>Cancelar</Button>
           <Button
             type="primary"
             icon={<SaveOutlined />}
@@ -299,8 +295,9 @@ const ProgramacionFacturaForm: React.FC = () => {
           >
             {isEdit ? 'Guardar cambios' : 'Crear programación'}
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="app-content">
         <Form form={form} layout="vertical" onFinish={onFinish} disabled={loading}>

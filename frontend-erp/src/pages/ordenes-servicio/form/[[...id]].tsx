@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
   Input,
@@ -24,7 +25,6 @@ import { SaveOutlined, UserAddOutlined } from '@ant-design/icons';
 import ClienteRapidoModal from '@/components/ClienteRapidoModal';
 import debounce from 'lodash/debounce';
 import dayjs from 'dayjs';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import ordenServicioService, {
   OrdenServicioOut,
@@ -331,14 +331,7 @@ const OrdenServicioForm: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">
-            {isNew ? 'Nueva Orden de Servicio' : `Editar ${record?.folio_os ?? 'Orden'}`}
-          </h1>
-        </div>
-      </div>
+      <PageHeader title="{isNew ? 'Nueva Orden de Servicio' : `Editar ${record?.folio_os ?? 'Orden'}`}" />
 
       <div className="app-content">
         {record && (

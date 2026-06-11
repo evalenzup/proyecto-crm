@@ -1,6 +1,7 @@
 // src/pages/clientes/form/[[...id]].tsx
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form, Input, Select, Button, Spin, Card, Space, Typography,
   message, Divider, Modal, Alert, Tag, Upload, Popconfirm,
@@ -10,7 +11,6 @@ import {
   MinusCircleOutlined, PlusOutlined, FilePdfOutlined,
   DeleteOutlined, EnvironmentOutlined,
 } from '@ant-design/icons';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
 import { getRegimenesFiscales } from '@/services/facturaService';
@@ -117,12 +117,7 @@ const ClienteFormPage: React.FC = () => {
       </Modal>
 
       {/* ── Header ── */}
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{id ? 'Editar Cliente' : 'Nuevo Cliente'}</h1>
-        </div>
-      </div>
+      <PageHeader title="{id ? 'Editar Cliente' : 'Nuevo Cliente'}" />
 
       <div className="app-content">
         <Form form={form} layout="vertical" onFinish={onFinish}>

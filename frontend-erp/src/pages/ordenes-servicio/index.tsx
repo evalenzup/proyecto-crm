@@ -1,6 +1,7 @@
 // pages/ordenes-servicio/index.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Table,
   Button,
@@ -26,7 +27,6 @@ import {
 } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import ordenServicioService, {
@@ -232,13 +232,10 @@ const OrdenesServicioPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Órdenes de Servicio</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space wrap>
+      <PageHeader
+        title="Órdenes de Servicio"
+        extra={
+          <>
             <Button
               icon={<CalendarOutlined />}
               onClick={() => router.push('/agenda')}
@@ -252,9 +249,9 @@ const OrdenesServicioPage: React.FC = () => {
             >
               Nueva Orden
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="app-content" ref={containerRef}>
         {/* Filtros */}

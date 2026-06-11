@@ -6,7 +6,7 @@ import { useRouter } from 'next/router';
 import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useFacturasList } from '@/hooks/useFacturasList';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { FacturaRow, exportFacturasExcel, duplicarFactura } from '@/services/facturaService';
@@ -201,25 +201,22 @@ const FacturasIndexPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">Facturas</h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space wrap>
+      <PageHeader
+        title="Facturas"
+        extra={
+          <>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push('/facturas/form')}>
               Nueva factura
             </Button>
-            <Button icon={<FileExcelOutlined />} style={{ color: 'green', borderColor: 'green' }} onClick={handleExport}>
+            <Button icon={<FileExcelOutlined />} onClick={handleExport}>
               Exportar
             </Button>
             <Button icon={<ReloadOutlined />} onClick={() => fetchFacturas()}>
               Recargar
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="app-content" ref={containerRef}>
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginTop: 4 }}>
           <div

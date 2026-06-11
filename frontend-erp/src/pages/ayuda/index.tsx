@@ -5,7 +5,7 @@ import { Card, Typography, Button, Modal, Divider, FloatButton } from 'antd';
 import { BookOutlined, FileTextOutlined, ArrowUpOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -38,21 +38,20 @@ const ManualUsuarioPage: React.FC<ManualProps> = ({ manualOperativo, manualRapid
 
     return (
         <>
-            <div className="app-page-header">
-                <div className="app-page-header__left">
-                    <Breadcrumbs />
-                    <h1 className="app-title">Manual de Usuario</h1>
-                </div>
-                <div className="app-page-header__right">
-                    <Button
+            <PageHeader
+        title="Manual de Usuario"
+        extra={
+          <>
+            <Button
                         type="primary"
                         icon={<BookOutlined />}
                         onClick={() => setIsModalOpen(true)}
                     >
                         Ver Guía Rápida (Resumen)
                     </Button>
-                </div>
-            </div>
+          </>
+        }
+      />
 
             <div className="app-content">
                 <Card

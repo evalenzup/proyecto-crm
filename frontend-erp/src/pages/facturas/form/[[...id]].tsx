@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
   Input,
@@ -52,7 +53,6 @@ import {
   sendPreviewEmail,
   duplicarFactura,
 } from '@/services/facturaService';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
 import { TipoProductoServicio } from '@/services/productoServicioService';
@@ -278,12 +278,7 @@ const FacturaFormPage: React.FC = () => {
   return (
     <>
       {/* Encabezado idéntico */}
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">{id ? 'Editar Factura' : 'Nueva Factura'}</h1>
-        </div>
-      </div>
+      <PageHeader title="{id ? 'Editar Factura' : 'Nueva Factura'}" />
 
       <div className="app-content">
         <Card>

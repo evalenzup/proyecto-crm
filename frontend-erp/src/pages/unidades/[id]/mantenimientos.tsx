@@ -23,7 +23,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import {
   unidadService,
   MantenimientoOut,
@@ -240,10 +240,9 @@ const MantenimientosPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">
+      <PageHeader
+        title={
+          <>
             Mantenimientos
             {unidad && (
               <Text type="secondary" style={{ fontSize: '0.65em', marginLeft: 8 }}>
@@ -251,10 +250,10 @@ const MantenimientosPage: React.FC = () => {
                 {unidad.placa ? ` — ${unidad.placa}` : ''}
               </Text>
             )}
-          </h1>
-        </div>
-        <div className="app-page-header__right">
-          <Space>
+          </>
+        }
+        extra={
+          <>
             <Button
               icon={<ArrowLeftOutlined />}
               onClick={() => router.push('/unidades')}
@@ -268,9 +267,9 @@ const MantenimientosPage: React.FC = () => {
             >
               Registrar Mantenimiento
             </Button>
-          </Space>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="app-content" ref={containerRef}>
         {unidad && (

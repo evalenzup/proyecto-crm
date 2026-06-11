@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
   Input,
@@ -16,7 +17,6 @@ import {
   Space,
   Typography,
 } from 'antd';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import {
   servicioOperativoService,
@@ -163,14 +163,7 @@ const ServicioOperativoForm: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">
-            {id ? 'Editar Servicio Operativo' : 'Nuevo Servicio Operativo'}
-          </h1>
-        </div>
-      </div>
+      <PageHeader title="{id ? 'Editar Servicio Operativo' : 'Nuevo Servicio Operativo'}" />
       <div className="app-content">
         <Card>
           {record && (

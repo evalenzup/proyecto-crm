@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Card, Row, Col, Typography, Statistic, Tag, Button, Tooltip, message, Modal, Form, Input } from 'antd';
 import { DollarOutlined, SolutionOutlined, CommentOutlined, WarningOutlined, FilePdfOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
-import { Breadcrumbs } from '@/components/Breadcrumb';
 import { AgingReportResponse, ClienteAging } from '@/types/cobranza';
 import { getAgingReport, fetchEstadoCuentaBlob, sendEstadoCuentaEmail } from '@/services/cobranzaService';
 import Notas from '@/components/Cobranza/Notas';
@@ -9,6 +8,7 @@ import CobranzaDashboard from '@/components/Cobranza/Dashboard';
 import { formatCurrency } from '@/utils/format';
 
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
+import { PageHeader } from '@/components/PageHeader';
 
 const { Title, Text } = Typography;
 
@@ -198,12 +198,7 @@ const CobranzaPage: React.FC = () => {
 
     return (
         <>
-            <div className="app-page-header">
-                <div className="app-page-header__left">
-                    <Breadcrumbs />
-                    <h1 className="app-title">Cobranza y Antigüedad de Saldos</h1>
-                </div>
-            </div>
+            <PageHeader title="Cobranza y Antigüedad de Saldos" />
             <div className="app-content">
 
             <CobranzaDashboard data={data} loading={loading} />

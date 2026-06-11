@@ -15,7 +15,7 @@ import {
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useQuery } from '@tanstack/react-query';
-import { Breadcrumbs } from '@/components/Breadcrumb';
+import { PageHeader } from '@/components/PageHeader';
 import { useEmpresaContext } from '@/context/EmpresaContext';
 import {
   reportesService,
@@ -970,15 +970,14 @@ const ReportesPage: React.FC = () => {
 
   return (
     <>
-      <div className="app-page-header">
-        <div className="app-page-header__left">
-          <Breadcrumbs />
-          <h1 className="app-title">
+      <PageHeader
+        title={
+          <>
             <BarChartOutlined style={{ marginRight: 8 }} />
             Reportes
-          </h1>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="app-content">
         <Tabs
