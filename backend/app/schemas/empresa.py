@@ -27,7 +27,7 @@ class EmpresaBase(BaseModel):
     archivo_cer: Optional[str] = Field(None, title="Archivo CER")
     archivo_key: Optional[str] = Field(None, title="Archivo KEY")
     logo: Optional[str] = Field(None, title="Logo")
-    color_credencial: Optional[str] = Field(None, max_length=7, title="Color de Credencial (hex)")
+    color_empresa: Optional[str] = Field(None, max_length=7, title="Color de empresa (hex)")
 
     # Datos Bancarios
     nombre_banco: Optional[str] = Field(None, title="Nombre del Banco")

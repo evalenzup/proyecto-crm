@@ -324,12 +324,13 @@ const EmpresaFormPage: React.FC = () => {
   const renderField = (key: string, prop: any) => {
     const required = schema.required?.includes(key);
 
-    if (key === 'color_credencial') {
+    if (key === 'color_empresa') {
       return (
         <Form.Item
           key={key}
-          label={prop.title || 'Color de Credencial'}
+          label={prop.title || 'Color de empresa'}
           name={key}
+          tooltip="Se usa en credenciales, agenda pública y el color del sistema"
           getValueFromEvent={(color: any) => color.toHexString()}
         >
           <ColorPicker format="hex" showText />

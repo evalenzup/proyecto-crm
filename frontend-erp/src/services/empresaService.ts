@@ -20,6 +20,7 @@ export interface EmpresaOut {
   archivo_cer?: string;
   archivo_key?: string;
   logo?: string;
+  color_empresa?: string;
 
   // Datos Bancarios
   nombre_banco?: string;

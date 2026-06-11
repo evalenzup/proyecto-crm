@@ -346,7 +346,7 @@ def descargar_credencial(
         empresa_nombre=empresa.nombre_comercial or empresa.nombre,
         empresa_rfc=empresa.rfc,
         qr_data=qr_data,
-        color_hex=empresa.color_credencial or "#1a6b3a",
+        color_hex=empresa.color_empresa or "#1a6b3a",
         nss=tecnico.nss,
         rfc_personal=tecnico.rfc,
         area=tecnico.area,

@@ -111,7 +111,7 @@ def agenda_publica(
         "total": len(items),
         "empresa": AgendaEmpresaOut(
             nombre=empresa.nombre_comercial or empresa.nombre,
-            color=empresa.color_credencial or "#0a5c91",
+            color=empresa.color_empresa or "#0a5c91",
         ),
     }
 
@@ -151,7 +151,7 @@ def verificar_tecnico(tecnico_id: UUID, db: Session = Depends(get_db)):
         puesto=tecnico.puesto,
         activo=tecnico.activo,
         empresa_nombre=empresa.nombre_comercial or empresa.nombre,
-        empresa_color=empresa.color_credencial or "#1a6b3a",
+        empresa_color=empresa.color_empresa or "#1a6b3a",
     )
 
 

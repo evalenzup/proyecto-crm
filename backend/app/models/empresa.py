@@ -37,7 +37,7 @@ class Empresa(Base):
     archivo_cer = Column(String(255), nullable=True)
     archivo_key = Column(String(255), nullable=True)
     logo = Column(String(255), nullable=True)
-    color_credencial = Column(String(7), nullable=True, default="#1a6b3a")
+    color_empresa = Column(String(7), nullable=True, default="#1a6b3a")
 
     # Token rotable para la URL pública de agenda.
     # Distinto del id de empresa — se puede rotar sin cambiar el UUID.

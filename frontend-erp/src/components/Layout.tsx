@@ -111,7 +111,7 @@ const RightContent: React.FC = () => {
         {user && (
           <Dropdown menu={{ items }}>
             <Space style={{ cursor: 'pointer' }}>
-              <Avatar style={{ backgroundColor: '#1890ff' }} icon={<UserOutlined />} />
+              <Avatar style={{ backgroundColor: 'var(--ant-color-primary)' }} icon={<UserOutlined />} />
               <span style={{ color: 'var(--ant-color-text)' }}>
                 {user.nombre_completo || user.email}
               </span>
@@ -335,10 +335,23 @@ export const Layout: React.FC<{
     }
   };
 
+  // Logo dinámico basado en la empresa seleccionada
+  const { selectedEmpresaId, setSelectedEmpresaId, empresas, isAdmin } = useEmpresaSelector();
+
+  // Color de marca de la empresa activa → color primario de toda la interfaz
+  const empresaColor = useMemo(() => {
+    const empresa = empresas.find(e => e.id === selectedEmpresaId);
+    return empresa?.color_empresa || '#1a6b3a';
+  }, [empresas, selectedEmpresaId]);
+
   const themeConfig = useMemo(
     () => ({
       algorithm,
+      cssVar: true,
       token: {
+        colorPrimary: empresaColor,
+        colorInfo: empresaColor,
+        colorLink: empresaColor,
         padding: 12,
         paddingLG: 16,
         paddingSM: 8,
@@ -346,11 +359,8 @@ export const Layout: React.FC<{
         fontSize: fontSize,
       },
     }),
-    [algorithm, fontSize]
+    [algorithm, fontSize, empresaColor]
   );
-
-  // Logo dinámico basado en la empresa seleccionada
-  const { selectedEmpresaId, setSelectedEmpresaId, empresas, isAdmin } = useEmpresaSelector();
   const [logoUrl, setLogoUrl] = useState<string>('/logo-empresa.png');
 
   useEffect(() => {
@@ -554,7 +564,7 @@ export const Layout: React.FC<{
             >
               {user && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Avatar style={{ backgroundColor: '#1890ff' }} icon={<UserOutlined />} />
+                  <Avatar style={{ backgroundColor: 'var(--ant-color-primary)' }} icon={<UserOutlined />} />
                   <div style={{ flex: 1, overflow: 'hidden' }}>
                     <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {user.nombre_completo || 'Usuario'}
@@ -601,7 +611,7 @@ export const Layout: React.FC<{
                           padding: '4px 0',
                           fontSize: '0.9em',
                           // Usar colores del tema actual si es posible, o fallback
-                          backgroundColor: fontSize === opt.val ? (mode === 'dark' ? '#177ddc' : '#1890ff') : 'transparent',
+                          backgroundColor: fontSize === opt.val ? ('var(--ant-color-primary)') : 'transparent',
                           color: fontSize === opt.val ? '#fff' : 'inherit',
                           border: '1px solid var(--ant-color-border, #d9d9d9)',
                           borderRightWidth: opt.val === 18 ? 1 : 0, // Ultimo item tiene borde
