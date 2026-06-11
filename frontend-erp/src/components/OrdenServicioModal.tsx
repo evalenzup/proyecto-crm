@@ -23,6 +23,7 @@ import {
   ClockCircleOutlined,
   ExportOutlined,
   EnvironmentOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import ordenServicioService, {
@@ -48,14 +49,16 @@ interface Props {
   ordenId: string | null;       // null = cerrado
   onClose: () => void;
   onEstadoChanged?: () => void; // para refrescar la agenda tras cambio de estado
+  onDeleted?: () => void;       // para refrescar la agenda tras eliminar
 }
 
-export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }: Props) {
+export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged, onDeleted }: Props) {
   const router = useRouter();
 
   const [data, setData]                       = useState<OrdenServicioOut | null>(null);
   const [loading, setLoading]                 = useState(false);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [eliminando, setEliminando]           = useState(false);
   const [nuevoEstado, setNuevoEstado]         = useState<EstadoOS | null>(null);
   const [notasCierre, setNotasCierre]         = useState('');
 
@@ -97,6 +100,30 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }
     } finally {
       setCambiandoEstado(false);
     }
+  };
+
+  const handleEliminar = () => {
+    if (!ordenId || !data) return;
+    Modal.confirm({
+      title: `¿Eliminar la orden ${data.folio_os}?`,
+      content: 'Esta acción no se puede deshacer.',
+      okText: 'Sí, eliminar',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        setEliminando(true);
+        try {
+          await ordenServicioService.delete(ordenId);
+          message.success('Orden eliminada');
+          onClose();
+          onDeleted?.();
+        } catch (err: any) {
+          if (!err?._handled) message.error(err?.response?.data?.detail ?? 'Error al eliminar la orden');
+        } finally {
+          setEliminando(false);
+        }
+      },
+    });
   };
 
   // Muestra todos los estados excepto el actual
@@ -283,22 +310,32 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged }
             </>
           )}
 
-          {/* ── Footer: ir a página completa / editar ── */}
+          {/* ── Footer: ir a página completa / editar / eliminar ── */}
           <Divider style={{ marginTop: 12, marginBottom: 12 }} />
-          <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
             <Button
-              icon={<ExportOutlined />}
-              onClick={() => router.push(`/ordenes-servicio/${data.id}`)}
+              danger
+              icon={<DeleteOutlined />}
+              loading={eliminando}
+              onClick={handleEliminar}
             >
-              Ver página completa
+              Eliminar
             </Button>
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={() => router.push(`/ordenes-servicio/form/${data.id}`)}
-            >
-              Editar
-            </Button>
+            <Space>
+              <Button
+                icon={<ExportOutlined />}
+                onClick={() => router.push(`/ordenes-servicio/${data.id}`)}
+              >
+                Ver página completa
+              </Button>
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={() => router.push(`/ordenes-servicio/form/${data.id}`)}
+              >
+                Editar
+              </Button>
+            </Space>
           </Space>
         </>
       )}

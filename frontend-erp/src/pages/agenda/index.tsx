@@ -193,16 +193,18 @@ export default function AgendaPage() {
 
   // ── Vista mensual: click en día → ir a vista diaria ─────────────────────────
 
-  const handleDateSelect = (date: Dayjs) => {
-    // Siempre navega a la vista diaria del día seleccionado
-    setQuery({
-      view: 'day',
-      fecha: date.format('YYYY-MM-DD'),
-    });
+  const handleDateSelect = (date: Dayjs, info: { source: string }) => {
+    // Solo navega a vista diaria cuando el usuario hace clic en un día concreto.
+    // Ant Design también dispara onSelect al navegar entre meses (source='nav' o
+    // 'month'/'year') — en esos casos solo actualizamos el mes sin cambiar la vista.
+    if (info.source === 'date') {
+      setQuery({ view: 'day', fecha: date.format('YYYY-MM-DD') });
+    }
   };
 
   const handlePanelChange = (date: Dayjs) => {
-    setQuery({ fecha: date.format('YYYY-MM-DD') });
+    // Actualiza la fecha en la URL para que el mes visible persista y se recarguen datos.
+    setQuery({ fecha: date.startOf('month').format('YYYY-MM-DD') });
   };
 
   // ── Vista diaria: datos del día ─────────────────────────────────────────────
@@ -269,17 +271,25 @@ export default function AgendaPage() {
       return am - bm;
     });
 
-    const formatHora = (h?: string | null) => h ? h.slice(0, 5) : '—';
+    /** Escapa caracteres HTML especiales antes de interpolar en document.write. */
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;')
+       .replace(/</g, '&lt;')
+       .replace(/>/g, '&gt;')
+       .replace(/"/g, '&quot;')
+       .replace(/'/g, '&#39;');
+
+    const formatHora = (h?: string | null) => h ? esc(h.slice(0, 5)) : '—';
     const rows = sorted.map((o) => `
       <tr>
         <td style="white-space:nowrap">
           ${formatHora(o.hora_inicio)}${o.hora_fin ? ` – ${formatHora(o.hora_fin)}` : ''}
         </td>
-        <td>${o.cliente_nombre ?? '—'}</td>
-        <td>${o.tecnico_nombre ?? '—'}</td>
+        <td>${esc(o.cliente_nombre ?? '—')}</td>
+        <td>${esc(o.tecnico_nombre ?? '—')}</td>
         <td style="font-size:12px">
-          ${o.direccion_servicio ?? '—'}
-          ${o.notas_tecnico ? `<div style="margin-top:4px;color:#0a5c91;font-style:italic;font-size:11px">📝 ${o.notas_tecnico}</div>` : ''}
+          ${esc(o.direccion_servicio ?? '—')}
+          ${o.notas_tecnico ? `<div style="margin-top:4px;color:#0a5c91;font-style:italic;font-size:11px">📝 ${esc(o.notas_tecnico)}</div>` : ''}
         </td>
       </tr>
     `).join('');
@@ -410,6 +420,7 @@ export default function AgendaPage() {
           {/* ── Vista mensual ── */}
           {viewMode === 'month' && (
             <Calendar
+              value={selectedDate}
               cellRender={cellRender}
               onSelect={handleDateSelect}
               onPanelChange={handlePanelChange}
@@ -634,6 +645,12 @@ export default function AgendaPage() {
         ordenId={modalOrdenId}
         onClose={() => setModalOrdenId(null)}
         onEstadoChanged={() => {
+          fetchRange(
+            selectedDate.format('YYYY-MM-DD'),
+            selectedDate.format('YYYY-MM-DD')
+          );
+        }}
+        onDeleted={() => {
           fetchRange(
             selectedDate.format('YYYY-MM-DD'),
             selectedDate.format('YYYY-MM-DD')
