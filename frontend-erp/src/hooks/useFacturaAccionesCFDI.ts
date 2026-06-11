@@ -154,7 +154,14 @@ export const useFacturaAccionesCFDI = ({
         if (result.estatus_nuevo !== 'EN_CANCELACION') setFechaSolicitudCancelacion(null);
         message.success(`Estado actualizado: ${result.estatus_anterior} → ${result.estatus_nuevo}`);
       } else {
-        message.info(`Sin cambios. SAT reporta: ${result.sat_estado} — ${result.sat_estatus_cancelacion || 'sin estatus de cancelación'}`);
+        const cancelMsg = result.sat_estatus_cancelacion || '';
+        let infoMsg = `SAT reporta: ${result.sat_estado}`;
+        if (cancelMsg) {
+          infoMsg += ` — ${cancelMsg}`;
+        } else if (result.sat_estado === 'Vigente' && result.sat_es_cancelable?.includes('aceptación')) {
+          infoMsg = 'Solicitud de cancelación en espera de aceptación del receptor. El SAT la aplicará automáticamente si no responden.';
+        }
+        message.info(infoMsg, 6);
       }
     } catch (e: any) {
       if (!e?._handled) message.error(normalizeHttpError(e) || 'Error al consultar el SAT');

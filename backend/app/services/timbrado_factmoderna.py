@@ -882,14 +882,29 @@ class FacturacionModernaPAC:
             f"[PAC SOAP Cancel] HTTP {resp.status_code}\n{soap_log}"
         )
         if resp.status_code >= 400:
-            # FIX: Si es 500 pero el mensaje dice "cola", lo tratamos como éxito parcial
-            is_cola = "cola" in soap_txt.lower()
-            if not is_cola:
+            soap_lower = soap_txt.lower()
+            # "cola" = en proceso; "previa" = ya existe solicitud en SAT → ambos son EN_CANCELACION
+            is_pendiente = "cola" in soap_lower or "previa" in soap_lower or "solicitud de cancelacion" in soap_lower
+            if not is_pendiente:
                 raise RuntimeError(
                     f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
                 )
-            # Si es cola, dejamos pasar para que el parseo de abajo intente leer el Fault
-            # o construimos una respuesta dummy si el parseo falla.
+            # Si hay solicitud previa o está en cola, marcamos EN_CANCELACION y salimos
+            if "previa" in soap_lower or "solicitud de cancelacion" in soap_lower:
+                from datetime import datetime as _dt
+                f.estatus = "EN_CANCELACION"
+                if not f.fecha_solicitud_cancelacion:
+                    f.fecha_solicitud_cancelacion = _dt.utcnow()
+                db.add(f)
+                db.commit()
+                db.refresh(f)
+                return {
+                    "estatus": f.estatus,
+                    "uuid": uuid,
+                    "code": "202",
+                    "message": "El UUID tiene una solicitud de cancelación previa en el SAT.",
+                }
+            # Si es solo "cola", dejamos pasar para que el parseo de abajo lo lea
 
         try:
             root = fromstring(resp.content)
