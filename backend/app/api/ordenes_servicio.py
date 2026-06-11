@@ -9,7 +9,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
@@ -23,6 +23,7 @@ from app.schemas.orden_servicio import (
     OrdenServicioUpdate,
 )
 from app.services import orden_servicio_service as svc
+from app.services import auditoria_service as audit_svc
 
 router = APIRouter()
 
@@ -112,13 +113,24 @@ def obtener_orden(
 
 @router.post("", response_model=OrdenServicioOut, status_code=201)
 def crear_orden(
+    request: Request,
     empresa_id: Optional[UUID] = Query(None),
     data: OrdenServicioCreate = ...,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     eid = _resolve_empresa_id(empresa_id, current_user, db)
-    return svc.create_orden(db, empresa_id=eid, data=data, usuario_id=current_user.id)
+    obj = svc.create_orden(db, empresa_id=eid, data=data, usuario_id=current_user.id)
+    audit_svc.registrar(
+        db=db, accion=audit_svc.CREAR_ORDEN_SERVICIO, entidad="orden_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=eid, entidad_id=str(obj.id),
+        ip=audit_svc.get_ip(request),
+        detalle={"folio_os": obj.folio_os, "fecha": str(obj.fecha_programada), "estado": obj.estado},
+    )
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 # ── Actualizar ────────────────────────────────────────────────────────────────
@@ -126,11 +138,22 @@ def crear_orden(
 @router.put("/{orden_id}", response_model=OrdenServicioOut)
 def actualizar_orden(
     orden_id: UUID,
+    request: Request,
     data: OrdenServicioUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return svc.update_orden(db, orden_id=orden_id, data=data, usuario_id=current_user.id)
+    obj = svc.update_orden(db, orden_id=orden_id, data=data, usuario_id=current_user.id)
+    audit_svc.registrar(
+        db=db, accion=audit_svc.ACTUALIZAR_ORDEN_SERVICIO, entidad="orden_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(orden_id),
+        ip=audit_svc.get_ip(request),
+        detalle={"folio_os": obj.folio_os, **data.model_dump(exclude_unset=True)},
+    )
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 # ── Cambio de estado ──────────────────────────────────────────────────────────
@@ -138,11 +161,22 @@ def actualizar_orden(
 @router.patch("/{orden_id}/estado", response_model=OrdenServicioOut)
 def cambiar_estado(
     orden_id: UUID,
+    request: Request,
     payload: CambioEstadoOS,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return svc.cambiar_estado(db, orden_id=orden_id, payload=payload, usuario_id=current_user.id)
+    obj = svc.cambiar_estado(db, orden_id=orden_id, payload=payload, usuario_id=current_user.id)
+    audit_svc.registrar(
+        db=db, accion=audit_svc.CAMBIAR_ESTADO_ORDEN_SERVICIO, entidad="orden_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(orden_id),
+        ip=audit_svc.get_ip(request),
+        detalle={"folio_os": obj.folio_os, "nuevo_estado": payload.estado, "notas": payload.notas},
+    )
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 # ── Eliminar (soft) ───────────────────────────────────────────────────────────
@@ -150,7 +184,16 @@ def cambiar_estado(
 @router.delete("/{orden_id}", status_code=204)
 def eliminar_orden(
     orden_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    obj = svc.get_orden(db, orden_id)
+    audit_svc.registrar(
+        db=db, accion=audit_svc.ELIMINAR_ORDEN_SERVICIO, entidad="orden_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(orden_id),
+        ip=audit_svc.get_ip(request),
+        detalle={"folio_os": obj.folio_os, "estado": obj.estado},
+    )
     svc.delete_orden(db, orden_id)
