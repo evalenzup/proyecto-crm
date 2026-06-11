@@ -34,10 +34,20 @@ const EgresoFormPage: React.FC = () => {
   } = useEgresoForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
 
-  // Helper para obtener la URL base (sin /api)
-  const getBaseUrl = () => {
-    const apiUrl = api.defaults.baseURL || '';
-    return apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+  /** Descarga un archivo de egreso via endpoint autenticado y lo abre en nueva pestaña. */
+  const onPreviewArchivoEgreso = async (file: UploadFile) => {
+    const ruta = file.url; // guardamos la ruta relativa en `url` solo como identificador
+    if (!ruta) return;
+    try {
+      const { data } = await api.get(`/egresos/archivo?ruta=${encodeURIComponent(ruta)}`, {
+        responseType: 'blob',
+      });
+      const blobUrl = URL.createObjectURL(data);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
+    } catch {
+      message.error('No se pudo abrir el archivo');
+    }
   };
 
   const handleDelete = async () => {
@@ -58,7 +68,7 @@ const EgresoFormPage: React.FC = () => {
           uid: '-1',
           name: egreso.path_documento.split('/').pop() || 'documento',
           status: 'done',
-          url: `${getBaseUrl()}/data/${egreso.path_documento}`,
+          url: egreso.path_documento, // ruta relativa — usada por onPreviewArchivoEgreso
         },
       ]);
     }
@@ -111,6 +121,7 @@ const EgresoFormPage: React.FC = () => {
       form.setFieldsValue({ path_documento: null });
       return true;
     },
+    onPreview: onPreviewArchivoEgreso,
   };
 
   if (loading) return <Spin style={{ margin: 48 }} />;
@@ -176,7 +187,8 @@ const EgresoFormPage: React.FC = () => {
                   <Upload
                     maxCount={1}
                     accept=".xml"
-                    defaultFileList={egreso?.archivo_xml ? [{ uid: '-1', name: egreso.archivo_xml.split('/').pop() || 'xml', status: 'done', url: `${getBaseUrl()}/data/${egreso.archivo_xml}` }] : []}
+                    defaultFileList={egreso?.archivo_xml ? [{ uid: '-1', name: egreso.archivo_xml.split('/').pop() || 'xml', status: 'done', url: egreso.archivo_xml }] : []}
+                    onPreview={onPreviewArchivoEgreso}
                     customRequest={makeCustomRequest(
                       (path) => form.setFieldsValue({ archivo_xml: path }),
                     )}
@@ -219,7 +231,8 @@ const EgresoFormPage: React.FC = () => {
                   <Upload
                     maxCount={1}
                     accept=".pdf"
-                    defaultFileList={egreso?.archivo_pdf ? [{ uid: '-2', name: egreso.archivo_pdf.split('/').pop() || 'pdf', status: 'done', url: `${getBaseUrl()}/data/${egreso.archivo_pdf}` }] : []}
+                    defaultFileList={egreso?.archivo_pdf ? [{ uid: '-2', name: egreso.archivo_pdf.split('/').pop() || 'pdf', status: 'done', url: egreso.archivo_pdf }] : []}
+                    onPreview={onPreviewArchivoEgreso}
                     customRequest={makeCustomRequest(
                       (path) => form.setFieldsValue({ archivo_pdf: path }),
                     )}

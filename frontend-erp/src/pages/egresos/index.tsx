@@ -18,6 +18,20 @@ import dayjs from 'dayjs';
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
+/** Descarga un archivo de egreso via endpoint autenticado y lo abre en nueva pestaña. */
+const abrirArchivoEgreso = async (ruta: string) => {
+  try {
+    const { data } = await api.get(`/egresos/archivo?ruta=${encodeURIComponent(ruta)}`, {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(data);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  } catch {
+    message.error('No se pudo abrir el archivo');
+  }
+};
+
 const EgresosListPage: React.FC = () => {
   const router = useRouter();
   const { containerRef, tableY } = useTableHeight();
@@ -235,11 +249,7 @@ const EgresosListPage: React.FC = () => {
             <Tooltip title="Ver XML">
               <Button
                 icon={<FileExcelOutlined />} // Usar icono apropiado
-                onClick={() => {
-                  const apiUrl = api.defaults.baseURL || '';
-                  const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
-                  window.open(`${baseUrl}/data/${record.archivo_xml}`, '_blank');
-                }}
+                onClick={() => abrirArchivoEgreso(record.archivo_xml!)}
               />
             </Tooltip>
           )}
@@ -247,11 +257,7 @@ const EgresosListPage: React.FC = () => {
             <Tooltip title="Ver PDF">
               <Button
                 icon={<FilePdfOutlined style={{ color: 'red' }} />} // Icono PDF en rojo (estilo Acrobat)
-                onClick={() => {
-                  const apiUrl = api.defaults.baseURL || '';
-                  const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
-                  window.open(`${baseUrl}/data/${record.archivo_pdf}`, '_blank');
-                }}
+                onClick={() => abrirArchivoEgreso(record.archivo_pdf!)}
               />
             </Tooltip>
           )}
@@ -259,11 +265,7 @@ const EgresosListPage: React.FC = () => {
             <Tooltip title="Ver Documento">
               <Button
                 icon={<PaperClipOutlined />}
-                onClick={() => {
-                  const apiUrl = api.defaults.baseURL || '';
-                  const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
-                  window.open(`${baseUrl}/data/${record.path_documento}`, '_blank');
-                }}
+                onClick={() => abrirArchivoEgreso(record.path_documento!)}
               />
             </Tooltip>
           )}

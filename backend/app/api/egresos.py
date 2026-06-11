@@ -1,6 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
@@ -31,6 +31,34 @@ class EgresoPageOut(BaseModel):
 
 _EGRESOS_ALLOWED_EXTS = frozenset({".pdf", ".xml", ".jpg", ".jpeg", ".png"})
 _EGRESOS_MAX_BYTES    = 10 * 1024 * 1024  # 10 MB
+
+
+@router.get("/archivo")
+def descargar_archivo_egreso(
+    ruta: str = Query(..., description="Ruta relativa del archivo (ej: egresos/uuid.pdf)"),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Descarga autenticada de un archivo de egreso. Solo sirve archivos dentro de data/egresos/."""
+    import mimetypes
+
+    _EGRESOS_DIR = os.path.realpath(os.path.join(settings.DATA_DIR, "egresos"))
+
+    # Normaliza: acepta rutas con o sin prefijo "egresos/"
+    clean = ruta.lstrip("/")
+    if clean.startswith("egresos/"):
+        clean = clean[len("egresos/"):]
+
+    resolved = os.path.realpath(os.path.join(_EGRESOS_DIR, clean))
+
+    # Guardia de path traversal
+    if not resolved.startswith(_EGRESOS_DIR + os.sep):
+        raise HTTPException(status_code=400, detail="Ruta inválida")
+
+    if not os.path.isfile(resolved):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    mime, _ = mimetypes.guess_type(resolved)
+    return FileResponse(resolved, media_type=mime or "application/octet-stream")
 
 
 @router.post("/upload-documento/", response_model=dict)

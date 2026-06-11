@@ -70,8 +70,22 @@ const TIPOS_UNIDAD: { value: TipoUnidad; label: string }[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/$/, '');
-const docUrl = (filename: string | null | undefined, dir: string) =>
-  filename ? `${API_BASE.replace('/api', '')}/data/${dir}/${filename}` : null;
+
+/** Abre un documento de unidad via endpoint autenticado (evita exposición de /data sin auth). */
+const abrirDocUnidad = async (filename: string) => {
+  try {
+    const { data } = await api.get(
+      `${API_BASE}/unidades/docs/archivo?ruta=${encodeURIComponent(filename)}`,
+      { responseType: 'blob' },
+    );
+    const url = URL.createObjectURL(data);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  } catch {
+    // message import may not exist at module level; use console as fallback
+    console.error('No se pudo abrir el documento');
+  }
+};
 
 function toDateValue(v: string | null | undefined): Dayjs | null {
   return v ? dayjs(v) : null;
@@ -143,16 +157,17 @@ interface DocUploadProps {
 }
 
 const DocUpload: React.FC<DocUploadProps> = ({ label, filename, onUpload, onDelete, uploading }) => {
-  const url = docUrl(filename, 'unidades_docs');
   return (
     <Space>
-      {url ? (
+      {filename ? (
         <>
-          <a href={url} target="_blank" rel="noreferrer">
-            <Button icon={<FilePdfOutlined />} size="small">
-              {filename?.slice(0, 20)}…
-            </Button>
-          </a>
+          <Button
+            icon={<FilePdfOutlined />}
+            size="small"
+            onClick={() => abrirDocUnidad(filename)}
+          >
+            {filename?.slice(0, 20)}…
+          </Button>
           <Popconfirm title={`¿Eliminar ${label}?`} onConfirm={onDelete} okText="Sí" cancelText="No">
             <Button danger size="small" icon={<DeleteOutlined />} loading={uploading}>
               Eliminar
@@ -603,14 +618,15 @@ const UnidadForm: React.FC = () => {
       width: 160,
       render: (_: any, row: PolizaSeguroOut) => {
         if (!id) return null;
-        const rowDocUrl = docUrl(row.documento, 'unidades_docs');
         return (
           <Space size="small">
-            {rowDocUrl ? (
+            {row.documento ? (
               <>
-                <a href={rowDocUrl} target="_blank" rel="noreferrer">
-                  <Button size="small" icon={<FilePdfOutlined />} />
-                </a>
+                <Button
+                  size="small"
+                  icon={<FilePdfOutlined />}
+                  onClick={() => abrirDocUnidad(row.documento!)}
+                />
                 <Popconfirm
                   title="¿Eliminar documento?"
                   onConfirm={() => handleDocPolizaDelete(row.id)}
