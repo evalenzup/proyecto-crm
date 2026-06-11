@@ -7,6 +7,7 @@ import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, For
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
+import { SkeletonTable } from '@/components/SkeletonTable';
 import { useFacturasList } from '@/hooks/useFacturasList';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { FacturaRow, exportFacturasExcel, duplicarFactura } from '@/services/facturaService';
@@ -286,6 +287,9 @@ const FacturasIndexPage: React.FC = () => {
             </Space>
           </div>
 
+          {loading && rows.length === 0 ? (
+          <SkeletonTable />
+          ) : (
           <Table<FacturaRow>
             size="small"
             rowKey="id"
@@ -316,6 +320,7 @@ const FacturasIndexPage: React.FC = () => {
             )}
             locale={{ emptyText: 'No hay facturas' }}
           />
+          )}
         </Card>
       </div>
       <Modal

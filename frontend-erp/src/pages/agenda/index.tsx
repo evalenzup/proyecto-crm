@@ -621,12 +621,22 @@ export default function AgendaPage() {
                   {timedOrdenes.length === 0 && allDayOrdenes.length === 0 && (
                     <div style={{
                       position: 'absolute', top: '50%', left: '50%',
-                      transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none',
+                      transform: 'translate(-50%, -50%)', textAlign: 'center',
                     }}>
                       <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                         description={<span style={{ color: token.colorTextTertiary }}>Sin órdenes para este día</span>}
-                      />
+                      >
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined />}
+                          onClick={() =>
+                            router.push(`/ordenes-servicio/form/nuevo?fecha=${selectedDate.format('YYYY-MM-DD')}`)
+                          }
+                        >
+                          Crear orden para este día
+                        </Button>
+                      </Empty>
                     </div>
                   )}
                 </div>

@@ -8,6 +8,7 @@ import { debounce } from 'lodash';
 import { Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
+import { SkeletonTable } from '@/components/SkeletonTable';
 import { useClienteList } from '@/hooks/useClienteList'; // Importamos el hook
 import { ClienteOut, clienteService } from '@/services/clienteService'; // Importamos la interfaz ClienteOut
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -193,22 +194,26 @@ const ClientesPage: React.FC = () => {
           </div>
         </Card>
 
-        <Table<ClienteOut>
-          rowKey="id"
-          columns={columns}
-          dataSource={clientes}
-          loading={loading}
-          virtual
-          scroll={{ x: 1000, y: tableY }}
-          pagination={{
-            current: currentPage,
-            pageSize: pageSize,
-            total: total,
-            onChange: handlePageChange,
-            showSizeChanger: true,
-          }}
-          locale={{ emptyText: "No hay clientes" }}
-        />
+        {loading && clientes.length === 0 ? (
+          <SkeletonTable />
+        ) : (
+          <Table<ClienteOut>
+            rowKey="id"
+            columns={columns}
+            dataSource={clientes}
+            loading={loading}
+            virtual
+            scroll={{ x: 1000, y: tableY }}
+            pagination={{
+              current: currentPage,
+              pageSize: pageSize,
+              total: total,
+              onChange: handlePageChange,
+              showSizeChanger: true,
+            }}
+            locale={{ emptyText: 'No hay clientes' }}
+          />
+        )}
       </div>
     </>
   );

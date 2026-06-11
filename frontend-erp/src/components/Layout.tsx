@@ -30,7 +30,7 @@ import {
   CalendarOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
-import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography, Select, Modal, Form, Input, message } from 'antd';
+import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography, Select, Modal, Form, Input, message, Empty } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { Breadcrumbs } from './Breadcrumb';
 import { NotificationBell } from './NotificationBell';
@@ -441,7 +441,17 @@ export const Layout: React.FC<{
   }, [user]);
 
   return (
-    <ConfigProvider theme={themeConfig} locale={esES}>
+    <ConfigProvider
+      theme={themeConfig}
+      locale={esES}
+      renderEmpty={() => (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="Sin registros"
+          style={{ padding: '24px 0' }}
+        />
+      )}
+    >
       <OfflineBanner />
       <ProLayout
         title={false}
