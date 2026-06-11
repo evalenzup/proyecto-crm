@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from fastapi.responses import StreamingResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -13,6 +14,9 @@ from app.catalogos_sat.regimenes_fiscales import REGIMENES_FISCALES_SAT
 
 from app.database import get_db
 from app.models.empresa import Empresa
+from app.models.factura import Factura
+from app.models.orden_servicio import OrdenServicio
+from app.models.presupuestos import Presupuesto
 from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate, ClienteVincular
 from app.services.cliente_service import cliente_repo
 from app.api import deps
@@ -328,6 +332,24 @@ def eliminar_cliente(
             raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     _empresa_id = cliente.empresas[0].id if cliente.empresas else current_user.empresa_id
+
+    # Verificar registros dependientes antes de intentar borrar
+    n_ordenes     = db.query(OrdenServicio).filter(OrdenServicio.cliente_id == id).count()
+    n_facturas    = db.query(Factura).filter(Factura.cliente_id == id).count()
+    n_presupuestos = db.query(Presupuesto).filter(Presupuesto.cliente_id == id).count()
+
+    bloqueantes = []
+    if n_ordenes:     bloqueantes.append(f"{n_ordenes} orden(es) de servicio")
+    if n_facturas:    bloqueantes.append(f"{n_facturas} factura(s)")
+    if n_presupuestos: bloqueantes.append(f"{n_presupuestos} presupuesto(s)")
+
+    if bloqueantes:
+        raise HTTPException(
+            status_code=409,
+            detail=f"No se puede eliminar el cliente porque tiene registros asociados: {', '.join(bloqueantes)}. "
+                   "Elimina o reasigna esos registros primero.",
+        )
+
     try:
         audit_svc.registrar(
             db=db, accion=audit_svc.ELIMINAR_CLIENTE, entidad="cliente",
@@ -337,7 +359,16 @@ def eliminar_cliente(
         )
     except Exception:
         pass
-    cliente_repo.remove(db, id=id)
+
+    try:
+        cliente_repo.remove(db, id=id)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar el cliente porque tiene registros asociados en el sistema.",
+        )
+
     return Response(status_code=204)
 
 @router.post("/{id}/vincular", status_code=200)
