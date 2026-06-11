@@ -22,6 +22,15 @@ _TECNICOS_FOTOS_DIR = os.path.join(settings.DATA_DIR, "tecnicos_fotos")
 _LOGOS_DIR = os.path.join(settings.DATA_DIR, "logos")
 
 
+def _safe_path(base_dir: str, filename: str) -> str:
+    """Verifica que filename no escape de base_dir mediante secuencias '../'."""
+    base = os.path.realpath(base_dir)
+    resolved = os.path.realpath(os.path.join(base, filename))
+    if not resolved.startswith(base + os.sep):
+        raise HTTPException(status_code=400, detail="Ruta de archivo inválida")
+    return resolved
+
+
 # ── Agenda pública ────────────────────────────────────────────────────────────
 
 class AgendaItemOut(BaseModel):
@@ -45,22 +54,23 @@ class AgendaEmpresaOut(BaseModel):
 
 @router.get("/agenda", response_model=dict)
 def agenda_publica(
-    empresa_id: UUID,
+    agenda_token: str,
     fecha: str | None = None,
     db: Session = Depends(get_db),
 ):
     """
     Devuelve las órdenes de servicio del día para una empresa (sin auth).
-    Usado por la página pública de agenda para técnicos.
+    Requiere el token rotable de agenda — distinto del UUID de empresa.
+    Usado por la página pública de agenda para técnicos de campo.
     """
     from datetime import date as date_type, datetime
     from app.models.orden_servicio import OrdenServicio
     from app.models.empresa import Empresa
 
-    # Verificar que la empresa existe
-    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    # Buscar empresa por token (no por UUID — el token es el único secreto)
+    empresa = db.query(Empresa).filter(Empresa.agenda_token == agenda_token).first()
     if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        raise HTTPException(status_code=404, detail="Enlace de agenda inválido")
 
     # Fecha: hoy si no se especifica
     try:
@@ -71,7 +81,7 @@ def agenda_publica(
     rows = (
         db.query(OrdenServicio)
         .filter(
-            OrdenServicio.empresa_id == empresa_id,
+            OrdenServicio.empresa_id == empresa.id,
             OrdenServicio.fecha_programada == target_date,
             OrdenServicio.activo == True,
         )
@@ -114,16 +124,22 @@ class VerificacionOut(BaseModel):
     puesto: str | None
     activo: bool
     empresa_nombre: str
-    empresa_id: str
+    # empresa_id eliminado — no es necesario para verificación y reducía la superficie de ataque
     empresa_color: str
 
 
 @router.get("/tecnicos/{tecnico_id}/verificar", response_model=VerificacionOut)
 def verificar_tecnico(tecnico_id: UUID, db: Session = Depends(get_db)):
-    """Devuelve datos públicos de verificación del técnico (sin auth)."""
+    """Devuelve datos públicos de verificación del técnico (sin auth).
+    Solo responde para técnicos activos — los dados de baja devuelven 404.
+    """
     from app.models.tecnico import Tecnico
     tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
     if not tecnico:
+        raise HTTPException(status_code=404, detail="Técnico no encontrado")
+
+    # VULN-006: ex-empleados no deben ser verificables
+    if not tecnico.activo:
         raise HTTPException(status_code=404, detail="Técnico no encontrado")
 
     empresa = tecnico.empresa
@@ -135,9 +151,21 @@ def verificar_tecnico(tecnico_id: UUID, db: Session = Depends(get_db)):
         puesto=tecnico.puesto,
         activo=tecnico.activo,
         empresa_nombre=empresa.nombre_comercial or empresa.nombre,
-        empresa_id=str(empresa.id),
         empresa_color=empresa.color_credencial or "#1a6b3a",
     )
+
+
+@router.get("/tecnicos/{tecnico_id}/logo-empresa")
+def logo_empresa_via_tecnico(tecnico_id: UUID, db: Session = Depends(get_db)):
+    """Logo de la empresa del técnico — evita exponer empresa_id en la respuesta de /verificar."""
+    from app.models.tecnico import Tecnico
+    tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id, Tecnico.activo == True).first()
+    if not tecnico:
+        raise HTTPException(status_code=404, detail="Técnico no encontrado")
+    path = os.path.join(_LOGOS_DIR, f"{tecnico.empresa_id}.png")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Logo no encontrado")
+    return FileResponse(path, media_type="image/png")
 
 
 @router.get("/tecnicos/{tecnico_id}/foto")
@@ -147,7 +175,7 @@ def foto_publica_tecnico(tecnico_id: UUID, db: Session = Depends(get_db)):
     tecnico = db.query(Tecnico).filter(Tecnico.id == tecnico_id).first()
     if not tecnico or not tecnico.foto:
         raise HTTPException(status_code=404, detail="Sin foto")
-    path = os.path.join(_TECNICOS_FOTOS_DIR, tecnico.foto)
+    path = _safe_path(_TECNICOS_FOTOS_DIR, tecnico.foto)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     return FileResponse(path, media_type="image/jpeg")

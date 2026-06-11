@@ -17,8 +17,8 @@ interface VerificacionData {
   puesto: string | null;
   activo: boolean;
   empresa_nombre: string;
-  empresa_id: string;
   empresa_color: string;
+  // empresa_id eliminado — no se expone en el endpoint público
 }
 
 const TIPO_LABEL: Record<string, string> = {
@@ -63,10 +63,10 @@ export default function VerificarTecnico() {
         );
         setData(info);
 
-        // Cargar foto y logo en paralelo (ignoran si no existen)
+        // Cargar foto y logo en paralelo — el logo se obtiene por tecnico_id, sin exponer empresa_id
         const [fotoRes, logoRes] = await Promise.allSettled([
           axios.get(`${API_BASE}/public/tecnicos/${id}/foto`, { responseType: 'blob' }),
-          axios.get(`${API_BASE}/public/empresas/${info.empresa_id}/logo`, { responseType: 'blob' }),
+          axios.get(`${API_BASE}/public/tecnicos/${id}/logo-empresa`, { responseType: 'blob' }),
         ]);
         if (fotoRes.status === 'fulfilled') setFotoUrl(URL.createObjectURL(fotoRes.value.data));
         if (logoRes.status === 'fulfilled') setLogoUrl(URL.createObjectURL(logoRes.value.data));

@@ -391,6 +391,29 @@ def actualizar_empresa(
     return result
 
 
+@router.post("/{id}/rotar-agenda-token", response_model=EmpresaOut, summary="Rotar token de agenda pública")
+def rotar_agenda_token(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Genera un nuevo token de agenda para la empresa, invalidando el anterior."""
+    import secrets
+    if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN, RolUsuario.SUPERVISOR):
+        raise HTTPException(status_code=403, detail="Sin permisos para rotar el token de agenda")
+    # Supervisores solo pueden rotar su propia empresa
+    if current_user.rol == RolUsuario.SUPERVISOR and current_user.empresa_id != id:
+        raise HTTPException(status_code=403, detail="Solo puedes rotar el token de tu propia empresa")
+    empresa = empresa_repo.get(db, id=id)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    empresa.agenda_token = secrets.token_hex(32)
+    db.add(empresa)
+    db.commit()
+    db.refresh(empresa)
+    return empresa
+
+
 @router.delete("/{id}", status_code=204, summary="Eliminar empresa")
 def eliminar_empresa(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(deps.get_current_active_user)):
     if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN):

@@ -1,5 +1,6 @@
 # app/models/empresa.py
-from sqlalchemy import Column, String, Text, TIMESTAMP
+from sqlalchemy import Column, String, Text, TIMESTAMP, UniqueConstraint
+import secrets as _secrets
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -37,6 +38,15 @@ class Empresa(Base):
     archivo_key = Column(String(255), nullable=True)
     logo = Column(String(255), nullable=True)
     color_credencial = Column(String(7), nullable=True, default="#1a6b3a")
+
+    # Token rotable para la URL pública de agenda.
+    # Distinto del id de empresa — se puede rotar sin cambiar el UUID.
+    agenda_token = Column(
+        String(64),
+        nullable=False,
+        unique=True,
+        default=lambda: _secrets.token_hex(32),
+    )
 
     # Datos Bancarios
     nombre_banco = Column(String(100), nullable=True)

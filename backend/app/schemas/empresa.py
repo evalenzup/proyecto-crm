@@ -52,6 +52,7 @@ class EmpresaOut(EmpresaBase):
     clientes: Optional[List[ClienteSimpleOut]] = Field(None, title="Clientes")
     # contrasena del CSD excluida intencionalmente — no se expone en respuestas de API
     tiene_config_email: bool = Field(False, title="¿Tiene configuración de email?")
+    agenda_token: Optional[str] = Field(None, title="Token de agenda pública")
 
     class Config:
         orm_mode = True

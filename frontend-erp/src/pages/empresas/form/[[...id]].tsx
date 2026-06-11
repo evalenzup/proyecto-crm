@@ -7,7 +7,8 @@ import {
   Form, Input, Select, Button, Spin, Card, message, Space, Typography, Alert, Upload, Descriptions, Tag, ColorPicker, Row, Col,
 } from 'antd';
 import type { UploadFile } from 'antd';
-import { UploadOutlined, DownloadOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { UploadOutlined, DownloadOutlined, FilePdfOutlined, CalendarOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons';
+import api from '@/lib/axios';
 import { Breadcrumbs } from '@/components/Breadcrumb';
 import { formatDate } from '@/utils/formatDate';
 import LogoCropperModal from '@/components/LogoCropperModal';
@@ -56,6 +57,8 @@ const EmpresaFormPage: React.FC = () => {
 
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailConfig, setEmailConfig] = useState<any | null>(null);
+  const [agendaToken, setAgendaToken] = useState<string | null>(null);
+  const [rotandoToken, setRotandoToken] = useState(false);
 
   const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
@@ -104,6 +107,7 @@ const EmpresaFormPage: React.FC = () => {
 
         form.setFieldsValue(initial);
         setMetadata({ creado_en: data.creado_en, actualizado_en: data.actualizado_en });
+        if ((data as any).agenda_token) setAgendaToken((data as any).agenda_token);
 
         const cerOk = data.archivo_cer
           ? await empresaService.getCertificadoBlob(data.archivo_cer).then(() => true).catch(() => false)
@@ -570,6 +574,62 @@ const EmpresaFormPage: React.FC = () => {
                 />
               )}
             </Card>
+
+            {/* ── Agenda pública ── */}
+            {id && (
+              <Card size="small" style={{ marginTop: 16 }}>
+                <Space align="center" style={{ marginBottom: 8 }}>
+                  <CalendarOutlined />
+                  <Text strong>Enlace de Agenda Pública</Text>
+                </Space>
+                <div style={{ marginBottom: 8 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Comparte este enlace con tus técnicos para que vean la agenda del día sin necesidad de iniciar sesión.
+                    Puedes rotarlo en cualquier momento para invalidar el enlace anterior.
+                  </Text>
+                </div>
+                {agendaToken ? (
+                  <Space wrap>
+                    <Text code copyable style={{ fontSize: 11 }}>
+                      {`${typeof window !== 'undefined' ? window.location.origin : ''}/p/agenda?agenda_token=${agendaToken}`}
+                    </Text>
+                    <Button
+                      size="small"
+                      icon={<CopyOutlined />}
+                      onClick={() => {
+                        const url = `${window.location.origin}/p/agenda?agenda_token=${agendaToken}`;
+                        navigator.clipboard.writeText(url);
+                        message.success('Enlace copiado');
+                      }}
+                    >
+                      Copiar
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      loading={rotandoToken}
+                      danger
+                      onClick={async () => {
+                        setRotandoToken(true);
+                        try {
+                          const { data } = await api.post(`/empresas/${id}/rotar-agenda-token`);
+                          setAgendaToken(data.agenda_token);
+                          message.success('Token rotado — el enlace anterior ya no funciona');
+                        } catch {
+                          message.error('Error al rotar el token');
+                        } finally {
+                          setRotandoToken(false);
+                        }
+                      }}
+                    >
+                      Rotar token
+                    </Button>
+                  </Space>
+                ) : (
+                  <Text type="secondary" style={{ fontSize: 12 }}>Guardando empresa…</Text>
+                )}
+              </Card>
+            )}
 
             <Form.Item style={{ marginTop: 16 }}>
               <Space>

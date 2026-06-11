@@ -91,13 +91,14 @@ export default function AgendaPublica() {
   const [empresaId, setEmpresaId] = useState('');
   const [error, setError] = useState(false);
 
-  // Inicializar fecha y empresa desde query params
+  // Inicializar fecha y token desde query params
   useEffect(() => {
     if (!router.isReady) return;
-    const eid = router.query.empresa_id as string;
-    const f   = router.query.fecha as string;
-    if (!eid) { setError(true); setLoading(false); return; }
-    setEmpresaId(eid);
+    // Acepta agenda_token (nuevo) o empresa_id (legacy) para compatibilidad
+    const token = (router.query.agenda_token || router.query.empresa_id) as string;
+    const f     = router.query.fecha as string;
+    if (!token) { setError(true); setLoading(false); return; }
+    setEmpresaId(token);  // reutilizamos el estado — ahora contiene el token
     setFecha(f && dayjs(f).isValid() ? f : dayjs().format('YYYY-MM-DD'));
   }, [router.isReady, router.query]);
 
@@ -108,7 +109,7 @@ export default function AgendaPublica() {
     setError(false);
     try {
       const { data } = await axios.get(`${API_BASE}/public/agenda`, {
-        params: { empresa_id: eid, fecha: f },
+        params: { agenda_token: eid, fecha: f },
       });
       setItems(data.items ?? []);
       if (data.empresa) setEmpresa(data.empresa);
@@ -139,7 +140,7 @@ export default function AgendaPublica() {
         <div style={{ textAlign: 'center', color: '#999' }}>
           <CalendarOutlined style={{ fontSize: 48, marginBottom: 12 }} />
           <div style={{ fontSize: 16, fontWeight: 600, color: '#333' }}>Enlace inválido</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Falta el parámetro empresa_id en la URL</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Falta el parámetro agenda_token en la URL</div>
         </div>
       </div>
     );

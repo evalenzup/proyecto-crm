@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 # Importar configuración de logging
 from app.core.logger import logger
@@ -67,15 +66,18 @@ def _sync_cancelaciones_job():
     from sqlalchemy.orm import joinedload
 
     db = SessionLocal()
-    lock_acquired = False
     try:
-        # ── Lock distribuido vía PostgreSQL advisory lock ─────────────────────
+        # ── Lock distribuido vía PostgreSQL advisory lock (transaction-level) ──
+        # pg_try_advisory_xact_lock se libera automáticamente en commit/rollback,
+        # sin depender del ciclo de vida de la conexión en el pool de SQLAlchemy.
+        # Esto evita que el lock quede pegado a una conexión idle del pool.
         lock_acquired = db.execute(
-            text("SELECT pg_try_advisory_lock(:key)"), {"key": _SAT_SYNC_LOCK_KEY}
+            text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": _SAT_SYNC_LOCK_KEY}
         ).scalar()
 
         if not lock_acquired:
             logger.info("[SAT Sync] Otra instancia ya ejecuta el cron — saltando.")
+            db.rollback()
             return
 
         # ── Cargar facturas con joinedload para evitar N+1 ────────────────────
@@ -112,19 +114,12 @@ def _sync_cancelaciones_job():
             except Exception as exc:
                 logger.warning("[SAT Sync] Error verificando factura %s: %s", f.id, exc)
 
+        # commit libera el xact_lock automáticamente
         db.commit()
     except Exception as exc:
         logger.error("[SAT Sync] Error general en cron: %s", exc)
         db.rollback()
     finally:
-        if lock_acquired:
-            try:
-                db.execute(
-                    text("SELECT pg_advisory_unlock(:key)"), {"key": _SAT_SYNC_LOCK_KEY}
-                )
-                db.commit()
-            except Exception:
-                pass
         db.close()
 
 
@@ -181,9 +176,6 @@ app = FastAPI(
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# Montar el directorio de datos como archivos estáticos
-app.mount("/data", StaticFiles(directory="data"), name="data")
 
 # Gzip Compression
 from fastapi.middleware.gzip import GZipMiddleware

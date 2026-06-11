@@ -41,6 +41,15 @@ def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Rechaza refresh tokens usados como access tokens.
+    # Ambos están firmados con la misma clave — sin esta verificación un refresh
+    # token (TTL 7 días) valdría como Bearer en cualquier endpoint protegido.
+    if token_data.type != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         user_id = _uuid.UUID(str(token_data.sub))
     except (TypeError, ValueError):
