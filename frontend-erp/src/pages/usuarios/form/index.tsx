@@ -148,7 +148,7 @@ const UsuarioFormPage: React.FC = () => {
 
     return (
         <>
-            <PageHeader title="{isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}" />
+            <PageHeader title={isEditing ? 'Editar Usuario' : 'Nuevo Usuario'} />
             <div className="app-content">
                 <Card>
                     {loading && isEditing ? (

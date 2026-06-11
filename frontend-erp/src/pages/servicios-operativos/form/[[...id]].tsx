@@ -163,7 +163,7 @@ const ServicioOperativoForm: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="{id ? 'Editar Servicio Operativo' : 'Nuevo Servicio Operativo'}" />
+      <PageHeader title={id ? 'Editar Servicio Operativo' : 'Nuevo Servicio Operativo'} />
       <div className="app-content">
         <Card>
           {record && (

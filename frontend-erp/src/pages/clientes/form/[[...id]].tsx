@@ -117,7 +117,7 @@ const ClienteFormPage: React.FC = () => {
       </Modal>
 
       {/* ── Header ── */}
-      <PageHeader title="{id ? 'Editar Cliente' : 'Nuevo Cliente'}" />
+      <PageHeader title={id ? 'Editar Cliente' : 'Nuevo Cliente'} />
 
       <div className="app-content">
         <Form form={form} layout="vertical" onFinish={onFinish}>

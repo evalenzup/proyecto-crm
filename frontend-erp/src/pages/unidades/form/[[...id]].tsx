@@ -707,7 +707,7 @@ const UnidadForm: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="{isEditing ? 'Editar Unidad' : 'Nueva Unidad'}" />
+      <PageHeader title={isEditing ? 'Editar Unidad' : 'Nueva Unidad'} />
 
       <div className="app-content">
         <Form

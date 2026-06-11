@@ -276,7 +276,7 @@ const PersonalForm: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="{isEditing ? 'Modificar personal' : 'Nuevo personal'}" />
+      <PageHeader title={isEditing ? 'Modificar personal' : 'Nuevo personal'} />
 
       <div className="app-content">
         <Form

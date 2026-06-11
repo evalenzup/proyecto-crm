@@ -215,7 +215,7 @@ const PresupuestoFormPage: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="{presupuestoId ? `Presupuesto: ${presupuesto?.folio || ''}` : 'Nuevo Presupuesto'}" />
+      <PageHeader title={presupuestoId ? `Presupuesto: ${presupuesto?.folio || ''}` : 'Nuevo Presupuesto'} />
       <div className="app-content">
 
         {/* Version Selector outside the form */}

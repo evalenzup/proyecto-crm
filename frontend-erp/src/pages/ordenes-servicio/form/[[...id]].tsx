@@ -331,7 +331,7 @@ const OrdenServicioForm: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="{isNew ? 'Nueva Orden de Servicio' : `Editar ${record?.folio_os ?? 'Orden'}`}" />
+      <PageHeader title={isNew ? 'Nueva Orden de Servicio' : `Editar ${record?.folio_os ?? 'Orden'}`} />
 
       <div className="app-content">
         {record && (

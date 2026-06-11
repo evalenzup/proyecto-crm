@@ -244,7 +244,7 @@ const PagoFormPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        title="{id ? 'Editar Pago' : 'Nuevo Pago'}"
+        title={id ? 'Editar Pago' : 'Nuevo Pago'}
         extra={
           <>
             {getStatusTag()}

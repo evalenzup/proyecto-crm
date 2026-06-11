@@ -132,7 +132,7 @@ const FormularioProductoServicio: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="{id ? 'Editar Producto/Servicio' : 'Nuevo Producto/Servicio'}" />
+      <PageHeader title={id ? 'Editar Producto/Servicio' : 'Nuevo Producto/Servicio'} />
       <div className="app-content">
         <Card>
           {metadata && (

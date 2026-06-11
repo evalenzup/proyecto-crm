@@ -283,7 +283,7 @@ const ProgramacionFacturaForm: React.FC = () => {
   return (
     <>
       <PageHeader
-        title="{isEdit ? 'Editar Programación' : 'Nueva Programación de Factura'}"
+        title={isEdit ? 'Editar Programación' : 'Nueva Programación de Factura'}
         extra={
           <>
             <Button onClick={() => router.back()}>Cancelar</Button>

@@ -473,7 +473,7 @@ const EmpresaFormPage: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="{id ? 'Editar Empresa' : 'Nueva Empresa'}" />
+      <PageHeader title={id ? 'Editar Empresa' : 'Nueva Empresa'} />
 
       <div className="app-content">
         <Card>

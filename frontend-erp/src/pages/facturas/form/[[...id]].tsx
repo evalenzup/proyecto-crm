@@ -278,7 +278,7 @@ const FacturaFormPage: React.FC = () => {
   return (
     <>
       {/* Encabezado idéntico */}
-      <PageHeader title="{id ? 'Editar Factura' : 'Nueva Factura'}" />
+      <PageHeader title={id ? 'Editar Factura' : 'Nueva Factura'} />
 
       <div className="app-content">
         <Card>
