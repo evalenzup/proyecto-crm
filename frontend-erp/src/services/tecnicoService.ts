@@ -31,6 +31,7 @@ export interface TecnicoOut {
   area?: string | null;
   puesto?: string | null;
   nivel_estudios?: NivelEstudios | null;
+  salario_base_cotizable?: number | null;
 
   // Contacto
   telefono?: string | null;
@@ -74,6 +75,7 @@ export interface TecnicoCreate {
   area?: string | null;
   puesto?: string | null;
   nivel_estudios?: NivelEstudios | null;
+  salario_base_cotizable?: number | null;
 
   telefono?: string | null;
   celular?: string | null;

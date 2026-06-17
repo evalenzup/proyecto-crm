@@ -1,9 +1,10 @@
 FROM python:3.10
 WORKDIR /app
 
-# pg_dump para el respaldo diario a Google Drive (scripts/backup_drive.py)
+# pg_dump: respaldo diario a Google Drive (scripts/backup_drive.py)
+# libreoffice: conversión docx→pdf para la generación de contratos (Fase 0b)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends postgresql-client \
+    && apt-get install -y --no-install-recommends postgresql-client libreoffice-writer \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

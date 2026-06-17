@@ -467,9 +467,16 @@ const EmpresaFormPage: React.FC = () => {
   const keysAll = Object.keys(schema.properties || {});
   const certKeys = ['archivo_cer', 'archivo_key', 'contrasena'];
   const bankKeys = ['nombre_banco', 'numero_cuenta', 'clabe', 'beneficiario'];
-  const normalKeys = keysAll.filter(k => !certKeys.includes(k) && !bankKeys.includes(k));
+  const contratoKeys = [
+    'representante_legal', 'licencia_sanitaria', 'registro_patronal',
+    'repse_registro', 'repse_aviso', 'instrumento_notarial',
+  ];
+  const normalKeys = keysAll.filter(
+    k => !certKeys.includes(k) && !bankKeys.includes(k) && !contratoKeys.includes(k)
+  );
   const certKeysPresent = certKeys.filter(k => keysAll.includes(k));
   const bankKeysPresent = bankKeys.filter(k => keysAll.includes(k));
+  const contratoKeysPresent = contratoKeys.filter(k => keysAll.includes(k));
 
   return (
     <>
@@ -522,6 +529,21 @@ const EmpresaFormPage: React.FC = () => {
                 <div style={{ height: 8 }} />
                 <Row gutter={[16, 0]}>
                   {bankKeysPresent.map((k) => (
+                    <Col key={k} xs={24} md={12}>
+                      {renderField(k, (schema.properties as any)[k])}
+                    </Col>
+                  ))}
+                </Row>
+              </Card>
+            )}
+
+            {/* Datos para Contrato */}
+            {contratoKeysPresent.length > 0 && (
+              <Card size="small" style={{ marginTop: 16 }}>
+                <Text strong>Datos para Contrato</Text>
+                <div style={{ height: 8 }} />
+                <Row gutter={[16, 0]}>
+                  {contratoKeysPresent.map((k) => (
                     <Col key={k} xs={24} md={12}>
                       {renderField(k, (schema.properties as any)[k])}
                     </Col>

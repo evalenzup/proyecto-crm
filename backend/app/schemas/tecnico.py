@@ -41,6 +41,7 @@ class TecnicoCreate(BaseModel):
     area: Optional[str] = Field(None, max_length=100)
     puesto: Optional[str] = Field(None, max_length=100)
     nivel_estudios: Optional[NivelEstudios] = None
+    salario_base_cotizable: Optional[float] = Field(None, ge=0, title="Salario Base Cotizable")
 
     # Contacto y domicilio
     telefono: Optional[str] = Field(None, max_length=50)
@@ -79,6 +80,7 @@ class TecnicoUpdate(BaseModel):
     area: Optional[str] = Field(None, max_length=100)
     puesto: Optional[str] = Field(None, max_length=100)
     nivel_estudios: Optional[NivelEstudios] = None
+    salario_base_cotizable: Optional[float] = Field(None, ge=0, title="Salario Base Cotizable")
 
     # Contacto y domicilio
     telefono: Optional[str] = Field(None, max_length=50)
@@ -121,6 +123,7 @@ class TecnicoOut(BaseModel):
     area: Optional[str] = None
     puesto: Optional[str] = None
     nivel_estudios: Optional[str] = None
+    salario_base_cotizable: Optional[float] = None
 
     # Contacto y domicilio
     telefono: Optional[str] = None

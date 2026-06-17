@@ -54,6 +54,14 @@ class Empresa(Base):
     clabe = Column(String(20), nullable=True)
     beneficiario = Column(String(255), nullable=True)
 
+    # ── Datos para contrato (prestador de servicios) ──────────────────────────
+    representante_legal = Column(String(255), nullable=True)
+    licencia_sanitaria = Column(String(100), nullable=True)
+    registro_patronal = Column(String(50), nullable=True)        # IMSS
+    repse_registro = Column(String(50), nullable=True)           # No. de Registro REPSE
+    repse_aviso = Column(String(50), nullable=True)              # Aviso de Registro REPSE
+    instrumento_notarial = Column(Text, nullable=True)           # poder/notaría/volumen/folio/fecha
+
 
     creado_en = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     actualizado_en = Column(

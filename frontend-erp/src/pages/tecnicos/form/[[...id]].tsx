@@ -130,6 +130,7 @@ const PersonalForm: React.FC = () => {
           area: data.area ?? undefined,
           puesto: data.puesto ?? undefined,
           nivel_estudios: data.nivel_estudios ?? undefined,
+          salario_base_cotizable: data.salario_base_cotizable ?? undefined,
           telefono: data.telefono ?? undefined,
           celular: data.celular ?? undefined,
           email: data.email ?? undefined,
@@ -197,6 +198,7 @@ const PersonalForm: React.FC = () => {
         area: values.area ?? null,
         puesto: values.puesto ?? null,
         nivel_estudios: values.nivel_estudios ?? null,
+        salario_base_cotizable: values.salario_base_cotizable ?? null,
         telefono: values.telefono ?? null,
         celular: values.celular ?? null,
         email: values.email ?? null,
@@ -540,6 +542,24 @@ const PersonalForm: React.FC = () => {
                       <Col xs={24} md={12}>
                         <Form.Item label="Puesto" name="puesto">
                           <Input maxLength={100} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Row gutter={24}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          label="Salario Base Cotizable"
+                          name="salario_base_cotizable"
+                          tooltip="Se usa en la tabla de personal asignado del contrato"
+                        >
+                          <InputNumber
+                            min={0}
+                            style={{ width: '100%' }}
+                            prefix="$"
+                            precision={2}
+                            placeholder="0.00"
+                          />
                         </Form.Item>
                       </Col>
                     </Row>

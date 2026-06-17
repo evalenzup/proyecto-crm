@@ -35,6 +35,14 @@ class EmpresaBase(BaseModel):
     clabe: Optional[str] = Field(None, title="CLABE")
     beneficiario: Optional[str] = Field(None, title="Beneficiario")
 
+    # Datos para contrato (prestador de servicios)
+    representante_legal: Optional[constr(max_length=255)] = Field(None, title="Representante Legal")
+    licencia_sanitaria: Optional[constr(max_length=100)] = Field(None, title="Licencia Sanitaria")
+    registro_patronal: Optional[constr(max_length=50)] = Field(None, title="Registro Patronal (IMSS)")
+    repse_registro: Optional[constr(max_length=50)] = Field(None, title="No. de Registro REPSE")
+    repse_aviso: Optional[constr(max_length=50)] = Field(None, title="Aviso de Registro REPSE")
+    instrumento_notarial: Optional[str] = Field(None, title="Instrumento Notarial (poder del representante)")
+
 
 
 class EmpresaCreate(EmpresaBase):

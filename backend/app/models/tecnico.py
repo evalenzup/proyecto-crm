@@ -1,6 +1,6 @@
 # app/models/tecnico.py
 import uuid
-from sqlalchemy import Boolean, Column, Date, Integer, String, Text, TIMESTAMP, ForeignKey
+from sqlalchemy import Boolean, Column, Date, Integer, Numeric, String, Text, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -34,6 +34,7 @@ class Tecnico(Base):
     area = Column(String(100), nullable=True)
     puesto = Column(String(100), nullable=True)
     nivel_estudios = Column(String(50), nullable=True)
+    salario_base_cotizable = Column(Numeric(12, 2), nullable=True)  # para el contrato (personal asignado)
 
     # ── Contacto y domicilio ─────────────────────────────────────────────────
     telefono = Column(String(50), nullable=True)
