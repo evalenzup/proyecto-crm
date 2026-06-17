@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { PageHeader } from '@/components/PageHeader';
-import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Card, Pagination, Tooltip, theme, Grid } from 'antd';
+import { FilterBar } from '@/components/FilterBar';
+import { Table, Button, Space, Tag, message, Input, Select, DatePicker, Pagination, Tooltip } from 'antd';
 import { PlusOutlined, EditOutlined, PaperClipOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { getEgresos, Egreso, getEgresoEnums, exportEgresosExcel, searchProveedores } from '@/services/egresoService';
 import { debounce } from 'lodash';
@@ -15,8 +16,6 @@ import { useEmpresaSelector } from '@/hooks/useEmpresaSelector'; // Importar hoo
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { useFilterContext } from '@/context/FilterContext';
 import dayjs from 'dayjs';
-const { useToken } = theme;
-const { useBreakpoint } = Grid;
 
 /** Descarga un archivo de egreso via endpoint autenticado y lo abre en nueva pestaña. */
 const abrirArchivoEgreso = async (ruta: string) => {
@@ -35,8 +34,6 @@ const abrirArchivoEgreso = async (ruta: string) => {
 const EgresosListPage: React.FC = () => {
   const router = useRouter();
   const { containerRef, tableY } = useTableHeight();
-  const { token } = useToken();
-  const screens = useBreakpoint();
   const [egresos, setEgresos] = useState<Egreso[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -294,47 +291,43 @@ const EgresosListPage: React.FC = () => {
         }
       />
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 4 }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: screens.lg ? '4px' : '8px', background: token.colorBgContainer }}>
-            <Space wrap>
-              <Select
-                showSearch
-                placeholder="Nombre Proveedor (min 3 letras)"
-                style={{ width: 250, minWidth: 160 }}
-                filterOption={false}
-                onSearch={handleSearchProveedores}
-                onChange={(value) => handleFilterChange('proveedor', value)}
-                notFoundContent={fetchingProveedores ? <Spin size="small" /> : null}
-                options={proveedorOptions.map(p => ({ label: p, value: p }))}
-                allowClear
-                onClear={() => {
-                  setProveedorOptions([]);
-                  handleFilterChange('proveedor', null);
-                }}
-                value={filters.proveedor || undefined}
-              />
-              <Select
-                placeholder="Categoría"
-                style={{ width: 200, minWidth: 140 }}
-                allowClear
-                options={categorias.map(c => ({ label: c, value: c }))}
-                onChange={(value) => handleFilterChange('categoria', value)}
-              />
-              <Select
-                placeholder="Estatus"
-                style={{ width: 160, minWidth: 130 }}
-                allowClear
-                options={estatusOptions.map(s => ({ label: s, value: s }))}
-                onChange={(value) => handleFilterChange('estatus', value)}
-              />
-              <RangePicker
-                onChange={handleDateChange}
-                value={filters.fecha_desde && filters.fecha_hasta ? [dayjs(filters.fecha_desde), dayjs(filters.fecha_hasta)] : null}
-                style={{ minWidth: 200 }}
-              />
-            </Space>
-          </div>
-        </Card>
+        <FilterBar>
+          <Select
+            showSearch
+            placeholder="Nombre Proveedor (min 3 letras)"
+            style={{ width: 250, minWidth: 160 }}
+            filterOption={false}
+            onSearch={handleSearchProveedores}
+            onChange={(value) => handleFilterChange('proveedor', value)}
+            notFoundContent={fetchingProveedores ? <Spin size="small" /> : null}
+            options={proveedorOptions.map(p => ({ label: p, value: p }))}
+            allowClear
+            onClear={() => {
+              setProveedorOptions([]);
+              handleFilterChange('proveedor', null);
+            }}
+            value={filters.proveedor || undefined}
+          />
+          <Select
+            placeholder="Categoría"
+            style={{ width: 200, minWidth: 140 }}
+            allowClear
+            options={categorias.map(c => ({ label: c, value: c }))}
+            onChange={(value) => handleFilterChange('categoria', value)}
+          />
+          <Select
+            placeholder="Estatus"
+            style={{ width: 160, minWidth: 130 }}
+            allowClear
+            options={estatusOptions.map(s => ({ label: s, value: s }))}
+            onChange={(value) => handleFilterChange('estatus', value)}
+          />
+          <RangePicker
+            onChange={handleDateChange}
+            value={filters.fecha_desde && filters.fecha_hasta ? [dayjs(filters.fecha_desde), dayjs(filters.fecha_hasta)] : null}
+            style={{ minWidth: 200 }}
+          />
+        </FilterBar>
         <Table
           rowKey="id"
           loading={loading}

@@ -2,13 +2,14 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Popconfirm, Space, Input, message, Tooltip, Card, theme, AutoComplete } from 'antd';
+import { Table, Button, Popconfirm, Space, Input, message, Tooltip, AutoComplete } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { SkeletonTable } from '@/components/SkeletonTable';
+import { FilterBar } from '@/components/FilterBar';
 import { useClienteList } from '@/hooks/useClienteList'; // Importamos el hook
 import { ClienteOut, clienteService } from '@/services/clienteService'; // Importamos la interfaz ClienteOut
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -16,7 +17,6 @@ import { useTableHeight } from '@/hooks/useTableHeight';
 
 const ClientesPage: React.FC = () => {
   const router = useRouter();
-  const { token } = theme.useToken();
   const { containerRef, tableY } = useTableHeight();
   // Usamos el hook personalizado para toda la lógica de la lista y filtros
   const {
@@ -156,43 +156,39 @@ const ClientesPage: React.FC = () => {
         }
       />
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>
-            <Space wrap>
-              <Input
-                placeholder="RFC (min 3 letras)"
-                prefix={<SearchOutlined />}
-                value={rfcFiltro}
-                onChange={(e) => setRfcFiltro(e.target.value)}
-                style={{ width: 200, minWidth: 140 }}
-              />
-              <AutoComplete
-                style={{ width: 300, minWidth: 180 }}
-                placeholder="Nombre Comercial..."
-                onSearch={handleSearchClientesComercial}
-                onChange={(val) => setNombreFiltro(val)}
-                value={nombreFiltro}
-                allowClear
-                options={clienteOptionsComercial.map((c) => ({
-                  value: c.nombre_comercial,
-                  label: `${c.nombre_comercial} (${c.rfc})`,
-                }))}
-              />
-              <AutoComplete
-                style={{ width: 300, minWidth: 180 }}
-                placeholder="Razón Social..."
-                onSearch={handleSearchClientesFiscal}
-                onChange={(val) => setNombreFiscalFiltro(val)}
-                value={nombreFiscalFiltro}
-                allowClear
-                options={clienteOptionsFiscal.map((c) => ({
-                  value: c.nombre_razon_social,
-                  label: `${c.nombre_razon_social} (${c.rfc})`,
-                }))}
-              />
-            </Space>
-          </div>
-        </Card>
+        <FilterBar onClear={clearFilters}>
+          <Input
+            placeholder="RFC (min 3 letras)"
+            prefix={<SearchOutlined />}
+            value={rfcFiltro}
+            onChange={(e) => setRfcFiltro(e.target.value)}
+            style={{ width: 200, minWidth: 140 }}
+          />
+          <AutoComplete
+            style={{ width: 300, minWidth: 180 }}
+            placeholder="Nombre Comercial..."
+            onSearch={handleSearchClientesComercial}
+            onChange={(val) => setNombreFiltro(val)}
+            value={nombreFiltro}
+            allowClear
+            options={clienteOptionsComercial.map((c) => ({
+              value: c.nombre_comercial,
+              label: `${c.nombre_comercial} (${c.rfc})`,
+            }))}
+          />
+          <AutoComplete
+            style={{ width: 300, minWidth: 180 }}
+            placeholder="Razón Social..."
+            onSearch={handleSearchClientesFiscal}
+            onChange={(val) => setNombreFiscalFiltro(val)}
+            value={nombreFiscalFiltro}
+            allowClear
+            options={clienteOptionsFiscal.map((c) => ({
+              value: c.nombre_razon_social,
+              label: `${c.nombre_razon_social} (${c.rfc})`,
+            }))}
+          />
+        </FilterBar>
 
         {loading && clientes.length === 0 ? (
           <SkeletonTable />

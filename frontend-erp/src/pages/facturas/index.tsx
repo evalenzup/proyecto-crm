@@ -3,26 +3,23 @@
 'use client';
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
+import { Table, Button, Space, Select, DatePicker, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { SkeletonTable } from '@/components/SkeletonTable';
+import { FilterBar } from '@/components/FilterBar';
 import { useFacturasList } from '@/hooks/useFacturasList';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { FacturaRow, exportFacturasExcel, duplicarFactura } from '@/services/facturaService';
 
 const { RangePicker } = DatePicker;
-const { useToken } = theme;
-const { useBreakpoint } = Grid;
 
 import { formatDate, formatDateOnly } from '@/utils/formatDate';
 
 
 const FacturasIndexPage: React.FC = () => {
   const router = useRouter();
-  const { token } = useToken();
-  const screens = useBreakpoint();
   const { containerRef, tableY } = useTableHeight();
 
   const {
@@ -219,18 +216,7 @@ const FacturasIndexPage: React.FC = () => {
         }
       />
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginTop: 4 }}>
-          <div
-            style={{
-              position: 'sticky', top: 0, zIndex: 9,
-              padding: screens.lg ? '8px 8px 12px' : '8px',
-              marginBottom: 8,
-              background: token.colorBgContainer,
-              borderRadius: 8,
-              boxShadow: token.boxShadowSecondary,
-            }}
-          >
-            <Space wrap size={[8, 8]}>
+          <FilterBar>
               <Select
                 showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220, minWidth: 160 }}
                 filterOption={false}
@@ -284,8 +270,7 @@ const FacturasIndexPage: React.FC = () => {
                 allowClear
                 onChange={(e) => { if (!e.target.value) setFolio(''); }}
               />
-            </Space>
-          </div>
+          </FilterBar>
 
           {loading && rows.length === 0 ? (
           <SkeletonTable />
@@ -321,7 +306,6 @@ const FacturasIndexPage: React.FC = () => {
             locale={{ emptyText: 'No hay facturas' }}
           />
           )}
-        </Card>
       </div>
       <Modal
         title="Vista Previa de Factura"
