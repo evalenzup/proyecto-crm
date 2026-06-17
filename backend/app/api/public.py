@@ -45,6 +45,7 @@ class AgendaItemOut(BaseModel):
     tecnico_nombre: str | None
     direccion_servicio: str | None
     notas_tecnico: str | None
+    precio_acordado: float | None
 
 
 class AgendaEmpresaOut(BaseModel):
@@ -103,6 +104,7 @@ def agenda_publica(
             tecnico_nombre=o.tecnico.nombre_completo if o.tecnico else None,
             direccion_servicio=o.direccion_servicio,
             notas_tecnico=o.notas_tecnico,
+            precio_acordado=float(o.precio_acordado) if o.precio_acordado is not None else None,
         ))
 
     return {

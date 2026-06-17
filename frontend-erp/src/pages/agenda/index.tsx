@@ -280,6 +280,10 @@ export default function AgendaPage() {
        .replace(/'/g, '&#39;');
 
     const formatHora = (h?: string | null) => h ? esc(h.slice(0, 5)) : '—';
+    const formatPrecio = (p?: number | string | null) =>
+      p != null && p !== ''
+        ? Number(p).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
+        : '—';
     const rows = sorted.map((o) => `
       <tr>
         <td style="white-space:nowrap">
@@ -291,6 +295,7 @@ export default function AgendaPage() {
           ${esc(o.direccion_servicio ?? '—')}
           ${o.notas_tecnico ? `<div style="margin-top:4px;color:#0a5c91;font-style:italic;font-size:11px">📝 ${esc(o.notas_tecnico)}</div>` : ''}
         </td>
+        <td style="white-space:nowrap;text-align:right;font-weight:600">${formatPrecio(o.precio_acordado)}</td>
       </tr>
     `).join('');
 
@@ -337,9 +342,10 @@ export default function AgendaPage() {
         <th>Cliente</th>
         <th style="width:140px">Técnico</th>
         <th>Dirección / Notas al técnico</th>
+        <th style="width:110px;text-align:right">Precio</th>
       </tr>
     </thead>
-    <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">Sin órdenes para este día</td></tr>'}</tbody>
+    <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">Sin órdenes para este día</td></tr>'}</tbody>
   </table>
   <div class="footer">Generado el ${dayjs().format('DD/MM/YYYY HH:mm')} · Sistema NORTON CRM/ERP</div>
   <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>

@@ -39,6 +39,7 @@ interface AgendaItem {
   tecnico_nombre: string | null;
   direccion_servicio: string | null;
   notas_tecnico: string | null;
+  precio_acordado: number | null;
 }
 
 // ── Constantes de estilo ──────────────────────────────────────────────────────
@@ -289,6 +290,15 @@ function ServiceCard({ item }: { item: AgendaItem }) {
           {item.prioridad !== 'MEDIA' && (
             <span style={{ fontSize: 10, color: priColor, fontWeight: 600 }}>
               {item.prioridad}
+            </span>
+          )}
+          {item.precio_acordado != null && (
+            <span style={{
+              fontSize: 14, fontWeight: 800, color: '#237804',
+              background: '#f6ffed', border: '1px solid #b7eb8f',
+              borderRadius: 8, padding: '2px 10px',
+            }}>
+              {item.precio_acordado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
             </span>
           )}
         </div>
