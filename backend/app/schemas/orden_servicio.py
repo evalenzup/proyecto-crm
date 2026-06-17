@@ -50,6 +50,7 @@ class OrdenServicioCreate(BaseModel):
 
 
 class OrdenServicioUpdate(BaseModel):
+    cliente_id: Optional[UUID] = None
     tecnico_id: Optional[UUID] = None
     unidad_id: Optional[UUID] = None
     servicio_id: Optional[UUID] = None

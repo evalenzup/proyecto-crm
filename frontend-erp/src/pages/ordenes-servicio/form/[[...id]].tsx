@@ -303,8 +303,7 @@ const OrdenServicioForm: React.FC = () => {
         await ordenServicioService.create(payload, empresaId ?? undefined);
         message.success('Orden creada correctamente');
       } else {
-        const { cliente_id, ...updatePayload } = payload;
-        await ordenServicioService.update(id!, updatePayload);
+        await ordenServicioService.update(id!, payload);
         message.success('Orden actualizada');
       }
 
