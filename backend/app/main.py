@@ -34,6 +34,7 @@ from app.api.reportes import router as reportes_router
 from app.api.operativo import servicios_router, tecnicos_router, unidades_router
 from app.api.public import router as public_router
 from app.api.ordenes_servicio import router as ordenes_router
+from app.api.contratos import router as contratos_router
 from app.api.programacion_facturas import router as prog_facturas_router
 
 from fastapi.exceptions import RequestValidationError
@@ -353,6 +354,13 @@ app.include_router(
     ordenes_router,
     prefix="/api/ordenes-servicio",
     tags=["ordenes-servicio"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    contratos_router,
+    prefix="/api/contratos",
+    tags=["contratos"],
     responses={404: {"description": "No encontrado"}},
 )
 
