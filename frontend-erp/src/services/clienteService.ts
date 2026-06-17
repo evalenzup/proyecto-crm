@@ -174,4 +174,45 @@ export const clienteService = {
   deleteCliente: async (id: string): Promise<void> => {
     await api.delete(`/clientes/${id}`);
   },
+
+  // ── Documentos del cliente (contrato firmado, adjuntos) ──────────────────────
+  listDocumentos: async (id: string): Promise<ClienteDocumento[]> => {
+    const response = await api.get<ClienteDocumento[]>(`/clientes/${id}/documentos`);
+    return response.data;
+  },
+
+  uploadDocumento: async (
+    id: string,
+    file: File,
+    tipo: string,
+    nombre?: string,
+  ): Promise<ClienteDocumento> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('tipo', tipo);
+    if (nombre) fd.append('nombre', nombre);
+    const response = await api.post<ClienteDocumento>(`/clientes/${id}/documentos`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  downloadDocumento: async (id: string, docId: string): Promise<Blob> => {
+    const response = await api.get(`/clientes/${id}/documentos/${docId}/archivo`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  deleteDocumento: async (id: string, docId: string): Promise<void> => {
+    await api.delete(`/clientes/${id}/documentos/${docId}`);
+  },
 };
+
+export interface ClienteDocumento {
+  id: string;
+  tipo: string;
+  nombre: string;
+  archivo: string;
+  creado_en: string;
+}

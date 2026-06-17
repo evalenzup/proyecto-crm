@@ -1,5 +1,6 @@
 from app.models.cliente import Base as BaseCliente
 from app.models.cliente import Cliente, cliente_empresa
+from app.models.cliente_documento import ClienteDocumento
 from app.models.empresa import Empresa
 from .producto_servicio import ProductoServicio
 from .email_config import EmailConfig
@@ -33,6 +34,7 @@ Base = BaseCliente
 __all__ = [
     "Base",
     "Cliente",
+    "ClienteDocumento",
     "cliente_empresa",
     "Empresa",
     "ProductoServicio",

@@ -14,6 +14,7 @@ import {
 import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
 import { getRegimenesFiscales } from '@/services/facturaService';
+import { ClienteDocumentos } from '@/components/ClienteDocumentos';
 
 const { Text } = Typography;
 
@@ -437,6 +438,28 @@ const ClienteFormPage: React.FC = () => {
           </Card>
 
           {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN — Datos para Contrato
+          ══════════════════════════════════════════════════════════════════ */}
+          <Card title="Datos para Contrato" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Representante Legal" name="representante_legal" getValueFromEvent={toUpper}>
+                  <Input placeholder="Nombre del representante legal del cliente" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label="Escritura Pública"
+                  name="escritura_publica"
+                  tooltip="No. de escritura constitutiva y fecha (para el contrato)"
+                >
+                  <Input placeholder="Ej. No. 1,468 de fecha 09/01/2020" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* ══════════════════════════════════════════════════════════════════
               SECCIÓN 6 — Contactos Adicionales
           ══════════════════════════════════════════════════════════════════ */}
           <Card title="Contactos Adicionales" size="small" style={{ marginBottom: 16 }}>
@@ -517,6 +540,11 @@ const ClienteFormPage: React.FC = () => {
               )}
             </Form.List>
           </Card>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN — Documentos / Contrato (solo en edición)
+          ══════════════════════════════════════════════════════════════════ */}
+          {id && <ClienteDocumentos clienteId={String(id)} />}
 
           {/* ── Botones ── */}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

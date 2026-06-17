@@ -59,6 +59,13 @@ class ClienteBase(BaseModel):
     actividad: Optional[Literal["RESIDENCIAL", "COMERCIAL", "INDUSTRIAL"]] = Field(
         None, title="Actividad"
     )
+    # Datos para contrato
+    representante_legal: Optional[Annotated[str, StringConstraints(max_length=255)]] = Field(
+        None, title="Representante Legal"
+    )
+    escritura_publica: Optional[Annotated[str, StringConstraints(max_length=255)]] = Field(
+        None, title="Escritura Pública (No. y fecha)"
+    )
 
     @field_validator("email", mode="before")
     @classmethod
@@ -127,6 +134,17 @@ class ClienteSimpleOut(BaseModel):
     id: UUID
     nombre_comercial: str
     email: Optional[Any] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ClienteDocumentoOut(BaseModel):
+    id: UUID
+    tipo: str
+    nombre: str
+    archivo: str
+    creado_en: TijuanaDatetime
 
     class Config:
         from_attributes = True

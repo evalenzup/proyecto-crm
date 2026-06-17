@@ -54,6 +54,10 @@ class Cliente(Base):
     tamano = Column(String(15))  # CHICO, MEDIANO, GRANDE
     actividad = Column(String(15))  # RESIDENCIAL, COMERCIAL, INDUSTRIAL
 
+    # Datos para contrato
+    representante_legal = Column(String(255), nullable=True)
+    escritura_publica = Column(String(255), nullable=True)  # No. y fecha de escritura constitutiva
+
     creado_en = Column(TIMESTAMP, server_default=func.now())
     actualizado_en = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
@@ -63,6 +67,10 @@ class Cliente(Base):
 
     contactos = relationship(
         "Contacto", back_populates="cliente", cascade="all, delete-orphan"
+    )
+
+    documentos = relationship(
+        "ClienteDocumento", back_populates="cliente", cascade="all, delete-orphan"
     )
 
     def __repr__(self):

@@ -17,8 +17,15 @@ from app.models.empresa import Empresa
 from app.models.factura import Factura
 from app.models.orden_servicio import OrdenServicio
 from app.models.presupuestos import Presupuesto
-from app.schemas.cliente import ClienteOut, ClienteCreate, ClienteUpdate, ClienteVincular
+from app.schemas.cliente import (
+    ClienteOut,
+    ClienteCreate,
+    ClienteUpdate,
+    ClienteVincular,
+    ClienteDocumentoOut,
+)
 from app.services.cliente_service import cliente_repo
+from app.models.cliente_documento import ClienteDocumento
 from app.api import deps
 from app.models.usuario import Usuario, RolUsuario
 from app.services import auditoria_service as audit_svc
@@ -413,6 +420,140 @@ def vincular_cliente(
     if cambios:
         db.commit()
         db.refresh(cliente)
-        
+
     return {"message": "Cliente vinculado correctamente", "cliente_id": cliente.id}
+
+
+# ── Documentos del cliente (contrato firmado, adjuntos) ───────────────────────
+
+import os
+import uuid as _uuid
+import mimetypes
+from fastapi import UploadFile, File, Form
+from fastapi.responses import FileResponse
+from app.config import settings
+
+_CLIENTES_DOCS_DIR = os.path.join(settings.DATA_DIR, "clientes_docs")
+_CLIENTE_DOC_ALLOWED_EXTS = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx"})
+_CLIENTE_DOC_MAX_BYTES = 15 * 1024 * 1024  # 15 MB
+
+
+def _get_cliente_or_404(db: Session, id: UUID, current_user: Usuario):
+    cliente = cliente_repo.get(db, id=id)
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresas_ids = [e.id for e in cliente.empresas]
+        if current_user.empresa_id not in empresas_ids:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    return cliente
+
+
+@router.get("/{id}/documentos", response_model=List[ClienteDocumentoOut])
+def listar_documentos_cliente(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+    return (
+        db.query(ClienteDocumento)
+        .filter(ClienteDocumento.cliente_id == id)
+        .order_by(ClienteDocumento.creado_en.desc())
+        .all()
+    )
+
+
+@router.post("/{id}/documentos", response_model=ClienteDocumentoOut, status_code=201)
+def subir_documento_cliente(
+    id: UUID,
+    file: UploadFile = File(...),
+    tipo: str = Form("OTRO"),
+    nombre: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if not ext or ext not in _CLIENTE_DOC_ALLOWED_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de archivo no permitido. Válidos: {', '.join(sorted(_CLIENTE_DOC_ALLOWED_EXTS))}",
+        )
+    content = file.file.read()
+    if len(content) > _CLIENTE_DOC_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"El archivo supera el tamaño máximo de {_CLIENTE_DOC_MAX_BYTES // (1024 * 1024)} MB.",
+        )
+
+    os.makedirs(_CLIENTES_DOCS_DIR, exist_ok=True)
+    filename = f"{_uuid.uuid4()}{ext}"
+    with open(os.path.join(_CLIENTES_DOCS_DIR, filename), "wb") as fh:
+        fh.write(content)
+
+    doc = ClienteDocumento(
+        cliente_id=id,
+        tipo=(tipo or "OTRO").upper(),
+        nombre=nombre or file.filename or filename,
+        archivo=filename,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
+@router.get("/{id}/documentos/{doc_id}/archivo")
+def descargar_documento_cliente(
+    id: UUID,
+    doc_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+    doc = (
+        db.query(ClienteDocumento)
+        .filter(ClienteDocumento.id == doc_id, ClienteDocumento.cliente_id == id)
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    base = os.path.realpath(_CLIENTES_DOCS_DIR)
+    resolved = os.path.realpath(os.path.join(base, doc.archivo))
+    if not resolved.startswith(base + os.sep) or not os.path.isfile(resolved):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    mime, _ = mimetypes.guess_type(resolved)
+    return FileResponse(
+        resolved,
+        media_type=mime or "application/octet-stream",
+        filename=doc.nombre,
+    )
+
+
+@router.delete("/{id}/documentos/{doc_id}", status_code=204)
+def eliminar_documento_cliente(
+    id: UUID,
+    doc_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+    doc = (
+        db.query(ClienteDocumento)
+        .filter(ClienteDocumento.id == doc_id, ClienteDocumento.cliente_id == id)
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    path = os.path.join(_CLIENTES_DOCS_DIR, doc.archivo)
+    if os.path.exists(path):
+        os.remove(path)
+    db.delete(doc)
+    db.commit()
+    return Response(status_code=204)
 

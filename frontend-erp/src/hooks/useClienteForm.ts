@@ -23,6 +23,8 @@ interface ClienteFormData {
   dias_pago?: number;
   tamano?: 'CHICO' | 'MEDIANO' | 'GRANDE';
   actividad?: 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL';
+  representante_legal?: string;
+  escritura_publica?: string;
   empresa_id: string[];
 }
 
