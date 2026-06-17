@@ -4,23 +4,20 @@
 import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageHeader } from '@/components/PageHeader';
-import { Table, Button, Space, Select, DatePicker, Card, Grid, theme, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
+import { Table, Button, Space, Select, DatePicker, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { FilterBar } from '@/components/FilterBar';
 import { usePagosList } from '@/hooks/usePagosList';
 import { PagoRow, timbrarPago, exportPagosExcel } from '@/services/pagoService';
 import { useTableHeight } from '@/hooks/useTableHeight';
 
 const { RangePicker } = DatePicker;
-const { useToken } = theme;
-const { useBreakpoint } = Grid;
 
 import { formatDate } from '@/utils/formatDate';
 
 const PagosIndexPage: React.FC = () => {
   const router = useRouter();
-  const { token } = useToken();
-  const screens = useBreakpoint();
   const { containerRef, tableY } = useTableHeight();
 
   const {
@@ -194,18 +191,7 @@ const PagosIndexPage: React.FC = () => {
         }
       />
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 0 } }} style={{ marginTop: 4 }}>
-          <div
-            style={{
-              position: 'sticky', top: 0, zIndex: 9,
-              padding: screens.lg ? '8px 8px 12px' : '8px',
-              marginBottom: 8,
-              background: token.colorBgContainer,
-              borderRadius: 8,
-              boxShadow: token.boxShadowSecondary,
-            }}
-          >
-            <Space wrap size={[8, 8]}>
+        <FilterBar>
               <Select
                 showSearch allowClear placeholder="Nombre Comercial" style={{ width: 220, minWidth: 160 }}
                 filterOption={false}
@@ -244,8 +230,7 @@ const PagosIndexPage: React.FC = () => {
                 allowClear
                 style={{ minWidth: 200 }}
               />
-            </Space>
-          </div>
+        </FilterBar>
 
           <Table<PagoRow>
             size="small"
@@ -277,7 +262,6 @@ const PagosIndexPage: React.FC = () => {
             )}
             locale={{ emptyText: 'No hay pagos' }}
           />
-        </Card>
       </div>
       <Modal
         title="Vista Previa de Pago"

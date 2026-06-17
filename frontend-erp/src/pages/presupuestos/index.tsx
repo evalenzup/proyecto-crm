@@ -3,7 +3,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { PageHeader } from '@/components/PageHeader';
-import { Table, Button, Dropdown, Space, Tag, Modal, Form, Input, Card, Grid, theme, Select, DatePicker, Upload, Spin } from 'antd';
+import { FilterBar } from '@/components/FilterBar';
+import { Table, Button, Dropdown, Space, Tag, Modal, Form, Input, Grid, theme, Select, DatePicker, Upload, Spin } from 'antd';
 import type { MenuProps } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined, ReloadOutlined, SearchOutlined, FileDoneOutlined, MoreOutlined, TagOutlined, UploadOutlined, FilePdfOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -261,9 +262,7 @@ const PresupuestosPage: React.FC = () => {
         }
       />
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginTop: 4 }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '8px', marginBottom: 8, background: token.colorBgContainer, borderRadius: 8, boxShadow: token.boxShadowSecondary }}>
-            <Space wrap size={[8, 8]}>
+        <FilterBar>
               <Select
                 allowClear showSearch placeholder="Cliente (escribe ≥ 3 letras)" style={{ width: 280 }}
                 filterOption={false}
@@ -286,8 +285,7 @@ const PresupuestosPage: React.FC = () => {
                 ]}
               />
               <RangePicker onChange={(dates) => setRangoFechas(dates)} value={rangoFechas} placeholder={['Desde', 'Hasta']} />
-            </Space>
-          </div>
+        </FilterBar>
 
           <Table<PresupuestoSimpleOut>
             size="small"
@@ -309,7 +307,6 @@ const PresupuestosPage: React.FC = () => {
             )}
             locale={{ emptyText: "No hay presupuestos" }}
           />
-        </Card>
       </div>
 
       {/* Modal de Previsualización PDF */}

@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, Button, Popconfirm, Space, Input, Select, Tooltip, Card, theme, AutoComplete } from 'antd';
+import { Table, Button, Popconfirm, Space, Input, Select, Tooltip, AutoComplete } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
+import { FilterBar } from '@/components/FilterBar';
 import { useProductoServicioList } from '@/hooks/useProductoServicioList'; // Importamos el hook
 import { ProductoServicioOut, TipoProductoServicio, productoServicioService } from '@/services/productoServicioService'; // Importamos la interfaz ProductoServicioOut
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -16,7 +17,6 @@ const { Option } = Select;
 
 const ProductosServiciosPage: React.FC = () => {
   const router = useRouter();
-  const { token } = theme.useToken();
   const { containerRef, tableY } = useTableHeight();
   // Usamos el hook personalizado para toda la lógica de la lista y filtros
   const {
@@ -115,43 +115,33 @@ const ProductosServiciosPage: React.FC = () => {
         }
       />
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>
-            <Space wrap>
-              <Select
-                placeholder="Filtrar por tipo"
-                style={{ width: 160, minWidth: 140 }}
-                allowClear
-                onChange={(value: string) => {
-                  // El hook useProductoServicioList no tiene un filtro por tipo directamente
-                  // Si el backend no soporta este filtro, se haría aquí client-side
-                  // Por ahora, el searchTerm y empresaFiltro son los que se usan en el hook
-                  // Si se desea filtrar por tipo, se debería añadir al hook y al servicio
-                  // Para mantener la funcionalidad original, se podría filtrar aquí el `productosServicios`
-                  // que viene del hook, o modificar el hook para que acepte `tipoFiltro`.
-                  // Por simplicidad, y dado que el backend no tiene filtro por tipo en buscar,
-                  // mantendremos el filtro por descripción y empresa.
-                  // Si el usuario insiste en el filtro por tipo, se debería añadir al hook.
-                }}
-              >
-                <Option value={TipoProductoServicio.PRODUCTO}>PRODUCTO</Option>
-                <Option value={TipoProductoServicio.SERVICIO}>SERVICIO</Option>
-              </Select>
-              <AutoComplete
-                style={{ width: 500, minWidth: 200 }}
-                placeholder="Descripción/Clave (min 3 letras)"
-                onSearch={handleSearchProducts}
-                onChange={(val: string) => setSearchTerm(val)}
-                value={searchTerm}
-                allowClear
-                options={productOptions.map((p) => ({
-                  value: p.descripcion,
-                  label: `${p.clave_producto} - ${p.descripcion}`,
-                }))}
-              />
-            </Space>
-          </div>
-        </Card>
+        <FilterBar>
+          <Select
+            placeholder="Filtrar por tipo"
+            style={{ width: 160, minWidth: 140 }}
+            allowClear
+            onChange={(value: string) => {
+              // El hook useProductoServicioList no tiene un filtro por tipo directamente
+              // Si el backend no soporta este filtro, se haría aquí client-side
+              // Por ahora, el searchTerm y empresaFiltro son los que se usan en el hook
+            }}
+          >
+            <Option value={TipoProductoServicio.PRODUCTO}>PRODUCTO</Option>
+            <Option value={TipoProductoServicio.SERVICIO}>SERVICIO</Option>
+          </Select>
+          <AutoComplete
+            style={{ width: 500, minWidth: 200 }}
+            placeholder="Descripción/Clave (min 3 letras)"
+            onSearch={handleSearchProducts}
+            onChange={(val: string) => setSearchTerm(val)}
+            value={searchTerm}
+            allowClear
+            options={productOptions.map((p) => ({
+              value: p.descripcion,
+              label: `${p.clave_producto} - ${p.descripcion}`,
+            }))}
+          />
+        </FilterBar>
 
         <Table<ProductoServicioOut>
           rowKey="id"

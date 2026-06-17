@@ -6,17 +6,15 @@ import {
   Select,
   Input,
   DatePicker,
-  Card,
   Space,
   Tag,
   Tooltip,
   Typography,
   Result,
-  theme,
-  Grid,
 } from 'antd';
 import { SearchOutlined, AuditOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
+import { FilterBar } from '@/components/FilterBar';
 import {
   getAuditoria,
   AuditoriaLog,
@@ -29,8 +27,6 @@ import { useTableHeight } from '@/hooks/useTableHeight';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
-const { useToken } = theme;
-const { useBreakpoint } = Grid;
 
 // Color por tipo de acción
 const getAccionColor = (accion: string): string => {
@@ -48,8 +44,6 @@ const AuditoriaPage: React.FC = () => {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const { containerRef, tableY } = useTableHeight();
-  const { token } = useToken();
-  const screens = useBreakpoint();
 
   const [logs, setLogs] = useState<AuditoriaLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -246,50 +240,38 @@ const AuditoriaPage: React.FC = () => {
       />
 
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 4 }}>
-          <div
-            style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 9,
-              padding: screens.lg ? '4px' : '8px',
-              background: token.colorBgContainer,
+        <FilterBar>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Email usuario"
+            style={{ width: 220, minWidth: 160 }}
+            allowClear
+            value={usuarioEmail}
+            onChange={(e) => {
+              setUsuarioEmail(e.target.value);
+              setCurrentPage(1);
             }}
-          >
-            <Space wrap>
-              <Input
-                prefix={<SearchOutlined />}
-                placeholder="Email usuario"
-                style={{ width: 220, minWidth: 160 }}
-                allowClear
-                value={usuarioEmail}
-                onChange={(e) => {
-                  setUsuarioEmail(e.target.value);
-                  setCurrentPage(1);
-                }}
-              />
-              <Select
-                placeholder="Acción"
-                style={{ width: 220, minWidth: 160 }}
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                options={ACCIONES_AUDITORIA}
-                value={accion ?? undefined}
-                onChange={handleFilterChange(setAccion)}
-              />
-              <RangePicker
-                onChange={handleDateChange}
-                value={
-                  fechaDesde && fechaHasta
-                    ? [dayjs(fechaDesde), dayjs(fechaHasta)]
-                    : null
-                }
-                style={{ minWidth: 200 }}
-              />
-            </Space>
-          </div>
-        </Card>
+          />
+          <Select
+            placeholder="Acción"
+            style={{ width: 220, minWidth: 160 }}
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            options={ACCIONES_AUDITORIA}
+            value={accion ?? undefined}
+            onChange={handleFilterChange(setAccion)}
+          />
+          <RangePicker
+            onChange={handleDateChange}
+            value={
+              fechaDesde && fechaHasta
+                ? [dayjs(fechaDesde), dayjs(fechaHasta)]
+                : null
+            }
+            style={{ minWidth: 200 }}
+          />
+        </FilterBar>
 
         <Table
           rowKey="id"

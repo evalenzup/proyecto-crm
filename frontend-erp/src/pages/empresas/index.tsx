@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
-import { Table, message, Button, Popconfirm, Space, Tooltip, Input, Card, theme } from 'antd';
+import { Table, message, Button, Popconfirm, Space, Tooltip, Input } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { EmpresaOut } from '@/services/empresaService'; // Usamos la interfaz del servicio
 import { PageHeader } from '@/components/PageHeader';
+import { FilterBar } from '@/components/FilterBar';
 import { useEmpresasList } from '@/hooks/useEmpresasList'; // Importamos el hook
 import { useAuth } from '@/context/AuthContext';
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -14,7 +15,6 @@ import { useTableHeight } from '@/hooks/useTableHeight';
 const EmpresasPage: React.FC = () => {
   const router = useRouter();
   const { empresas, loading, handleDelete } = useEmpresasList(); // Usamos el hook
-  const { token } = theme.useToken();
   const { user } = useAuth();
   const { containerRef, tableY } = useTableHeight();
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -83,18 +83,16 @@ const EmpresasPage: React.FC = () => {
         }
       />
       <div className="app-content" ref={containerRef}>
-        <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '4px', background: token.colorBgContainer }}>
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder="Buscar por Nombre o RFC"
-              style={{ width: 300 }}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              allowClear
-            />
-          </div>
-        </Card>
+        <FilterBar>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Buscar por Nombre o RFC"
+            style={{ width: 300 }}
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            allowClear
+          />
+        </FilterBar>
         <Table<EmpresaOut> // Usamos EmpresaOut
           rowKey="id"
           columns={columns}
