@@ -15,6 +15,7 @@ import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
 import { getRegimenesFiscales } from '@/services/facturaService';
 import { ClienteDocumentos } from '@/components/ClienteDocumentos';
+import { ClienteContratos } from '@/components/ClienteContratos';
 
 const { Text } = Typography;
 
@@ -544,6 +545,7 @@ const ClienteFormPage: React.FC = () => {
           {/* ══════════════════════════════════════════════════════════════════
               SECCIÓN — Documentos / Contrato (solo en edición)
           ══════════════════════════════════════════════════════════════════ */}
+          {id && <ClienteContratos clienteId={String(id)} />}
           {id && <ClienteDocumentos clienteId={String(id)} />}
 
           {/* ── Botones ── */}
