@@ -36,6 +36,16 @@ export const OrdenFacturaSection: React.FC<Props> = ({ orden, onChanged }) => {
     }
   };
 
+  const confirmarCrear = () => {
+    Modal.confirm({
+      title: `¿Crear factura para la orden ${orden.folio_os}?`,
+      content: 'Se generará una factura en borrador, ligada a esta orden y a su cliente. Después podrás completar el concepto fiscal y timbrarla.',
+      okText: 'Sí, crear borrador',
+      cancelText: 'Cancelar',
+      onOk: crear,
+    });
+  };
+
   const abrirVincular = async () => {
     setSel(undefined);
     setVincularOpen(true);
@@ -92,7 +102,7 @@ export const OrdenFacturaSection: React.FC<Props> = ({ orden, onChanged }) => {
         </Space>
       ) : (
         <Space wrap>
-          <Button icon={<PlusOutlined />} onClick={crear} loading={busy}>Crear factura</Button>
+          <Button icon={<PlusOutlined />} onClick={confirmarCrear} loading={busy}>Crear factura</Button>
           <Button icon={<LinkOutlined />} onClick={abrirVincular}>Vincular existente</Button>
         </Space>
       )}
