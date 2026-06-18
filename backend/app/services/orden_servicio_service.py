@@ -40,6 +40,7 @@ def list_ordenes(
     prioridad: Optional[str] = None,
     tecnico_id: Optional[UUID] = None,
     cliente_id: Optional[UUID] = None,
+    factura_id: Optional[UUID] = None,
     q: Optional[str] = None,
     activo: Optional[bool] = True,
     limit: int = 100,
@@ -61,6 +62,8 @@ def list_ordenes(
         query = query.filter(OrdenServicio.tecnico_id == tecnico_id)
     if cliente_id:
         query = query.filter(OrdenServicio.cliente_id == cliente_id)
+    if factura_id:
+        query = query.filter(OrdenServicio.factura_id == factura_id)
     if q:
         # Buscar por folio de la orden O por nombre del cliente (comercial / fiscal)
         from app.models.cliente import Cliente

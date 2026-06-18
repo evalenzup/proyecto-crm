@@ -52,6 +52,7 @@ def listar_ordenes(
     prioridad: Optional[str] = Query(None),
     tecnico_id: Optional[UUID] = Query(None),
     cliente_id: Optional[UUID] = Query(None),
+    factura_id: Optional[UUID] = Query(None),
     q: Optional[str] = Query(None),
     activo: Optional[bool] = Query(True),
     limit: int = Query(100, ge=1, le=500),
@@ -69,6 +70,7 @@ def listar_ordenes(
         prioridad=prioridad,
         tecnico_id=tecnico_id,
         cliente_id=cliente_id,
+        factura_id=factura_id,
         q=q,
         activo=activo,
         limit=limit,
@@ -92,6 +94,9 @@ def listar_ordenes(
                 direccion_servicio=o.direccion_servicio,
                 precio_acordado=o.precio_acordado,
                 notas_tecnico=o.notas_tecnico,
+                factura_id=o.factura_id,
+                factura_folio=(f"{o.factura.serie}-{o.factura.folio}" if o.factura else None),
+                factura_estatus=(o.factura.estatus if o.factura else None),
             )
         )
 

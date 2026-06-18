@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/router';
+import { FacturaOrdenesVinculadas } from '@/components/FacturaOrdenesVinculadas';
 import { PageHeader } from '@/components/PageHeader';
 import {
   Form,
@@ -847,6 +848,9 @@ const FacturaFormPage: React.FC = () => {
             </Space>
           </Form>
         </Card>
+
+        {/* Órdenes de servicio vinculadas a esta factura */}
+        {id && <FacturaOrdenesVinculadas facturaId={String(id)} empresaId={empresaId || undefined} />}
 
         {/* Campo serie oculto (como el original) */}
         <Form.Item name="serie" hidden>

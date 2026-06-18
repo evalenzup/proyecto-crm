@@ -100,6 +100,9 @@ export interface OrdenServicioListOut {
   direccion_servicio?: string | null;
   precio_acordado?: number | null;
   notas_tecnico?: string | null;
+  factura_id?: string | null;
+  factura_folio?: string | null;
+  factura_estatus?: string | null;
 }
 
 export interface OrdenServicioCreate {
@@ -138,6 +141,7 @@ export interface ListOrdenesParams {
   prioridad?: PrioridadOS;
   tecnico_id?: string;
   cliente_id?: string;
+  factura_id?: string;
   q?: string;
   activo?: boolean;
   limit?: number;

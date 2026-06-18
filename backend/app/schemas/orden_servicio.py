@@ -193,5 +193,8 @@ class OrdenServicioListOut(BaseModel):
     direccion_servicio: Optional[str]
     precio_acordado: Optional[Decimal]
     notas_tecnico: Optional[str] = None
+    factura_id: Optional[UUID] = None
+    factura_folio: Optional[str] = None   # "A-123"
+    factura_estatus: Optional[str] = None
 
     model_config = {"from_attributes": True}

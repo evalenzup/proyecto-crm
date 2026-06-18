@@ -195,6 +195,20 @@ const OrdenesServicioPage: React.FC = () => {
           : '—',
     },
     {
+      title: 'Factura',
+      key: 'factura',
+      width: 120,
+      render: (_: any, r: OrdenServicioListOut) =>
+        r.factura_folio ? (
+          <Tooltip title={r.factura_estatus ?? ''}>
+            <a onClick={(e) => { e.stopPropagation(); router.push(`/facturas/form/${r.factura_id}`); }}
+               style={{ fontFamily: 'monospace' }}>
+              {r.factura_folio}
+            </a>
+          </Tooltip>
+        ) : <span style={{ color: token.colorTextTertiary }}>—</span>,
+    },
+    {
       title: '',
       key: 'actions',
       width: 110,
