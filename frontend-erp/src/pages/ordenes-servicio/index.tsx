@@ -258,12 +258,12 @@ const OrdenesServicioPage: React.FC = () => {
         <Card size="small" variant="borderless" styles={{ body: { padding: 12 } }} style={{ marginBottom: 8 }}>
           <Space wrap>
             <Input
-              placeholder="Buscar por folio…"
+              placeholder="Buscar por folio o cliente…"
               prefix={<SearchOutlined />}
               value={searchInput}
               onChange={handleSearchChange}
               allowClear
-              style={{ width: 200, minWidth: 140 }}
+              style={{ width: 240, minWidth: 160 }}
             />
             <Select
               placeholder="Estado"

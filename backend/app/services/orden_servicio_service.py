@@ -62,7 +62,16 @@ def list_ordenes(
     if cliente_id:
         query = query.filter(OrdenServicio.cliente_id == cliente_id)
     if q:
-        query = query.filter(OrdenServicio.folio_os.ilike(f"%{q}%"))
+        # Buscar por folio de la orden O por nombre del cliente (comercial / fiscal)
+        from app.models.cliente import Cliente
+        like = f"%{q}%"
+        query = query.join(Cliente, OrdenServicio.cliente_id == Cliente.id).filter(
+            or_(
+                OrdenServicio.folio_os.ilike(like),
+                Cliente.nombre_comercial.ilike(like),
+                Cliente.nombre_razon_social.ilike(like),
+            )
+        )
 
     total = query.count()
     items = (
