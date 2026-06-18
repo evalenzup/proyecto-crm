@@ -186,6 +186,11 @@ const ordenServicioService = {
     return data;
   },
 
+  facturasVinculables: async (id: string): Promise<{ id: string; serie: string; folio: number; estatus: string; status_pago: string; total: number; cliente_nombre: string | null }[]> => {
+    const { data } = await api.get(`/ordenes-servicio/${id}/facturas-vinculables`);
+    return data;
+  },
+
   vincularFactura: async (id: string, factura_id: string): Promise<OrdenServicioOut> => {
     const { data } = await api.post(`/ordenes-servicio/${id}/vincular-factura`, { factura_id });
     return data;

@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from datetime import date
 
 from fastapi import HTTPException
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session
 
 from app.models.orden_servicio import OrdenServicio, HistorialEstadoOS
@@ -308,18 +308,68 @@ def crear_factura_desde_orden(db: Session, orden_id: UUID):
     return factura
 
 
+# RFC genéricos (público en general nacional / extranjero): no se agrupan por RFC
+RFC_GENERICOS = {"XAXX010101000", "XEXX010101000"}
+
+
+def _rfc_normalizado(cliente) -> Optional[str]:
+    rfc = (getattr(cliente, "rfc", None) or "").strip().upper()
+    return rfc or None
+
+
+def facturas_vinculables(db: Session, orden_id: UUID) -> list:
+    """Facturas candidatas para vincular: misma empresa y mismo cliente, o
+    cualquier cliente con el MISMO RFC (sucursales). Para RFC genérico
+    (público en general) solo el cliente exacto."""
+    from app.models.factura import Factura
+    from app.models.cliente import Cliente
+
+    orden = get_orden(db, orden_id)
+    rfc = _rfc_normalizado(orden.cliente)
+
+    q = db.query(Factura).filter(Factura.empresa_id == orden.empresa_id)
+    if rfc and rfc not in RFC_GENERICOS:
+        q = q.join(Cliente, Factura.cliente_id == Cliente.id).filter(
+            func.upper(Cliente.rfc) == rfc
+        )
+    else:
+        q = q.filter(Factura.cliente_id == orden.cliente_id)
+
+    rows = q.order_by(Factura.serie, Factura.folio.desc()).limit(100).all()
+    return [
+        {
+            "id": str(f.id),
+            "serie": f.serie,
+            "folio": f.folio,
+            "estatus": f.estatus,
+            "status_pago": f.status_pago,
+            "total": float(f.total or 0),
+            "cliente_nombre": f.cliente.nombre_comercial if f.cliente else None,
+        }
+        for f in rows
+    ]
+
+
 def vincular_factura(db: Session, orden_id: UUID, factura_id: UUID) -> OrdenServicio:
-    """Liga una factura existente a la orden (misma empresa y mismo cliente)."""
+    """Liga una factura existente a la orden. Permite mismo cliente o cualquier
+    cliente con el mismo RFC (sucursales); RFC genérico exige cliente exacto."""
     from app.models.factura import Factura
 
     orden = get_orden(db, orden_id)
     factura = db.query(Factura).filter(Factura.id == factura_id).first()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-    if factura.empresa_id != orden.empresa_id or factura.cliente_id != orden.cliente_id:
+    if factura.empresa_id != orden.empresa_id:
+        raise HTTPException(status_code=422, detail="La factura debe ser de la misma empresa que la orden")
+
+    rfc_orden = _rfc_normalizado(orden.cliente)
+    rfc_factura = _rfc_normalizado(factura.cliente)
+    mismo_cliente = factura.cliente_id == orden.cliente_id
+    mismo_rfc = bool(rfc_orden and rfc_orden not in RFC_GENERICOS and rfc_orden == rfc_factura)
+    if not (mismo_cliente or mismo_rfc):
         raise HTTPException(
             status_code=422,
-            detail="La factura debe ser de la misma empresa y del mismo cliente que la orden",
+            detail="La factura debe ser del mismo cliente o de un cliente con el mismo RFC.",
         )
     orden.factura_id = factura_id
     db.commit()

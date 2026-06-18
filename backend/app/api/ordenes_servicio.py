@@ -234,6 +234,16 @@ def crear_factura_desde_orden(
     return {"factura_id": str(factura.id), "serie": factura.serie, "folio": factura.folio}
 
 
+@router.get("/{orden_id}/facturas-vinculables", response_model=list)
+def facturas_vinculables(
+    orden_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Facturas candidatas para vincular (mismo cliente o mismo RFC)."""
+    return svc.facturas_vinculables(db, orden_id)
+
+
 @router.post("/{orden_id}/vincular-factura", response_model=OrdenServicioOut)
 def vincular_factura(
     orden_id: UUID,

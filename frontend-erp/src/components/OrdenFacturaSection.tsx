@@ -6,7 +6,6 @@ import { useRouter } from 'next/router';
 import { Space, Button, Tag, Typography, Modal, Select, message } from 'antd';
 import { FileTextOutlined, ExportOutlined, LinkOutlined, PlusOutlined } from '@ant-design/icons';
 import ordenServicioService, { OrdenServicioOut } from '@/services/ordenServicioService';
-import { getFacturas } from '@/services/facturaService';
 
 const { Text } = Typography;
 
@@ -50,8 +49,8 @@ export const OrdenFacturaSection: React.FC<Props> = ({ orden, onChanged }) => {
     setSel(undefined);
     setVincularOpen(true);
     try {
-      const res = await getFacturas({ empresa_id: orden.empresa_id, cliente_id: orden.cliente_id, limit: 50, offset: 0 } as any);
-      setFacturas(res.items ?? []);
+      const res = await ordenServicioService.facturasVinculables(orden.id);
+      setFacturas(res ?? []);
     } catch {
       setFacturas([]);
     }
@@ -115,7 +114,7 @@ export const OrdenFacturaSection: React.FC<Props> = ({ orden, onChanged }) => {
         okText="Vincular"
         okButtonProps={{ disabled: !sel, loading: busy }}
       >
-        <Text type="secondary">Facturas del mismo cliente y empresa:</Text>
+        <Text type="secondary">Facturas del cliente o de clientes con el mismo RFC (sucursales):</Text>
         <Select
           style={{ width: '100%', marginTop: 8 }}
           showSearch
@@ -125,9 +124,9 @@ export const OrdenFacturaSection: React.FC<Props> = ({ orden, onChanged }) => {
           onChange={setSel}
           options={facturas.map((f: any) => ({
             value: f.id,
-            label: `${f.serie}-${f.folio} · ${f.estatus} · ${Number(f.total ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}`,
+            label: `${f.serie}-${f.folio} · ${f.cliente_nombre ?? ''} · ${f.estatus} · ${Number(f.total ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}`,
           }))}
-          notFoundContent="Sin facturas para este cliente"
+          notFoundContent="Sin facturas vinculables"
         />
       </Modal>
     </>
