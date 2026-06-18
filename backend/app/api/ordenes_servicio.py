@@ -197,3 +197,51 @@ def eliminar_orden(
         detalle={"folio_os": obj.folio_os, "estado": obj.estado},
     )
     svc.delete_orden(db, orden_id)
+
+
+# ── Vínculo con factura ───────────────────────────────────────────────────────
+
+from pydantic import BaseModel as _BaseModel
+from app.schemas.orden_servicio import OrdenServicioOut
+
+
+class VincularFacturaIn(_BaseModel):
+    factura_id: UUID
+
+
+@router.post("/{orden_id}/crear-factura", response_model=dict, status_code=201)
+def crear_factura_desde_orden(
+    orden_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Crea una factura BORRADOR ligada a la orden y devuelve su id para abrirla."""
+    factura = svc.crear_factura_desde_orden(db, orden_id)
+    audit_svc.registrar(
+        db=db, accion="CREAR_FACTURA_DESDE_ORDEN", entidad="orden_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        entidad_id=str(orden_id), ip=audit_svc.get_ip(request),
+        detalle={"factura_id": str(factura.id), "serie": factura.serie, "folio": factura.folio},
+    )
+    db.commit()
+    return {"factura_id": str(factura.id), "serie": factura.serie, "folio": factura.folio}
+
+
+@router.post("/{orden_id}/vincular-factura", response_model=OrdenServicioOut)
+def vincular_factura(
+    orden_id: UUID,
+    payload: VincularFacturaIn,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    return svc.vincular_factura(db, orden_id, payload.factura_id)
+
+
+@router.delete("/{orden_id}/factura", response_model=OrdenServicioOut)
+def desvincular_factura(
+    orden_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    return svc.desvincular_factura(db, orden_id)

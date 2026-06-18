@@ -30,6 +30,7 @@ import ordenServicioService, {
   OrdenServicioOut,
   EstadoOS,
 } from '@/services/ordenServicioService';
+import { OrdenFacturaSection } from '@/components/OrdenFacturaSection';
 import {
   ESTADO_COLOR,
   ESTADO_BADGE,
@@ -309,6 +310,10 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged, 
               />
             </>
           )}
+
+          {/* ── Factura ── */}
+          <Divider orientation="left" style={{ fontSize: 13, marginTop: 16, marginBottom: 10 }}>Factura</Divider>
+          <OrdenFacturaSection orden={data} onChanged={(u) => u && setData(u)} />
 
           {/* ── Footer: ir a página completa / editar / eliminar ── */}
           <Divider style={{ marginTop: 12, marginBottom: 12 }} />

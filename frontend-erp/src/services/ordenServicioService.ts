@@ -68,12 +68,23 @@ export interface OrdenServicioOut {
   activo: boolean;
   creado_en: string;
   actualizado_en: string;
+  factura_id?: string | null;
   // Relacionados
   cliente?: ClienteSimpleOut | null;
   tecnico?: TecnicoSimpleOut | null;
   unidad?: UnidadSimpleOut | null;
   servicio?: ServicioSimpleOut | null;
+  factura?: FacturaResumenOut | null;
   historial: HistorialEstadoOSOut[];
+}
+
+export interface FacturaResumenOut {
+  id: string;
+  serie?: string | null;
+  folio?: number | null;
+  estatus?: string | null;
+  status_pago?: string | null;
+  total?: number | null;
 }
 
 export interface OrdenServicioListOut {
@@ -162,6 +173,22 @@ const ordenServicioService = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/ordenes-servicio/${id}`);
+  },
+
+  // ── Factura ────────────────────────────────────────────────────────────────
+  crearFactura: async (id: string): Promise<{ factura_id: string; serie: string; folio: number }> => {
+    const { data } = await api.post(`/ordenes-servicio/${id}/crear-factura`);
+    return data;
+  },
+
+  vincularFactura: async (id: string, factura_id: string): Promise<OrdenServicioOut> => {
+    const { data } = await api.post(`/ordenes-servicio/${id}/vincular-factura`, { factura_id });
+    return data;
+  },
+
+  desvincularFactura: async (id: string): Promise<OrdenServicioOut> => {
+    const { data } = await api.delete(`/ordenes-servicio/${id}/factura`);
+    return data;
   },
 };
 

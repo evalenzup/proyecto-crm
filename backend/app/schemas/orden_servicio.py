@@ -123,6 +123,17 @@ class HistorialEstadoOSOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FacturaResumenOut(BaseModel):
+    id: UUID
+    serie: Optional[str] = None
+    folio: Optional[int] = None
+    estatus: Optional[str] = None
+    status_pago: Optional[str] = None
+    total: Optional[Decimal] = None
+
+    model_config = {"from_attributes": True}
+
+
 class OrdenServicioOut(BaseModel):
     id: UUID
     empresa_id: UUID
@@ -133,6 +144,7 @@ class OrdenServicioOut(BaseModel):
     unidad_id: Optional[UUID]
     servicio_id: Optional[UUID]
     presupuesto_id: Optional[UUID]
+    factura_id: Optional[UUID] = None
 
     fecha_programada: date
     hora_inicio: Optional[time]
@@ -161,6 +173,7 @@ class OrdenServicioOut(BaseModel):
     tecnico: Optional[TecnicoSimpleOut] = None
     unidad: Optional[UnidadSimpleOut] = None
     servicio: Optional[ServicioSimpleOut] = None
+    factura: Optional[FacturaResumenOut] = None
     historial: List[HistorialEstadoOSOut] = []
 
     model_config = {"from_attributes": True}

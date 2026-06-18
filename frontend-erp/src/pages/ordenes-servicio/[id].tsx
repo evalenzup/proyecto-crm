@@ -25,6 +25,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
+import { OrdenFacturaSection } from '@/components/OrdenFacturaSection';
 import ordenServicioService, {
   OrdenServicioOut,
   EstadoOS,
@@ -234,6 +235,11 @@ export default function OrdenServicioDetalle() {
               </Button>
             </Card>
           )}
+
+          {/* Factura */}
+          <Card title="Factura" style={{ marginBottom: 16 }}>
+            <OrdenFacturaSection orden={data} onChanged={() => load()} />
+          </Card>
 
           {/* Historial */}
           <Card title="Historial">

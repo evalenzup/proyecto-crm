@@ -26,6 +26,7 @@ class OrdenServicio(Base):
     unidad_id = Column(UUID(as_uuid=True), ForeignKey("unidades.id"), nullable=True, index=True)
     servicio_id = Column(UUID(as_uuid=True), ForeignKey("servicios_operativos.id"), nullable=True)
     presupuesto_id = Column(UUID(as_uuid=True), ForeignKey("presupuestos.id"), nullable=True)
+    factura_id = Column(UUID(as_uuid=True), ForeignKey("facturas.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # ── Folio ────────────────────────────────────────────────────────────────
     folio_os = Column(String(20), nullable=False, index=True)   # OS-0001
@@ -67,6 +68,7 @@ class OrdenServicio(Base):
     tecnico = relationship("Tecnico", lazy="selectin")
     unidad = relationship("Unidad", lazy="selectin")
     servicio = relationship("ServicioOperativo", lazy="selectin")
+    factura = relationship("Factura", lazy="selectin")
     historial = relationship(
         "HistorialEstadoOS",
         back_populates="orden",

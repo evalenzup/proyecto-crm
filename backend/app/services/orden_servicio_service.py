@@ -234,3 +234,62 @@ def _verificar_conflicto_tecnico(
             status_code=409,
             detail=f"El técnico ya tiene la orden {conflicto.folio_os} programada en ese horario.",
         )
+
+
+# ── Vínculo con factura ───────────────────────────────────────────────────────
+
+def crear_factura_desde_orden(db: Session, orden_id: UUID):
+    """Crea una factura BORRADOR ligada a la orden (Opción A: solo cliente+empresa).
+    El concepto fiscal se completa luego en el form de factura. Devuelve la factura."""
+    from app.models.factura import Factura
+    from app.services import factura_service
+
+    orden = get_orden(db, orden_id)
+    if orden.factura_id:
+        raise HTTPException(status_code=409, detail="La orden ya tiene una factura vinculada")
+
+    serie = "A"
+    factura = Factura(
+        empresa_id=orden.empresa_id,
+        cliente_id=orden.cliente_id,
+        serie=serie,
+        folio=factura_service.siguiente_folio(db, orden.empresa_id, serie),
+        estatus="BORRADOR",
+        status_pago="NO_PAGADA",
+        observaciones=f"Generada desde la orden {orden.folio_os}",
+    )
+    db.add(factura)
+    db.flush()  # obtener factura.id
+
+    orden.factura_id = factura.id
+    db.commit()
+    db.refresh(factura)
+    db.refresh(orden)
+    return factura
+
+
+def vincular_factura(db: Session, orden_id: UUID, factura_id: UUID) -> OrdenServicio:
+    """Liga una factura existente a la orden (misma empresa y mismo cliente)."""
+    from app.models.factura import Factura
+
+    orden = get_orden(db, orden_id)
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if factura.empresa_id != orden.empresa_id or factura.cliente_id != orden.cliente_id:
+        raise HTTPException(
+            status_code=422,
+            detail="La factura debe ser de la misma empresa y del mismo cliente que la orden",
+        )
+    orden.factura_id = factura_id
+    db.commit()
+    db.refresh(orden)
+    return orden
+
+
+def desvincular_factura(db: Session, orden_id: UUID) -> OrdenServicio:
+    orden = get_orden(db, orden_id)
+    orden.factura_id = None
+    db.commit()
+    db.refresh(orden)
+    return orden
