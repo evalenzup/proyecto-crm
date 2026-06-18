@@ -19,8 +19,8 @@ class ContratoBase(BaseModel):
     vigencia_desde: Optional[date] = None
     vigencia_hasta: Optional[date] = None
     certificado_folio: Optional[str] = Field(None, max_length=40)
-    # { "fumigacion": num, "sanitizacion": num, "combo": num }
-    servicios: Optional[dict] = None
+    # valores manuales keyed por placeholder de la plantilla de la empresa
+    datos: Optional[dict] = None
     # lista de tecnico_ids
     personal_asignado: Optional[List[UUID]] = None
     exclusiones: Optional[str] = None
@@ -37,7 +37,7 @@ class ContratoUpdate(BaseModel):
     vigencia_desde: Optional[date] = None
     vigencia_hasta: Optional[date] = None
     certificado_folio: Optional[str] = Field(None, max_length=40)
-    servicios: Optional[dict] = None
+    datos: Optional[dict] = None
     personal_asignado: Optional[List[UUID]] = None
     exclusiones: Optional[str] = None
     notas: Optional[str] = None

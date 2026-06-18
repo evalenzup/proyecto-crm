@@ -11,7 +11,7 @@ export interface Contrato {
   vigencia_desde?: string | null;
   vigencia_hasta?: string | null;
   certificado_folio?: string | null;
-  servicios?: Record<string, number> | null;
+  datos?: Record<string, any> | null;
   personal_asignado?: string[] | null;
   exclusiones?: string | null;
   notas?: string | null;
@@ -22,9 +22,17 @@ export interface Contrato {
   actualizado_en: string;
 }
 
+export interface CampoPlantilla {
+  name: string;
+  label: string;
+  tipo: 'numero' | 'texto';
+}
+
 export interface ContratoPrecarga {
   empresa_id: string | null;
-  servicios: Record<string, number>;
+  tiene_plantilla: boolean;
+  campos: CampoPlantilla[];
+  presupuesto_total: number | null;
   tecnicos_disponibles: { id: string; nombre: string; puesto?: string | null }[];
 }
 

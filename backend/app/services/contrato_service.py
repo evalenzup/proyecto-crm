@@ -75,25 +75,11 @@ def _fecha_texto(d: Optional[date]) -> str:
     return f"{d.day} de {_MESES[d.month]} de {d.year}"
 
 
-def _build_context(db: Session, contrato: Contrato) -> dict:
+# Claves que se resuelven automáticamente desde los datos del sistema (no las
+# captura el usuario). El resto de placeholders de la plantilla son manuales.
+def _auto_context(db: Session, contrato: Contrato) -> dict:
     empresa: Empresa = contrato.empresa
     cliente: Cliente = contrato.cliente
-    servicios = contrato.servicios or {}
-
-    # Personal asignado: lista de tecnico_ids → datos del técnico
-    personal = []
-    for tid in (contrato.personal_asignado or []):
-        tec = db.query(Tecnico).filter(Tecnico.id == tid).first()
-        if not tec:
-            continue
-        personal.append({
-            "nombre": tec.nombre_completo or "",
-            "nss": tec.nss or "",
-            "curp": tec.curp or "",
-            "salario": _money(tec.salario_base_cotizable) and f"${_money(tec.salario_base_cotizable)}" or "",
-            "puesto": tec.puesto or "TÉCNICO EN FUMIGACIÓN",
-        })
-
     return {
         # Prestador (empresa)
         "prestador_representante": empresa.representante_legal or "",
@@ -111,15 +97,98 @@ def _build_context(db: Session, contrato: Contrato) -> dict:
         "cliente_representante": cliente.representante_legal or "",
         "cliente_rfc": cliente.rfc or "",
         "cliente_email": _primer(cliente.email),
-        # Contrato
-        "precio_fumigacion": _money(servicios.get("fumigacion")),
-        "precio_sanitizacion": _money(servicios.get("sanitizacion")),
-        "precio_combo": _money(servicios.get("combo")),
-        "vigencia_texto": _vigencia_texto(contrato),
-        "fecha_contrato_texto": _fecha_texto(contrato.fecha_contrato),
-        "certificado_folio": contrato.certificado_folio or "",
-        "personal": personal,
+        # Metadatos del contrato
+        "numero_contrato": contrato.numero_contrato or "",
     }
+
+
+# Conjunto de claves auto-resueltas (para filtrar los campos manuales del form)
+AUTO_KEYS = {
+    "prestador_representante", "prestador_propietario", "prestador_rfc",
+    "prestador_registro_patronal", "prestador_repse_aviso", "prestador_repse_registro",
+    "prestador_licencia", "prestador_banco", "prestador_clabe", "prestador_cuenta",
+    "cliente_razon_social", "cliente_representante", "cliente_rfc", "cliente_email",
+    "numero_contrato", "personal",
+}
+
+
+def _build_context(db: Session, contrato: Contrato) -> dict:
+    # Personal asignado: lista de tecnico_ids → datos del técnico
+    personal = []
+    for tid in (contrato.personal_asignado or []):
+        tec = db.query(Tecnico).filter(Tecnico.id == tid).first()
+        if not tec:
+            continue
+        personal.append({
+            "nombre": tec.nombre_completo or "",
+            "nss": tec.nss or "",
+            "curp": tec.curp or "",
+            "salario": f"${_money(tec.salario_base_cotizable)}" if tec.salario_base_cotizable else "",
+            "puesto": tec.puesto or "",
+        })
+
+    ctx = _auto_context(db, contrato)
+    # Valores manuales (keyed por placeholder); formatea números de precio
+    for k, v in (contrato.datos or {}).items():
+        if v is None:
+            ctx[k] = ""
+        elif _es_campo_numerico(k):
+            ctx[k] = _money(v)
+        else:
+            ctx[k] = v
+    ctx["personal"] = personal
+    return ctx
+
+
+def _es_campo_numerico(nombre: str) -> bool:
+    n = nombre.lower()
+    return any(p in n for p in ("precio", "monto", "importe", "costo", "total"))
+
+
+def _placeholders_en_docx(path: str) -> list[str]:
+    """Extrae los nombres de placeholders {{ ... }} del docx, uniendo runs.
+    No usa jinja (evita el conflicto con los tags {%tr%} del loop)."""
+    import re
+    import zipfile
+
+    textos = []
+    with zipfile.ZipFile(path) as z:
+        for name in z.namelist():
+            if name.startswith("word/") and name.endswith(".xml"):
+                xml = z.read(name).decode("utf-8", errors="ignore")
+                # unir el texto de todos los <w:t> para reconstruir placeholders partidos
+                textos.append("".join(re.findall(r"<w:t[^>]*>(.*?)</w:t>", xml, re.DOTALL)))
+    full = "".join(textos)
+    # raíz de cada {{ expr }} (ignora miembros de loop como p.nombre)
+    nombres = []
+    for expr in re.findall(r"\{\{\s*([a-zA-Z0-9_\.]+)", full):
+        raiz = expr.split(".")[0]
+        if "." in expr:
+            continue  # miembro de objeto del loop (p.nombre)
+        nombres.append(raiz)
+    # preservar orden de aparición, sin duplicados
+    vistos, orden = set(), []
+    for n in nombres:
+        if n not in vistos:
+            vistos.add(n)
+            orden.append(n)
+    return orden
+
+
+def variables_plantilla(empresa: Empresa) -> list[dict]:
+    """Introspecciona los placeholders de la plantilla de la empresa y devuelve
+    los campos MANUALES (los que el usuario debe capturar), con tipo sugerido."""
+    plantilla = _resolver_plantilla(empresa)
+    campos = []
+    for v in _placeholders_en_docx(plantilla):
+        if v in AUTO_KEYS or v == "personal":
+            continue
+        campos.append({
+            "name": v,
+            "label": v.replace("_", " ").capitalize(),
+            "tipo": "numero" if _es_campo_numerico(v) else "texto",
+        })
+    return campos
 
 
 def _docx_a_pdf(docx_path: str, out_dir: str) -> Optional[str]:

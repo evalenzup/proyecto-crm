@@ -34,7 +34,10 @@ class Contrato(Base):
     # Folio del certificado de aplicación referenciado en el contrato
     certificado_folio = Column(String(40), nullable=True)
 
-    # Líneas de servicio/precio: [{ "concepto": str, "precio": num, "periodicidad": str, "iva": num }]
+    # Valores manuales del contrato, keyed por el nombre del placeholder de la
+    # plantilla de la empresa: { "precio_fumigacion": 3146, "vigencia_texto": "...", ... }
+    datos = Column(_JSON_TYPE, nullable=True)
+    # (en desuso) campos fijos previos; se conserva la columna por compatibilidad
     servicios = Column(_JSON_TYPE, nullable=True)
     # Personal asignado: lista de tecnico_ids (los datos NSS/CURP/salario se leen del técnico al generar)
     personal_asignado = Column(_JSON_TYPE, nullable=True)

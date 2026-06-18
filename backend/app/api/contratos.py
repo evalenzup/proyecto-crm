@@ -47,14 +47,25 @@ def precarga_contrato(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    empresa_id = cliente.empresas[0].id if cliente.empresas else None
-    servicios = {}
+    empresa = cliente.empresas[0] if cliente.empresas else None
+    empresa_id = empresa.id if empresa else None
+
+    # Campos manuales según la plantilla de la empresa (vacío si no hay plantilla)
+    tiene_plantilla = bool(empresa and empresa.plantilla_contrato)
+    campos = []
+    if tiene_plantilla:
+        try:
+            campos = contrato_service.variables_plantilla(empresa)
+        except Exception:
+            campos = []
+
+    # Sugerencia de precarga desde presupuesto: total disponible para que el
+    # usuario lo coloque en el campo de precio que corresponda
+    presupuesto_total = None
     if presupuesto_id:
         pres = db.query(Presupuesto).filter(Presupuesto.id == presupuesto_id).first()
         if pres:
-            servicios = {"combo": float(pres.total or 0)}
-            if not empresa_id:
-                empresa_id = pres.empresa_id
+            presupuesto_total = float(pres.total or 0)
 
     tecnicos = []
     if empresa_id:
@@ -63,7 +74,9 @@ def precarga_contrato(
 
     return {
         "empresa_id": str(empresa_id) if empresa_id else None,
-        "servicios": servicios,
+        "tiene_plantilla": tiene_plantilla,
+        "campos": campos,
+        "presupuesto_total": presupuesto_total,
         "tecnicos_disponibles": tecnicos,
     }
 
