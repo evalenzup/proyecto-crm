@@ -18,7 +18,8 @@ export const FacturaOrdenesVinculadas: React.FC<Props> = ({ facturaId, empresaId
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!facturaId) return;
+    // Esperar a tener empresaId: el endpoint lo requiere para usuarios admin.
+    if (!facturaId || !empresaId) return;
     let active = true;
     setLoading(true);
     ordenServicioService
