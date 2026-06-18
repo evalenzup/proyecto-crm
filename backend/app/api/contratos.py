@@ -156,6 +156,9 @@ def generar_contrato(
     obj = _get_or_404(db, contrato_id)
     try:
         contrato_service.generar_documento(db, obj)
+    except ValueError as e:
+        # Falta plantilla de la empresa u otro dato de configuración
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar el contrato: {e}")
     audit_svc.registrar(

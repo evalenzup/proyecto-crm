@@ -61,6 +61,7 @@ class Empresa(Base):
     repse_registro = Column(String(50), nullable=True)           # No. de Registro REPSE
     repse_aviso = Column(String(50), nullable=True)              # Aviso de Registro REPSE
     instrumento_notarial = Column(Text, nullable=True)           # poder/notaría/volumen/folio/fecha
+    plantilla_contrato = Column(String(255), nullable=True)      # plantilla docxtpl propia (data/contratos_plantillas/)
 
 
     creado_en = Column(TIMESTAMP, server_default=func.now(), nullable=False)

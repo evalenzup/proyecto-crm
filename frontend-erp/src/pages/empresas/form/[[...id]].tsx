@@ -13,6 +13,7 @@ import api from '@/lib/axios';
 import { formatDate } from '@/utils/formatDate';
 import LogoCropperModal from '@/components/LogoCropperModal';
 import EmailConfigModal from '@/components/EmailConfigModal';
+import { EmpresaPlantillaContrato } from '@/components/EmpresaPlantillaContrato';
 
 const { Text } = Typography;
 
@@ -549,6 +550,12 @@ const EmpresaFormPage: React.FC = () => {
                     </Col>
                   ))}
                 </Row>
+                {id && (
+                  <EmpresaPlantillaContrato
+                    empresaId={String(id)}
+                    plantillaActual={form.getFieldValue('plantilla_contrato')}
+                  />
+                )}
               </Card>
             )}
 

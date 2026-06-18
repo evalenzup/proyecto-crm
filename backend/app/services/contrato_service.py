@@ -25,6 +25,20 @@ from app.models.tecnico import Tecnico
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "contrato_plantilla.docx"
 _CONTRATOS_DIR = os.path.join(settings.DATA_DIR, "contratos")
+_PLANTILLAS_DIR = os.path.join(settings.DATA_DIR, "contratos_plantillas")
+
+
+def _resolver_plantilla(empresa: Empresa) -> str:
+    """Devuelve la ruta de la plantilla docxtpl de la empresa.
+    Cada empresa tiene su propio formato — no hay fallback entre empresas."""
+    if empresa.plantilla_contrato:
+        path = os.path.join(_PLANTILLAS_DIR, empresa.plantilla_contrato)
+        if os.path.isfile(path):
+            return path
+    raise ValueError(
+        f"La empresa '{empresa.nombre_comercial or empresa.nombre}' no tiene plantilla de "
+        "contrato configurada. Súbela en la configuración de la empresa."
+    )
 
 _MESES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -127,15 +141,14 @@ def _docx_a_pdf(docx_path: str, out_dir: str) -> Optional[str]:
 
 
 def generar_documento(db: Session, contrato: Contrato) -> Contrato:
-    """Rellena la plantilla, genera docx y pdf, y actualiza el contrato."""
-    if not _TEMPLATE_PATH.exists():
-        raise FileNotFoundError(f"No se encontró la plantilla en {_TEMPLATE_PATH}")
+    """Rellena la plantilla de la empresa, genera docx y pdf, y actualiza el contrato."""
+    plantilla = _resolver_plantilla(contrato.empresa)
 
     os.makedirs(_CONTRATOS_DIR, exist_ok=True)
     base = f"contrato_{contrato.id}"
     docx_path = os.path.join(_CONTRATOS_DIR, base + ".docx")
 
-    tpl = DocxTemplate(str(_TEMPLATE_PATH))
+    tpl = DocxTemplate(plantilla)
     tpl.render(_build_context(db, contrato))
     tpl.save(docx_path)
 

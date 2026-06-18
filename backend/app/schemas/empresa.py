@@ -61,6 +61,7 @@ class EmpresaOut(EmpresaBase):
     # contrasena del CSD excluida intencionalmente — no se expone en respuestas de API
     tiene_config_email: bool = Field(False, title="¿Tiene configuración de email?")
     agenda_token: Optional[str] = Field(None, title="Token de agenda pública")
+    plantilla_contrato: Optional[str] = Field(None, title="Plantilla de contrato")
 
     class Config:
         orm_mode = True

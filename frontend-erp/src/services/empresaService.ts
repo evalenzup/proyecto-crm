@@ -113,6 +113,25 @@ export const empresaService = {
     await api.delete(`/empresas/${id}`);
   },
 
+  // ── Plantilla de contrato por empresa ──────────────────────────────────────
+  uploadPlantillaContrato: async (id: string, file: File): Promise<EmpresaOut> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const response = await api.post<EmpresaOut>(`/empresas/${id}/plantilla-contrato`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  downloadPlantillaContrato: async (id: string): Promise<Blob> => {
+    const response = await api.get(`/empresas/${id}/plantilla-contrato`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  deletePlantillaContrato: async (id: string): Promise<void> => {
+    await api.delete(`/empresas/${id}/plantilla-contrato`);
+  },
+
   getRfcGroups: async (): Promise<RfcGroup[]> => {
     const response = await api.get<RfcGroup[]>('/empresas/rfc-groups');
     return response.data;

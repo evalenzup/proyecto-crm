@@ -422,3 +422,84 @@ def eliminar_empresa(id: UUID, db: Session = Depends(get_db), current_user: Usua
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     return
+
+
+# ── Plantilla de contrato por empresa ─────────────────────────────────────────
+
+_PLANTILLAS_DIR = os.path.join(settings.DATA_DIR, "contratos_plantillas")
+
+
+@router.post("/{id}/plantilla-contrato", response_model=EmpresaOut, summary="Subir plantilla de contrato (.docx)")
+def subir_plantilla_contrato(
+    id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden cambiar la plantilla")
+    empresa = empresa_repo.get(db, id=id)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext != ".docx":
+        raise HTTPException(status_code=400, detail="La plantilla debe ser un archivo .docx")
+    content = file.file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La plantilla supera el tamaño máximo de 10 MB.")
+
+    os.makedirs(_PLANTILLAS_DIR, exist_ok=True)
+    # Borrar la anterior si existe
+    if empresa.plantilla_contrato:
+        old = os.path.join(_PLANTILLAS_DIR, empresa.plantilla_contrato)
+        if os.path.exists(old):
+            os.remove(old)
+    filename = f"plantilla_{id}.docx"
+    with open(os.path.join(_PLANTILLAS_DIR, filename), "wb") as fh:
+        fh.write(content)
+
+    empresa.plantilla_contrato = filename
+    db.commit()
+    db.refresh(empresa)
+    return empresa
+
+
+@router.get("/{id}/plantilla-contrato", summary="Descargar plantilla de contrato")
+def descargar_plantilla_contrato(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    empresa = empresa_repo.get(db, id=id)
+    if not empresa or not empresa.plantilla_contrato:
+        raise HTTPException(status_code=404, detail="La empresa no tiene plantilla de contrato")
+    base = os.path.realpath(_PLANTILLAS_DIR)
+    resolved = os.path.realpath(os.path.join(base, empresa.plantilla_contrato))
+    if not resolved.startswith(base + os.sep) or not os.path.isfile(resolved):
+        raise HTTPException(status_code=404, detail="Archivo de plantilla no encontrado")
+    return FileResponse(
+        resolved,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"plantilla_contrato_{empresa.nombre_comercial or id}.docx",
+    )
+
+
+@router.delete("/{id}/plantilla-contrato", status_code=204, summary="Eliminar plantilla de contrato")
+def eliminar_plantilla_contrato(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden cambiar la plantilla")
+    empresa = empresa_repo.get(db, id=id)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    if empresa.plantilla_contrato:
+        path = os.path.join(_PLANTILLAS_DIR, empresa.plantilla_contrato)
+        if os.path.exists(path):
+            os.remove(path)
+        empresa.plantilla_contrato = None
+        db.commit()
+    return Response(status_code=204)
