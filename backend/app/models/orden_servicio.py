@@ -76,6 +76,11 @@ class OrdenServicio(Base):
         lazy="selectin",
     )
 
+    @property
+    def servicio_facturable(self) -> bool:
+        """True si la orden tiene servicio y éste tiene producto/concepto fiscal vinculado."""
+        return bool(self.servicio and self.servicio.producto_servicio_id)
+
     def __repr__(self):
         return f"<OrdenServicio(folio={self.folio_os}, estado={self.estado})>"
 

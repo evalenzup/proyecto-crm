@@ -75,6 +75,7 @@ export interface OrdenServicioOut {
   unidad?: UnidadSimpleOut | null;
   servicio?: ServicioSimpleOut | null;
   factura?: FacturaResumenOut | null;
+  servicio_facturable?: boolean;
   historial: HistorialEstadoOSOut[];
 }
 

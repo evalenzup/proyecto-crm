@@ -174,6 +174,7 @@ class OrdenServicioOut(BaseModel):
     unidad: Optional[UnidadSimpleOut] = None
     servicio: Optional[ServicioSimpleOut] = None
     factura: Optional[FacturaResumenOut] = None
+    servicio_facturable: bool = False
     historial: List[HistorialEstadoOSOut] = []
 
     model_config = {"from_attributes": True}

@@ -254,6 +254,21 @@ def crear_factura_desde_orden(db: Session, orden_id: UUID):
     if orden.factura_id:
         raise HTTPException(status_code=409, detail="La orden ya tiene una factura vinculada")
 
+    # Candado: la orden debe tener servicio y éste un producto/concepto fiscal vinculado
+    if not orden.servicio_id or not orden.servicio:
+        raise HTTPException(
+            status_code=422,
+            detail="Esta orden no tiene tipo de servicio asignado. Edita la orden y asígnalo antes de facturar.",
+        )
+    if not orden.servicio.producto_servicio_id:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"El servicio '{orden.servicio.nombre}' no tiene un producto/servicio fiscal vinculado. "
+                "Vincúlalo en el catálogo de Servicios para poder facturar."
+            ),
+        )
+
     serie = "A"
     factura = Factura(
         empresa_id=orden.empresa_id,

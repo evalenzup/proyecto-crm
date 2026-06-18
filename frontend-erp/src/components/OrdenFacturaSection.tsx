@@ -36,9 +36,26 @@ export const OrdenFacturaSection: React.FC<Props> = ({ orden, onChanged }) => {
   };
 
   const confirmarCrear = () => {
+    // Candado: la orden debe tener servicio y éste un producto/concepto fiscal
+    if (!orden.servicio_id || !orden.servicio) {
+      Modal.warning({
+        title: 'No se puede facturar todavía',
+        content: 'Esta orden no tiene tipo de servicio asignado. Edita la orden y asígnalo antes de facturar.',
+        okText: 'Entendido',
+      });
+      return;
+    }
+    if (!orden.servicio_facturable) {
+      Modal.warning({
+        title: 'No se puede facturar todavía',
+        content: `El servicio "${orden.servicio?.nombre ?? ''}" no tiene un producto/servicio fiscal vinculado. Vincúlalo en el catálogo de Servicios para poder facturar.`,
+        okText: 'Entendido',
+      });
+      return;
+    }
     Modal.confirm({
       title: `¿Crear factura para la orden ${orden.folio_os}?`,
-      content: 'Se generará una factura en borrador, ligada a esta orden y a su cliente. Después podrás completar el concepto fiscal y timbrarla.',
+      content: 'Se generará una factura en borrador, con el concepto del servicio y el precio acordado. Después podrás revisarla y timbrarla.',
       okText: 'Sí, crear borrador',
       cancelText: 'Cancelar',
       onOk: crear,
