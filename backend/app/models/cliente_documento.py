@@ -1,6 +1,6 @@
 # app/models/cliente_documento.py
 import uuid
-from sqlalchemy import Column, String, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, String, Text, Date, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -24,6 +24,12 @@ class ClienteDocumento(Base):
     tipo = Column(String(40), nullable=False, default="OTRO")  # CONTRATO, IDENTIFICACION, OTRO
     nombre = Column(String(255), nullable=False)               # nombre visible del documento
     archivo = Column(String(255), nullable=False)              # nombre de archivo en data/clientes_docs/
+
+    # Metadatos (relevantes sobre todo para contratos)
+    numero = Column(String(60), nullable=True)
+    vigencia_desde = Column(Date, nullable=True)
+    vigencia_hasta = Column(Date, nullable=True)
+    notas = Column(Text, nullable=True)
 
     creado_en = Column(TIMESTAMP, server_default=func.now(), nullable=False)
 

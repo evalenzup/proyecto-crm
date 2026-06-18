@@ -184,13 +184,23 @@ export const clienteService = {
   uploadDocumento: async (
     id: string,
     file: File,
-    tipo: string,
-    nombre?: string,
+    meta: {
+      tipo: string;
+      nombre?: string;
+      numero?: string;
+      vigencia_desde?: string;
+      vigencia_hasta?: string;
+      notas?: string;
+    },
   ): Promise<ClienteDocumento> => {
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('tipo', tipo);
-    if (nombre) fd.append('nombre', nombre);
+    fd.append('tipo', meta.tipo);
+    if (meta.nombre) fd.append('nombre', meta.nombre);
+    if (meta.numero) fd.append('numero', meta.numero);
+    if (meta.vigencia_desde) fd.append('vigencia_desde', meta.vigencia_desde);
+    if (meta.vigencia_hasta) fd.append('vigencia_hasta', meta.vigencia_hasta);
+    if (meta.notas) fd.append('notas', meta.notas);
     const response = await api.post<ClienteDocumento>(`/clientes/${id}/documentos`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -214,5 +224,9 @@ export interface ClienteDocumento {
   tipo: string;
   nombre: string;
   archivo: string;
+  numero?: string | null;
+  vigencia_desde?: string | null;
+  vigencia_hasta?: string | null;
+  notas?: string | null;
   creado_en: string;
 }

@@ -464,12 +464,26 @@ def listar_documentos_cliente(
     )
 
 
+def _parse_fecha(valor: Optional[str]):
+    if not valor:
+        return None
+    from datetime import date as _date
+    try:
+        return _date.fromisoformat(valor[:10])
+    except ValueError:
+        return None
+
+
 @router.post("/{id}/documentos", response_model=ClienteDocumentoOut, status_code=201)
 def subir_documento_cliente(
     id: UUID,
     file: UploadFile = File(...),
     tipo: str = Form("OTRO"),
     nombre: Optional[str] = Form(None),
+    numero: Optional[str] = Form(None),
+    vigencia_desde: Optional[str] = Form(None),
+    vigencia_hasta: Optional[str] = Form(None),
+    notas: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -498,6 +512,10 @@ def subir_documento_cliente(
         tipo=(tipo or "OTRO").upper(),
         nombre=nombre or file.filename or filename,
         archivo=filename,
+        numero=numero or None,
+        vigencia_desde=_parse_fecha(vigencia_desde),
+        vigencia_hasta=_parse_fecha(vigencia_hasta),
+        notas=notas or None,
     )
     db.add(doc)
     db.commit()

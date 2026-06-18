@@ -144,6 +144,10 @@ class ClienteDocumentoOut(BaseModel):
     tipo: str
     nombre: str
     archivo: str
+    numero: Optional[str] = None
+    vigencia_desde: Optional[Any] = None
+    vigencia_hasta: Optional[Any] = None
+    notas: Optional[str] = None
     creado_en: TijuanaDatetime
 
     class Config:
