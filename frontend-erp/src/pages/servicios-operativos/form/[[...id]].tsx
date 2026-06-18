@@ -24,6 +24,7 @@ import {
   ServicioOperativoCreate,
   ServicioOperativoUpdate,
 } from '@/services/servicioOperativoService';
+import { productoServicioService } from '@/services/productoServicioService';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -45,6 +46,22 @@ const ServicioOperativoForm: React.FC = () => {
   const [padreOptions, setPadreOptions] = useState<{ value: string; label: string }[]>([]);
   const [fetchingPadre, setFetchingPadre] = useState(false);
 
+  // For producto_servicio_id (catálogo fiscal) select
+  const [productoOptions, setProductoOptions] = useState<{ value: string; label: string }[]>([]);
+  const [fetchingProducto, setFetchingProducto] = useState(false);
+
+  const buscarProductos = async (search: string) => {
+    const empId = form.getFieldValue('empresa_id');
+    if (!empId || (search || '').length < 2) return;
+    setFetchingProducto(true);
+    try {
+      const res = await productoServicioService.buscarProductoServicios(search, empId, 20);
+      setProductoOptions(res.map((p) => ({ value: p.id, label: `${p.clave_producto} · ${p.descripcion}` })));
+    } catch { /* silent */ } finally {
+      setFetchingProducto(false);
+    }
+  };
+
   const watchedEmpresaId = Form.useWatch('empresa_id', form);
 
   // Load existing record when editing
@@ -65,8 +82,15 @@ const ServicioOperativoForm: React.FC = () => {
           requiere_vehiculo: data.requiere_vehiculo,
           servicio_padre_id: data.servicio_padre_id ?? undefined,
           observaciones: data.observaciones ?? undefined,
+          producto_servicio_id: data.producto_servicio_id ?? undefined,
           activo: data.activo,
         });
+        // precargar la opción del producto vinculado (para mostrar su etiqueta)
+        if (data.producto_servicio_id) {
+          productoServicioService.getProductoServicio(data.producto_servicio_id)
+            .then((ps) => setProductoOptions([{ value: ps.id, label: `${ps.clave_producto} · ${ps.descripcion}` }]))
+            .catch(() => { /* silent */ });
+        }
       })
       .catch((e: any) => { if (!e?._handled) message.error('Error al cargar el servicio'); })
       .finally(() => setLoading(false));
@@ -125,6 +149,7 @@ const ServicioOperativoForm: React.FC = () => {
           requiere_vehiculo: values.requiere_vehiculo,
           servicio_padre_id: values.servicio_padre_id ?? null,
           observaciones: values.observaciones ?? null,
+          producto_servicio_id: values.producto_servicio_id ?? null,
           activo: values.activo,
         };
         await servicioOperativoService.updateServicio(id, payload);
@@ -140,6 +165,7 @@ const ServicioOperativoForm: React.FC = () => {
           requiere_vehiculo: values.requiere_vehiculo ?? false,
           servicio_padre_id: values.servicio_padre_id ?? null,
           observaciones: values.observaciones ?? null,
+          producto_servicio_id: values.producto_servicio_id ?? null,
           activo: values.activo ?? true,
         };
         await servicioOperativoService.createServicio(payload);
@@ -244,6 +270,22 @@ const ServicioOperativoForm: React.FC = () => {
 
             <Form.Item label="Observaciones" name="observaciones">
               <TextArea rows={3} maxLength={500} showCount />
+            </Form.Item>
+
+            <Form.Item
+              label="Producto/Servicio fiscal (para facturar)"
+              name="producto_servicio_id"
+              tooltip="Al facturar una orden con este servicio, el concepto toma las claves SAT de este producto/servicio. El precio sale del precio acordado en la orden."
+            >
+              <Select
+                showSearch
+                allowClear
+                filterOption={false}
+                placeholder="Buscar producto/servicio del catálogo fiscal…"
+                notFoundContent={fetchingProducto ? 'Buscando…' : 'Escribe para buscar'}
+                onSearch={buscarProductos}
+                options={productoOptions}
+              />
             </Form.Item>
 
             <Form.Item label="Activo" name="activo" valuePropName="checked">

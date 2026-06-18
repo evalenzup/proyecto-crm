@@ -242,9 +242,12 @@ def _verificar_conflicto_tecnico(
 # ── Vínculo con factura ───────────────────────────────────────────────────────
 
 def crear_factura_desde_orden(db: Session, orden_id: UUID):
-    """Crea una factura BORRADOR ligada a la orden (Opción A: solo cliente+empresa).
-    El concepto fiscal se completa luego en el form de factura. Devuelve la factura."""
+    """Crea una factura BORRADOR ligada a la orden. Si el servicio de la orden
+    tiene un Producto/Servicio fiscal vinculado, prellena el concepto con sus
+    claves SAT y el precio acordado de la orden. Devuelve la factura."""
+    from decimal import Decimal, ROUND_HALF_UP
     from app.models.factura import Factura
+    from app.models.factura_detalle import FacturaDetalle
     from app.services import factura_service
 
     orden = get_orden(db, orden_id)
@@ -261,6 +264,40 @@ def crear_factura_desde_orden(db: Session, orden_id: UUID):
         status_pago="NO_PAGADA",
         observaciones=f"Generada desde la orden {orden.folio_os}",
     )
+
+    # Prellenar concepto desde el Producto/Servicio fiscal vinculado al servicio operativo
+    prod = orden.servicio.producto_servicio if (orden.servicio and orden.servicio.producto_servicio_id) else None
+    if prod:
+        cantidad = Decimal("1")
+        # Precio: el acordado en la orden; si no hay, el del catálogo fiscal
+        valor = Decimal(str(orden.precio_acordado if orden.precio_acordado is not None else (prod.valor_unitario or 0)))
+        iva_tasa = Decimal("0.16")  # tasa por defecto; se ajusta en el form si aplica (p.ej. 0.08)
+        base = (cantidad * valor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        iva_importe = (base * iva_tasa).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        importe = base + iva_importe
+
+        factura.conceptos.append(
+            FacturaDetalle(
+                producto_servicio_id=prod.id,
+                clave_producto=prod.clave_producto,
+                clave_unidad=prod.clave_unidad,
+                unidad=getattr(prod, "unidad_inventario", None),
+                descripcion=prod.descripcion or (orden.servicio.nombre if orden.servicio else ""),
+                cantidad=cantidad,
+                valor_unitario=valor,
+                descuento=Decimal("0"),
+                importe=importe,
+                objeto_imp="02",
+                iva_tipo_factor="Tasa",
+                iva_tasa=iva_tasa,
+                iva_importe=iva_importe,
+            )
+        )
+        factura.subtotal = base
+        factura.impuestos_trasladados = iva_importe
+        factura.impuestos_retenidos = Decimal("0")
+        factura.total = base + iva_importe
+
     db.add(factura)
     db.flush()  # obtener factura.id
 

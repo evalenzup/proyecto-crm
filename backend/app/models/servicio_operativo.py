@@ -24,6 +24,10 @@ class ServicioOperativo(Base):
     servicio_padre_id = Column(UUID(as_uuid=True), ForeignKey("servicios_operativos.id"), nullable=True)
     observaciones = Column(Text, nullable=True)
     activo = Column(Boolean, nullable=False, default=True)
+    # Vínculo al catálogo fiscal (claves SAT) para facturar desde una orden
+    producto_servicio_id = Column(
+        UUID(as_uuid=True), ForeignKey("productos_servicios.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     creado_en = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     actualizado_en = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -43,6 +47,7 @@ class ServicioOperativo(Base):
         back_populates="servicios_compatibles",
         lazy="selectin",
     )
+    producto_servicio = relationship("ProductoServicio", lazy="selectin")
 
     def __repr__(self):
         return f"<ServicioOperativo(nombre={self.nombre})>"

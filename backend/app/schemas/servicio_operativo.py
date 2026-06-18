@@ -29,6 +29,7 @@ class ServicioOperativoCreate(BaseModel):
     requiere_vehiculo: bool = False
     servicio_padre_id: Optional[UUID] = None
     observaciones: Optional[str] = None
+    producto_servicio_id: Optional[UUID] = None
     activo: bool = True
 
 
@@ -41,6 +42,7 @@ class ServicioOperativoUpdate(BaseModel):
     requiere_vehiculo: Optional[bool] = None
     servicio_padre_id: Optional[UUID] = None
     observaciones: Optional[str] = None
+    producto_servicio_id: Optional[UUID] = None
     activo: Optional[bool] = None
 
 
@@ -55,6 +57,7 @@ class ServicioOperativoOut(BaseModel):
     requiere_vehiculo: bool
     servicio_padre_id: Optional[UUID] = None
     observaciones: Optional[str] = None
+    producto_servicio_id: Optional[UUID] = None
     activo: bool
     creado_en: TijuanaDatetime
     actualizado_en: TijuanaDatetime

@@ -17,6 +17,7 @@ export interface ServicioOperativoOut {
   personal_requerido: number;
   requiere_vehiculo: boolean;
   servicio_padre_id?: string | null;
+  producto_servicio_id?: string | null;
   observaciones?: string | null;
   activo: boolean;
   creado_en: string;
@@ -33,6 +34,7 @@ export interface ServicioOperativoCreate {
   personal_requerido?: number;
   requiere_vehiculo?: boolean;
   servicio_padre_id?: string | null;
+  producto_servicio_id?: string | null;
   observaciones?: string | null;
   activo?: boolean;
 }
