@@ -290,6 +290,7 @@ export default function AgendaPage() {
           ${formatHora(o.hora_inicio)}${o.hora_fin ? ` – ${formatHora(o.hora_fin)}` : ''}
         </td>
         <td>${esc(o.cliente_nombre ?? '—')}</td>
+        <td style="font-size:12px">${esc(o.servicio_nombre ?? '—')}</td>
         <td>${esc(o.tecnico_nombre ?? '—')}</td>
         <td style="font-size:12px">
           ${esc(o.direccion_servicio ?? '—')}
@@ -340,12 +341,13 @@ export default function AgendaPage() {
       <tr>
         <th style="width:90px">Horario</th>
         <th>Cliente</th>
+        <th>Servicio</th>
         <th style="width:140px">Técnico</th>
         <th>Dirección / Notas al técnico</th>
         <th style="width:110px;text-align:right">Precio</th>
       </tr>
     </thead>
-    <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">Sin órdenes para este día</td></tr>'}</tbody>
+    <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">Sin órdenes para este día</td></tr>'}</tbody>
   </table>
   <div class="footer">Generado el ${dayjs().format('DD/MM/YYYY HH:mm')} · Sistema NORTON CRM/ERP</div>
   <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>

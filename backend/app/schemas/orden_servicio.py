@@ -190,6 +190,7 @@ class OrdenServicioListOut(BaseModel):
     prioridad: str
     cliente_nombre: Optional[str] = None
     tecnico_nombre: Optional[str] = None
+    servicio_nombre: Optional[str] = None
     direccion_servicio: Optional[str]
     precio_acordado: Optional[Decimal]
     notas_tecnico: Optional[str] = None

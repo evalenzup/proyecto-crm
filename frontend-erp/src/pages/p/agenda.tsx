@@ -37,6 +37,7 @@ interface AgendaItem {
   prioridad: string;
   cliente_nombre: string | null;
   tecnico_nombre: string | null;
+  servicio_nombre: string | null;
   direccion_servicio: string | null;
   notas_tecnico: string | null;
   precio_acordado: number | null;
@@ -310,6 +311,19 @@ function ServiceCard({ item }: { item: AgendaItem }) {
         {item.cliente_nombre && (
           <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', lineHeight: 1.3 }}>
             {item.cliente_nombre}
+          </div>
+        )}
+
+        {/* Tipo de servicio */}
+        {item.servicio_nombre && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+            fontSize: 13, fontWeight: 600, color: '#0a5c91',
+            background: '#e6f4ff', border: '1px solid #91caff',
+            borderRadius: 6, padding: '2px 8px',
+          }}>
+            <FileTextOutlined style={{ fontSize: 12 }} />
+            {item.servicio_nombre}
           </div>
         )}
 

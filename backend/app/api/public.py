@@ -43,6 +43,7 @@ class AgendaItemOut(BaseModel):
     prioridad: str
     cliente_nombre: str | None
     tecnico_nombre: str | None
+    servicio_nombre: str | None
     direccion_servicio: str | None
     notas_tecnico: str | None
     precio_acordado: float | None
@@ -102,6 +103,7 @@ def agenda_publica(
             prioridad=o.prioridad,
             cliente_nombre=o.cliente.nombre_comercial if o.cliente else None,
             tecnico_nombre=o.tecnico.nombre_completo if o.tecnico else None,
+            servicio_nombre=o.servicio.nombre if o.servicio else None,
             direccion_servicio=o.direccion_servicio,
             notas_tecnico=o.notas_tecnico,
             precio_acordado=float(o.precio_acordado) if o.precio_acordado is not None else None,

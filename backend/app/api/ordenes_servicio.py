@@ -91,6 +91,7 @@ def listar_ordenes(
                 prioridad=o.prioridad,
                 cliente_nombre=o.cliente.nombre_comercial if o.cliente else None,
                 tecnico_nombre=o.tecnico.nombre_completo if o.tecnico else None,
+                servicio_nombre=o.servicio.nombre if o.servicio else None,
                 direccion_servicio=o.direccion_servicio,
                 precio_acordado=o.precio_acordado,
                 notas_tecnico=o.notas_tecnico,
