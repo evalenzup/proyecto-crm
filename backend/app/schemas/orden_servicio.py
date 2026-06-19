@@ -198,5 +198,7 @@ class OrdenServicioListOut(BaseModel):
     factura_id: Optional[UUID] = None
     factura_folio: Optional[str] = None   # "A-123"
     factura_estatus: Optional[str] = None
+    cliente_id: Optional[UUID] = None
+    equipos_resumen: List[dict] = []   # [{"tipo": str, "cantidad": int}]
 
     model_config = {"from_attributes": True}

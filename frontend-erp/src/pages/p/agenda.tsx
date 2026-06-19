@@ -15,6 +15,7 @@ import {
   PictureOutlined,
   EyeOutlined,
   DownloadOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -46,6 +47,7 @@ interface AgendaItem {
   precio_acordado: number | null;
   cliente_id: string | null;
   croquis_count: number;
+  equipos_resumen: { tipo: string; cantidad: number }[];
 }
 
 interface CroquisPublico {
@@ -443,6 +445,20 @@ function ServiceCard({ item, token }: { item: AgendaItem; token: string }) {
             <PictureOutlined style={{ fontSize: 13 }} />
             Croquis ({item.croquis_count})
           </button>
+        )}
+
+        {/* Equipos de control (resumen por tipo) */}
+        {item.equipos_resumen.length > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 6,
+            background: '#f6ffed', border: '1px solid #b7eb8f',
+            borderRadius: 6, padding: '6px 8px', marginTop: 2,
+          }}>
+            <ToolOutlined style={{ fontSize: 12, color: '#389e0d', marginTop: 2, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: '#237804', lineHeight: 1.4 }}>
+              {item.equipos_resumen.map((e) => `${e.tipo} ×${e.cantidad}`).join(' · ')}
+            </span>
+          </div>
         )}
       </div>
 

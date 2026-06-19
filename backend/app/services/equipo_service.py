@@ -290,3 +290,39 @@ def to_out_dict(obj: EquipoControl) -> Dict[str, Any]:
         "creado_en": obj.creado_en,
         "actualizado_en": obj.actualizado_en,
     }
+
+
+def resumen_equipos_por_cliente(
+    db: Session, empresa_id: UUID, cliente_ids: List[UUID]
+) -> Dict[UUID, List[Dict[str, Any]]]:
+    """Resumen de equipos ACTIVOS agrupados por tipo, para varios clientes de una empresa.
+
+    Devuelve {cliente_id: [{"tipo": str, "cantidad": int}, ...]} ordenado por tipo.
+    Usado por la agenda (impresa y pública) para mostrar qué tiene cada cliente.
+    """
+    from sqlalchemy import func
+
+    if not cliente_ids:
+        return {}
+
+    rows = (
+        db.query(
+            EquipoControl.cliente_id,
+            TipoEquipo.nombre,
+            func.count(EquipoControl.id),
+        )
+        .join(TipoEquipo, TipoEquipo.id == EquipoControl.tipo_equipo_id)
+        .filter(
+            EquipoControl.empresa_id == empresa_id,
+            EquipoControl.cliente_id.in_(cliente_ids),
+            EquipoControl.activo == True,  # noqa: E712
+        )
+        .group_by(EquipoControl.cliente_id, TipoEquipo.nombre)
+        .order_by(TipoEquipo.nombre.asc())
+        .all()
+    )
+
+    resumen: Dict[UUID, List[Dict[str, Any]]] = {}
+    for cliente_id, tipo_nombre, cantidad in rows:
+        resumen.setdefault(cliente_id, []).append({"tipo": tipo_nombre, "cantidad": cantidad})
+    return resumen

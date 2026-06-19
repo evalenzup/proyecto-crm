@@ -50,6 +50,7 @@ class AgendaItemOut(BaseModel):
     precio_acordado: float | None
     cliente_id: str | None
     croquis_count: int = 0
+    equipos_resumen: list[dict] = []
 
 
 class AgendaEmpresaOut(BaseModel):
@@ -115,6 +116,10 @@ def agenda_publica(
         ):
             croquis_por_cliente[cid] = cnt
 
+    # Resumen de equipos de control por cliente (por tipo)
+    from app.services.equipo_service import resumen_equipos_por_cliente
+    equipos_por_cliente = resumen_equipos_por_cliente(db, empresa.id, list(cliente_ids))
+
     items = []
     for o in rows:
         items.append(AgendaItemOut(
@@ -133,6 +138,7 @@ def agenda_publica(
             precio_acordado=float(o.precio_acordado) if o.precio_acordado is not None else None,
             cliente_id=str(o.cliente_id) if o.cliente_id else None,
             croquis_count=croquis_por_cliente.get(o.cliente_id, 0),
+            equipos_resumen=equipos_por_cliente.get(o.cliente_id, []),
         ))
 
     return {

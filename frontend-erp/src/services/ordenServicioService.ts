@@ -105,6 +105,8 @@ export interface OrdenServicioListOut {
   factura_id?: string | null;
   factura_folio?: string | null;
   factura_estatus?: string | null;
+  cliente_id?: string | null;
+  equipos_resumen?: { tipo: string; cantidad: number }[];
 }
 
 export interface OrdenServicioCreate {

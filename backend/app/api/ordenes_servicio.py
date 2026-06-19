@@ -77,6 +77,11 @@ def listar_ordenes(
         offset=offset,
     )
 
+    # Resumen de equipos de control por cliente (por tipo) — en lote
+    from app.services.equipo_service import resumen_equipos_por_cliente
+    cliente_ids = list({o.cliente_id for o in items if o.cliente_id})
+    equipos_por_cliente = resumen_equipos_por_cliente(db, eid, cliente_ids) if cliente_ids else {}
+
     # Serializar a OrdenServicioListOut (versión reducida)
     result = []
     for o in items:
@@ -98,6 +103,8 @@ def listar_ordenes(
                 factura_id=o.factura_id,
                 factura_folio=(f"{o.factura.serie}-{o.factura.folio}" if o.factura else None),
                 factura_estatus=(o.factura.estatus if o.factura else None),
+                cliente_id=o.cliente_id,
+                equipos_resumen=equipos_por_cliente.get(o.cliente_id, []),
             )
         )
 
