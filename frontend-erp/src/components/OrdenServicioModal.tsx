@@ -31,6 +31,7 @@ import ordenServicioService, {
   EstadoOS,
 } from '@/services/ordenServicioService';
 import { OrdenFacturaSection } from '@/components/OrdenFacturaSection';
+import { OrdenClienteContexto } from '@/components/OrdenClienteContexto';
 import {
   ESTADO_COLOR,
   ESTADO_BADGE,
@@ -309,6 +310,13 @@ export default function OrdenServicioModal({ ordenId, onClose, onEstadoChanged, 
                 }))}
               />
             </>
+          )}
+
+          {/* ── Equipos, contrato y croquis del cliente ── */}
+          {data.cliente_id && (
+            <div style={{ marginTop: 16 }}>
+              <OrdenClienteContexto clienteId={data.cliente_id} empresaId={data.empresa_id} />
+            </div>
           )}
 
           {/* ── Factura ── */}

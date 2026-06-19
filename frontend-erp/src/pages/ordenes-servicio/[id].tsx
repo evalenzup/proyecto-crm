@@ -26,6 +26,7 @@ import {
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { OrdenFacturaSection } from '@/components/OrdenFacturaSection';
+import { OrdenClienteContexto } from '@/components/OrdenClienteContexto';
 import ordenServicioService, {
   OrdenServicioOut,
   EstadoOS,
@@ -234,6 +235,11 @@ export default function OrdenServicioDetalle() {
                 Aplicar
               </Button>
             </Card>
+          )}
+
+          {/* Equipos, contrato y croquis del cliente */}
+          {data.cliente_id && (
+            <OrdenClienteContexto clienteId={data.cliente_id} empresaId={data.empresa_id} />
           )}
 
           {/* Factura */}
