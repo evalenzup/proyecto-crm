@@ -20,6 +20,7 @@ router = APIRouter()
 
 _TECNICOS_FOTOS_DIR = os.path.join(settings.DATA_DIR, "tecnicos_fotos")
 _LOGOS_DIR = os.path.join(settings.DATA_DIR, "logos")
+_CROQUIS_DIR = os.path.join(settings.DATA_DIR, "croquis")
 
 
 def _safe_path(base_dir: str, filename: str) -> str:
@@ -47,11 +48,20 @@ class AgendaItemOut(BaseModel):
     direccion_servicio: str | None
     notas_tecnico: str | None
     precio_acordado: float | None
+    cliente_id: str | None
+    croquis_count: int = 0
 
 
 class AgendaEmpresaOut(BaseModel):
     nombre: str
     color: str
+
+
+class CroquisPublicoOut(BaseModel):
+    id: str
+    titulo: str
+    area: str | None
+    descripcion: str | None
 
 
 @router.get("/agenda", response_model=dict)
@@ -91,6 +101,20 @@ def agenda_publica(
         .all()
     )
 
+    # Conteo de croquis por cliente (de esta empresa) para los clientes del día
+    from sqlalchemy import func
+    from app.models.croquis import Croquis
+    cliente_ids = {o.cliente_id for o in rows if o.cliente_id}
+    croquis_por_cliente: dict = {}
+    if cliente_ids:
+        for cid, cnt in (
+            db.query(Croquis.cliente_id, func.count(Croquis.id))
+            .filter(Croquis.empresa_id == empresa.id, Croquis.cliente_id.in_(cliente_ids))
+            .group_by(Croquis.cliente_id)
+            .all()
+        ):
+            croquis_por_cliente[cid] = cnt
+
     items = []
     for o in rows:
         items.append(AgendaItemOut(
@@ -107,6 +131,8 @@ def agenda_publica(
             direccion_servicio=o.direccion_servicio,
             notas_tecnico=o.notas_tecnico,
             precio_acordado=float(o.precio_acordado) if o.precio_acordado is not None else None,
+            cliente_id=str(o.cliente_id) if o.cliente_id else None,
+            croquis_count=croquis_por_cliente.get(o.cliente_id, 0),
         ))
 
     return {
@@ -118,6 +144,84 @@ def agenda_publica(
             color=empresa.color_empresa or "#0a5c91",
         ),
     }
+
+
+def _empresa_y_orden_por_token(db: Session, agenda_token: str, orden_id: UUID):
+    """Valida el token de agenda y que la orden pertenezca a esa empresa."""
+    from app.models.orden_servicio import OrdenServicio
+    from app.models.empresa import Empresa
+
+    empresa = db.query(Empresa).filter(Empresa.agenda_token == agenda_token).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Enlace de agenda inválido")
+    orden = (
+        db.query(OrdenServicio)
+        .filter(OrdenServicio.id == orden_id, OrdenServicio.empresa_id == empresa.id)
+        .first()
+    )
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    return empresa, orden
+
+
+@router.get("/agenda/ordenes/{orden_id}/croquis", response_model=list[CroquisPublicoOut])
+def croquis_publicos_orden(
+    orden_id: UUID,
+    agenda_token: str,
+    db: Session = Depends(get_db),
+):
+    """Croquis del cliente de la orden (sin auth, gated por el token de agenda)."""
+    from app.models.croquis import Croquis
+
+    empresa, orden = _empresa_y_orden_por_token(db, agenda_token, orden_id)
+    if not orden.cliente_id:
+        return []
+    rows = (
+        db.query(Croquis)
+        .filter(Croquis.empresa_id == empresa.id, Croquis.cliente_id == orden.cliente_id)
+        .order_by(Croquis.creado_en.desc())
+        .all()
+    )
+    return [
+        CroquisPublicoOut(id=str(c.id), titulo=c.titulo, area=c.area, descripcion=c.descripcion)
+        for c in rows
+    ]
+
+
+@router.get("/agenda/ordenes/{orden_id}/croquis/{croquis_id}/archivo")
+def descargar_croquis_publico(
+    orden_id: UUID,
+    croquis_id: UUID,
+    agenda_token: str,
+    db: Session = Depends(get_db),
+):
+    """Descarga/visualización del archivo de un croquis (gated por token de agenda)."""
+    import mimetypes
+    from app.models.croquis import Croquis
+
+    empresa, orden = _empresa_y_orden_por_token(db, agenda_token, orden_id)
+    croq = (
+        db.query(Croquis)
+        .filter(
+            Croquis.id == croquis_id,
+            Croquis.empresa_id == empresa.id,
+            Croquis.cliente_id == orden.cliente_id,
+        )
+        .first()
+    )
+    if not croq:
+        raise HTTPException(status_code=404, detail="Croquis no encontrado")
+
+    resolved = _safe_path(_CROQUIS_DIR, croq.archivo)
+    if not os.path.isfile(resolved):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    mime, _ = mimetypes.guess_type(resolved)
+    return FileResponse(
+        resolved,
+        media_type=mime or "application/octet-stream",
+        filename=f"{croq.titulo}{os.path.splitext(croq.archivo)[1]}",
+    )
 
 
 class VerificacionOut(BaseModel):

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Spin, Tag } from 'antd';
+import { Spin, Tag, Modal, message } from 'antd';
 import {
   LeftOutlined,
   RightOutlined,
@@ -12,6 +12,9 @@ import {
   UserOutlined,
   FileTextOutlined,
   CalendarOutlined,
+  PictureOutlined,
+  EyeOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -41,6 +44,15 @@ interface AgendaItem {
   direccion_servicio: string | null;
   notas_tecnico: string | null;
   precio_acordado: number | null;
+  cliente_id: string | null;
+  croquis_count: number;
+}
+
+interface CroquisPublico {
+  id: string;
+  titulo: string;
+  area: string | null;
+  descripcion: string | null;
 }
 
 // ── Constantes de estilo ──────────────────────────────────────────────────────
@@ -234,7 +246,7 @@ export default function AgendaPublica() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {items.map((item) => (
-                <ServiceCard key={item.id} item={item} />
+                <ServiceCard key={item.id} item={item} token={empresaId} />
               ))}
             </div>
           )}
@@ -251,11 +263,66 @@ export default function AgendaPublica() {
 
 // ── Card de servicio ──────────────────────────────────────────────────────────
 
-function ServiceCard({ item }: { item: AgendaItem }) {
+function ServiceCard({ item, token }: { item: AgendaItem; token: string }) {
   const color  = ESTADO_COLOR[item.estado]  ?? '#888';
   const bg     = ESTADO_BG[item.estado]     ?? '#fafafa';
   const label  = ESTADO_LABEL[item.estado]  ?? item.estado;
   const priColor = PRIORIDAD_COLOR[item.prioridad] ?? '#888';
+
+  const [croquisOpen, setCroquisOpen] = useState(false);
+  const [croquis, setCroquis] = useState<CroquisPublico[]>([]);
+  const [croquisLoading, setCroquisLoading] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; tipo: 'pdf' | 'imagen'; titulo: string } | null>(null);
+
+  const archivoUrl = (c: CroquisPublico) =>
+    `${API_BASE}/public/agenda/ordenes/${item.id}/croquis/${c.id}/archivo?agenda_token=${encodeURIComponent(token)}`;
+
+  const abrirCroquis = async () => {
+    setCroquisOpen(true);
+    if (croquis.length > 0) return;
+    setCroquisLoading(true);
+    try {
+      const { data } = await axios.get(`${API_BASE}/public/agenda/ordenes/${item.id}/croquis`, {
+        params: { agenda_token: token },
+      });
+      setCroquis(data ?? []);
+    } catch {
+      message.error('No se pudieron cargar los croquis');
+    } finally {
+      setCroquisLoading(false);
+    }
+  };
+
+  const verCroquis = async (c: CroquisPublico) => {
+    try {
+      const resp = await axios.get(archivoUrl(c), { responseType: 'blob' });
+      const blob: Blob = resp.data;
+      const tipo: 'pdf' | 'imagen' = blob.type.startsWith('image/') ? 'imagen' : 'pdf';
+      const url = window.URL.createObjectURL(blob);
+      setPreview({ url, tipo, titulo: c.titulo });
+    } catch {
+      message.error('No se pudo abrir el croquis');
+    }
+  };
+
+  const descargarCroquis = async (c: CroquisPublico) => {
+    try {
+      const resp = await axios.get(archivoUrl(c), { responseType: 'blob' });
+      const url = window.URL.createObjectURL(resp.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = c.titulo;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      message.error('No se pudo descargar el croquis');
+    }
+  };
+
+  const cerrarPreview = () => {
+    if (preview) window.URL.revokeObjectURL(preview.url);
+    setPreview(null);
+  };
 
   return (
     <div style={{
@@ -361,7 +428,87 @@ function ServiceCard({ item }: { item: AgendaItem }) {
             </span>
           </div>
         )}
+
+        {/* Croquis */}
+        {item.croquis_count > 0 && (
+          <button
+            onClick={abrirCroquis}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+              fontSize: 13, fontWeight: 600, color: '#531dab',
+              background: '#f9f0ff', border: '1px solid #d3adf7',
+              borderRadius: 6, padding: '4px 10px', cursor: 'pointer', marginTop: 2,
+            }}
+          >
+            <PictureOutlined style={{ fontSize: 13 }} />
+            Croquis ({item.croquis_count})
+          </button>
+        )}
       </div>
+
+      {/* Modal: lista de croquis */}
+      <Modal
+        title="Croquis del cliente"
+        open={croquisOpen}
+        onCancel={() => setCroquisOpen(false)}
+        footer={null}
+        width="92%"
+        style={{ top: 16, maxWidth: 560 }}
+      >
+        {croquisLoading ? (
+          <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
+        ) : croquis.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#999', padding: 24 }}>Sin croquis</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {croquis.map((c) => (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                border: '1px solid #f0f0f0', borderRadius: 8, padding: '8px 10px',
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#222' }}>{c.titulo}</div>
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    {c.area ? c.area : 'General'}{c.descripcion ? ` · ${c.descripcion}` : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button onClick={() => verCroquis(c)} title="Ver"
+                    style={{ border: 'none', background: '#f0f5ff', color: '#1677ff', borderRadius: 6, width: 34, height: 34, cursor: 'pointer' }}>
+                    <EyeOutlined />
+                  </button>
+                  <button onClick={() => descargarCroquis(c)} title="Descargar"
+                    style={{ border: 'none', background: '#f6ffed', color: '#389e0d', borderRadius: 6, width: 34, height: 34, cursor: 'pointer' }}>
+                    <DownloadOutlined />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: visualización */}
+      <Modal
+        title={preview?.titulo}
+        open={!!preview}
+        onCancel={cerrarPreview}
+        footer={null}
+        width="95%"
+        style={{ top: 12, maxWidth: 900 }}
+        styles={{ body: { height: '80vh', padding: 0 } }}
+      >
+        {preview && (
+          preview.tipo === 'imagen' ? (
+            <div style={{ width: '100%', height: '100%', overflow: 'auto', textAlign: 'center', background: '#f0f0f0' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview.url} alt={preview.titulo} style={{ maxWidth: '100%' }} />
+            </div>
+          ) : (
+            <iframe src={preview.url} title={preview.titulo} style={{ width: '100%', height: '100%', border: 'none' }} />
+          )
+        )}
+      </Modal>
     </div>
   );
 }

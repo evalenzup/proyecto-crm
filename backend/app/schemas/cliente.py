@@ -152,3 +152,17 @@ class ClienteDocumentoOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CroquisOut(BaseModel):
+    id: UUID
+    empresa_id: UUID
+    cliente_id: UUID
+    titulo: str
+    area: Optional[str] = None
+    descripcion: Optional[str] = None
+    archivo: str
+    creado_en: TijuanaDatetime
+
+    class Config:
+        from_attributes = True

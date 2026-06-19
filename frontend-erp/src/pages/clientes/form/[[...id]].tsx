@@ -15,6 +15,8 @@ import { formatDate } from '@/utils/formatDate';
 import { useClienteForm } from '@/hooks/useClienteForm';
 import { getRegimenesFiscales } from '@/services/facturaService';
 import { ClienteDocumentos } from '@/components/ClienteDocumentos';
+import { ClienteEquipos } from '@/components/ClienteEquipos';
+import { ClienteCroquis } from '@/components/ClienteCroquis';
 
 const { Text } = Typography;
 
@@ -545,6 +547,16 @@ const ClienteFormPage: React.FC = () => {
               SECCIÓN — Documentos / Contrato (solo en edición)
           ══════════════════════════════════════════════════════════════════ */}
           {id && <ClienteDocumentos clienteId={String(id)} />}
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN — Equipos de control (solo en edición)
+          ══════════════════════════════════════════════════════════════════ */}
+          {id && <ClienteEquipos clienteId={String(id)} />}
+
+          {/* ══════════════════════════════════════════════════════════════════
+              SECCIÓN — Croquis / Planos (solo en edición)
+          ══════════════════════════════════════════════════════════════════ */}
+          {id && <ClienteCroquis clienteId={String(id)} />}
 
           {/* ── Botones ── */}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

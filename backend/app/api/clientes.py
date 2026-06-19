@@ -23,9 +23,11 @@ from app.schemas.cliente import (
     ClienteUpdate,
     ClienteVincular,
     ClienteDocumentoOut,
+    CroquisOut,
 )
 from app.services.cliente_service import cliente_repo
 from app.models.cliente_documento import ClienteDocumento
+from app.models.croquis import Croquis
 from app.api import deps
 from app.models.usuario import Usuario, RolUsuario
 from app.services import auditoria_service as audit_svc
@@ -437,6 +439,10 @@ _CLIENTES_DOCS_DIR = os.path.join(settings.DATA_DIR, "clientes_docs")
 _CLIENTE_DOC_ALLOWED_EXTS = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx"})
 _CLIENTE_DOC_MAX_BYTES = 15 * 1024 * 1024  # 15 MB
 
+_CROQUIS_DIR = os.path.join(settings.DATA_DIR, "croquis")
+_CROQUIS_ALLOWED_EXTS = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".webp"})
+_CROQUIS_MAX_BYTES = 20 * 1024 * 1024  # 20 MB
+
 
 def _get_cliente_or_404(db: Session, id: UUID, current_user: Usuario):
     cliente = cliente_repo.get(db, id=id)
@@ -572,6 +578,128 @@ def eliminar_documento_cliente(
     if os.path.exists(path):
         os.remove(path)
     db.delete(doc)
+    db.commit()
+    return Response(status_code=204)
+
+
+# ── Croquis del cliente (planos, general o por área) ──────────────────────────
+
+@router.get("/{id}/croquis", response_model=List[CroquisOut])
+def listar_croquis_cliente(
+    id: UUID,
+    empresa_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+    query = db.query(Croquis).filter(Croquis.cliente_id == id)
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        query = query.filter(Croquis.empresa_id == current_user.empresa_id)
+    elif empresa_id:
+        query = query.filter(Croquis.empresa_id == empresa_id)
+    return query.order_by(Croquis.creado_en.desc()).all()
+
+
+@router.post("/{id}/croquis", response_model=CroquisOut, status_code=201)
+def subir_croquis_cliente(
+    id: UUID,
+    file: UploadFile = File(...),
+    empresa_id: UUID = Form(...),
+    titulo: Optional[str] = Form(None),
+    area: Optional[str] = Form(None),
+    descripcion: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if not ext or ext not in _CROQUIS_ALLOWED_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de archivo no permitido. Válidos: {', '.join(sorted(_CROQUIS_ALLOWED_EXTS))}",
+        )
+    content = file.file.read()
+    if len(content) > _CROQUIS_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"El archivo supera el tamaño máximo de {_CROQUIS_MAX_BYTES // (1024 * 1024)} MB.",
+        )
+
+    os.makedirs(_CROQUIS_DIR, exist_ok=True)
+    filename = f"{_uuid.uuid4()}{ext}"
+    with open(os.path.join(_CROQUIS_DIR, filename), "wb") as fh:
+        fh.write(content)
+
+    croq = Croquis(
+        empresa_id=empresa_id,
+        cliente_id=id,
+        titulo=titulo or file.filename or filename,
+        area=area or None,
+        descripcion=descripcion or None,
+        archivo=filename,
+    )
+    db.add(croq)
+    db.commit()
+    db.refresh(croq)
+    return croq
+
+
+@router.get("/{id}/croquis/{croquis_id}/archivo")
+def descargar_croquis_cliente(
+    id: UUID,
+    croquis_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+    croq = (
+        db.query(Croquis)
+        .filter(Croquis.id == croquis_id, Croquis.cliente_id == id)
+        .first()
+    )
+    if not croq:
+        raise HTTPException(status_code=404, detail="Croquis no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and croq.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Croquis no encontrado")
+
+    base = os.path.realpath(_CROQUIS_DIR)
+    resolved = os.path.realpath(os.path.join(base, croq.archivo))
+    if not resolved.startswith(base + os.sep) or not os.path.isfile(resolved):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    mime, _ = mimetypes.guess_type(resolved)
+    return FileResponse(
+        resolved,
+        media_type=mime or "application/octet-stream",
+        filename=f"{croq.titulo}{os.path.splitext(croq.archivo)[1]}",
+    )
+
+
+@router.delete("/{id}/croquis/{croquis_id}", status_code=204)
+def eliminar_croquis_cliente(
+    id: UUID,
+    croquis_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _get_cliente_or_404(db, id, current_user)
+    croq = (
+        db.query(Croquis)
+        .filter(Croquis.id == croquis_id, Croquis.cliente_id == id)
+        .first()
+    )
+    if not croq:
+        raise HTTPException(status_code=404, detail="Croquis no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and croq.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Croquis no encontrado")
+
+    path = os.path.join(_CROQUIS_DIR, croq.archivo)
+    if os.path.exists(path):
+        os.remove(path)
+    db.delete(croq)
     db.commit()
     return Response(status_code=204)
 

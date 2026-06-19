@@ -36,6 +36,7 @@ from app.api.public import router as public_router
 from app.api.ordenes_servicio import router as ordenes_router
 from app.api.contratos import router as contratos_router
 from app.api.programacion_facturas import router as prog_facturas_router
+from app.api.equipos import router as equipos_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -368,6 +369,13 @@ app.include_router(
     prog_facturas_router,
     prefix="/api/programacion-facturas",
     tags=["programacion-facturas"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    equipos_router,
+    prefix="/api/equipos",
+    tags=["equipos"],
     responses={404: {"description": "No encontrado"}},
 )
 

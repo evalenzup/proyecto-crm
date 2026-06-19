@@ -188,6 +188,7 @@ const baseMenuData = [
       { path: '/servicios-operativos', name: 'Servicios', icon: <ContainerOutlined /> },
       { path: '/tecnicos', name: 'Técnicos', icon: <TeamOutlined /> },
       { path: '/unidades', name: 'Unidades', icon: <CarOutlined /> },
+      { path: '/equipos/configuracion', name: 'Equipos', icon: <ToolOutlined /> },
     ],
   },
   {

@@ -217,6 +217,42 @@ export const clienteService = {
   deleteDocumento: async (id: string, docId: string): Promise<void> => {
     await api.delete(`/clientes/${id}/documentos/${docId}`);
   },
+
+  // ── Croquis del cliente (planos, general o por área) ─────────────────────────
+  listCroquis: async (id: string, empresaId?: string): Promise<Croquis[]> => {
+    const response = await api.get<Croquis[]>(`/clientes/${id}/croquis`, {
+      params: { empresa_id: empresaId },
+    });
+    return response.data;
+  },
+
+  uploadCroquis: async (
+    id: string,
+    file: File,
+    meta: { empresa_id: string; titulo?: string; area?: string; descripcion?: string },
+  ): Promise<Croquis> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('empresa_id', meta.empresa_id);
+    if (meta.titulo) fd.append('titulo', meta.titulo);
+    if (meta.area) fd.append('area', meta.area);
+    if (meta.descripcion) fd.append('descripcion', meta.descripcion);
+    const response = await api.post<Croquis>(`/clientes/${id}/croquis`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  downloadCroquis: async (id: string, croquisId: string): Promise<Blob> => {
+    const response = await api.get(`/clientes/${id}/croquis/${croquisId}/archivo`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  deleteCroquis: async (id: string, croquisId: string): Promise<void> => {
+    await api.delete(`/clientes/${id}/croquis/${croquisId}`);
+  },
 };
 
 export interface ClienteDocumento {
@@ -228,5 +264,16 @@ export interface ClienteDocumento {
   vigencia_desde?: string | null;
   vigencia_hasta?: string | null;
   notas?: string | null;
+  creado_en: string;
+}
+
+export interface Croquis {
+  id: string;
+  empresa_id: string;
+  cliente_id: string;
+  titulo: string;
+  area?: string | null;
+  descripcion?: string | null;
+  archivo: string;
   creado_en: string;
 }
