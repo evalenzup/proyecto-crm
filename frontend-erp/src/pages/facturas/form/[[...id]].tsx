@@ -41,6 +41,7 @@ import {
   FileOutlined,
   MailOutlined,
   CopyOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import {
   createFactura,
@@ -55,6 +56,7 @@ import {
   duplicarFactura,
 } from '@/services/facturaService';
 import { formatDate } from '@/utils/formatDate';
+import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
 import { TipoProductoServicio } from '@/services/productoServicioService';
 import api from '@/lib/axios';
@@ -67,6 +69,7 @@ const FacturaFormPage: React.FC = () => {
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   const [isSendingPreview, setIsSendingPreview] = React.useState(false); // New state
   const [isEmailModalOpen, setIsEmailModalOpen] = React.useState(false);
+  const [acuseOpen, setAcuseOpen] = React.useState(false);
   const [emailForm] = Form.useForm();
 
   const {
@@ -785,6 +788,15 @@ const FacturaFormPage: React.FC = () => {
                   Verificar con SAT
                 </Button>
               )}
+              {(estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA') && (
+                <Button
+                  icon={<SafetyCertificateOutlined />}
+                  onClick={() => setAcuseOpen(true)}
+                  disabled={!id}
+                >
+                  Acuse de cancelación
+                </Button>
+              )}
               {puedeRevertir && (
                 <Popconfirm
                   title="¿Revertir a TIMBRADA?"
@@ -1032,6 +1044,14 @@ const FacturaFormPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      <AcuseCancelacionModal
+        facturaId={id ?? null}
+        serie={form.getFieldValue?.('serie')}
+        folio={form.getFieldValue?.('folio')}
+        open={acuseOpen}
+        onClose={() => setAcuseOpen(false)}
+      />
 
       {/* Modal: Crear Producto/Servicio */}
       <Modal

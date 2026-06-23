@@ -191,6 +191,10 @@ export const downloadPdf = (id: string) =>
 export const downloadXml = (id: string) =>
   getBlob(api.get(`/facturas/${id}/xml`, { responseType: 'blob' }));
 
+// Acuse de cancelación del SAT (sellado). fmt: 'pdf' | 'xml'
+export const downloadAcuseCancelacion = (id: string, fmt: 'pdf' | 'xml' = 'pdf') =>
+  getBlob(api.get(`/facturas/${id}/acuse-cancelacion`, { params: { fmt }, responseType: 'blob' }));
+
 export const sendEmail = (id: string, recipients: string | string[]) => {
   const payload = Array.isArray(recipients)
     ? { recipients }

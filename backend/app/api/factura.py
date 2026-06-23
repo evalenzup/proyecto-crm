@@ -424,6 +424,39 @@ def solicitar_cancelacion_endpoint(
     return result
 
 
+@router.get("/{id}/acuse-cancelacion", summary="Descarga el acuse de cancelación del SAT (PDF o XML)")
+def descargar_acuse_cancelacion(
+    id: UUID,
+    fmt: str = Query("pdf", pattern="^(pdf|xml)$"),
+    forzar: bool = Query(False, description="Re-descargar del PAC ignorando la caché"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    from app.services import acuse_cancelacion_service as acuse_svc
+
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    if factura.estatus not in ("EN_CANCELACION", "CANCELADA"):
+        raise HTTPException(
+            status_code=400,
+            detail="El acuse solo está disponible para facturas en cancelación o canceladas.",
+        )
+
+    try:
+        contenido, media_type, filename = acuse_svc.obtener_acuse(factura, fmt, forzar=forzar)
+    except acuse_svc.AcuseError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return Response(
+        content=contenido,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # --- Verificación SAT y reversión de cancelación ---
 
 

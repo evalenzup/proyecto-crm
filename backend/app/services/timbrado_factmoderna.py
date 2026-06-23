@@ -849,6 +849,13 @@ class FacturacionModernaPAC:
                 "Para Motivo '01' es obligatorio FolioSustitucion (UUID que sustituye)"
             )
 
+        # Persistir motivo y folio sustituto en la factura (los usa el acuse de
+        # cancelación y dan trazabilidad). Antes solo se enviaban al PAC y se perdían.
+        if motivo:
+            f.motivo_cancelacion = motivo
+        if (folio_sustitucion or "").strip():
+            f.folio_fiscal_sustituto = (folio_sustitucion or "").strip()
+
         # 2) SOAP envelope
         env = _soap_cancelar_envelope(
             user_id=_fm_user_id(),

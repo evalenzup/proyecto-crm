@@ -122,7 +122,10 @@ def send_invoice_email(
     body_message = "Adjuntamos los archivos de su factura"
     if factura.estatus == "CANCELADA":
         subject_prefix = "[CANCELADA] "
-        body_message = "Adjuntamos el PDF de su factura cancelada"
+        body_message = "Adjuntamos el PDF y XML de su factura cancelada, junto con el acuse de cancelación del SAT (PDF y XML)"
+    elif factura.estatus == "EN_CANCELACION":
+        subject_prefix = "[EN CANCELACIÓN] "
+        body_message = "Adjuntamos los archivos de su factura junto con el acuse de solicitud de cancelación del SAT"
 
     msg["Subject"] = (
         f"{subject_prefix}Factura {factura.serie}-{factura.folio} de {factura.empresa.nombre}"
@@ -139,23 +142,39 @@ def send_invoice_email(
     """
     msg.attach(MIMEText(body, "html"))
 
-    # 5. Adjuntar XML desde archivo (solo si la factura no está cancelada y tiene XML)
-    if factura.estatus != "CANCELADA" and factura.xml_path:
+    def _adjuntar_bytes(data: bytes, filename: str):
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(data)
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
+        msg.attach(part)
+
+    # 5. Adjuntar XML del CFDI timbrado (tanto si está TIMBRADA como CANCELADA)
+    if factura.xml_path:
         xml_full_path = os.path.join(settings.DATA_DIR, factura.xml_path)
         if os.path.exists(xml_full_path):
             with open(xml_full_path, "rb") as attachment:
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            part.add_header(
-                "Content-Disposition",
-                f'attachment; filename="{os.path.basename(xml_full_path)}"',
-            )
-            msg.attach(part)
+                _adjuntar_bytes(attachment.read(), os.path.basename(xml_full_path))
         else:
-            # Log a warning if XML path exists but file is not found for non-cancelled invoice
             logger.warning(
                 f"XML path found for factura {factura.id} but file does not exist: {xml_full_path}"
+            )
+
+    # 5b. Si la factura está cancelada / en cancelación, adjuntar el acuse del SAT
+    #     (PDF + XML). Es best-effort: si el PAC aún no lo tiene, se omite sin fallar.
+    if factura.estatus in ("CANCELADA", "EN_CANCELACION"):
+        try:
+            from app.services import acuse_cancelacion_service as acuse_svc
+
+            acuse_xml = acuse_svc.descargar_acuse_xml(factura)
+            acuse_pdf = acuse_svc.generar_pdf_acuse(acuse_xml, factura)
+            base = f"acuse_cancelacion_{factura.serie}-{factura.folio}"
+            _adjuntar_bytes(acuse_pdf, f"{base}.pdf")
+            _adjuntar_bytes(acuse_xml, f"{base}.xml")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "No se pudo adjuntar el acuse de cancelación de la factura %s: %s",
+                factura.id, e,
             )
 
     # 6. Adjuntar PDF desde memoria

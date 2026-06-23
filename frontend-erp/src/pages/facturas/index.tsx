@@ -1,10 +1,10 @@
 // src/pages/facturas/index.tsx
 
 'use client';
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Select, DatePicker, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { SkeletonTable } from '@/components/SkeletonTable';
@@ -12,6 +12,7 @@ import { FilterBar } from '@/components/FilterBar';
 import { useFacturasList } from '@/hooks/useFacturasList';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { FacturaRow, exportFacturasExcel, duplicarFactura } from '@/services/facturaService';
+import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
 
 const { RangePicker } = DatePicker;
 
@@ -121,6 +122,8 @@ const FacturasIndexPage: React.FC = () => {
     }
   };
 
+  const [acuseRow, setAcuseRow] = useState<FacturaRow | null>(null);
+
   const columns: ColumnsType<FacturaRow> = [
     { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.serie ?? ''}-${r.folio ?? ''}`, width: 110 },
     { title: 'Fecha', dataIndex: 'creado_en', key: 'creado_en', render: (v: string) => formatDateOnly(v), width: 120 },
@@ -153,7 +156,7 @@ const FacturasIndexPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 160,
+      width: 210,
       fixed: 'right',
       render: (_: any, r) => (
         <Space>
@@ -174,6 +177,11 @@ const FacturasIndexPage: React.FC = () => {
           <Tooltip title="Ver PDF">
             <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} />
           </Tooltip>
+          {(r.estatus === 'EN_CANCELACION' || r.estatus === 'CANCELADA') && (
+            <Tooltip title="Acuse de cancelación (SAT)">
+              <Button type="link" icon={<SafetyCertificateOutlined />} onClick={() => setAcuseRow(r)} />
+            </Tooltip>
+          )}
           <Tooltip title="Enviar por Correo">
             <Button type="link" icon={<MailOutlined />} onClick={() => {
               const emp = empresas?.find((e: any) => e.id === r.empresa_id);
@@ -367,6 +375,14 @@ const FacturasIndexPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      <AcuseCancelacionModal
+        facturaId={acuseRow?.id ?? null}
+        serie={acuseRow?.serie}
+        folio={acuseRow?.folio}
+        open={!!acuseRow}
+        onClose={() => setAcuseRow(null)}
+      />
     </>
   );
 };
