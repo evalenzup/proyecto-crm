@@ -1,6 +1,7 @@
 # app/exception_handlers.py
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, DataError, SQLAlchemyError
@@ -21,12 +22,37 @@ async def http_exception_handler(
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
+    # En Pydantic v2, exc.errors() puede traer en `ctx` el objeto de excepción
+    # original (ej. ValueError de un validador), que NO es serializable a JSON.
+    # Lo convertimos a string para no romper la respuesta (antes esto provocaba
+    # un 500 "Object of type ValueError is not JSON serializable" y el usuario
+    # nunca veía el mensaje real de validación, p. ej. el de RFC inválido).
+    errores = []
+    primer_mensaje = None
+    for err in exc.errors():
+        err = dict(err)
+        ctx = err.get("ctx")
+        if isinstance(ctx, dict):
+            err["ctx"] = {k: (str(v) if isinstance(v, Exception) else v) for k, v in ctx.items()}
+        if primer_mensaje is None and err.get("msg"):
+            primer_mensaje = err["msg"]
+        errores.append(err)
+
     logger.warning(
-        "Validation error %s %s → %s", request.method, request.url, exc.errors()
+        "Validation error %s %s → %s", request.method, request.url, errores
     )
     return JSONResponse(
         status_code=422,
-        content={"error": {"type": "ValidationError", "detail": exc.errors()}},
+        content=jsonable_encoder(
+            {
+                "error": {
+                    "type": "ValidationError",
+                    # mensaje legible (el del primer campo inválido) + detalle completo
+                    "detail": primer_mensaje or "Datos inválidos.",
+                    "errors": errores,
+                }
+            }
+        ),
     )
 
 
@@ -68,8 +94,14 @@ async def sqlalchemy_exception_handler(
 
 
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    import uuid as _uuid
+
+    # Código corto de referencia para que el usuario lo reporte y soporte lo cruce
+    # con este log (en vez de un "error de red" engañoso y sin pistas).
+    ref = _uuid.uuid4().hex[:8]
     logger.error(
-        "Unhandled exception %s %s → %s",
+        "Unhandled exception [ref=%s] %s %s → %s",
+        ref,
         request.method,
         request.url,
         str(exc),
@@ -77,5 +109,14 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     )
     return JSONResponse(
         status_code=500,
-        content={"error": {"type": "ServerError", "detail": "Internal server error"}},
+        content={
+            "error": {
+                "type": "ServerError",
+                "detail": (
+                    "Ocurrió un error inesperado en el servidor. "
+                    f"Vuelve a intentarlo; si continúa, reporta este código a soporte: {ref}."
+                ),
+                "ref": ref,
+            }
+        },
     )

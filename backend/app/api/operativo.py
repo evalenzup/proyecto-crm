@@ -425,7 +425,7 @@ def crear_unidad(
         usuario_id=current_user.id, usuario_email=current_user.email,
         empresa_id=obj.empresa_id, entidad_id=str(obj.id),
         ip=audit_svc.get_ip(request),
-        detalle={"nombre": obj.nombre, "placas": obj.placas},
+        detalle={"nombre": obj.nombre, "placa": obj.placa},
     )
     db.commit()
     db.refresh(obj)
@@ -475,7 +475,7 @@ def eliminar_unidad(
         usuario_id=current_user.id, usuario_email=current_user.email,
         empresa_id=obj.empresa_id, entidad_id=str(unidad_id),
         ip=audit_svc.get_ip(request),
-        detalle={"nombre": obj.nombre, "placas": obj.placas},
+        detalle={"nombre": obj.nombre, "placa": obj.placa},
     )
     svc_unidad.delete_unidad(db, unidad_id)
 

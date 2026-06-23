@@ -10,6 +10,7 @@ const msgMap: Record<string, string> = {
   'value is not a valid integer': 'Valor numérico inválido',
   'value is not a valid boolean': 'Valor booleano inválido',
   'Type error': 'Tipo de dato inválido',
+  'Internal server error': 'Error interno del servidor. Intenta de nuevo; si continúa, contacta a soporte.',
 };
 
 function translate(msg: string): string {
@@ -63,16 +64,19 @@ export function normalizeHttpError(err: unknown): string {
   const status = error?.response?.status;
   const data = error?.response?.data;
 
-  // ── Sin respuesta del servidor (red cortada, CORS, timeout) ──────────────
+  // ── Sin respuesta del servidor (red cortada, CORS, timeout, error del servidor) ──
   if (!error?.response) {
     if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
-      return 'La petición tardó demasiado. Verifica tu conexión e intenta de nuevo.';
+      return 'La petición tardó demasiado en responder. Intenta de nuevo en un momento.';
     }
-    // "Network Error" es el mensaje interno de axios — no mostrarlo tal cual
+    // "Network Error" es el mensaje interno de axios — no mostrarlo tal cual.
     if ((error as any)?.message && (error as any).message !== 'Network Error') {
       return (error as any).message;
     }
-    return 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
+    // OJO: "sin respuesta" no siempre es la conexión del usuario; también ocurre
+    // cuando el servidor falla y la respuesta no llega. Por eso no afirmamos que
+    // sea su internet.
+    return 'No se pudo contactar al servidor. Puede ser tu conexión a internet o que el servidor no esté disponible. Intenta de nuevo; si continúa, reporta a soporte.';
   }
 
   // Si el backend devolvió un string
