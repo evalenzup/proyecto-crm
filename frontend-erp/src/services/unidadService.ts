@@ -63,6 +63,7 @@ export interface UnidadOut {
   fecha_expedicion_tc?: string | null;
   fecha_vencimiento_tc?: string | null;
   doc_tarjeta_circulacion?: string | null;
+  doc_comprobante_pago_tc?: string | null;
 
   creado_en: string;
   actualizado_en: string;
@@ -225,6 +226,24 @@ export const unidadService = {
 
   eliminarDocTarjetaCirculacion: async (unidadId: string): Promise<void> => {
     await api.delete(`/unidades/${unidadId}/doc-tarjeta-circulacion`);
+  },
+
+  subirDocComprobantePagoTC: async (
+    unidadId: string,
+    file: File
+  ): Promise<UnidadOut> => {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await api.post<UnidadOut>(
+      `/unidades/${unidadId}/doc-comprobante-pago-tc`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
+  },
+
+  eliminarDocComprobantePagoTC: async (unidadId: string): Promise<void> => {
+    await api.delete(`/unidades/${unidadId}/doc-comprobante-pago-tc`);
   },
 
   // ── Pólizas de Seguro ─────────────────────────────────────────────────────

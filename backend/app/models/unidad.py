@@ -44,6 +44,7 @@ class Unidad(Base):
     fecha_expedicion_tc = Column(Date, nullable=True)
     fecha_vencimiento_tc = Column(Date, nullable=True)
     doc_tarjeta_circulacion = Column(String(255), nullable=True)
+    doc_comprobante_pago_tc = Column(String(255), nullable=True)  # comprobante de pago de la TC
 
     creado_en = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     actualizado_en = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -509,7 +509,7 @@ def crear_mantenimiento(
         db=db, accion=audit_svc.CREAR_MANTENIMIENTO, entidad="mantenimiento_unidad",
         usuario_id=current_user.id, usuario_email=current_user.email,
         entidad_id=str(obj.id), ip=audit_svc.get_ip(request),
-        detalle={"unidad_id": str(unidad_id), "tipo": obj.tipo, "fecha": str(obj.fecha)},
+        detalle={"unidad_id": str(unidad_id), "tipo": obj.tipo, "fecha": str(obj.fecha_realizado)},
     )
     db.commit()
     db.refresh(obj)
@@ -682,6 +682,35 @@ def eliminar_doc_tarjeta_circulacion(
     db.commit()
 
 
+@unidades_router.post("/{unidad_id}/doc-comprobante-pago-tc", response_model=UnidadOut)
+async def subir_doc_comprobante_pago_tc(
+    unidad_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Sube el comprobante de pago de la tarjeta de circulación."""
+    unidad = svc_unidad.get_unidad(db, unidad_id)
+    _delete_file(_DOCS_DIR, unidad.doc_comprobante_pago_tc)
+    filename = _save_upload(file, _DOCS_DIR)
+    unidad.doc_comprobante_pago_tc = filename
+    db.commit()
+    db.refresh(unidad)
+    return unidad
+
+
+@unidades_router.delete("/{unidad_id}/doc-comprobante-pago-tc", status_code=204)
+def eliminar_doc_comprobante_pago_tc(
+    unidad_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    unidad = svc_unidad.get_unidad(db, unidad_id)
+    _delete_file(_DOCS_DIR, unidad.doc_comprobante_pago_tc)
+    unidad.doc_comprobante_pago_tc = None
+    db.commit()
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # Unidad — Pólizas de Seguro
 # ════════════════════════════════════════════════════════════════════════════
@@ -713,7 +742,7 @@ def crear_poliza_seguro(
         db=db, accion=audit_svc.CREAR_POLIZA_SEGURO, entidad="poliza_seguro",
         usuario_id=current_user.id, usuario_email=current_user.email,
         entidad_id=str(obj.id), ip=audit_svc.get_ip(request),
-        detalle={"unidad_id": str(unidad_id), "aseguradora": obj.aseguradora, "numero_poliza": obj.numero_poliza},
+        detalle={"unidad_id": str(unidad_id), "compania": obj.compania, "num_poliza": obj.num_poliza},
     )
     db.commit()
     db.refresh(obj)
@@ -756,7 +785,7 @@ def eliminar_poliza_seguro(
         db=db, accion=audit_svc.ELIMINAR_POLIZA_SEGURO, entidad="poliza_seguro",
         usuario_id=current_user.id, usuario_email=current_user.email,
         entidad_id=str(poliza_id), ip=audit_svc.get_ip(request),
-        detalle={"unidad_id": str(unidad_id), "aseguradora": obj.aseguradora, "numero_poliza": obj.numero_poliza},
+        detalle={"unidad_id": str(unidad_id), "compania": obj.compania, "num_poliza": obj.num_poliza},
     )
     _delete_file(_DOCS_DIR, obj.documento)
     db.delete(obj)

@@ -131,6 +131,7 @@ class UnidadOut(BaseModel):
     fecha_expedicion_tc: Optional[datetime.date] = None
     fecha_vencimiento_tc: Optional[datetime.date] = None
     doc_tarjeta_circulacion: Optional[str] = None
+    doc_comprobante_pago_tc: Optional[str] = None
 
     creado_en: TijuanaDatetime
     actualizado_en: TijuanaDatetime

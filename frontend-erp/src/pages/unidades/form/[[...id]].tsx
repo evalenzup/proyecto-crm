@@ -538,6 +538,36 @@ const UnidadForm: React.FC = () => {
     }
   };
 
+  // ── Doc Comprobante de Pago de TC ───────────────────────────────────────────
+
+  const handleComprobantePagoTCUpload = async (file: File) => {
+    if (!id) return;
+    setUploadingDoc((p) => ({ ...p, comprobante_tc: true }));
+    try {
+      const updated = await unidadService.subirDocComprobantePagoTC(id, file);
+      setRecord(updated);
+      message.success('Comprobante subido correctamente');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al subir el comprobante');
+    } finally {
+      setUploadingDoc((p) => ({ ...p, comprobante_tc: false }));
+    }
+  };
+
+  const handleComprobantePagoTCDelete = async () => {
+    if (!id) return;
+    setUploadingDoc((p) => ({ ...p, comprobante_tc: true }));
+    try {
+      await unidadService.eliminarDocComprobantePagoTC(id);
+      setRecord((prev) => prev ? { ...prev, doc_comprobante_pago_tc: null } : prev);
+      message.success('Comprobante eliminado');
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al eliminar el comprobante');
+    } finally {
+      setUploadingDoc((p) => ({ ...p, comprobante_tc: false }));
+    }
+  };
+
   // ── Pólizas ─────────────────────────────────────────────────────────────────
 
   const handlePolizaDelete = async (polizaId: string) => {
@@ -952,6 +982,17 @@ const UnidadForm: React.FC = () => {
                             onUpload={handleDocTCUpload}
                             onDelete={handleDocTCDelete}
                             uploading={!!uploadingDoc['tc']}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={6}>
+                        <Form.Item label="Comprobante de Pago TC">
+                          <DocUpload
+                            label="Comprobante de Pago TC"
+                            filename={record?.doc_comprobante_pago_tc}
+                            onUpload={handleComprobantePagoTCUpload}
+                            onDelete={handleComprobantePagoTCDelete}
+                            uploading={!!uploadingDoc['comprobante_tc']}
                           />
                         </Form.Item>
                       </Col>
