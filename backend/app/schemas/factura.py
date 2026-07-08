@@ -15,7 +15,7 @@ class FacturaDetalleIn(BaseModel):
     producto_servicio_id: Optional[UUID] = Field(None, title="Producto/Servicio")
     clave_producto: constr(max_length=20)
     clave_unidad: constr(max_length=20)
-    descripcion: constr(max_length=300)
+    descripcion: constr(max_length=1000)  # límite del SAT (CFDI 4.0)
     requiere_lote: Optional[bool] = Field(False, title="Requiere Lote")
     lote: Optional[str] = Field(None, title="Lote")
 
@@ -45,7 +45,7 @@ class FacturaDetalleOut(BaseModel):
     producto_servicio_id: Optional[UUID] = Field(None, title="Producto/Servicio")
     clave_producto: constr(max_length=20)
     clave_unidad: constr(max_length=20)
-    descripcion: constr(max_length=300)
+    descripcion: constr(max_length=1000)  # límite del SAT (CFDI 4.0)
     requiere_lote: Optional[bool] = Field(False, title="Requiere Lote")
     lote: Optional[str] = Field(None, title="Lote")
     cantidad: condecimal(ge=0, max_digits=18, decimal_places=6) = Decimal("1")
