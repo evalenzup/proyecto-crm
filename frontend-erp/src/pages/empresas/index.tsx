@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { Table, message, Button, Popconfirm, Space, Tooltip, Input } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { natCompare } from '@/utils/sorters';
 import type { EmpresaOut } from '@/services/empresaService'; // Usamos la interfaz del servicio
 import { PageHeader } from '@/components/PageHeader';
 import { FilterBar } from '@/components/FilterBar';
@@ -30,11 +31,11 @@ const EmpresasPage: React.FC = () => {
   }, [empresas, searchTerm]);
 
   const columns: ColumnsType<EmpresaOut> = [
-    { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
-    { title: 'Nombre Comercial', dataIndex: 'nombre_comercial', key: 'nombre_comercial' },
-    { title: 'RFC', dataIndex: 'rfc', key: 'rfc' },
+    { title: 'Nombre', dataIndex: 'nombre', key: 'nombre', sorter: (a, b) => natCompare(a.nombre, b.nombre), defaultSortOrder: 'ascend' },
+    { title: 'Nombre Comercial', dataIndex: 'nombre_comercial', key: 'nombre_comercial', sorter: (a, b) => natCompare(a.nombre_comercial, b.nombre_comercial) },
+    { title: 'RFC', dataIndex: 'rfc', key: 'rfc', sorter: (a, b) => natCompare(a.rfc, b.rfc) },
     { title: 'Teléfono', dataIndex: 'telefono', key: 'telefono' },
-    { title: 'Email', dataIndex: 'email', key: 'email' },
+    { title: 'Email', dataIndex: 'email', key: 'email', sorter: (a, b) => natCompare(a.email, b.email) },
     {
       title: 'Acciones',
       key: 'acciones',

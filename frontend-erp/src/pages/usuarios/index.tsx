@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { Table, Button, Popconfirm, Space, Tag, message, Tooltip } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { natCompare } from '@/utils/sorters';
 import { PageHeader } from '@/components/PageHeader';
 import { usuarioService, Usuario } from '@/services/usuarioService';
 import { useAuth } from '@/context/AuthContext';
@@ -46,12 +47,13 @@ const UsuariosPage: React.FC = () => {
     };
 
     const columns: ColumnsType<Usuario> = [
-        { title: 'Nombre', dataIndex: 'nombre_completo', key: 'nombre' },
-        { title: 'Email', dataIndex: 'email', key: 'email' },
+        { title: 'Nombre', dataIndex: 'nombre_completo', key: 'nombre', sorter: (a, b) => natCompare(a.nombre_completo, b.nombre_completo), defaultSortOrder: 'ascend' },
+        { title: 'Email', dataIndex: 'email', key: 'email', sorter: (a, b) => natCompare(a.email, b.email) },
         {
             title: 'Rol',
             dataIndex: 'rol',
             key: 'rol',
+            sorter: (a, b) => natCompare(a.rol, b.rol),
             render: (rol: string) => {
                 const colorMap: Record<string, string> = {
                     superadmin: 'purple',

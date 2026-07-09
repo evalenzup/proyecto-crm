@@ -10,6 +10,7 @@ import { EditOutlined, DeleteOutlined, PlusOutlined, AppstoreAddOutlined, Settin
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
+import { natCompare, boolCompare } from '@/utils/sorters';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import {
   equipoService, EquipoControl, TipoEquipo, EstadoEquipo, TipoEquipoCampo,
@@ -214,14 +215,19 @@ export const ClienteEquipos: React.FC<Props> = ({ clienteId }) => {
 
   // ── Columnas ──────────────────────────────────────────────────────────────
   const columns: ColumnsType<EquipoControl> = [
-    { title: 'ID', dataIndex: 'identificador', key: 'identificador', width: 110, render: (v) => v || '—' },
-    { title: 'Tipo', dataIndex: 'tipo_equipo_nombre', key: 'tipo', width: 140 },
-    { title: 'Área / Ubicación', dataIndex: 'area', key: 'area', render: (v) => v || '—' },
+    {
+      title: 'ID', dataIndex: 'identificador', key: 'identificador', width: 110, render: (v) => v || '—',
+      sorter: (a, b) => natCompare(a.identificador, b.identificador),
+      defaultSortOrder: 'ascend',
+    },
+    { title: 'Tipo', dataIndex: 'tipo_equipo_nombre', key: 'tipo', width: 140, sorter: (a, b) => natCompare(a.tipo_equipo_nombre, b.tipo_equipo_nombre) },
+    { title: 'Área / Ubicación', dataIndex: 'area', key: 'area', render: (v) => v || '—', sorter: (a, b) => natCompare(a.area, b.area) },
     {
       title: 'Estado', dataIndex: 'estado_nombre', key: 'estado', width: 120,
       render: (v) => v ? <Tag color="blue">{v}</Tag> : <span style={{ color: '#999' }}>—</span>,
+      sorter: (a, b) => natCompare(a.estado_nombre, b.estado_nombre),
     },
-    { title: 'Activo', dataIndex: 'activo', key: 'activo', width: 80, render: (a) => a ? <Tag color="green">Sí</Tag> : <Tag>No</Tag> },
+    { title: 'Activo', dataIndex: 'activo', key: 'activo', width: 80, render: (a) => a ? <Tag color="green">Sí</Tag> : <Tag>No</Tag>, sorter: (a, b) => boolCompare(a.activo, b.activo) },
     {
       title: 'Acciones', key: 'acc', width: 100,
       render: (_, eq) => (
