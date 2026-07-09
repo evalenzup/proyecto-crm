@@ -1,6 +1,6 @@
 # app/schemas/factura.py
 from __future__ import annotations
-from pydantic import BaseModel, Field, condecimal, constr, field_validator
+from pydantic import BaseModel, Field, condecimal, constr, field_validator, model_validator
 from typing import Optional, List, Literal
 from uuid import UUID
 from datetime import datetime
@@ -104,6 +104,19 @@ class FacturaBase(BaseModel):
     observaciones: Optional[str] = None
     rfc_proveedor_sat: Optional[constr(max_length=13)] = None
 
+    @model_validator(mode="after")
+    def _validar_relacion_cfdi(self):
+        # El SAT exige TipoRelacion cuando hay CFDI relacionados. Evita guardar un
+        # UUID sin tipo (o viceversa), que hace que la relación se pierda al timbrar.
+        tiene_uuid = bool((self.cfdi_relacionados or "").strip())
+        tiene_tipo = bool((self.cfdi_relacionados_tipo or "").strip())
+        if tiene_uuid != tiene_tipo:
+            raise ValueError(
+                "Para relacionar un CFDI debes indicar tanto el tipo de relación "
+                "como el/los UUID relacionado(s)."
+            )
+        return self
+
 
 class FacturaCreate(FacturaBase):
     conceptos: List[FacturaDetalleIn]
@@ -131,6 +144,17 @@ class FacturaUpdate(BaseModel):
     # Fix: Add missing related fields to Update schema
     cfdi_relacionados_tipo: Optional[constr(max_length=2)] = None
     cfdi_relacionados: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validar_relacion_cfdi(self):
+        tiene_uuid = bool((self.cfdi_relacionados or "").strip())
+        tiene_tipo = bool((self.cfdi_relacionados_tipo or "").strip())
+        if tiene_uuid != tiene_tipo:
+            raise ValueError(
+                "Para relacionar un CFDI debes indicar tanto el tipo de relación "
+                "como el/los UUID relacionado(s)."
+            )
+        return self
 
 
 class FacturaCancel(BaseModel):

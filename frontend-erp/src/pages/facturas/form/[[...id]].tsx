@@ -542,7 +542,11 @@ const FacturaFormPage: React.FC = () => {
                   {({ getFieldValue }) => (
                     <>
                       <Col xs={24} md={9}>
-                        <Form.Item label="Tipo relación" name="cfdi_relacionados_tipo">
+                        <Form.Item
+                          label="Tipo relación"
+                          name="cfdi_relacionados_tipo"
+                          rules={getFieldValue('tiene_relacion') ? [{ required: true, message: 'Selecciona el tipo de relación' }] : []}
+                        >
                           <Select
                             allowClear
                             options={tiposRelacion}
@@ -555,6 +559,7 @@ const FacturaFormPage: React.FC = () => {
                           label="CFDIs relacionados"
                           name="cfdi_relacionados"
                           tooltip="Separados por coma o texto libre"
+                          rules={getFieldValue('tiene_relacion') ? [{ required: true, message: 'Ingresa el/los UUID relacionado(s)' }] : []}
                         >
                           <Input disabled={fieldDisabled(!getFieldValue('tiene_relacion') || !empresaId)} />
                         </Form.Item>
