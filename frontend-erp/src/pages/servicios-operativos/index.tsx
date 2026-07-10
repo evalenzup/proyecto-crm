@@ -43,6 +43,7 @@ const ServiciosOperativosPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   const [q, setQ] = useState<string | undefined>(undefined);
   const [activoFiltro, setActivoFiltro] = useState<boolean | undefined>(undefined);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
 
   const fetchData = useCallback(async (page: number, size: number, query?: string, activo?: boolean) => {
     setLoading(true);
@@ -53,6 +54,8 @@ const ServiciosOperativosPage: React.FC = () => {
         activo,
         limit: size,
         offset: (page - 1) * size,
+        order_by: sort.order_by,
+        order_dir: sort.order_dir,
       });
       setData(result.items);
       setTotal(result.total);
@@ -61,7 +64,20 @@ const ServiciosOperativosPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedEmpresaId]);
+  }, [selectedEmpresaId, sort]);
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+  const handleTableChange = (_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    if (next.order_by !== sort.order_by || next.order_dir !== sort.order_dir) {
+      setSort(next);
+      setCurrentPage(1);
+    }
+  };
 
   useEffect(() => {
     fetchData(currentPage, pageSize, q, activoFiltro);
@@ -109,6 +125,8 @@ const ServiciosOperativosPage: React.FC = () => {
       dataIndex: 'nombre',
       key: 'nombre',
       width: 200,
+      sorter: true,
+      sortOrder: so('nombre'),
     },
     {
       title: 'Descripción',
@@ -129,6 +147,8 @@ const ServiciosOperativosPage: React.FC = () => {
       dataIndex: 'duracion_estimada_min',
       key: 'duracion_estimada_min',
       width: 130,
+      sorter: true,
+      sortOrder: so('duracion_estimada_min'),
       render: (val?: number | null) =>
         val != null ? val : <span style={{ color: token.colorTextDisabled }}>—</span>,
     },
@@ -264,6 +284,7 @@ const ServiciosOperativosPage: React.FC = () => {
           dataSource={data}
           loading={loading}
           scroll={{ x: 900, y: tableY }}
+          onChange={handleTableChange}
           pagination={{
             current: currentPage,
             pageSize,

@@ -55,7 +55,7 @@ def list_servicios(
     total = query.count()
     query = apply_order(
         query, ServicioOperativo, order_by, order_dir,
-        allowed={"nombre", "duracion_minutos", "personal_requerido", "activo"},
+        allowed={"nombre", "duracion_estimada_min", "personal_requerido", "activo"},
         default="nombre",
     )
     items = query.offset(offset).limit(limit).all()

@@ -56,6 +56,7 @@ const UnidadesPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   const [q, setQ] = useState<string | undefined>(undefined);
   const [activoFiltro, setActivoFiltro] = useState<boolean | undefined>(undefined);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
 
   const fetchData = useCallback(
     async (page: number, size: number, query?: string, activo?: boolean) => {
@@ -67,6 +68,8 @@ const UnidadesPage: React.FC = () => {
           activo,
           limit: size,
           offset: (page - 1) * size,
+          order_by: sort.order_by,
+          order_dir: sort.order_dir,
         });
         setData(result.items);
         setTotal(result.total);
@@ -76,8 +79,21 @@ const UnidadesPage: React.FC = () => {
         setLoading(false);
       }
     },
-    [selectedEmpresaId]
+    [selectedEmpresaId, sort]
   );
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+  const handleTableChange = (_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    if (next.order_by !== sort.order_by || next.order_dir !== sort.order_dir) {
+      setSort(next);
+      setCurrentPage(1);
+    }
+  };
 
   useEffect(() => {
     fetchData(currentPage, pageSize, q, activoFiltro);
@@ -124,12 +140,16 @@ const UnidadesPage: React.FC = () => {
       dataIndex: 'nombre',
       key: 'nombre',
       width: 180,
+      sorter: true,
+      sortOrder: so('nombre'),
     },
     {
       title: 'Placa',
       dataIndex: 'placa',
       key: 'placa',
       width: 120,
+      sorter: true,
+      sortOrder: so('placa'),
       render: (val?: string | null) =>
         val ?? <span style={{ color: token.colorTextDisabled }}>—</span>,
     },
@@ -138,6 +158,8 @@ const UnidadesPage: React.FC = () => {
       dataIndex: 'tipo',
       key: 'tipo',
       width: 130,
+      sorter: true,
+      sortOrder: so('tipo'),
       render: (val: TipoUnidad) => (
         <Tag color={TIPO_COLOR[val] ?? 'default'}>{val}</Tag>
       ),
@@ -269,6 +291,7 @@ const UnidadesPage: React.FC = () => {
           dataSource={data}
           loading={loading}
           scroll={{ x: 1000, y: tableY }}
+          onChange={handleTableChange}
           pagination={{
             current: currentPage,
             pageSize,

@@ -32,7 +32,12 @@ const ProductosServiciosPage: React.FC = () => {
     setSearchTerm,
     clearFilters,
     mapaClaves,
+    sort,
+    handleTableChange,
   } = useProductoServicioList();
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort?.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
 
   const [productOptions, setProductOptions] = React.useState<ProductoServicioOut[]>([]);
   const [fetchingProducts, setFetchingProducts] = React.useState(false);
@@ -57,12 +62,14 @@ const ProductosServiciosPage: React.FC = () => {
   }, [empresaFiltro]);
 
   const columns: ColumnsType<ProductoServicioOut> = [
-    { title: 'Tipo', dataIndex: 'tipo', key: 'tipo' },
-    { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
+    { title: 'Tipo', dataIndex: 'tipo', key: 'tipo', sorter: true, sortOrder: so('tipo') },
+    { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion', sorter: true, sortOrder: so('descripcion') },
     {
       title: 'Clave Producto',
       dataIndex: 'clave_producto',
       key: 'clave_producto',
+      sorter: true,
+      sortOrder: so('clave_producto'),
       render: (clave: string) => `${clave} - ${mapaClaves[clave] || '...'}`
     },
     {
@@ -150,6 +157,7 @@ const ProductosServiciosPage: React.FC = () => {
           loading={loading}
           virtual
           scroll={{ x: 1000, y: tableY }}
+          onChange={handleTableChange}
           pagination={{
             current: currentPage,
             pageSize: pageSize,

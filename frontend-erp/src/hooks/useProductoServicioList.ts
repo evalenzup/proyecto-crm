@@ -22,6 +22,8 @@ interface UseProductoServicioListResult {
   clearFilters: () => void;
   mapaClaves: Record<string, string>;
   isAdmin: boolean;
+  sort: { order_by?: string; order_dir?: 'asc' | 'desc' };
+  handleTableChange: (pag: any, filters: any, sorter: any) => void;
 }
 
 export const useProductoServicioList = (): UseProductoServicioListResult => {
@@ -31,6 +33,7 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [mapaClaves, setMapaClaves] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
 
   const {
     selectedEmpresaId: empresaFiltro,
@@ -95,6 +98,8 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
         offset: (currentPage - 1) * pageSize,
         empresa_id: empresaFiltro,
         q: debouncedSearchTerm,
+        order_by: sort.order_by,
+        order_dir: sort.order_dir,
       };
       const data = await productoServicioService.getProductoServicios(params);
       setProductosServicios(data.items);
@@ -108,7 +113,16 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, empresaFiltro, debouncedSearchTerm, fetchDescripciones]);
+  }, [currentPage, pageSize, empresaFiltro, debouncedSearchTerm, fetchDescripciones, sort]);
+
+  const handleTableChange = useCallback((_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    setSort(next);
+    setCurrentPage(1);
+  }, []);
 
   useEffect(() => {
     fetchProductosServicios();
@@ -151,6 +165,8 @@ export const useProductoServicioList = (): UseProductoServicioListResult => {
     setSearchTerm,
     clearFilters,
     mapaClaves,
-    isAdmin
+    isAdmin,
+    sort,
+    handleTableChange,
   };
 };
