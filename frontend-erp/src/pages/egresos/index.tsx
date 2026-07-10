@@ -39,6 +39,7 @@ const EgresosListPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
 
   const { selectedEmpresaId } = useEmpresaSelector();
 
@@ -94,6 +95,8 @@ const EgresosListPage: React.FC = () => {
         skip: (currentPage - 1) * pageSize,
         limit: pageSize,
         empresa_id: selectedEmpresaId, // Usar del hook
+        order_by: sort.order_by,
+        order_dir: sort.order_dir,
         ...filters,
       });
       setEgresos(response.items);
@@ -129,7 +132,20 @@ const EgresosListPage: React.FC = () => {
 
   useEffect(() => {
     fetchEgresos();
-  }, [filters, currentPage, pageSize, selectedEmpresaId]);
+  }, [filters, currentPage, pageSize, selectedEmpresaId, sort]);
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+  const handleTableChange = (_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    if (next.order_by !== sort.order_by || next.order_dir !== sort.order_dir) {
+      setSort(next);
+      setCurrentPage(1);
+    }
+  };
 
   // Reset page logic for company change (others handled manually)
   useEffect(() => {
@@ -192,6 +208,8 @@ const EgresosListPage: React.FC = () => {
       title: 'Fecha',
       dataIndex: 'fecha_egreso',
       key: 'fecha_egreso',
+      sorter: true,
+      sortOrder: so('fecha_egreso'),
       render: (text: string) => {
         if (!text) return '-';
         // Assuming text is 'YYYY-MM-DD'. Split to avoid timezone shifts.
@@ -203,17 +221,23 @@ const EgresosListPage: React.FC = () => {
       title: 'Proveedor',
       dataIndex: 'proveedor',
       key: 'proveedor',
+      sorter: true,
+      sortOrder: so('proveedor'),
     },
     {
       title: 'Descripción',
       dataIndex: 'descripcion',
       key: 'descripcion',
+      sorter: true,
+      sortOrder: so('descripcion'),
     },
     {
       title: 'Monto',
       dataIndex: 'monto',
       key: 'monto',
       align: 'right' as const,
+      sorter: true,
+      sortOrder: so('monto'),
       render: (amount: number, record: Egreso) =>
         `${amount.toLocaleString('es-MX', { style: 'currency', currency: record.moneda || 'MXN' })}`,
     },
@@ -221,6 +245,8 @@ const EgresosListPage: React.FC = () => {
       title: 'Categoría',
       dataIndex: 'categoria',
       key: 'categoria',
+      sorter: true,
+      sortOrder: so('categoria'),
     },
     {
       title: 'Estatus',
@@ -333,6 +359,7 @@ const EgresosListPage: React.FC = () => {
           loading={loading}
           dataSource={egresos}
           columns={columns}
+          onChange={handleTableChange}
           pagination={{
             current: currentPage,
             pageSize: pageSize,

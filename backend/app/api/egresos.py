@@ -159,6 +159,8 @@ def read_egresos(
     estatus: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    order_by: Optional[str] = None,
+    order_dir: Optional[str] = None,
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     if current_user.rol == RolUsuario.SUPERVISOR:
@@ -174,6 +176,8 @@ def read_egresos(
         estatus=estatus,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
+        order_by=order_by,
+        order_dir=order_dir,
     )
     return {"items": items, "total": total, "limit": limit, "offset": skip}
 

@@ -23,7 +23,10 @@ class EgresoRepository(BaseRepository[EgresoModel, EgresoCreate, EgresoUpdate]):
         estatus: Optional[str] = None,
         fecha_desde: Optional[date] = None,
         fecha_hasta: Optional[date] = None,
+        order_by: Optional[str] = None,
+        order_dir: Optional[str] = None,
     ) -> Tuple[List[EgresoModel], int]:
+        from app.services.ordering import apply_order
         query = db.query(self.model)
 
         if empresa_id:
@@ -40,7 +43,14 @@ class EgresoRepository(BaseRepository[EgresoModel, EgresoCreate, EgresoUpdate]):
             query = query.filter(self.model.fecha_egreso <= fecha_hasta)
 
         total = query.count()
-        items = query.order_by(self.model.fecha_egreso.desc()).offset(skip).limit(limit).all()
+        eff_by = order_by or "fecha_egreso"
+        eff_dir = order_dir or ("desc" if eff_by == "fecha_egreso" else "asc")
+        query = apply_order(
+            query, self.model, eff_by, eff_dir,
+            allowed={"fecha_egreso", "proveedor", "categoria", "estatus", "monto", "descripcion"},
+            default="fecha_egreso",
+        )
+        items = query.offset(skip).limit(limit).all()
         return items, total
 
     def search_proveedores(

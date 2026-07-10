@@ -21,6 +21,8 @@ export const getEgresos = (params: {
   estatus?: string | null;
   fecha_desde?: string | null;
   fecha_hasta?: string | null;
+  order_by?: string;
+  order_dir?: 'asc' | 'desc';
 }) =>
   getData<EgresoPageOut>(api.get('/egresos/', { params }));
 
