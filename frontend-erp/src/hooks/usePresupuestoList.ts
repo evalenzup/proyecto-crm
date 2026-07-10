@@ -21,6 +21,7 @@ export const usePresupuestoList = () => {
   const [clienteQuery, setClienteQuery] = useState('');
   const [estatus, setEstatus] = useState<string | undefined>(undefined);
   const [rangoFechas, setRangoFechas] = useState<RangeValue>(null);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
 
   // Empresa global (from sidebar selector)
   const { selectedEmpresaId: empresaId } = useEmpresaSelector();
@@ -46,8 +47,8 @@ export const usePresupuestoList = () => {
 
   // Main data query
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['presupuestos', pagination, empresaId, clienteId, estatus, rangoFechas],
-    queryFn: () => 
+    queryKey: ['presupuestos', pagination, empresaId, clienteId, estatus, rangoFechas, sort],
+    queryFn: () =>
       presupuestoService.getPresupuestos({
         offset: (pagination.current - 1) * pagination.pageSize,
         limit: pagination.pageSize,
@@ -56,6 +57,8 @@ export const usePresupuestoList = () => {
         estado: estatus,
         fecha_inicio: rangoFechas?.[0]?.format('YYYY-MM-DD'),
         fecha_fin: rangoFechas?.[1]?.format('YYYY-MM-DD'),
+        order_by: sort.order_by,
+        order_dir: sort.order_dir,
       }),
     placeholderData: keepPreviousData,
   });
@@ -64,6 +67,14 @@ export const usePresupuestoList = () => {
     setPagination(pag);
     refetch();
   }, [refetch, pagination]);
+
+  const handleTableChange = useCallback((pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    setSort(s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {});
+    setPagination((p) => ({ ...p, current: pag?.current ?? 1 }));
+  }, []);
 
   useEffect(() => {
     fetchPresupuestos();
@@ -161,6 +172,8 @@ export const usePresupuestoList = () => {
     loading: isLoading,
     pagination,
     fetchPresupuestos,
+    sort,
+    handleTableChange,
     filters,
     handleDelete: deleteMutation.mutate,
     sendMutation,

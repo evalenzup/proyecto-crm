@@ -53,6 +53,7 @@ const OrdenesServicioPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
   const [searchInput, setSearchInput] = useState('');
   const [q, setQ] = useState<string | undefined>(undefined);
   const [estadoFilter, setEstadoFilter] = useState<EstadoOS | undefined>(undefined);
@@ -75,6 +76,7 @@ const OrdenesServicioPage: React.FC = () => {
 
         if (dateRange?.[0]) params.fecha_desde = dateRange[0].format('YYYY-MM-DD');
         if (dateRange?.[1]) params.fecha_hasta = dateRange[1].format('YYYY-MM-DD');
+        if (sort.order_by) { params.order_by = sort.order_by; params.order_dir = sort.order_dir; }
 
         const result = await ordenServicioService.list(params);
         setData(result.items);
@@ -85,8 +87,21 @@ const OrdenesServicioPage: React.FC = () => {
         setLoading(false);
       }
     },
-    [selectedEmpresaId, estadoFilter, prioridadFilter, dateRange]
+    [selectedEmpresaId, estadoFilter, prioridadFilter, dateRange, sort]
   );
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+  const handleTableChange = (_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    if (next.order_by !== sort.order_by || next.order_dir !== sort.order_dir) {
+      setSort(next);
+      setCurrentPage(1);
+    }
+  };
 
   useEffect(() => {
     fetchData(currentPage, pageSize, q);
@@ -125,6 +140,8 @@ const OrdenesServicioPage: React.FC = () => {
       dataIndex: 'folio_os',
       key: 'folio_os',
       width: 100,
+      sorter: true,
+      sortOrder: so('folio_os'),
       render: (v: string) => <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{v}</span>,
     },
     {
@@ -132,6 +149,8 @@ const OrdenesServicioPage: React.FC = () => {
       dataIndex: 'fecha_programada',
       key: 'fecha_programada',
       width: 110,
+      sorter: true,
+      sortOrder: so('fecha_programada'),
       render: (v: string) => dayjs(v).format('DD/MM/YYYY'),
     },
     {
@@ -149,6 +168,8 @@ const OrdenesServicioPage: React.FC = () => {
       dataIndex: 'estado',
       key: 'estado',
       width: 120,
+      sorter: true,
+      sortOrder: so('estado'),
       render: (v: EstadoOS) => (
         <Badge status={ESTADO_COLOR[v] as any} text={ESTADO_LABEL[v]} />
       ),
@@ -158,6 +179,8 @@ const OrdenesServicioPage: React.FC = () => {
       dataIndex: 'prioridad',
       key: 'prioridad',
       width: 90,
+      sorter: true,
+      sortOrder: so('prioridad'),
       render: (v: PrioridadOS) => (
         <Tag color={PRIORIDAD_COLOR[v]}>{v}</Tag>
       ),
@@ -319,6 +342,7 @@ const OrdenesServicioPage: React.FC = () => {
           size="small"
           scroll={{ x: 900, y: tableY }}
           locale={{ emptyText: 'No hay órdenes de servicio' }}
+          onChange={handleTableChange}
           pagination={{
             current: currentPage,
             pageSize,

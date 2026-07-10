@@ -45,6 +45,8 @@ def list_ordenes(
     activo: Optional[bool] = True,
     limit: int = 100,
     offset: int = 0,
+    order_by: Optional[str] = None,
+    order_dir: Optional[str] = None,
 ) -> Tuple[List[OrdenServicio], int]:
     query = db.query(OrdenServicio).filter(OrdenServicio.empresa_id == empresa_id)
 
@@ -77,12 +79,16 @@ def list_ordenes(
         )
 
     total = query.count()
-    items = (
-        query.order_by(OrdenServicio.fecha_programada, OrdenServicio.hora_inicio)
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    if order_by:
+        from app.services.ordering import apply_order
+        query = apply_order(
+            query, OrdenServicio, order_by, order_dir,
+            allowed={"folio_os", "fecha_programada", "estado", "prioridad", "precio_acordado"},
+            default="fecha_programada",
+        )
+    else:
+        query = query.order_by(OrdenServicio.fecha_programada, OrdenServicio.hora_inicio)
+    items = query.offset(offset).limit(limit).all()
     return items, total
 
 

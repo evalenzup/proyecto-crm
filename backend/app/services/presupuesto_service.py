@@ -181,6 +181,8 @@ class PresupuestoRepository(BaseRepository[Presupuesto, PresupuestoCreate, Presu
         estado: str = None,
         fecha_inicio: str = None,
         fecha_fin: str = None,
+        order_by: str = None,
+        order_dir: str = None,
     ) -> (List[Presupuesto], int):
         # Subquery to find the latest version of each budget
         latest_versions_subquery = db.query(
@@ -214,7 +216,15 @@ class PresupuestoRepository(BaseRepository[Presupuesto, PresupuestoCreate, Presu
             query = query.filter(self.model.fecha_emision <= fecha_fin)
 
         total = query.count()
-        items = query.order_by(self.model.folio.desc()).offset(skip).limit(limit).all()
+        from app.services.ordering import apply_order
+        eff_by = order_by or "folio"
+        eff_dir = order_dir or ("desc" if eff_by == "folio" else "asc")
+        query = apply_order(
+            query, self.model, eff_by, eff_dir,
+            allowed={"folio", "fecha_emision", "estado", "total"},
+            default="folio",
+        )
+        items = query.offset(skip).limit(limit).all()
         
         return items, total
 

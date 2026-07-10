@@ -57,6 +57,8 @@ def listar_ordenes(
     activo: Optional[bool] = Query(True),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -75,6 +77,8 @@ def listar_ordenes(
         activo=activo,
         limit=limit,
         offset=offset,
+        order_by=order_by,
+        order_dir=order_dir,
     )
 
     # Resumen de equipos de control por cliente (por tipo) — en lote

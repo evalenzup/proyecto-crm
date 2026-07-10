@@ -59,6 +59,8 @@ def listar_presupuestos(
     estado: str = Query(None, description="Filtrar por estado"),
     fecha_inicio: str = Query(None, description="Fecha de inicio para el rango de búsqueda"),
     fecha_fin: str = Query(None, description="Fecha de fin para el rango de búsqueda"),
+    order_by: str = Query(None),
+    order_dir: str = Query(None),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
@@ -76,6 +78,8 @@ def listar_presupuestos(
         estado=estado,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
+        order_by=order_by,
+        order_dir=order_dir,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 

@@ -36,6 +36,8 @@ const PresupuestosPage: React.FC = () => {
     loading,
     pagination,
     fetchPresupuestos,
+    sort,
+    handleTableChange,
     filters,
     handleDelete,
     sendMutation,
@@ -49,6 +51,9 @@ const PresupuestosPage: React.FC = () => {
     previewRow,
     pdfLoading,
   } = usePresupuestoList();
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort?.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
 
   const {
     clienteId, setClienteId, clienteOptions, clienteQuery, setClienteQuery, debouncedBuscarClientes,
@@ -125,12 +130,14 @@ const PresupuestosPage: React.FC = () => {
   };
 
   const columns: ColumnsType<PresupuestoSimpleOut> = [
-    { title: 'Folio', dataIndex: 'folio', key: 'folio', width: 150, render: (text, record) => <Button type="link" onClick={() => router.push(`/presupuestos/form/${record.id}`)} style={{ padding: 0 }}><strong>{text}</strong></Button> },
+    { title: 'Folio', dataIndex: 'folio', key: 'folio', width: 150, sorter: true, sortOrder: so('folio'), render: (text, record) => <Button type="link" onClick={() => router.push(`/presupuestos/form/${record.id}`)} style={{ padding: 0 }}><strong>{text}</strong></Button> },
     { title: 'Cliente', dataIndex: ['cliente', 'nombre_comercial'], key: 'cliente' },
-    { title: 'Fecha Emisión', dataIndex: 'fecha_emision', key: 'fecha_emision', width: 120 },
+    { title: 'Fecha Emisión', dataIndex: 'fecha_emision', key: 'fecha_emision', width: 120, sorter: true, sortOrder: so('fecha_emision') },
     {
       title: 'Total',
       dataIndex: 'total',
+      sorter: true,
+      sortOrder: so('total'),
       key: 'total',
       width: 140,
       render: (value) => formatCurrency(value),
@@ -294,7 +301,7 @@ const PresupuestosPage: React.FC = () => {
             dataSource={rows}
             loading={loading}
             pagination={{ ...pagination, total: totalRows, showTotal: (t) => `${t} presupuestos` }}
-            onChange={(pag: any) => fetchPresupuestos(pag)}
+            onChange={handleTableChange}
             scroll={{ x: 980, y: tableY }}
             summary={() => (
               <Table.Summary>

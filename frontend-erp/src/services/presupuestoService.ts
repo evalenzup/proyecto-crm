@@ -65,6 +65,8 @@ export const presupuestoService = {
     estado?: string;
     fecha_inicio?: string;
     fecha_fin?: string;
+    order_by?: string;
+    order_dir?: 'asc' | 'desc';
   }): Promise<PresupuestoPageOut> => {
     const response = await api.get<PresupuestoPageOut>("/presupuestos", { params });
     return response.data;
