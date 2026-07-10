@@ -104,22 +104,26 @@ class FacturaBase(BaseModel):
     observaciones: Optional[str] = None
     rfc_proveedor_sat: Optional[constr(max_length=13)] = None
 
-    @model_validator(mode="after")
-    def _validar_relacion_cfdi(self):
-        # El SAT exige TipoRelacion cuando hay CFDI relacionados. Evita guardar un
-        # UUID sin tipo (o viceversa), que hace que la relación se pierda al timbrar.
-        tiene_uuid = bool((self.cfdi_relacionados or "").strip())
-        tiene_tipo = bool((self.cfdi_relacionados_tipo or "").strip())
-        if tiene_uuid != tiene_tipo:
-            raise ValueError(
-                "Para relacionar un CFDI debes indicar tanto el tipo de relación "
-                "como el/los UUID relacionado(s)."
-            )
-        return self
+
+def _validar_relacion_cfdi(self):
+    # El SAT exige TipoRelacion cuando hay CFDI relacionados. Evita guardar un
+    # UUID sin tipo (o viceversa), que hace que la relación se pierda al timbrar.
+    # OJO: solo aplica en ENTRADA (create/update). No se pone en FacturaBase porque
+    # FacturaOut hereda de ella y rompería el listado de facturas viejas ya inconsistentes.
+    tiene_uuid = bool((self.cfdi_relacionados or "").strip())
+    tiene_tipo = bool((self.cfdi_relacionados_tipo or "").strip())
+    if tiene_uuid != tiene_tipo:
+        raise ValueError(
+            "Para relacionar un CFDI debes indicar tanto el tipo de relación "
+            "como el/los UUID relacionado(s)."
+        )
+    return self
 
 
 class FacturaCreate(FacturaBase):
     conceptos: List[FacturaDetalleIn]
+
+    _val_relacion = model_validator(mode="after")(_validar_relacion_cfdi)
 
 
 class FacturaUpdate(BaseModel):
@@ -145,16 +149,7 @@ class FacturaUpdate(BaseModel):
     cfdi_relacionados_tipo: Optional[constr(max_length=2)] = None
     cfdi_relacionados: Optional[str] = None
 
-    @model_validator(mode="after")
-    def _validar_relacion_cfdi(self):
-        tiene_uuid = bool((self.cfdi_relacionados or "").strip())
-        tiene_tipo = bool((self.cfdi_relacionados_tipo or "").strip())
-        if tiene_uuid != tiene_tipo:
-            raise ValueError(
-                "Para relacionar un CFDI debes indicar tanto el tipo de relación "
-                "como el/los UUID relacionado(s)."
-            )
-        return self
+    _val_relacion = model_validator(mode="after")(_validar_relacion_cfdi)
 
 
 class FacturaCancel(BaseModel):
