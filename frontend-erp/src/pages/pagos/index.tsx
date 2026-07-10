@@ -21,7 +21,7 @@ const PagosIndexPage: React.FC = () => {
   const { containerRef, tableY } = useTableHeight();
 
   const {
-    rows, totalRows, loading, pagination, fetchPagos, filters,
+    rows, totalRows, loading, pagination, fetchPagos, filters, sort, handleTableChange,
     verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview,
     // Email
     emailModalOpen, emailRow, emailLoading, abrirEmailModal, cerrarEmailModal, enviarCorreo
@@ -112,17 +112,22 @@ const PagosIndexPage: React.FC = () => {
     }
   };
 
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort?.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+
   const columns: ColumnsType<PagoRow> = [
-    { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.folio ?? ''}`, width: 110 },
-    { title: 'Fecha Pago', dataIndex: 'fecha_pago', key: 'fecha_pago', render: (v: string) => formatDate(v), width: 180 },
+    { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.folio ?? ''}`, width: 110, sorter: true, sortOrder: so('folio') },
+    { title: 'Fecha Pago', dataIndex: 'fecha_pago', key: 'fecha_pago', render: (v: string) => formatDate(v), width: 180, sorter: true, sortOrder: so('fecha_pago') },
     { title: 'Cliente', key: 'cliente', render: (_: any, r) => r.cliente?.nombre_comercial || '—' },
-    { title: 'Estatus', dataIndex: 'estatus', key: 'estatus', width: 130 },
+    { title: 'Estatus', dataIndex: 'estatus', key: 'estatus', width: 130, sorter: true, sortOrder: so('estatus') },
     {
       title: 'Monto',
       dataIndex: 'monto',
       key: 'monto',
       width: 140,
       align: 'right',
+      sorter: true,
+      sortOrder: so('monto'),
       render: (v: string | number) =>
         (Number(v) || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }),
     },
@@ -243,7 +248,7 @@ const PagosIndexPage: React.FC = () => {
               total: totalRows,
               showTotal: (t) => `${t} pagos`,
             }}
-            onChange={(pag) => fetchPagos(pag)}
+            onChange={handleTableChange}
             scroll={{ x: 980, y: tableY }}
             summary={() => (
               <Table.Summary>

@@ -17,6 +17,8 @@ import dayjs from 'dayjs';
 
 interface Opcion { label: string; value: string }
 
+const PAGOS_DEFAULT_SORT = { order_by: 'folio', order_dir: 'desc' as const };
+
 const toLimitOffset = (pagination: TablePaginationConfig) => {
   const page = pagination.current ?? 1;
   const pageSize = pagination.pageSize ?? 10;
@@ -29,6 +31,7 @@ export const usePagosList = () => {
   const [rows, setRows] = useState<PagoRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [sort, setSort] = useState<{ order_by: string; order_dir: 'asc' | 'desc' }>(PAGOS_DEFAULT_SORT);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 10,
@@ -90,14 +93,17 @@ export const usePagosList = () => {
     abrirEmailModal, cerrarEmailModal,
   } = useEmailModal<PagoRow>();
 
-  const fetchPagos = useCallback(async (pag: TablePaginationConfig = pagination) => {
+  const fetchPagos = useCallback(async (
+    pag: TablePaginationConfig = pagination,
+    sortArg: { order_by: string; order_dir: 'asc' | 'desc' } = sort,
+  ) => {
     if (!empresaId) {
       setRows([]);
       setTotalRows(0);
       return;
     }
     const { limit, offset } = toLimitOffset(pag);
-    const params: any = { limit, offset, order_by: 'folio', order_dir: 'desc' };
+    const params: any = { limit, offset, order_by: sortArg.order_by, order_dir: sortArg.order_dir };
     if (empresaId) params.empresa_id = empresaId;
     if (clienteId) params.cliente_id = clienteId;
     if (estatus) params.estatus = estatus;
@@ -117,7 +123,16 @@ export const usePagosList = () => {
     } finally {
       setLoading(false);
     }
-  }, [empresaId, clienteId, estatus, rangoFechas]);
+  }, [empresaId, clienteId, estatus, rangoFechas, sort]);
+
+  const handleTableChange = useCallback((pag: TablePaginationConfig, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = (s && s.order)
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : PAGOS_DEFAULT_SORT;
+    setSort(next);
+    fetchPagos(pag, next);
+  }, [fetchPagos]);
 
   useEffect(() => {
     fetchPagos();
@@ -165,6 +180,8 @@ export const usePagosList = () => {
     pagination,
     fetchPagos,
     setPagination,
+    sort,
+    handleTableChange,
     filters: {
       empresaId, setEmpresaId, empresasOptions, empresas,
       clienteId, setClienteId,
