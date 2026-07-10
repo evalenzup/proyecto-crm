@@ -28,6 +28,8 @@ export const getAuditoria = (params: {
     fecha_hasta?: string | null;
     offset?: number;
     limit?: number;
+    order_by?: string;
+    order_dir?: 'asc' | 'desc';
 }) => api.get<AuditoriaPageOut>('/auditoria/', { params }).then((r) => r.data);
 
 // Cualquier usuario autenticado (admin o supervisor) puede ver auditoría.

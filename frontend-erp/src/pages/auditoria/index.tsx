@@ -49,6 +49,7 @@ const AuditoriaPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
   const [pageSize, setPageSize] = useState(20);
 
   // Empresa global del sidebar
@@ -75,6 +76,8 @@ const AuditoriaPage: React.FC = () => {
         fecha_hasta: fechaHasta || null,
         offset: (currentPage - 1) * pageSize,
         limit: pageSize,
+        order_by: sort.order_by,
+        order_dir: sort.order_dir,
       });
       setLogs(response.items);
       setTotal(response.total);
@@ -83,7 +86,20 @@ const AuditoriaPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [empresaId, accion, fechaDesde, fechaHasta, currentPage, pageSize]);
+  }, [empresaId, accion, fechaDesde, fechaHasta, currentPage, pageSize, sort]);
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+  const handleTableChange = (_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    if (next.order_by !== sort.order_by || next.order_dir !== sort.order_dir) {
+      setSort(next);
+      setCurrentPage(1);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && canViewAuditoria(user?.rol)) {
@@ -133,6 +149,8 @@ const AuditoriaPage: React.FC = () => {
       dataIndex: 'creado_en',
       key: 'creado_en',
       width: 170,
+      sorter: true,
+      sortOrder: so('creado_en'),
       render: (val: string) => {
         if (!val) return '—';
         return dayjs(val).format('DD/MM/YYYY HH:mm:ss');
@@ -143,6 +161,8 @@ const AuditoriaPage: React.FC = () => {
       dataIndex: 'usuario_email',
       key: 'usuario_email',
       width: 220,
+      sorter: true,
+      sortOrder: so('usuario_email'),
       render: (email: string) => (
         <Typography.Text ellipsis={{ tooltip: email }} style={{ maxWidth: 200, display: 'block' }}>
           {email || '—'}
@@ -154,6 +174,8 @@ const AuditoriaPage: React.FC = () => {
       dataIndex: 'accion',
       key: 'accion',
       width: 200,
+      sorter: true,
+      sortOrder: so('accion'),
       render: (accion: string) => (
         <Tag color={getAccionColor(accion)} style={{ whiteSpace: 'nowrap' }}>
           {accion}
@@ -165,6 +187,8 @@ const AuditoriaPage: React.FC = () => {
       dataIndex: 'entidad',
       key: 'entidad',
       width: 110,
+      sorter: true,
+      sortOrder: so('entidad'),
       render: (val: string) => val || '—',
     },
     {
@@ -284,6 +308,7 @@ const AuditoriaPage: React.FC = () => {
               : logs
           }
           columns={columns}
+          onChange={handleTableChange}
           pagination={{
             current: currentPage,
             pageSize,

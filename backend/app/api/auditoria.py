@@ -26,6 +26,8 @@ def listar_auditoria(
     fecha_hasta: Optional[date] = Query(None),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
 ):
     """
     Retorna el historial de auditoría. Solo accesible para ADMIN.
@@ -65,11 +67,15 @@ def listar_auditoria(
         query = query.filter(AuditoriaLog.creado_en <= hasta_fin)
 
     total = query.count()
-    items = (
-        query.order_by(AuditoriaLog.creado_en.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
+    from app.services.ordering import apply_order
+    # Por defecto: más reciente primero (creado_en desc)
+    eff_by = order_by or "creado_en"
+    eff_dir = order_dir or ("desc" if eff_by == "creado_en" else "asc")
+    query = apply_order(
+        query, AuditoriaLog, eff_by, eff_dir,
+        allowed={"creado_en", "usuario_email", "accion", "entidad"},
+        default="creado_en",
     )
+    items = query.offset(offset).limit(limit).all()
 
     return {"items": items, "total": total, "limit": limit, "offset": offset}
