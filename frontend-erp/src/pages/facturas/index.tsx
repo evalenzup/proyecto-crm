@@ -24,7 +24,7 @@ const FacturasIndexPage: React.FC = () => {
   const { containerRef, tableY } = useTableHeight();
 
   const {
-    rows, totalRows, loading, pagination, fetchFacturas, filters,
+    rows, totalRows, loading, pagination, fetchFacturas, filters, sort, handleTableChange,
     verPdf, previewModalOpen, previewPdfUrl, previewRow, cerrarPreview,
     // Email
     emailModalOpen, cerrarEmailModal, abrirEmailModal, emailRow, enviarCorreo, emailLoading
@@ -124,9 +124,13 @@ const FacturasIndexPage: React.FC = () => {
 
   const [acuseRow, setAcuseRow] = useState<FacturaRow | null>(null);
 
+  // Orden actual (servidor) → sortOrder de la columna correspondiente
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort?.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+
   const columns: ColumnsType<FacturaRow> = [
-    { title: 'Folio', key: 'folio', render: (_: any, r) => `${r.serie ?? ''}-${r.folio ?? ''}`, width: 110 },
-    { title: 'Fecha', dataIndex: 'creado_en', key: 'creado_en', render: (v: string) => formatDateOnly(v), width: 120 },
+    { title: 'Folio', key: 'serie_folio', render: (_: any, r) => `${r.serie ?? ''}-${r.folio ?? ''}`, width: 110, sorter: true, sortOrder: so('serie_folio') },
+    { title: 'Fecha', dataIndex: 'creado_en', key: 'fecha', render: (v: string) => formatDateOnly(v), width: 120, sorter: true, sortOrder: so('fecha') },
     { title: 'Cliente', key: 'cliente', render: (_: any, r) => r.cliente?.nombre_comercial || '—' },
     { title: 'Estatus CFDI', dataIndex: 'estatus', key: 'estatus', width: 130 },
     { title: 'Estatus Pago', dataIndex: 'status_pago', key: 'status_pago', width: 130 },
@@ -136,6 +140,8 @@ const FacturasIndexPage: React.FC = () => {
       key: 'total',
       width: 140,
       align: 'right',
+      sorter: true,
+      sortOrder: so('total'),
       render: (v: string | number) =>
         (Number(v) || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }),
     },
@@ -294,7 +300,7 @@ const FacturasIndexPage: React.FC = () => {
               total: totalRows,
               showTotal: (t) => `${t} facturas`,
             }}
-            onChange={(pag) => fetchFacturas(pag)}
+            onChange={handleTableChange}
             scroll={{ x: 980, y: tableY }}
             summary={() => (
               <Table.Summary>

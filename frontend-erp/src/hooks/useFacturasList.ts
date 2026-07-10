@@ -25,10 +25,13 @@ const toLimitOffset = (pagination: TablePaginationConfig) => {
   return { limit: pageSize, offset };
 };
 
+const DEFAULT_SORT = { order_by: 'serie_folio' as const, order_dir: 'desc' as const };
+
 export const useFacturasList = () => {
   const [rows, setRows] = useState<FacturaRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [sort, setSort] = useState<{ order_by: string; order_dir: 'asc' | 'desc' }>(DEFAULT_SORT);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 10,
@@ -94,7 +97,10 @@ export const useFacturasList = () => {
     abrirEmailModal, cerrarEmailModal,
   } = useEmailModal<FacturaRow>();
 
-  const fetchFacturas = useCallback(async (pag: TablePaginationConfig = pagination) => {
+  const fetchFacturas = useCallback(async (
+    pag: TablePaginationConfig = pagination,
+    sortArg: { order_by: string; order_dir: 'asc' | 'desc' } = sort,
+  ) => {
     if (!empresaId) {
       setRows([]);
       setTotalRows(0);
@@ -102,7 +108,7 @@ export const useFacturasList = () => {
     }
 
     const { limit, offset } = toLimitOffset(pag);
-    const params: FacturaListParams = { limit, offset, order_by: 'serie_folio', order_dir: 'desc' };
+    const params: FacturaListParams = { limit, offset, order_by: sortArg.order_by as any, order_dir: sortArg.order_dir };
     if (empresaId) params.empresa_id = empresaId;
     if (clienteId) params.cliente_id = clienteId;
     if (estatus) params.estatus = estatus;
@@ -126,7 +132,17 @@ export const useFacturasList = () => {
     } finally {
       setLoading(false);
     }
-  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas, folio]);
+  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas, folio, sort]);
+
+  // Handler para el onChange de la <Table>: aplica orden del servidor.
+  const handleTableChange = useCallback((pag: TablePaginationConfig, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = (s && s.order)
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : DEFAULT_SORT;
+    setSort(next);
+    fetchFacturas(pag, next);
+  }, [fetchFacturas]);
 
   useEffect(() => {
     fetchFacturas();
@@ -180,6 +196,8 @@ export const useFacturasList = () => {
     pagination,
     fetchFacturas,
     setPagination,
+    sort,
+    handleTableChange,
     filters: {
       empresaId, setEmpresaId, empresasOptions, empresas,
       clienteId, setClienteId,

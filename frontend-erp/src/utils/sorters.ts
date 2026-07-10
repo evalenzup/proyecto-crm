@@ -35,3 +35,26 @@ export function dateCompare(a?: string | null, b?: string | null): number {
 export function boolCompare(a?: boolean | null, b?: boolean | null): number {
   return (a ? 1 : 0) - (b ? 1 : 0);
 }
+
+// ── Ordenamiento en servidor (tablas paginadas) ─────────────────────────────
+
+export interface ServerSort {
+  order_by?: string;
+  order_dir?: 'asc' | 'desc';
+}
+
+/**
+ * Traduce el objeto `sorter` del onChange de una <Table> antd a los parámetros
+ * `order_by` / `order_dir` que espera el backend. Si el usuario quita el orden,
+ * devuelve `fallback` (para mantener un orden por defecto estable).
+ *
+ * Usa `columnKey` (o `field`) de la columna como `order_by`, así que la `key`
+ * de cada columna ordenable debe coincidir con el valor que acepta el backend.
+ */
+export function parseAntdSorter(sorter: any, fallback: ServerSort = {}): ServerSort {
+  const s = Array.isArray(sorter) ? sorter[0] : sorter;
+  if (!s || !s.order) return fallback;
+  const key = (s.columnKey ?? s.field) as string | undefined;
+  if (!key) return fallback;
+  return { order_by: String(key), order_dir: s.order === 'ascend' ? 'asc' : 'desc' };
+}
