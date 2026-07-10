@@ -35,7 +35,12 @@ const ClientesPage: React.FC = () => {
     nombreFiscalFiltro,
     setNombreFiscalFiltro,
     clearFilters,
+    sort,
+    handleTableChange,
   } = useClienteList();
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort?.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
 
   const [clienteOptionsComercial, setClienteOptionsComercial] = React.useState<ClienteOut[]>([]);
   const [clienteOptionsFiscal, setClienteOptionsFiscal] = React.useState<ClienteOut[]>([]);
@@ -99,9 +104,9 @@ const ClientesPage: React.FC = () => {
   };
 
   const columns: ColumnsType<ClienteOut> = [
-    { title: 'Nombre Comercial', dataIndex: 'nombre_comercial', key: 'nombre_comercial' },
-    { title: 'Nombre Fiscal', dataIndex: 'nombre_razon_social', key: 'nombre_razon_social' },
-    { title: 'RFC', dataIndex: 'rfc', key: 'rfc' },
+    { title: 'Nombre Comercial', dataIndex: 'nombre_comercial', key: 'nombre_comercial', sorter: true, sortOrder: so('nombre_comercial') },
+    { title: 'Nombre Fiscal', dataIndex: 'nombre_razon_social', key: 'nombre_razon_social', sorter: true, sortOrder: so('nombre_razon_social') },
+    { title: 'RFC', dataIndex: 'rfc', key: 'rfc', sorter: true, sortOrder: so('rfc') },
     {
       title: 'Teléfono',
       dataIndex: 'telefono',
@@ -200,6 +205,7 @@ const ClientesPage: React.FC = () => {
             loading={loading}
             virtual
             scroll={{ x: 1000, y: tableY }}
+            onChange={handleTableChange}
             pagination={{
               current: currentPage,
               pageSize: pageSize,

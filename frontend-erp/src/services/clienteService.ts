@@ -147,6 +147,8 @@ export const clienteService = {
     rfc?: string | null;
     nombre_comercial?: string | null;
     nombre_razon_social?: string | null;
+    order_by?: string;
+    order_dir?: 'asc' | 'desc';
   }): Promise<ClientePageOut> => {
     const response = await api.get<ClientePageOut>("/clientes", { params });
     return response.data;

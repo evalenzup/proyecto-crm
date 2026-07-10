@@ -24,6 +24,8 @@ interface UseClienteListResult {
   setNombreFiscalFiltro: (nombre: string) => void;
   clearFilters: () => void;
   isAdmin: boolean;
+  sort: { order_by?: string; order_dir?: 'asc' | 'desc' };
+  handleTableChange: (pag: any, filters: any, sorter: any) => void;
 }
 
 export const useClienteList = (): UseClienteListResult => {
@@ -32,6 +34,7 @@ export const useClienteList = (): UseClienteListResult => {
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
 
   const {
     selectedEmpresaId: empresaFiltro,
@@ -92,6 +95,8 @@ export const useClienteList = (): UseClienteListResult => {
         rfc: debouncedRfc,
         nombre_comercial: debouncedNombre,
         nombre_razon_social: debouncedNombreFiscal,
+        order_by: sort.order_by,
+        order_dir: sort.order_dir,
       };
       const data = await clienteService.getClientes(params);
       setClientesList(data.items);
@@ -102,7 +107,16 @@ export const useClienteList = (): UseClienteListResult => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, empresaFiltro, debouncedRfc, debouncedNombre, debouncedNombreFiscal]);
+  }, [currentPage, pageSize, empresaFiltro, debouncedRfc, debouncedNombre, debouncedNombreFiscal, sort]);
+
+  const handleTableChange = useCallback((_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    setSort(next);
+    setCurrentPage(1);
+  }, []);
 
   // NO necesitamos cargar empresas manualmente aquí, el hook lo hace
 
@@ -152,6 +166,8 @@ export const useClienteList = (): UseClienteListResult => {
     nombreFiscalFiltro,
     setNombreFiscalFiltro,
     clearFilters,
-    isAdmin
+    isAdmin,
+    sort,
+    handleTableChange,
   };
 };

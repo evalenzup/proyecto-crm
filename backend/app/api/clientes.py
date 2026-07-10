@@ -142,6 +142,8 @@ def listar_clientes(
     rfc: Optional[str] = Query(None),
     nombre_comercial: Optional[str] = Query(None),
     nombre_razon_social: Optional[str] = Query(None),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Obtiene una lista paginada y filtrada de todos los clientes."""
@@ -157,6 +159,8 @@ def listar_clientes(
         rfc=rfc,
         nombre_comercial=nombre_comercial,
         nombre_razon_social=nombre_razon_social,
+        order_by=order_by,
+        order_dir=order_dir,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 

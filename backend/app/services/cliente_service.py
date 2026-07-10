@@ -170,7 +170,10 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
         rfc: Optional[str] = None,
         nombre_comercial: Optional[str] = None,
         nombre_razon_social: Optional[str] = None,
+        order_by: Optional[str] = None,
+        order_dir: Optional[str] = None,
     ) -> Tuple[List[Cliente], int]:
+        from app.services.ordering import apply_order
         query = db.query(self.model)
 
         if empresa_id:
@@ -186,12 +189,12 @@ class ClienteRepository(BaseRepository[Cliente, ClienteCreate, ClienteUpdate]):
             query = query.filter(self.model.nombre_razon_social.ilike(f"%{nombre_razon_social}%"))
 
         total = query.count()
-        items = (
-            query.order_by(self.model.nombre_comercial.asc())
-            .offset(skip)
-            .limit(limit)
-            .all()
+        query = apply_order(
+            query, self.model, order_by, order_dir,
+            allowed={"nombre_comercial", "nombre_razon_social", "rfc", "actividad"},
+            default="nombre_comercial",
         )
+        items = query.offset(skip).limit(limit).all()
 
         return items, total
 
