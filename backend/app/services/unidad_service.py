@@ -19,7 +19,10 @@ def list_unidades(
     activo: Optional[bool] = None,
     limit: int = 50,
     offset: int = 0,
+    order_by: Optional[str] = None,
+    order_dir: Optional[str] = None,
 ) -> Tuple[List[Unidad], int]:
+    from app.services.ordering import apply_order
     query = db.query(Unidad)
     if empresa_id:
         query = query.filter(Unidad.empresa_id == empresa_id)
@@ -28,7 +31,12 @@ def list_unidades(
     if activo is not None:
         query = query.filter(Unidad.activo == activo)
     total = query.count()
-    items = query.order_by(Unidad.nombre).offset(offset).limit(limit).all()
+    query = apply_order(
+        query, Unidad, order_by, order_dir,
+        allowed={"nombre", "placa", "tipo", "max_servicios_dia", "activo"},
+        default="nombre",
+    )
+    items = query.offset(offset).limit(limit).all()
     return items, total
 
 

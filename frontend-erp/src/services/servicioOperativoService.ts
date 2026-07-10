@@ -55,6 +55,8 @@ export const servicioOperativoService = {
     activo?: boolean;
     limit?: number;
     offset?: number;
+    order_by?: string;
+    order_dir?: 'asc' | 'desc';
   }): Promise<ServicioOperativoPageOut> => {
     const response = await api.get<ServicioOperativoPageOut>('/servicios-operativos', { params });
     return response.data;

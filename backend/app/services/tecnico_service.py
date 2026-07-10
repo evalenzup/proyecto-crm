@@ -25,7 +25,10 @@ def list_tecnicos(
     tipo_personal: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    order_by: Optional[str] = None,
+    order_dir: Optional[str] = None,
 ) -> Tuple[List[Tecnico], int]:
+    from app.services.ordering import apply_order
     query = db.query(Tecnico)
     if empresa_id:
         query = query.filter(Tecnico.empresa_id == empresa_id)
@@ -36,7 +39,12 @@ def list_tecnicos(
     if tipo_personal:
         query = query.filter(Tecnico.tipo_personal == tipo_personal)
     total = query.count()
-    items = query.order_by(Tecnico.nombre_completo).offset(offset).limit(limit).all()
+    query = apply_order(
+        query, Tecnico, order_by, order_dir,
+        allowed={"nombre_completo", "tipo_personal", "puesto", "celular", "email", "activo"},
+        default="nombre_completo",
+    )
+    items = query.offset(offset).limit(limit).all()
     return items, total
 
 

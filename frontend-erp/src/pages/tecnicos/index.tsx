@@ -40,6 +40,7 @@ const TecnicosPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   const [q, setQ] = useState<string | undefined>(undefined);
   const [tipoPersonalFilter, setTipoPersonalFilter] = useState<TipoPersonal | undefined>(undefined);
+  const [sort, setSort] = useState<{ order_by?: string; order_dir?: 'asc' | 'desc' }>({});
 
   const fetchData = useCallback(
     async (page: number, size: number, query?: string) => {
@@ -51,6 +52,8 @@ const TecnicosPage: React.FC = () => {
           tipo_personal: tipoPersonalFilter,
           limit: size,
           offset: (page - 1) * size,
+          order_by: sort.order_by,
+          order_dir: sort.order_dir,
         });
         setData(result.items);
         setTotal(result.total);
@@ -60,8 +63,21 @@ const TecnicosPage: React.FC = () => {
         setLoading(false);
       }
     },
-    [selectedEmpresaId]
+    [selectedEmpresaId, tipoPersonalFilter, sort]
   );
+
+  const so = (key: string): 'ascend' | 'descend' | undefined =>
+    sort.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
+  const handleTableChange = (_pag: any, _filters: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const next = s && s.order
+      ? { order_by: String(s.columnKey ?? s.field), order_dir: (s.order === 'ascend' ? 'asc' : 'desc') as 'asc' | 'desc' }
+      : {};
+    if (next.order_by !== sort.order_by || next.order_dir !== sort.order_dir) {
+      setSort(next);
+      setCurrentPage(1);
+    }
+  };
 
   useEffect(() => {
     fetchData(currentPage, pageSize, q);
@@ -123,12 +139,16 @@ const TecnicosPage: React.FC = () => {
       dataIndex: 'nombre_completo',
       key: 'nombre_completo',
       width: 220,
+      sorter: true,
+      sortOrder: so('nombre_completo'),
     },
     {
       title: 'Tipo',
       dataIndex: 'tipo_personal',
       key: 'tipo_personal',
       width: 130,
+      sorter: true,
+      sortOrder: so('tipo_personal'),
       render: (val: string) => (
         <Tag color={TIPO_PERSONAL_COLOR[val] ?? 'default'}>
           {TIPO_PERSONAL_LABEL[val] ?? val}
@@ -139,6 +159,8 @@ const TecnicosPage: React.FC = () => {
       title: 'Puesto',
       dataIndex: 'puesto',
       key: 'puesto',
+      sorter: true,
+      sortOrder: so('puesto'),
       width: 160,
       render: (val?: string | null) =>
         val ?? <span style={{ color: token.colorTextDisabled }}>—</span>,
@@ -284,6 +306,7 @@ const TecnicosPage: React.FC = () => {
           dataSource={data}
           loading={loading}
           scroll={{ x: 1000, y: tableY }}
+          onChange={handleTableChange}
           pagination={{
             current: currentPage,
             pageSize,

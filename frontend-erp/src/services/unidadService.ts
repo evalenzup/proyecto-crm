@@ -152,6 +152,8 @@ export const unidadService = {
     activo?: boolean;
     limit?: number;
     offset?: number;
+    order_by?: string;
+    order_dir?: 'asc' | 'desc';
   }): Promise<UnidadPageOut> => {
     const response = await api.get<UnidadPageOut>('/unidades', { params });
     return response.data;

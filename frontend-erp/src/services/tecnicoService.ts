@@ -109,6 +109,8 @@ export const tecnicoService = {
     tipo_personal?: TipoPersonal;
     limit?: number;
     offset?: number;
+    order_by?: string;
+    order_dir?: 'asc' | 'desc';
   }): Promise<TecnicoPageOut> => {
     const response = await api.get<TecnicoPageOut>('/tecnicos', { params });
     return response.data;

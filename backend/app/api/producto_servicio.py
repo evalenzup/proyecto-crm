@@ -81,6 +81,8 @@ def listar_productos(
     limit: int = Query(100, ge=1, le=500),
     empresa_id: Optional[UUID] = Query(None),
     q: Optional[str] = Query(None, description="Término de búsqueda en clave o descripción"),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
 ):
     items, total = producto_servicio_repo.get_multi(
         db,
@@ -88,6 +90,8 @@ def listar_productos(
         limit=limit,
         empresa_id=empresa_id,
         q=q,
+        order_by=order_by,
+        order_dir=order_dir,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 

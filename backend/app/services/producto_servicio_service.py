@@ -130,7 +130,10 @@ class ProductoServicioRepository(
         limit: int = 100,
         empresa_id: Optional[UUID] = None,
         q: Optional[str] = None,
+        order_by: Optional[str] = None,
+        order_dir: Optional[str] = None,
     ) -> Tuple[List[ProductoServicio], int]:
+        from app.services.ordering import apply_order
         query = db.query(self.model)
 
         if empresa_id:
@@ -146,9 +149,12 @@ class ProductoServicioRepository(
             )
 
         total = query.count()
-        items = (
-            query.order_by(self.model.descripcion.asc()).offset(skip).limit(limit).all()
+        query = apply_order(
+            query, self.model, order_by, order_dir,
+            allowed={"tipo", "descripcion", "clave_producto", "clave_unidad"},
+            default="descripcion",
         )
+        items = query.offset(skip).limit(limit).all()
 
         return items, total
 

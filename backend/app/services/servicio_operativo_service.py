@@ -41,7 +41,10 @@ def list_servicios(
     activo: Optional[bool] = None,
     limit: int = 50,
     offset: int = 0,
+    order_by: Optional[str] = None,
+    order_dir: Optional[str] = None,
 ) -> Tuple[List[ServicioOperativo], int]:
+    from app.services.ordering import apply_order
     query = db.query(ServicioOperativo)
     if empresa_id:
         query = query.filter(ServicioOperativo.empresa_id == empresa_id)
@@ -50,7 +53,12 @@ def list_servicios(
     if activo is not None:
         query = query.filter(ServicioOperativo.activo == activo)
     total = query.count()
-    items = query.order_by(ServicioOperativo.nombre).offset(offset).limit(limit).all()
+    query = apply_order(
+        query, ServicioOperativo, order_by, order_dir,
+        allowed={"nombre", "duracion_minutos", "personal_requerido", "activo"},
+        default="nombre",
+    )
+    items = query.offset(offset).limit(limit).all()
     return items, total
 
 

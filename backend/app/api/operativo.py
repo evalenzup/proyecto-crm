@@ -128,13 +128,16 @@ def listar_servicios(
     activo: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     if current_user.rol == RolUsuario.SUPERVISOR:
         empresa_id = current_user.empresa_id
     items, total = svc_servicio.list_servicios(
-        db, empresa_id=empresa_id, q=q, activo=activo, limit=limit, offset=offset
+        db, empresa_id=empresa_id, q=q, activo=activo, limit=limit, offset=offset,
+        order_by=order_by, order_dir=order_dir,
     )
     return ServicioOperativoPageOut(items=items, total=total, limit=limit, offset=offset)
 
@@ -222,6 +225,8 @@ def listar_tecnicos(
     tipo_personal: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -229,7 +234,8 @@ def listar_tecnicos(
         empresa_id = current_user.empresa_id
     items, total = svc_tecnico.list_tecnicos(
         db, empresa_id=empresa_id, q=q, activo=activo,
-        tipo_personal=tipo_personal, limit=limit, offset=offset
+        tipo_personal=tipo_personal, limit=limit, offset=offset,
+        order_by=order_by, order_dir=order_dir,
     )
     return TecnicoPageOut(items=items, total=total, limit=limit, offset=offset)
 
@@ -401,13 +407,16 @@ def listar_unidades(
     activo: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     if current_user.rol == RolUsuario.SUPERVISOR:
         empresa_id = current_user.empresa_id
     items, total = svc_unidad.list_unidades(
-        db, empresa_id=empresa_id, q=q, activo=activo, limit=limit, offset=offset
+        db, empresa_id=empresa_id, q=q, activo=activo, limit=limit, offset=offset,
+        order_by=order_by, order_dir=order_dir,
     )
     return UnidadPageOut(items=items, total=total, limit=limit, offset=offset)
 
