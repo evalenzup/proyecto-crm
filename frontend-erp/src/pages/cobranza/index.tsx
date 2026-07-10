@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Card, Row, Col, Typography, Statistic, Tag, Button, Tooltip, message, Modal, Form, Input } from 'antd';
 import { DollarOutlined, SolutionOutlined, CommentOutlined, WarningOutlined, FilePdfOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
+import { natCompare, numCompare } from '@/utils/sorters';
 import { AgingReportResponse, ClienteAging } from '@/types/cobranza';
 import { getAgingReport, fetchEstadoCuentaBlob, sendEstadoCuentaEmail } from '@/services/cobranzaService';
 import Notas from '@/components/Cobranza/Notas';
@@ -111,6 +112,7 @@ const CobranzaPage: React.FC = () => {
             title: 'Cliente',
             dataIndex: 'nombre_cliente',
             key: 'nombre_cliente',
+            sorter: (a: ClienteAging, b: ClienteAging) => natCompare(a.nombre_cliente, b.nombre_cliente),
             render: (text: string, record: ClienteAging) => (
                 <div>
                     <div style={{ fontWeight: 'bold' }}>{text}</div>
@@ -136,6 +138,7 @@ const CobranzaPage: React.FC = () => {
             dataIndex: 'por_vencer',
             key: 'por_vencer',
             align: 'right' as const,
+            sorter: (a: ClienteAging, b: ClienteAging) => numCompare(a.por_vencer, b.por_vencer),
             render: (val: number) => val > 0 ? formatCurrency(val) : '-'
         },
         {
@@ -143,6 +146,7 @@ const CobranzaPage: React.FC = () => {
             dataIndex: 'vencido_0_30',
             key: 'vencido_0_30',
             align: 'right' as const,
+            sorter: (a: ClienteAging, b: ClienteAging) => numCompare(a.vencido_0_30, b.vencido_0_30),
             render: (val: number) => val > 0 ? <Tag color="gold">{formatCurrency(val)}</Tag> : '-'
         },
         {
@@ -150,6 +154,7 @@ const CobranzaPage: React.FC = () => {
             dataIndex: 'vencido_31_60',
             key: 'vencido_31_60',
             align: 'right' as const,
+            sorter: (a: ClienteAging, b: ClienteAging) => numCompare(a.vencido_31_60, b.vencido_31_60),
             render: (val: number) => val > 0 ? <Tag color="orange">{formatCurrency(val)}</Tag> : '-'
         },
         {
@@ -157,6 +162,7 @@ const CobranzaPage: React.FC = () => {
             dataIndex: 'vencido_61_90',
             key: 'vencido_61_90',
             align: 'right' as const,
+            sorter: (a: ClienteAging, b: ClienteAging) => numCompare(a.vencido_61_90, b.vencido_61_90),
             render: (val: number) => val > 0 ? <Tag color="volcano">{formatCurrency(val)}</Tag> : '-'
         },
         {
@@ -164,6 +170,7 @@ const CobranzaPage: React.FC = () => {
             dataIndex: 'vencido_mas_90',
             key: 'vencido_mas_90',
             align: 'right' as const,
+            sorter: (a: ClienteAging, b: ClienteAging) => numCompare(a.vencido_mas_90, b.vencido_mas_90),
             render: (val: number) => val > 0 ? <Tag color="red">{formatCurrency(val)}</Tag> : '-'
         },
         {
