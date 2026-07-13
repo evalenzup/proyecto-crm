@@ -20,6 +20,8 @@ import certificadoService, { CertificadoServicio } from '@/services/certificadoS
 import { clienteService, ClienteOut } from '@/services/clienteService';
 
 const EMPRESA_PERMITIDA = 'NORTON FUMIGACIONES';
+// Gerente que firma los certificados (editable en el formulario)
+const GERENTE_DEFAULT = 'Lic. Rodolfo Muñoz Barba';
 
 const AREAS: [string, string][] = [
   ['habitaciones', 'No. Habitaciones'], ['closets', 'No. Closets'], ['banos', 'Baños'],
@@ -128,7 +130,7 @@ const CertificadosPage: React.FC = () => {
         aplicaciones: cert.aplicaciones || {},
       });
     } else {
-      form.setFieldsValue({ fecha: dayjs() });
+      form.setFieldsValue({ fecha: dayjs(), gerente_nombre: GERENTE_DEFAULT });
     }
     setModalOpen(true);
   };
