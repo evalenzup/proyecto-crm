@@ -30,6 +30,7 @@ from .associations import tecnico_especialidades, unidad_servicios_compatibles
 from .orden_servicio import OrdenServicio, HistorialEstadoOS
 from .equipo import TipoEquipo, TipoEquipoCampo, EstadoEquipo, EquipoControl
 from .croquis import Croquis
+from .certificado_servicio import CertificadoServicio
 
 # Usar uno de los Base como referencia unificada
 Base = BaseCliente

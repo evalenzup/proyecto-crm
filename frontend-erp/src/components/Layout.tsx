@@ -27,6 +27,7 @@ import {
   TeamOutlined,
   CarOutlined,
   ToolOutlined,
+  SafetyCertificateOutlined,
   CalendarOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
@@ -211,6 +212,7 @@ const baseMenuData = [
     children: [
       { path: '/ordenes-servicio', name: 'Órdenes de Servicio', icon: <UnorderedListOutlined /> },
       { path: '/agenda', name: 'Agenda', icon: <CalendarOutlined /> },
+      { path: '/certificados', name: 'Certificados', icon: <SafetyCertificateOutlined /> },
     ],
   },
   { path: '/ayuda', name: 'Ayuda', icon: <QuestionCircleOutlined /> },
