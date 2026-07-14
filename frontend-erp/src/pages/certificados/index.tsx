@@ -4,8 +4,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Button, Card, Col, DatePicker, Divider, Form, Input, InputNumber,
-  Modal, Popconfirm, Row, Select, Space, Table, Tooltip, message,
+  Modal, Popconfirm, Popover, Row, Select, Space, Table, Tooltip, message,
 } from 'antd';
+import type { FormInstance } from 'antd';
 import {
   DeleteOutlined, EditOutlined, FilePdfOutlined, PlusOutlined, ReloadOutlined,
 } from '@ant-design/icons';
@@ -42,6 +43,120 @@ const limpiar = (obj: Record<string, any>): Record<string, string> =>
     Object.entries(obj || {}).filter(([, v]) => v != null && String(v).trim() !== '')
       .map(([k, v]) => [k, String(v).trim()])
   );
+
+const VERDE = '#3aa335';
+
+// ── Chip clickeable: 1 clic = marcar/desmarcar (X); lápiz = valor personalizado ──
+const ChipCampo: React.FC<{
+  label: string;
+  value?: string;
+  onToggle: () => void;
+  onSetValue: (v: string) => void;
+}> = ({ label, value, onToggle, onSetValue }) => {
+  const marcado = !!value && String(value).trim() !== '';
+  const display = marcado ? String(value) : '';
+  const [pop, setPop] = useState(false);
+  const [tmp, setTmp] = useState('');
+
+  const abrir = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTmp(display && display !== 'X' ? display : '');
+    setPop(true);
+  };
+  const aceptar = () => {
+    onSetValue(tmp.trim() || 'X');
+    setPop(false);
+  };
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex', alignItems: 'center', userSelect: 'none',
+        border: `1.5px solid ${marcado ? VERDE : '#d9d9d9'}`,
+        background: marcado ? '#f2fbef' : '#fff',
+        borderRadius: 16, overflow: 'hidden', transition: 'all .12s',
+      }}
+    >
+      <span
+        onClick={onToggle}
+        style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 600, color: marcado ? '#237804' : '#555' }}
+      >
+        {label}
+        {marcado && (
+          <span style={{ color: VERDE, marginLeft: 7, fontWeight: 800 }}>{display}</span>
+        )}
+      </span>
+      <Popover
+        open={pop}
+        onOpenChange={(o) => setPop(o)}
+        trigger="click"
+        content={
+          <Space.Compact style={{ width: 200 }} onClick={(e) => e.stopPropagation()}>
+            <Input
+              size="small" autoFocus value={tmp}
+              placeholder="X o un número/texto"
+              onChange={(e) => setTmp(e.target.value)}
+              onPressEnter={aceptar}
+            />
+            <Button size="small" type="primary" onClick={aceptar}>OK</Button>
+          </Space.Compact>
+        }
+      >
+        <span
+          onClick={abrir}
+          title="Poner un valor personalizado"
+          style={{ cursor: 'pointer', padding: '4px 8px', borderLeft: `1px solid ${marcado ? '#bfe6b3' : '#eee'}`, color: '#999', display: 'inline-flex' }}
+        >
+          <EditOutlined style={{ fontSize: 11 }} />
+        </span>
+      </Popover>
+    </div>
+  );
+};
+
+const SeccionChips: React.FC<{
+  form: FormInstance;
+  name: string;
+  defs: [string, string][];
+}> = ({ form, name, defs }) => {
+  const valores: Record<string, string> = Form.useWatch(name, form) || {};
+  const set = (key: string, val: string | undefined) => form.setFieldValue([name, key], val);
+  const marcarTodo = () => {
+    const next: Record<string, string> = { ...(form.getFieldValue(name) || {}) };
+    defs.forEach(([k]) => { if (k !== 'otros' && !next[k]) next[k] = 'X'; });
+    form.setFieldValue(name, next);
+  };
+  const limpiarSeccion = () => {
+    const otros = form.getFieldValue([name, 'otros']);
+    form.setFieldValue(name, otros ? { otros } : {});
+  };
+
+  return (
+    <>
+      <Space size={6} style={{ marginBottom: 10 }}>
+        <Button size="small" onClick={marcarTodo}>Marcar todo</Button>
+        <Button size="small" onClick={limpiarSeccion}>Limpiar</Button>
+      </Space>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        {defs.map(([key, label]) =>
+          key === 'otros' ? (
+            <Form.Item key={key} name={[name, key]} noStyle>
+              <Input size="small" placeholder="Otros…" style={{ width: 180 }} />
+            </Form.Item>
+          ) : (
+            <ChipCampo
+              key={key}
+              label={label}
+              value={valores?.[key]}
+              onToggle={() => set(key, valores?.[key] ? undefined : 'X')}
+              onSetValue={(v) => set(key, v)}
+            />
+          )
+        )}
+      </div>
+    </>
+  );
+};
 
 const CertificadosPage: React.FC = () => {
   const { containerRef, tableY } = useTableHeight();
@@ -165,8 +280,8 @@ const CertificadosPage: React.FC = () => {
         domicilio: v.domicilio || null,
         telefono: v.telefono || null,
         actividad: v.actividad || null,
-        areas: limpiar(v.areas),
-        plagas: limpiar(v.plagas),
+        areas: limpiar(form.getFieldValue('areas')),
+        plagas: limpiar(form.getFieldValue('plagas')),
         aplicaciones: limpiar(v.aplicaciones),
         observaciones: v.observaciones || null,
         gerente_nombre: v.gerente_nombre || null,
@@ -239,18 +354,6 @@ const CertificadosPage: React.FC = () => {
       ),
     },
   ];
-
-  const gridCampos = (name: string, defs: [string, string][]) => (
-    <Row gutter={[12, 0]}>
-      {defs.map(([key, label]) => (
-        <Col xs={12} sm={8} md={6} key={key}>
-          <Form.Item label={label} name={[name, key]} style={{ marginBottom: 8 }}>
-            <Input placeholder="X / valor" maxLength={30} />
-          </Form.Item>
-        </Col>
-      ))}
-    </Row>
-  );
 
   return (
     <>
@@ -363,10 +466,10 @@ const CertificadosPage: React.FC = () => {
           </Row>
 
           <Divider orientation="left" style={{ fontSize: 13, margin: '4px 0 12px' }}>Áreas tratadas</Divider>
-          {gridCampos('areas', AREAS)}
+          <SeccionChips form={form} name="areas" defs={AREAS} />
 
-          <Divider orientation="left" style={{ fontSize: 13, margin: '4px 0 12px' }}>Plagas sujetas a control</Divider>
-          {gridCampos('plagas', PLAGAS)}
+          <Divider orientation="left" style={{ fontSize: 13, margin: '16px 0 12px' }}>Plagas sujetas a control</Divider>
+          <SeccionChips form={form} name="plagas" defs={PLAGAS} />
 
           <Divider orientation="left" style={{ fontSize: 13, margin: '4px 0 12px' }}>Aplicaciones</Divider>
           <Row gutter={12}>
