@@ -6,7 +6,6 @@ import {
   Alert, Button, Card, Col, DatePicker, Divider, Form, Input, InputNumber,
   Modal, Popconfirm, Popover, Row, Select, Space, Table, Tooltip, message,
 } from 'antd';
-import type { FormInstance } from 'antd';
 import {
   DeleteOutlined, EditOutlined, FilePdfOutlined, PlusOutlined, ReloadOutlined,
 } from '@ant-design/icons';
@@ -115,20 +114,23 @@ const ChipCampo: React.FC<{
 };
 
 const SeccionChips: React.FC<{
-  form: FormInstance;
-  name: string;
   defs: [string, string][];
-}> = ({ form, name, defs }) => {
-  const valores: Record<string, string> = Form.useWatch(name, form) || {};
-  const set = (key: string, val: string | undefined) => form.setFieldValue([name, key], val);
+  valores: Record<string, string>;
+  onChange: (next: Record<string, string>) => void;
+}> = ({ defs, valores, onChange }) => {
+  const set = (key: string, val: string | undefined) => {
+    const next = { ...valores };
+    if (val == null || String(val).trim() === '') delete next[key];
+    else next[key] = val;
+    onChange(next);
+  };
   const marcarTodo = () => {
-    const next: Record<string, string> = { ...(form.getFieldValue(name) || {}) };
+    const next = { ...valores };
     defs.forEach(([k]) => { if (k !== 'otros' && !next[k]) next[k] = 'X'; });
-    form.setFieldValue(name, next);
+    onChange(next);
   };
   const limpiarSeccion = () => {
-    const otros = form.getFieldValue([name, 'otros']);
-    form.setFieldValue(name, otros ? { otros } : {});
+    onChange(valores.otros ? { otros: valores.otros } : {});
   };
 
   return (
@@ -140,15 +142,17 @@ const SeccionChips: React.FC<{
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {defs.map(([key, label]) =>
           key === 'otros' ? (
-            <Form.Item key={key} name={[name, key]} noStyle>
-              <Input size="small" placeholder="Otros…" style={{ width: 180 }} />
-            </Form.Item>
+            <Input
+              key={key} size="small" placeholder="Otros…" style={{ width: 180 }}
+              value={valores.otros || ''}
+              onChange={(e) => set('otros', e.target.value)}
+            />
           ) : (
             <ChipCampo
               key={key}
               label={label}
-              value={valores?.[key]}
-              onToggle={() => set(key, valores?.[key] ? undefined : 'X')}
+              value={valores[key]}
+              onToggle={() => set(key, valores[key] ? undefined : 'X')}
               onSetValue={(v) => set(key, v)}
             />
           )
@@ -177,6 +181,9 @@ const CertificadosPage: React.FC = () => {
   const [editando, setEditando] = useState<CertificadoServicio | null>(null);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
+  // Áreas / plagas se manejan como estado (chips), no como Form.Items.
+  const [areasVals, setAreasVals] = useState<Record<string, string>>({});
+  const [plagasVals, setPlagasVals] = useState<Record<string, string>>({});
 
   // Cliente autocomplete (prellenado)
   const [clienteOpts, setClienteOpts] = useState<ClienteOut[]>([]);
@@ -240,12 +247,14 @@ const CertificadosPage: React.FC = () => {
         actividad: cert.actividad,
         observaciones: cert.observaciones,
         gerente_nombre: cert.gerente_nombre,
-        areas: cert.areas || {},
-        plagas: cert.plagas || {},
         aplicaciones: cert.aplicaciones || {},
       });
+      setAreasVals(cert.areas || {});
+      setPlagasVals(cert.plagas || {});
     } else {
       form.setFieldsValue({ fecha: dayjs(), gerente_nombre: GERENTE_DEFAULT });
+      setAreasVals({});
+      setPlagasVals({});
     }
     setModalOpen(true);
   };
@@ -280,8 +289,8 @@ const CertificadosPage: React.FC = () => {
         domicilio: v.domicilio || null,
         telefono: v.telefono || null,
         actividad: v.actividad || null,
-        areas: limpiar(form.getFieldValue('areas')),
-        plagas: limpiar(form.getFieldValue('plagas')),
+        areas: limpiar(areasVals),
+        plagas: limpiar(plagasVals),
         aplicaciones: limpiar(v.aplicaciones),
         observaciones: v.observaciones || null,
         gerente_nombre: v.gerente_nombre || null,
@@ -466,10 +475,10 @@ const CertificadosPage: React.FC = () => {
           </Row>
 
           <Divider orientation="left" style={{ fontSize: 13, margin: '4px 0 12px' }}>Áreas tratadas</Divider>
-          <SeccionChips form={form} name="areas" defs={AREAS} />
+          <SeccionChips defs={AREAS} valores={areasVals} onChange={setAreasVals} />
 
           <Divider orientation="left" style={{ fontSize: 13, margin: '16px 0 12px' }}>Plagas sujetas a control</Divider>
-          <SeccionChips form={form} name="plagas" defs={PLAGAS} />
+          <SeccionChips defs={PLAGAS} valores={plagasVals} onChange={setPlagasVals} />
 
           <Divider orientation="left" style={{ fontSize: 13, margin: '4px 0 12px' }}>Aplicaciones</Divider>
           <Row gutter={12}>
