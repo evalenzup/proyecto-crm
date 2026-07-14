@@ -253,9 +253,15 @@ const CertificadosPage: React.FC = () => {
       setAreasVals(cert.areas || {});
       setPlagasVals(cert.plagas || {});
     } else {
-      form.setFieldsValue({ fecha: dayjs(), gerente_nombre: GERENTE_DEFAULT });
+      form.setFieldsValue({ fecha: dayjs(), gerente_nombre: GERENTE_DEFAULT, folio: undefined });
       setAreasVals({});
       setPlagasVals({});
+      // Prellenar el folio sugerido (siguiente consecutivo), editable.
+      if (selectedEmpresaId) {
+        certificadoService.siguienteFolio(selectedEmpresaId, 'PLAGUICIDAS')
+          .then((folio) => form.setFieldValue('folio', folio))
+          .catch(() => { /* si falla, se deja vacío → el backend lo asigna */ });
+      }
     }
     setModalOpen(true);
   };
@@ -449,7 +455,7 @@ const CertificadosPage: React.FC = () => {
             </Col>
             {!editando && (
               <Col xs={12} sm={4}>
-                <Form.Item label="Folio" name="folio" tooltip="Déjalo vacío para asignar el consecutivo automático">
+                <Form.Item label="Folio" name="folio" tooltip="Se sugiere el siguiente consecutivo. Edítalo si necesitas continuar otra numeración (ej. la de papel).">
                   <InputNumber style={{ width: '100%' }} min={1} placeholder="Auto" />
                 </Form.Item>
               </Col>
