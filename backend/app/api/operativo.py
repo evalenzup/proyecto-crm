@@ -801,6 +801,63 @@ def eliminar_poliza_seguro(
     db.commit()
 
 
+# Documentos de la póliza: póliza, factura y complemento de pago.
+_POLIZA_DOC_COLS = {
+    "poliza": "documento",
+    "factura": "documento_factura",
+    "complemento": "documento_complemento",
+}
+
+
+def _col_doc_poliza(campo: str) -> str:
+    col = _POLIZA_DOC_COLS.get(campo)
+    if not col:
+        raise HTTPException(status_code=400, detail="Tipo de documento inválido")
+    return col
+
+
+@unidades_router.post(
+    "/{unidad_id}/polizas-seguro/{poliza_id}/documento/{campo}",
+    response_model=PolizaSeguroOut,
+)
+async def subir_documento_poliza_campo(
+    unidad_id: UUID,
+    poliza_id: UUID,
+    campo: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Sube un documento de la póliza: campo ∈ {poliza, factura, complemento}."""
+    col = _col_doc_poliza(campo)
+    obj = _get_poliza(db, unidad_id, poliza_id)
+    _delete_file(_DOCS_DIR, getattr(obj, col))
+    filename = _save_upload(file, _DOCS_DIR)
+    setattr(obj, col, filename)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@unidades_router.delete(
+    "/{unidad_id}/polizas-seguro/{poliza_id}/documento/{campo}",
+    status_code=204,
+)
+def eliminar_documento_poliza_campo(
+    unidad_id: UUID,
+    poliza_id: UUID,
+    campo: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    col = _col_doc_poliza(campo)
+    obj = _get_poliza(db, unidad_id, poliza_id)
+    _delete_file(_DOCS_DIR, getattr(obj, col))
+    setattr(obj, col, None)
+    db.commit()
+
+
+# Compatibilidad: rutas antiguas sin `campo` → documento de la póliza.
 @unidades_router.post(
     "/{unidad_id}/polizas-seguro/{poliza_id}/documento",
     response_model=PolizaSeguroOut,
@@ -812,14 +869,7 @@ async def subir_documento_poliza(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    """Sube el documento PDF/imagen de una póliza de seguro."""
-    obj = _get_poliza(db, unidad_id, poliza_id)
-    _delete_file(_DOCS_DIR, obj.documento)
-    filename = _save_upload(file, _DOCS_DIR)
-    obj.documento = filename
-    db.commit()
-    db.refresh(obj)
-    return obj
+    return await subir_documento_poliza_campo(unidad_id, poliza_id, "poliza", file, db, current_user)
 
 
 @unidades_router.delete(
@@ -832,7 +882,4 @@ def eliminar_documento_poliza(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    obj = _get_poliza(db, unidad_id, poliza_id)
-    _delete_file(_DOCS_DIR, obj.documento)
-    obj.documento = None
-    db.commit()
+    return eliminar_documento_poliza_campo(unidad_id, poliza_id, "poliza", db, current_user)

@@ -40,6 +40,8 @@ class PolizaSeguroOut(BaseModel):
     fecha_vencimiento: Optional[datetime.date] = None
     activo: bool
     documento: Optional[str] = None
+    documento_factura: Optional[str] = None
+    documento_complemento: Optional[str] = None
     creado_en: TijuanaDatetime
     actualizado_en: TijuanaDatetime
 

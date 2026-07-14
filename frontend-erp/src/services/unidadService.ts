@@ -16,9 +16,13 @@ export interface PolizaSeguroOut {
   fecha_vencimiento?: string | null;
   activo: boolean;
   documento?: string | null;
+  documento_factura?: string | null;
+  documento_complemento?: string | null;
   creado_en: string;
   actualizado_en: string;
 }
+
+export type CampoDocPoliza = 'poliza' | 'factura' | 'complemento';
 
 export interface PolizaSeguroCreate {
   num_poliza: string;
@@ -280,20 +284,21 @@ export const unidadService = {
   subirDocPoliza: async (
     unidadId: string,
     polizaId: string,
-    file: File
+    file: File,
+    campo: CampoDocPoliza = 'poliza'
   ): Promise<PolizaSeguroOut> => {
     const form = new FormData();
     form.append('file', file);
     const response = await api.post<PolizaSeguroOut>(
-      `/unidades/${unidadId}/polizas-seguro/${polizaId}/documento`,
+      `/unidades/${unidadId}/polizas-seguro/${polizaId}/documento/${campo}`,
       form,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     return response.data;
   },
 
-  eliminarDocPoliza: async (unidadId: string, polizaId: string): Promise<void> => {
-    await api.delete(`/unidades/${unidadId}/polizas-seguro/${polizaId}/documento`);
+  eliminarDocPoliza: async (unidadId: string, polizaId: string, campo: CampoDocPoliza = 'poliza'): Promise<void> => {
+    await api.delete(`/unidades/${unidadId}/polizas-seguro/${polizaId}/documento/${campo}`);
   },
 
   // ── Mantenimientos ─────────────────────────────────────────────────────────

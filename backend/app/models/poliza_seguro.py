@@ -19,7 +19,9 @@ class PolizaSeguro(Base):
     fecha_expedicion = Column(Date, nullable=True)
     fecha_vencimiento = Column(Date, nullable=True)
     activo = Column(Boolean, nullable=False, default=True)
-    documento = Column(String(255), nullable=True)   # nombre de archivo en data/unidades_docs/
+    documento = Column(String(255), nullable=True)             # póliza (archivo en data/unidades_docs/)
+    documento_factura = Column(String(255), nullable=True)     # factura de la póliza
+    documento_complemento = Column(String(255), nullable=True) # complemento de pago de la póliza
 
     creado_en = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     actualizado_en = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)

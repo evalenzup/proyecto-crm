@@ -51,6 +51,7 @@ import {
   PolizaSeguroOut,
   PolizaSeguroCreate,
   PolizaSeguroUpdate,
+  CampoDocPoliza,
 } from '@/services/unidadService';
 import { servicioOperativoService } from '@/services/servicioOperativoService';
 
@@ -581,31 +582,34 @@ const UnidadForm: React.FC = () => {
     }
   };
 
-  const handleDocPolizaUpload = async (polizaId: string, file: File) => {
+  const handleDocPolizaUpload = async (polizaId: string, file: File, campo: CampoDocPoliza = 'poliza') => {
     if (!id) return;
-    setUploadingDocPoliza((p) => ({ ...p, [polizaId]: true }));
+    const clave = `${polizaId}:${campo}`;
+    setUploadingDocPoliza((p) => ({ ...p, [clave]: true }));
     try {
-      const updated = await unidadService.subirDocPoliza(id, polizaId, file);
+      const updated = await unidadService.subirDocPoliza(id, polizaId, file, campo);
       setPolizas((prev) => prev.map((p) => (p.id === polizaId ? updated : p)));
-      message.success('Documento de póliza subido');
+      message.success('Documento subido');
     } catch (e: any) {
       if (!e?._handled) message.error('Error al subir el documento');
     } finally {
-      setUploadingDocPoliza((p) => ({ ...p, [polizaId]: false }));
+      setUploadingDocPoliza((p) => ({ ...p, [clave]: false }));
     }
   };
 
-  const handleDocPolizaDelete = async (polizaId: string) => {
+  const handleDocPolizaDelete = async (polizaId: string, campo: CampoDocPoliza = 'poliza') => {
     if (!id) return;
-    setUploadingDocPoliza((p) => ({ ...p, [polizaId]: true }));
+    const clave = `${polizaId}:${campo}`;
+    const col = campo === 'poliza' ? 'documento' : campo === 'factura' ? 'documento_factura' : 'documento_complemento';
+    setUploadingDocPoliza((p) => ({ ...p, [clave]: true }));
     try {
-      await unidadService.eliminarDocPoliza(id, polizaId);
-      setPolizas((prev) => prev.map((p) => (p.id === polizaId ? { ...p, documento: null } : p)));
+      await unidadService.eliminarDocPoliza(id, polizaId, campo);
+      setPolizas((prev) => prev.map((p) => (p.id === polizaId ? { ...p, [col]: null } : p)));
       message.success('Documento eliminado');
     } catch (e: any) {
       if (!e?._handled) message.error('Error al eliminar el documento');
     } finally {
-      setUploadingDocPoliza((p) => ({ ...p, [polizaId]: false }));
+      setUploadingDocPoliza((p) => ({ ...p, [clave]: false }));
     }
   };
 
@@ -644,52 +648,46 @@ const UnidadForm: React.FC = () => {
         ),
     },
     {
-      title: 'Documento',
-      key: 'documento',
-      width: 160,
+      title: 'Documentos',
+      key: 'documentos',
+      width: 260,
       render: (_: any, row: PolizaSeguroOut) => {
         if (!id) return null;
+        const docs: { campo: CampoDocPoliza; label: string; file?: string | null }[] = [
+          { campo: 'poliza', label: 'Póliza', file: row.documento },
+          { campo: 'factura', label: 'Factura', file: row.documento_factura },
+          { campo: 'complemento', label: 'Complemento', file: row.documento_complemento },
+        ];
         return (
-          <Space size="small">
-            {row.documento ? (
-              <>
-                <Button
-                  size="small"
-                  icon={<FilePdfOutlined />}
-                  onClick={() => abrirDocUnidad(row.documento!)}
-                />
-                <Popconfirm
-                  title="¿Eliminar documento?"
-                  onConfirm={() => handleDocPolizaDelete(row.id)}
-                  okText="Sí"
-                  cancelText="No"
-                >
-                  <Button
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    loading={uploadingDocPoliza[row.id]}
-                  />
-                </Popconfirm>
-              </>
-            ) : (
-              <Upload
-                accept=".pdf,image/*"
-                showUploadList={false}
-                beforeUpload={(file) => {
-                  handleDocPolizaUpload(row.id, file as unknown as File);
-                  return false;
-                }}
-              >
-                <Button
-                  size="small"
-                  icon={<UploadOutlined />}
-                  loading={uploadingDocPoliza[row.id]}
-                >
-                  Subir
-                </Button>
-              </Upload>
-            )}
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            {docs.map(({ campo, label, file }) => {
+              const clave = `${row.id}:${campo}`;
+              return (
+                <div key={campo} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ width: 88, fontSize: 12 }} type="secondary">{label}:</Text>
+                  {file ? (
+                    <Space size={4}>
+                      <Button size="small" icon={<FilePdfOutlined />} onClick={() => abrirDocUnidad(file!)} />
+                      <Popconfirm
+                        title={`¿Eliminar ${label.toLowerCase()}?`}
+                        onConfirm={() => handleDocPolizaDelete(row.id, campo)}
+                        okText="Sí" cancelText="No"
+                      >
+                        <Button size="small" danger icon={<DeleteOutlined />} loading={uploadingDocPoliza[clave]} />
+                      </Popconfirm>
+                    </Space>
+                  ) : (
+                    <Upload
+                      accept=".pdf,image/*"
+                      showUploadList={false}
+                      beforeUpload={(f) => { handleDocPolizaUpload(row.id, f as unknown as File, campo); return false; }}
+                    >
+                      <Button size="small" icon={<UploadOutlined />} loading={uploadingDocPoliza[clave]}>Subir</Button>
+                    </Upload>
+                  )}
+                </div>
+              );
+            })}
           </Space>
         );
       },
