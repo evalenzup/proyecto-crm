@@ -15,6 +15,7 @@ class CertificadoServicioBase(BaseModel):
     cliente_id: Optional[UUID] = None
     tipo: TipoCertificado = "PLAGUICIDAS"
     fecha: datetime.date
+    fecha_vencimiento: Optional[datetime.date] = None
 
     nombre_razon_social: str = Field(..., max_length=255)
     domicilio: Optional[str] = None
@@ -37,6 +38,7 @@ class CertificadoServicioCreate(CertificadoServicioBase):
 class CertificadoServicioUpdate(BaseModel):
     cliente_id: Optional[UUID] = None
     fecha: Optional[datetime.date] = None
+    fecha_vencimiento: Optional[datetime.date] = None
     nombre_razon_social: Optional[str] = Field(None, max_length=255)
     domicilio: Optional[str] = None
     telefono: Optional[str] = Field(None, max_length=50)

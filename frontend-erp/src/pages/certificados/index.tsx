@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Button, Card, Col, DatePicker, Divider, Form, Input, InputNumber,
-  Modal, Popconfirm, Popover, Row, Select, Space, Table, Tooltip, message,
+  Modal, Popconfirm, Popover, Row, Select, Space, Table, Tag, Tooltip, message,
 } from 'antd';
 import {
   DeleteOutlined, EditOutlined, FilePdfOutlined, PlusOutlined, ReloadOutlined,
@@ -241,6 +241,7 @@ const CertificadosPage: React.FC = () => {
     if (cert) {
       form.setFieldsValue({
         fecha: dayjs(cert.fecha),
+        fecha_vencimiento: cert.fecha_vencimiento ? dayjs(cert.fecha_vencimiento) : undefined,
         nombre_razon_social: cert.nombre_razon_social,
         domicilio: cert.domicilio,
         telefono: cert.telefono,
@@ -284,6 +285,7 @@ const CertificadosPage: React.FC = () => {
       setSaving(true);
       const payload: any = {
         fecha: v.fecha.format('YYYY-MM-DD'),
+        fecha_vencimiento: v.fecha_vencimiento ? v.fecha_vencimiento.format('YYYY-MM-DD') : null,
         cliente_id: v.cliente_id || null,
         nombre_razon_social: v.nombre_razon_social,
         domicilio: v.domicilio || null,
@@ -349,7 +351,19 @@ const CertificadosPage: React.FC = () => {
     { title: 'Folio', dataIndex: 'folio', key: 'folio', width: 90, sorter: true, sortOrder: so('folio'), render: (v) => <strong>No. {v}</strong> },
     { title: 'Fecha', dataIndex: 'fecha', key: 'fecha', width: 110, sorter: true, sortOrder: so('fecha'), render: (v) => dayjs(v).format('DD/MM/YYYY') },
     { title: 'Establecimiento', dataIndex: 'nombre_razon_social', key: 'nombre_razon_social', sorter: true, sortOrder: so('nombre_razon_social') },
-    { title: 'Producto', key: 'producto', width: 160, render: (_, r) => r.aplicaciones?.producto || '—' },
+    { title: 'Producto', key: 'producto', width: 150, render: (_, r) => r.aplicaciones?.producto || '—' },
+    {
+      title: 'Vigencia', key: 'vigencia', width: 150,
+      render: (_, r) => {
+        if (!r.fecha_vencimiento) return <span style={{ color: '#aaa' }}>—</span>;
+        const vig = dayjs(r.fecha_vencimiento).endOf('day').isAfter(dayjs());
+        return (
+          <Tag color={vig ? 'green' : 'red'}>
+            {vig ? 'Vigente' : 'Vencido'} · {dayjs(r.fecha_vencimiento).format('DD/MM/YYYY')}
+          </Tag>
+        );
+      },
+    },
     {
       title: 'Acciones', key: 'acc', width: 140,
       render: (_, r) => (
@@ -423,19 +437,24 @@ const CertificadosPage: React.FC = () => {
       >
         <Form form={form} layout="vertical">
           <Row gutter={12}>
-            <Col xs={24} sm={8}>
+            <Col xs={12} sm={6}>
               <Form.Item label="Fecha" name="fecha" rules={[{ required: true, message: 'Requerida' }]}>
                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
               </Form.Item>
             </Col>
+            <Col xs={12} sm={6}>
+              <Form.Item label="Vence" name="fecha_vencimiento" tooltip="Fecha hasta la que el certificado está vigente">
+                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+              </Form.Item>
+            </Col>
             {!editando && (
-              <Col xs={24} sm={8}>
+              <Col xs={12} sm={4}>
                 <Form.Item label="Folio" name="folio" tooltip="Déjalo vacío para asignar el consecutivo automático">
-                  <InputNumber style={{ width: '100%' }} min={1} placeholder="Automático" />
+                  <InputNumber style={{ width: '100%' }} min={1} placeholder="Auto" />
                 </Form.Item>
               </Col>
             )}
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={editando ? 12 : 8}>
               <Form.Item label="Prellenar desde cliente" name="cliente_id">
                 <Select
                   showSearch allowClear
@@ -493,8 +512,8 @@ const CertificadosPage: React.FC = () => {
 
           <Row gutter={12}>
             <Col xs={24} sm={12}>
-              <Form.Item label="Observaciones (una por línea)" name="observaciones">
-                <Input.TextArea rows={3} placeholder={'VENCE: 31/07/2026\nSERVICIO MENSUAL\nNOM-256-SSA1-2012'} />
+              <Form.Item label="Observaciones (una por línea)" name="observaciones" tooltip='El "VENCE:" se agrega solo desde la fecha de vencimiento; no lo escribas aquí.'>
+                <Input.TextArea rows={3} placeholder={'SERVICIO MENSUAL\nNOM-256-SSA1-2012'} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>

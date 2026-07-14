@@ -362,6 +362,9 @@ def generar_pdf(cert: CertificadoServicio) -> bytes:
     c.setFont("Helvetica-Bold", 8.5)
     c.drawCentredString((lx + rx) / 2, yy - 11, "Observaciones")
     obs_lines = [ln.strip() for ln in (cert.observaciones or "").splitlines() if ln.strip()]
+    # "VENCE:" sale del campo fecha_vencimiento (a menos que ya esté escrito a mano)
+    if cert.fecha_vencimiento and not any("VENCE" in ln.upper() for ln in obs_lines):
+        obs_lines.insert(0, f"VENCE: {cert.fecha_vencimiento.strftime('%d/%m/%Y')}")
     c.setFillColor(verde)
     c.setFont("Helvetica-Bold", 8)
     oy = yy - 30

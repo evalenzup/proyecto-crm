@@ -10,6 +10,7 @@ export interface CertificadoServicio {
   tipo: TipoCertificado;
   folio: number;
   fecha: string;
+  fecha_vencimiento?: string | null;
   nombre_razon_social: string;
   domicilio?: string | null;
   telefono?: string | null;

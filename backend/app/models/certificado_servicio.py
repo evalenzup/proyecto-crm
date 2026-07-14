@@ -34,6 +34,7 @@ class CertificadoServicio(Base):
     tipo = Column(String(20), nullable=False, default="PLAGUICIDAS")  # PLAGUICIDAS | SANITIZACION
     folio = Column(Integer, nullable=False)
     fecha = Column(Date, nullable=False)
+    fecha_vencimiento = Column(Date, nullable=True)  # para determinar vigencia
 
     # Datos del establecimiento (texto plano en el certificado)
     nombre_razon_social = Column(String(255), nullable=False)
