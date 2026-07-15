@@ -42,8 +42,42 @@ const ClienteFormPage: React.FC = () => {
   } = useClienteForm(id);
 
   const [regimenesOptions, setRegimenesOptions] = useState<{ label: string; value: string }[]>([]);
+  const [sucursalDe, setSucursalDe] = useState<string | null>(null);
+  const prefillSucursalRef = React.useRef(false);
   const lat = Form.useWatch('latitud', form);
   const lon = Form.useWatch('longitud', form);
+
+  // ─── Crear sucursal: prellenar datos fiscales de otro cliente ────────────────
+  useEffect(() => {
+    if (!router.isReady || id || loading || prefillSucursalRef.current) return;
+    const src = router.query.sucursalDe;
+    const srcId = Array.isArray(src) ? src[0] : src;
+    if (!srcId) return;
+    prefillSucursalRef.current = true;
+    (async () => {
+      try {
+        const { clienteService } = await import('@/services/clienteService');
+        const c: any = await clienteService.getCliente(srcId);
+        // Se copia lo fiscal y el contacto; se limpia lo propio de cada sucursal
+        // (nombre comercial, dirección de servicio y geolocalización).
+        const {
+          id: _id, creado_en, actualizado_en, empresas, contactos,
+          nombre_comercial, latitud, longitud,
+          serv_calle, serv_numero_exterior, serv_numero_interior, serv_colonia,
+          serv_ciudad, serv_estado, serv_codigo_postal, serv_referencia,
+          ...fiscal
+        } = c;
+        form.setFieldsValue({
+          ...fiscal,
+          nombre_comercial: '',
+          empresa_id: (empresas || []).map((e: any) => e.id),
+        });
+        setSucursalDe(nombre_comercial || c.nombre_razon_social || '');
+      } catch {
+        message.error('No se pudo cargar el cliente de origen');
+      }
+    })();
+  }, [router.isReady, router.query.sucursalDe, id, form, loading]);
 
   useEffect(() => {
     getRegimenesFiscales()
@@ -120,9 +154,18 @@ const ClienteFormPage: React.FC = () => {
       </Modal>
 
       {/* ── Header ── */}
-      <PageHeader title={id ? 'Editar Cliente' : 'Nuevo Cliente'} />
+      <PageHeader title={id ? 'Editar Cliente' : sucursalDe ? 'Nueva Sucursal' : 'Nuevo Cliente'} />
 
       <div className="app-content">
+        {sucursalDe && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={`Creando una sucursal de "${sucursalDe}"`}
+            description="Se copiaron los datos fiscales y de contacto. Captura el nombre comercial y la dirección de servicio de la nueva sucursal."
+          />
+        )}
         <Form form={form} layout="vertical" onFinish={onFinish}>
 
           {/* ── Metadata ── */}

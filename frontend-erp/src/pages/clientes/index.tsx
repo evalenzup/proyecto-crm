@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Popconfirm, Space, Input, message, Tooltip, AutoComplete } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, FileExcelOutlined, ApartmentOutlined } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import { Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -124,6 +124,13 @@ const ClientesPage: React.FC = () => {
               type="link"
               icon={<EditOutlined />}
               onClick={() => router.push(`/clientes/form/${record.id}`)}
+            />
+          </Tooltip>
+          <Tooltip title="Crear sucursal (copia los datos fiscales)">
+            <Button
+              type="link"
+              icon={<ApartmentOutlined />}
+              onClick={() => router.push(`/clientes/form?sucursalDe=${record.id}`)}
             />
           </Tooltip>
           <Tooltip title="Eliminar">
