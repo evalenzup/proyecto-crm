@@ -60,7 +60,23 @@ export const ActividadPersonal: React.FC = () => {
 
   const exportarPDF = () => {
     if (!reporteRef.current) return;
-    const html = reporteRef.current.innerHTML;
+    // ECharts dibuja en <canvas>; el innerHTML no conserva los píxeles, así que
+    // clonamos el reporte y sustituimos cada canvas por su imagen PNG.
+    const clone = reporteRef.current.cloneNode(true) as HTMLElement;
+    const originales = reporteRef.current.querySelectorAll('canvas');
+    const clones = clone.querySelectorAll('canvas');
+    originales.forEach((orig, i) => {
+      try {
+        const dataUrl = (orig as HTMLCanvasElement).toDataURL('image/png');
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.width = (orig as HTMLElement).style.width || `${orig.clientWidth}px`;
+        img.style.height = 'auto';
+        const target = clones[i];
+        if (target && target.parentNode) target.parentNode.replaceChild(img, target);
+      } catch { /* canvas no exportable: se omite */ }
+    });
+    const html = clone.innerHTML;
     const win = window.open('', '_blank', 'width=1100,height=800');
     if (!win) { message.warning('Permite ventanas emergentes para exportar el PDF'); return; }
     win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
@@ -68,10 +84,12 @@ export const ActividadPersonal: React.FC = () => {
       <style>
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;padding:24px;}
         h1{font-size:20px;color:#0a5c91;margin:0 0 4px;} .sub{color:#666;font-size:12px;margin-bottom:16px;}
-        .ant-card{border:1px solid #eee;border-radius:8px;margin-bottom:12px;padding:12px;}
+        .ant-card{border:1px solid #eee;border-radius:8px;margin-bottom:12px;padding:12px;page-break-inside:avoid;}
+        .ant-card-head-title,.ant-card-head{font-weight:600;font-size:13px;margin-bottom:6px;}
         table{width:100%;border-collapse:collapse;font-size:12px;} th,td{border:1px solid #eee;padding:6px 8px;text-align:left;}
-        canvas{max-width:100%;}
-        @media print{@page{size:A4;margin:1cm;}}
+        img,canvas{max-width:100%;height:auto;}
+        .ant-row{display:flex;flex-wrap:wrap;gap:12px;} .ant-col{flex:1 1 300px;}
+        @media print{@page{size:A4 landscape;margin:1cm;}}
       </style></head><body>
       <h1>Actividad del personal en el sistema</h1>
       <div class="sub">Periodo: ${rango[0].format('DD/MM/YYYY')} — ${rango[1].format('DD/MM/YYYY')} · Horario laboral 08:00–18:00 · Generado ${dayjs().format('DD/MM/YYYY HH:mm')}</div>
