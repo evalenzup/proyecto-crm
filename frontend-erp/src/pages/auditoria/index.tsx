@@ -11,8 +11,11 @@ import {
   Tooltip,
   Typography,
   Result,
+  Tabs,
+  Button,
+  message,
 } from 'antd';
-import { SearchOutlined, AuditOutlined } from '@ant-design/icons';
+import { SearchOutlined, AuditOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { FilterBar } from '@/components/FilterBar';
 import {
@@ -20,7 +23,9 @@ import {
   AuditoriaLog,
   ACCIONES_AUDITORIA,
   canViewAuditoria,
+  exportAuditoriaExcel,
 } from '@/services/auditoriaService';
+import { ActividadPersonal } from '@/components/ActividadPersonal';
 import { useAuth } from '@/context/AuthContext';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { useTableHeight } from '@/hooks/useTableHeight';
@@ -252,19 +257,31 @@ const AuditoriaPage: React.FC = () => {
     },
   ];
 
-  return (
-    <>
-      <PageHeader
-        title={
-          <>
-            <AuditOutlined style={{ marginRight: 8 }} />
-            Auditoría
-          </>
-        }
-      />
+  const isAdmin = user?.rol === 'admin' || user?.rol === 'superadmin';
 
-      <div className="app-content" ref={containerRef}>
-        <FilterBar>
+  const handleExportExcel = async () => {
+    const hide = message.loading({ content: 'Generando Excel…', key: 'xls' });
+    try {
+      const blob = await exportAuditoriaExcel({
+        empresa_id: empresaId,
+        accion: accion || null,
+        fecha_desde: fechaDesde || null,
+        fecha_hasta: fechaHasta || null,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'auditoria.xlsx'; a.click();
+      window.URL.revokeObjectURL(url);
+      message.success({ content: 'Excel descargado', key: 'xls' });
+    } catch (e: any) {
+      hide();
+      if (!e?._handled) message.error({ content: 'No se pudo exportar', key: 'xls' });
+    }
+  };
+
+  const bitacora = (
+    <>
+      <FilterBar>
           <Input
             prefix={<SearchOutlined />}
             placeholder="Email usuario"
@@ -297,6 +314,10 @@ const AuditoriaPage: React.FC = () => {
           />
         </FilterBar>
 
+        <div style={{ textAlign: 'right', margin: '4px 0 8px' }}>
+          <Button icon={<FileExcelOutlined />} onClick={handleExportExcel}>Exportar Excel</Button>
+        </div>
+
         <Table
           rowKey="id"
           loading={loading}
@@ -323,6 +344,32 @@ const AuditoriaPage: React.FC = () => {
           locale={{ emptyText: 'Sin registros de auditoría' }}
           size="small"
         />
+    </>
+  );
+
+  return (
+    <>
+      <PageHeader
+        title={
+          <>
+            <AuditOutlined style={{ marginRight: 8 }} />
+            Auditoría
+          </>
+        }
+      />
+
+      <div className="app-content" ref={containerRef}>
+        {isAdmin ? (
+          <Tabs
+            defaultActiveKey="bitacora"
+            items={[
+              { key: 'bitacora', label: 'Bitácora', children: bitacora },
+              { key: 'actividad', label: 'Actividad del personal', children: <ActividadPersonal /> },
+            ]}
+          />
+        ) : (
+          bitacora
+        )}
       </div>
     </>
   );

@@ -32,6 +32,49 @@ export const getAuditoria = (params: {
     order_dir?: 'asc' | 'desc';
 }) => api.get<AuditoriaPageOut>('/auditoria/', { params }).then((r) => r.data);
 
+// ── Reporte de actividad del personal (solo administradores) ─────────────────
+export interface ActividadUsuario {
+  usuario_id: string;
+  email: string;
+  nombre: string;
+  rol: string;
+  total: number;
+  dias_activos: number;
+  dias_rango: number;
+  cobertura_horario: number;
+  primera_accion_prom: string | null;
+  ultima_accion_prom: string | null;
+  accion_top: string | null;
+  por_tipo: { accion: string; label: string; total: number }[];
+  por_dia: { fecha: string; total: number }[];
+  heatmap: { dow: number; hora: number; total: number }[];
+  resultados: {
+    facturas_timbradas: number; pagos: number; ordenes_creadas: number;
+    ordenes_completadas: number; certificados: number; clientes: number;
+  };
+}
+export interface ActividadReporte {
+  rango: { desde: string; hasta: string; hora_ini: number; hora_fin: number; dias_rango: number };
+  usuarios: ActividadUsuario[];
+}
+
+export const getActividad = (params: {
+  usuario_ids: string;
+  fecha_desde: string;
+  fecha_hasta: string;
+  empresa_id?: string | null;
+  hora_ini?: number;
+  hora_fin?: number;
+}) => api.get<ActividadReporte>('/auditoria/actividad', { params }).then((r) => r.data);
+
+export const exportAuditoriaExcel = (params: {
+  empresa_id?: string | null;
+  accion?: string | null;
+  entidad?: string | null;
+  fecha_desde?: string | null;
+  fecha_hasta?: string | null;
+}) => api.get('/auditoria/export-excel', { params, responseType: 'blob' }).then((r) => r.data as Blob);
+
 // Cualquier usuario autenticado (admin o supervisor) puede ver auditoría.
 // El backend se encarga de acotar los registros:
 //   - admin: ve todos los registros de cualquier empresa

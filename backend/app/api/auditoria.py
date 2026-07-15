@@ -79,3 +79,107 @@ def listar_auditoria(
     items = query.offset(offset).limit(limit).all()
 
     return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+def _solo_admin(current_user: Usuario):
+    if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo administradores.")
+
+
+@router.get("/actividad", summary="Reporte de actividad del personal (solo administradores)")
+def reporte_actividad(
+    usuario_ids: str = Query(..., description="IDs de usuario separados por coma"),
+    fecha_desde: date = Query(...),
+    fecha_hasta: date = Query(...),
+    empresa_id: Optional[UUID] = Query(None),
+    hora_ini: int = Query(8, ge=0, le=23),
+    hora_fin: int = Query(18, ge=1, le=24),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    _solo_admin(current_user)
+    # ADMIN acota a su empresa; SUPERADMIN puede ver todas o filtrar una.
+    if current_user.rol == RolUsuario.ADMIN and not empresa_id:
+        empresa_id = current_user.empresa_id
+
+    try:
+        ids = [UUID(x.strip()) for x in usuario_ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="usuario_ids inválidos")
+    if not ids:
+        raise HTTPException(status_code=400, detail="Selecciona al menos un usuario")
+
+    from app.services.actividad_service import reporte_actividad as _rep
+    return _rep(
+        db, empresa_id=empresa_id, usuario_ids=ids,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+        hora_ini=hora_ini, hora_fin=hora_fin,
+    )
+
+
+@router.get("/export-excel", summary="Exportar la bitácora a Excel")
+def exportar_auditoria_excel(
+    empresa_id: Optional[UUID] = Query(None),
+    accion: Optional[str] = Query(None),
+    entidad: Optional[str] = Query(None),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    from app.utils.excel import generate_excel
+    from app.utils.datetime_utils import to_tijuana
+    from fastapi.responses import StreamingResponse
+    import json as _json
+
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+    if current_user.rol == RolUsuario.ADMIN and not empresa_id:
+        empresa_id = current_user.empresa_id
+
+    query = db.query(AuditoriaLog)
+    if empresa_id:
+        query = query.filter(AuditoriaLog.empresa_id == empresa_id)
+    if accion:
+        query = query.filter(AuditoriaLog.accion == accion.upper())
+    if entidad:
+        query = query.filter(AuditoriaLog.entidad == entidad.lower())
+    if fecha_desde:
+        query = query.filter(AuditoriaLog.creado_en >= fecha_desde)
+    if fecha_hasta:
+        from datetime import datetime as _dt
+        query = query.filter(AuditoriaLog.creado_en <= _dt.combine(fecha_hasta, _dt.max.time()))
+    rows = query.order_by(AuditoriaLog.creado_en.desc()).limit(50000).all()
+
+    data = []
+    for r in rows:
+        tj = to_tijuana(r.creado_en)
+        detalle = r.detalle or ""
+        try:
+            d = _json.loads(detalle)
+            detalle = ", ".join(f"{k}: {v}" for k, v in d.items())
+        except Exception:
+            pass
+        data.append({
+            "fecha": tj.strftime("%d/%m/%Y %H:%M:%S") if tj else "",
+            "usuario": r.usuario_email or "",
+            "accion": r.accion,
+            "entidad": r.entidad or "",
+            "detalle": detalle,
+            "ip": r.ip or "",
+        })
+
+    headers = {
+        "fecha": "Fecha / Hora",
+        "usuario": "Usuario",
+        "accion": "Acción",
+        "entidad": "Entidad",
+        "detalle": "Detalle",
+        "ip": "IP",
+    }
+    excel_file = generate_excel(data, headers, sheet_name="Auditoria")
+    return StreamingResponse(
+        excel_file,
+        headers={"Content-Disposition": 'attachment; filename="auditoria.xlsx"'},
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
