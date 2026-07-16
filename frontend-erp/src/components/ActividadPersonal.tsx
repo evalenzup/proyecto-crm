@@ -151,14 +151,17 @@ export const ActividadPersonal: React.FC = () => {
     const cells = u.heatmap.map((h) => [HORAS.indexOf(h.hora), h.dow, h.total]);
     const max = Math.max(1, ...u.heatmap.map((h) => h.total));
     return {
-      grid: { left: 8, right: 8, top: 10, bottom: 24, containLabel: true },
+      grid: { left: 8, right: 8, top: 10, bottom: 56, containLabel: true },
       tooltip: {
-        formatter: (p: any) => `${DOW[p.data[1]]} ${HORAS[p.data[0]]}:00 — ${p.data[2]} acc.`,
+        formatter: (p: any) => `${DOW[p.data[1]]} ${HORAS[p.data[0]]}:00 — <b>${p.data[2]}</b> acción(es)`,
       },
       xAxis: { type: 'category', data: HORAS.map((h) => `${h}`), splitArea: { show: true }, axisLabel: { fontSize: 9 } },
       yAxis: { type: 'category', data: DOW, splitArea: { show: true }, axisLabel: { fontSize: 9 } },
       visualMap: {
-        min: 0, max, calculable: false, show: false,
+        min: 0, max, calculable: true, show: true,
+        orient: 'horizontal', left: 'center', bottom: 0, itemWidth: 12, itemHeight: 120,
+        text: [`Más activo (${max})`, 'Menos (0)'],
+        textStyle: { fontSize: 10 },
         inRange: { color: ['#eef6ff', '#1677ff', '#003a8c'] },
       },
       series: [{
@@ -259,8 +262,8 @@ export const ActividadPersonal: React.FC = () => {
           <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
             {data.usuarios.map((u) => (
               <Col xs={24} md={12} key={u.usuario_id}>
-                <Card size="small" title={<span>Cuándo trabaja — {u.nombre} <Tooltip title="Concentración de acciones por día de semana y hora (8–18)"><InfoCircleOutlined style={{ color: '#aaa' }} /></Tooltip></span>}>
-                  <ReactECharts option={heatOption(u)} style={{ height: 220 }} />
+                <Card size="small" title={<span>Cuándo trabaja — {u.nombre} <Tooltip title="Concentración de acciones por día de semana y hora (8–18). A mayor intensidad de azul, más acciones registradas en esa franja."><InfoCircleOutlined style={{ color: '#aaa' }} /></Tooltip></span>}>
+                  <ReactECharts option={heatOption(u)} style={{ height: 250 }} />
                 </Card>
               </Col>
             ))}
