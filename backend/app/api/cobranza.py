@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -10,6 +10,7 @@ from app.models.usuario import Usuario, RolUsuario
 from app.schemas.cobranza import AgingReportResponse, CobranzaNotaCreate, CobranzaNotaOut, CobranzaEmailRequest
 from app.services.cobranza_service import cobranza_service
 from app.services.pdf_estado_cuenta import generate_account_statement_pdf
+from app.services import auditoria_service as audit_svc
 
 router = APIRouter()
 
@@ -49,6 +50,7 @@ def get_aging_report(
 @router.post("/notas", response_model=CobranzaNotaOut)
 def crear_nota_cobranza(
     payload: CobranzaNotaCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
     empresa_id: UUID = Query(None),
@@ -64,8 +66,16 @@ def crear_nota_cobranza(
 
     if not effective_empresa_id:
          raise HTTPException(status_code=400, detail="Se requiere contexto de empresa (empresa_id).")
-    
-    return cobranza_service.create_nota(db, payload, current_user.id, effective_empresa_id)
+
+    nota = cobranza_service.create_nota(db, payload, current_user.id, effective_empresa_id)
+    audit_svc.registrar(
+        db, accion=audit_svc.CREAR_NOTA_COBRANZA, entidad="cobranza",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=effective_empresa_id, entidad_id=str(getattr(payload, "cliente_id", "") or ""),
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    return nota
 
 @router.get("/notas/{cliente_id}", response_model=List[CobranzaNotaOut])
 def listar_notas_cliente(
@@ -120,6 +130,7 @@ def descargar_estado_cuenta(
 def enviar_estado_cuenta(
     payload: CobranzaEmailRequest,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
     empresa_id: UUID = Query(None),
@@ -143,11 +154,20 @@ def enviar_estado_cuenta(
         payload.recipients,
         current_user.id,
     )
+    audit_svc.registrar(
+        db, accion=audit_svc.ENVIAR_ESTADO_CUENTA, entidad="cobranza",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=effective_empresa_id, entidad_id=str(payload.cliente_id),
+        detalle={"destinatarios": payload.recipients},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     return {"message": f"Estado de cuenta programado para envío a: {', '.join(payload.recipients)}"}
 
 @router.delete("/notas/{nota_id}")
 def eliminar_nota(
     nota_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
     empresa_id: UUID = Query(None),
@@ -157,6 +177,13 @@ def eliminar_nota(
         success = cobranza_service.delete_nota(db, nota_id, current_user.id, is_admin)
         if not success:
             raise HTTPException(status_code=404, detail="Nota no encontrada")
+        audit_svc.registrar(
+            db, accion=audit_svc.ELIMINAR_NOTA_COBRANZA, entidad="cobranza",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=empresa_id or current_user.empresa_id, entidad_id=str(nota_id),
+            ip=audit_svc.get_ip(request),
+        )
+        db.commit()
         return {"message": "Nota eliminada correctamente"}
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))

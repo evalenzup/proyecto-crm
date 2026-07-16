@@ -114,5 +114,8 @@ export const ACCIONES_AUDITORIA = [
     { label: 'Cambiar Estado Presupuesto', value: 'CAMBIAR_ESTADO_PRESUPUESTO' },
     { label: 'Eliminar Presupuesto', value: 'ELIMINAR_PRESUPUESTO' },
     { label: 'Enviar Presupuesto', value: 'ENVIAR_PRESUPUESTO' },
+    { label: 'Nota de Cobranza', value: 'CREAR_NOTA_COBRANZA' },
+    { label: 'Eliminar Nota de Cobranza', value: 'ELIMINAR_NOTA_COBRANZA' },
+    { label: 'Enviar Estado de Cuenta', value: 'ENVIAR_ESTADO_CUENTA' },
     { label: 'Exportar Excel', value: 'EXPORTAR_EXCEL' },
 ];
