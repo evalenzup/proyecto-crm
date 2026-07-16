@@ -60,7 +60,9 @@ const UsuarioFormPage: React.FC = () => {
                         is_active: user.is_active,
                         password: '',
                         empresas_ids: user.empresas_ids ?? [],
-                        permisos: user.permisos ?? [],
+                        // Separar el permiso especial de los módulos de estándar
+                        permisos: (user.permisos ?? []).filter((p) => p !== 'reportes_actividad'),
+                        ver_actividad: (user.permisos ?? []).includes('reportes_actividad'),
                     });
                     setSelectedRol(user.rol);
                 } catch (error) {
@@ -88,8 +90,18 @@ const UsuarioFormPage: React.FC = () => {
                 is_active: values.is_active,
                 empresa_id: isSingleEmpresa ? values.empresa_id : null,
                 empresas_ids: isMultiEmpresa ? (values.empresas_ids ?? []) : undefined,
-                permisos: values.rol === 'estandar' ? (values.permisos ?? []) : undefined,
             };
+
+            // Permisos: módulos (solo estándar) + permiso especial de reportes de
+            // actividad (cualquier rol, solo lo modifica el superadmin). Se envía
+            // siempre para que el backend lo sincronice.
+            const modPerms: string[] = values.rol === 'estandar' ? (values.permisos ?? []) : [];
+            const permisos = modPerms.filter((p: string) => p !== 'reportes_actividad');
+            // Solo el superadmin puede otorgar el permiso de reportes de actividad; el
+            // backend, además, ignora cambios a este permiso si el que edita no es
+            // superadmin (aquí solo lo incluimos cuando aplica).
+            if (isSuperadmin && values.ver_actividad) permisos.push('reportes_actividad');
+            payload.permisos = permisos;
 
             if (isEditing && !values.password) {
                 delete payload.password;
@@ -265,6 +277,23 @@ const UsuarioFormPage: React.FC = () => {
                                             </Row>
                                         </Checkbox.Group>
                                     </Form.Item>
+                                </>
+                            )}
+
+                            {/* Permiso especial (info sensible) — solo el superadmin lo edita */}
+                            {(isSuperadmin || isEditing) && (
+                                <>
+                                    <Divider orientation="left">Permisos especiales</Divider>
+                                    <Form.Item name="ver_actividad" valuePropName="checked" style={{ marginBottom: 4 }}>
+                                        <Checkbox disabled={!isSuperadmin}>
+                                            Puede ver los reportes de actividad del personal
+                                        </Checkbox>
+                                    </Form.Item>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {isSuperadmin
+                                            ? 'Información sensible: otórgalo solo a las personas de confianza.'
+                                            : 'Solo el superadministrador puede modificar este permiso.'}
+                                    </Text>
                                 </>
                             )}
 

@@ -39,7 +39,7 @@ import { useAuth } from '@/context/AuthContext';
 import { usuarioService } from '@/services/usuarioService';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { empresaService } from '@/services/empresaService';
-import { canViewAuditoria } from '@/services/auditoriaService';
+import { canViewAuditoria, canVerActividad } from '@/services/auditoriaService';
 import { canViewMapa } from '@/services/mapaService';
 import { OfflineBanner } from './OfflineBanner';
 import { useFilterContext } from '@/context/FilterContext';
@@ -427,6 +427,9 @@ export const Layout: React.FC<{
         adminChildren.push({ path: '/reportes', name: 'Reportes', icon: <BarChartOutlined /> });
       }
       adminChildren.push({ path: '/auditoria', name: 'Auditoría', icon: <AuditOutlined /> });
+    } else if (canVerActividad(user)) {
+      // Usuario con permiso de reportes de actividad pero sin acceso a la bitácora
+      adminChildren.push({ path: '/auditoria', name: 'Actividad', icon: <AuditOutlined /> });
     }
     if (canViewMapa(user?.rol)) {
       adminChildren.push({ path: '/mapa', name: 'Mapa Clientes', icon: <GlobalOutlined /> });

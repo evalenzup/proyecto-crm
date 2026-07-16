@@ -82,6 +82,13 @@ export const exportAuditoriaExcel = (params: {
 export const canViewAuditoria = (rol?: string | null): boolean =>
     rol === 'superadmin' || rol === 'admin' || rol === 'supervisor';
 
+// Permiso (info sensible) que otorga el superadmin por usuario.
+export const PERMISO_ACTIVIDAD = 'reportes_actividad';
+export const canVerActividad = (
+    u?: { rol?: string | null; permisos?: string[] | null } | null
+): boolean =>
+    u?.rol === 'superadmin' || (u?.permisos || []).includes(PERMISO_ACTIVIDAD);
+
 // Catálogo de acciones para el filtro
 export const ACCIONES_AUDITORIA = [
     { label: 'Login', value: 'LOGIN' },

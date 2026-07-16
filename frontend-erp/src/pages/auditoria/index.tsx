@@ -23,6 +23,7 @@ import {
   AuditoriaLog,
   ACCIONES_AUDITORIA,
   canViewAuditoria,
+  canVerActividad,
   exportAuditoriaExcel,
 } from '@/services/auditoriaService';
 import { ActividadPersonal } from '@/components/ActividadPersonal';
@@ -136,13 +137,16 @@ const AuditoriaPage: React.FC = () => {
     return null;
   }
 
-  if (!canViewAuditoria(user?.rol)) {
+  const verBitacora = canViewAuditoria(user?.rol);
+  const verActividad = canVerActividad(user);
+
+  if (!verBitacora && !verActividad) {
     return (
       <div style={{ padding: 48 }}>
         <Result
           status="403"
           title="Acceso restringido"
-          subTitle="No tienes permisos para ver el registro de auditoría."
+          subTitle="No tienes permisos para ver este apartado."
         />
       </div>
     );
@@ -257,8 +261,6 @@ const AuditoriaPage: React.FC = () => {
     },
   ];
 
-  const isAdmin = user?.rol === 'admin' || user?.rol === 'superadmin';
-
   const handleExportExcel = async () => {
     const hide = message.loading({ content: 'Generando Excel…', key: 'xls' });
     try {
@@ -359,7 +361,7 @@ const AuditoriaPage: React.FC = () => {
       />
 
       <div className="app-content" ref={containerRef}>
-        {isAdmin ? (
+        {verBitacora && verActividad ? (
           <Tabs
             defaultActiveKey="bitacora"
             items={[
@@ -367,6 +369,8 @@ const AuditoriaPage: React.FC = () => {
               { key: 'actividad', label: 'Actividad del personal', children: <ActividadPersonal /> },
             ]}
           />
+        ) : verActividad ? (
+          <ActividadPersonal />
         ) : (
           bitacora
         )}

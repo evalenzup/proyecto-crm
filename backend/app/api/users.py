@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -36,8 +36,28 @@ def _sync_empresas(db: Session, user: UsuarioModel, empresas_ids: List[UUID]) ->
         db.add(UsuarioEmpresa(usuario_id=user.id, empresa_id=eid))
 
 
-def _sync_permisos(db: Session, user: UsuarioModel, modulos: List[str]) -> None:
-    """Reemplaza los permisos de módulo del usuario."""
+# Permisos que SOLO el SUPERADMIN puede otorgar/revocar (info sensible).
+_PERMISOS_SOLO_SUPERADMIN = {"reportes_actividad"}
+
+
+def _sync_permisos(
+    db: Session, user: UsuarioModel, modulos: List[str],
+    *, actor: Optional[UsuarioModel] = None,
+) -> None:
+    """Reemplaza los permisos de módulo del usuario.
+
+    Los permisos "solo superadmin" (p. ej. reportes_actividad) únicamente los puede
+    cambiar el SUPERADMIN; para cualquier otro actor se preserva el estado actual.
+    """
+    modulos = list(modulos or [])
+    if actor is None or actor.rol != RolUsuario.SUPERADMIN:
+        actuales = set(user.permisos or [])
+        # quitar los protegidos de la lista entrante y volver a poner los que ya tenía
+        modulos = [m for m in modulos if m not in _PERMISOS_SOLO_SUPERADMIN]
+        for p in _PERMISOS_SOLO_SUPERADMIN:
+            if p in actuales:
+                modulos.append(p)
+
     db.query(UsuarioPermiso).filter(UsuarioPermiso.usuario_id == user.id).delete()
     db.flush()  # asegurar que los deletes se procesen antes de los inserts
     for m in modulos:
@@ -136,7 +156,7 @@ def create_user(
         _sync_empresas(db, user, user_in.empresas_ids)
     # Permisos de módulo (para estandar)
     if user_in.permisos is not None:
-        _sync_permisos(db, user, user_in.permisos)
+        _sync_permisos(db, user, user_in.permisos, actor=current_user)
     db.commit()
     db.refresh(user)
     return user
@@ -197,7 +217,7 @@ def update_user(
     if empresas_ids is not None:
         _sync_empresas(db, user, empresas_ids)
     if permisos is not None:
-        _sync_permisos(db, user, permisos)
+        _sync_permisos(db, user, permisos, actor=current_user)
 
     db.commit()
     db.refresh(user)
@@ -258,7 +278,7 @@ def asignar_permisos(
     user = usuario_repo.get(db, id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="El usuario no existe")
-    _sync_permisos(db, user, body.permisos)
+    _sync_permisos(db, user, body.permisos, actor=current_user)
     db.commit()
     db.refresh(user)
     return user

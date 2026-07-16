@@ -81,9 +81,20 @@ def listar_auditoria(
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
-def _solo_admin(current_user: Usuario):
-    if current_user.rol not in (RolUsuario.SUPERADMIN, RolUsuario.ADMIN):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo administradores.")
+# Permiso para ver los reportes de actividad del personal (info sensible).
+# Lo otorga el SUPERADMIN por usuario, desde el formulario de usuarios.
+PERMISO_ACTIVIDAD = "reportes_actividad"
+
+
+def _puede_ver_actividad(current_user: Usuario):
+    if current_user.rol == RolUsuario.SUPERADMIN:
+        return
+    if PERMISO_ACTIVIDAD in (current_user.permisos or []):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tienes permiso para ver los reportes de actividad del personal.",
+    )
 
 
 @router.get("/actividad", summary="Reporte de actividad del personal (solo administradores)")
@@ -97,9 +108,10 @@ def reporte_actividad(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    _solo_admin(current_user)
-    # ADMIN acota a su empresa; SUPERADMIN puede ver todas o filtrar una.
-    if current_user.rol == RolUsuario.ADMIN and not empresa_id:
+    _puede_ver_actividad(current_user)
+    # Solo el SUPERADMIN puede ver todas las empresas o filtrar una; el resto
+    # queda acotado a su propia empresa.
+    if current_user.rol != RolUsuario.SUPERADMIN:
         empresa_id = current_user.empresa_id
 
     try:
