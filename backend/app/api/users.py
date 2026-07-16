@@ -1,9 +1,10 @@
 from typing import Any, List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.services import auditoria_service as audit_svc
 from app.schemas.usuario import (
     Usuario, UsuarioCreate, UsuarioUpdate, RolUsuario,
     UsuarioPreferences, UsuarioPreferencesUpdate, ChangePassword,
@@ -135,6 +136,7 @@ def read_users(
 @router.post("/", response_model=Usuario)
 def create_user(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     user_in: UsuarioCreate,
     current_user: UsuarioModel = Depends(deps.get_current_active_user),
@@ -157,6 +159,13 @@ def create_user(
     # Permisos de módulo (para estandar)
     if user_in.permisos is not None:
         _sync_permisos(db, user, user_in.permisos, actor=current_user)
+    audit_svc.registrar(
+        db, accion=audit_svc.CREAR_USUARIO, entidad="usuario",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(user.id),
+        detalle={"email": user.email, "rol": getattr(user.rol, "value", user.rol)},
+        ip=audit_svc.get_ip(request),
+    )
     db.commit()
     db.refresh(user)
     return user
@@ -180,6 +189,7 @@ def read_user_by_id(
 @router.put("/{user_id}", response_model=Usuario)
 def update_user(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     user_id: UUID,
     user_in: UsuarioUpdate,
@@ -219,6 +229,13 @@ def update_user(
     if permisos is not None:
         _sync_permisos(db, user, permisos, actor=current_user)
 
+    audit_svc.registrar(
+        db, accion=audit_svc.ACTUALIZAR_USUARIO, entidad="usuario",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(user.id),
+        detalle={"email": user.email, "campos": list(update_data.keys())},
+        ip=audit_svc.get_ip(request),
+    )
     db.commit()
     db.refresh(user)
     return user
@@ -227,6 +244,7 @@ def update_user(
 @router.delete("/{user_id}", response_model=Usuario)
 def delete_user(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     user_id: UUID,
     current_user: UsuarioModel = Depends(deps.get_current_active_user),
@@ -242,7 +260,16 @@ def delete_user(
     if user.rol == RolUsuario.SUPERADMIN and current_user.rol != RolUsuario.SUPERADMIN:
         raise HTTPException(status_code=403,
                             detail="No tienes permiso para eliminar al SUPERADMIN")
+    email_elim, rol_elim = user.email, getattr(user.rol, "value", user.rol)
     user = usuario_repo.remove(db, id=user_id)
+    audit_svc.registrar(
+        db, accion=audit_svc.ELIMINAR_USUARIO, entidad="usuario",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(user_id),
+        detalle={"email": email_elim, "rol": rol_elim},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     return user
 
 
@@ -251,6 +278,7 @@ def delete_user(
 @router.put("/{user_id}/empresas", response_model=Usuario)
 def asignar_empresas(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     user_id: UUID,
     body: AsignarEmpresasIn,
@@ -261,6 +289,13 @@ def asignar_empresas(
     if not user:
         raise HTTPException(status_code=404, detail="El usuario no existe")
     _sync_empresas(db, user, body.empresas_ids)
+    audit_svc.registrar(
+        db, accion=audit_svc.ASIGNAR_EMPRESAS_USUARIO, entidad="usuario",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(user_id),
+        detalle={"email": user.email, "empresas": [str(e) for e in body.empresas_ids]},
+        ip=audit_svc.get_ip(request),
+    )
     db.commit()
     db.refresh(user)
     return user
@@ -269,6 +304,7 @@ def asignar_empresas(
 @router.put("/{user_id}/permisos", response_model=Usuario)
 def asignar_permisos(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     user_id: UUID,
     body: AsignarPermisosIn,
@@ -279,6 +315,13 @@ def asignar_permisos(
     if not user:
         raise HTTPException(status_code=404, detail="El usuario no existe")
     _sync_permisos(db, user, body.permisos, actor=current_user)
+    audit_svc.registrar(
+        db, accion=audit_svc.ASIGNAR_PERMISOS_USUARIO, entidad="usuario",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(user_id),
+        detalle={"email": user.email, "permisos": body.permisos},
+        ip=audit_svc.get_ip(request),
+    )
     db.commit()
     db.refresh(user)
     return user

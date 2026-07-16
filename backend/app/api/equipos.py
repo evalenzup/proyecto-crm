@@ -18,12 +18,13 @@ from __future__ import annotations
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.database import get_db
 from app.models.usuario import RolUsuario, Usuario
+from app.services import auditoria_service as audit_svc
 from app.schemas.equipo import (
     EquipoControlBulkCreate,
     EquipoControlCreate,
@@ -66,10 +67,19 @@ def listar_tipos(
 @router.post("/tipos", response_model=TipoEquipoOut, status_code=201)
 def crear_tipo(
     data: TipoEquipoCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return svc.create_tipo_equipo(db, data)
+    obj = svc.create_tipo_equipo(db, data)
+    audit_svc.registrar(
+        db, accion=audit_svc.CREAR_TIPO_EQUIPO, entidad="tipo_equipo",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(obj.id),
+        detalle={"nombre": obj.nombre}, ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    return obj
 
 
 @router.get("/tipos/{tipo_id}", response_model=TipoEquipoOut)
@@ -85,19 +95,38 @@ def obtener_tipo(
 def actualizar_tipo(
     tipo_id: UUID,
     data: TipoEquipoUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return svc.update_tipo_equipo(db, tipo_id, data)
+    obj = svc.update_tipo_equipo(db, tipo_id, data)
+    audit_svc.registrar(
+        db, accion=audit_svc.ACTUALIZAR_TIPO_EQUIPO, entidad="tipo_equipo",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(tipo_id),
+        detalle={"nombre": obj.nombre}, ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    return obj
 
 
 @router.delete("/tipos/{tipo_id}", status_code=204)
 def eliminar_tipo(
     tipo_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    obj = svc.get_tipo_equipo(db, tipo_id)
+    empresa_id, nombre = obj.empresa_id, obj.nombre
     svc.delete_tipo_equipo(db, tipo_id)
+    audit_svc.registrar(
+        db, accion=audit_svc.ELIMINAR_TIPO_EQUIPO, entidad="tipo_equipo",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=empresa_id, entidad_id=str(tipo_id),
+        detalle={"nombre": nombre}, ip=audit_svc.get_ip(request),
+    )
+    db.commit()
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -117,29 +146,57 @@ def listar_estados(
 @router.post("/estados", response_model=EstadoEquipoOut, status_code=201)
 def crear_estado(
     data: EstadoEquipoCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return svc.create_estado_equipo(db, data)
+    obj = svc.create_estado_equipo(db, data)
+    audit_svc.registrar(
+        db, accion=audit_svc.CREAR_ESTADO_EQUIPO, entidad="estado_equipo",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(obj.id),
+        detalle={"nombre": obj.nombre}, ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    return obj
 
 
 @router.put("/estados/{estado_id}", response_model=EstadoEquipoOut)
 def actualizar_estado(
     estado_id: UUID,
     data: EstadoEquipoUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return svc.update_estado_equipo(db, estado_id, data)
+    obj = svc.update_estado_equipo(db, estado_id, data)
+    audit_svc.registrar(
+        db, accion=audit_svc.ACTUALIZAR_ESTADO_EQUIPO, entidad="estado_equipo",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(estado_id),
+        detalle={"nombre": obj.nombre}, ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    return obj
 
 
 @router.delete("/estados/{estado_id}", status_code=204)
 def eliminar_estado(
     estado_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    obj = svc.get_estado_equipo(db, estado_id)
+    empresa_id, nombre = obj.empresa_id, obj.nombre
     svc.delete_estado_equipo(db, estado_id)
+    audit_svc.registrar(
+        db, accion=audit_svc.ELIMINAR_ESTADO_EQUIPO, entidad="estado_equipo",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=empresa_id, entidad_id=str(estado_id),
+        detalle={"nombre": nombre}, ip=audit_svc.get_ip(request),
+    )
+    db.commit()
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -181,20 +238,38 @@ def listar_equipos(
 @router.post("", response_model=EquipoControlOut, status_code=201)
 def crear_equipo(
     data: EquipoControlCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     obj = svc.create_equipo(db, data)
+    audit_svc.registrar(
+        db, accion=audit_svc.CREAR_EQUIPO, entidad="equipo_control",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(obj.id),
+        detalle={"identificador": obj.identificador, "area": obj.area, "cliente_id": str(obj.cliente_id)},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     return svc.to_out_dict(obj)
 
 
 @router.post("/bulk", response_model=List[EquipoControlOut], status_code=201)
 def crear_equipos_masivo(
     data: EquipoControlBulkCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     creados = svc.bulk_create_equipos(db, data)
+    audit_svc.registrar(
+        db, accion=audit_svc.ALTA_MASIVA_EQUIPOS, entidad="equipo_control",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=data.empresa_id, entidad_id=None,
+        detalle={"cantidad": len(creados), "area": data.area, "cliente_id": str(data.cliente_id)},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     return [svc.to_out_dict(o) for o in creados]
 
 
@@ -211,17 +286,37 @@ def obtener_equipo(
 def actualizar_equipo(
     equipo_id: UUID,
     data: EquipoControlUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     obj = svc.update_equipo(db, equipo_id, data)
+    audit_svc.registrar(
+        db, accion=audit_svc.ACTUALIZAR_EQUIPO, entidad="equipo_control",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(equipo_id),
+        detalle={"identificador": obj.identificador, "area": obj.area},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     return svc.to_out_dict(obj)
 
 
 @router.delete("/{equipo_id}", status_code=204)
 def eliminar_equipo(
     equipo_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    obj = svc.get_equipo(db, equipo_id)
+    empresa_id, ident, area = obj.empresa_id, obj.identificador, obj.area
     svc.delete_equipo(db, equipo_id)
+    audit_svc.registrar(
+        db, accion=audit_svc.ELIMINAR_EQUIPO, entidad="equipo_control",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=empresa_id, entidad_id=str(equipo_id),
+        detalle={"identificador": ident, "area": area},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()

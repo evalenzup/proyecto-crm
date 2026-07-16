@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -11,6 +11,7 @@ from app.models.usuario import Usuario, RolUsuario
 from app.models.cliente import Cliente
 from app.models.empresa import Empresa
 from app.api import deps
+from app.services import auditoria_service as audit_svc
 
 router = APIRouter()
 
@@ -27,8 +28,9 @@ class ContactoPageOut(BaseModel):
     summary="Crear un contacto para un cliente",
 )
 def create_contacto_for_cliente(
-    cliente_id: UUID, 
-    contacto: ContactoCreate, 
+    cliente_id: UUID,
+    contacto: ContactoCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -43,7 +45,16 @@ def create_contacto_for_cliente(
         if not tiene_acceso:
              raise HTTPException(status_code=404, detail="Cliente no encontrado") # Ocultamos información
 
-    return contacto_repo.create_for_cliente(db, cliente_id=cliente_id, obj_in=contacto)
+    nuevo = contacto_repo.create_for_cliente(db, cliente_id=cliente_id, obj_in=contacto)
+    audit_svc.registrar(
+        db, accion=audit_svc.CREAR_CONTACTO, entidad="contacto",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(nuevo.id),
+        detalle={"cliente_id": str(cliente_id), "nombre": getattr(nuevo, "nombre", None)},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    return nuevo
 
 
 @router.get(
@@ -76,8 +87,9 @@ def read_contactos_for_cliente(
 
 @router.put("/contactos/{contacto_id}", response_model=ContactoOut, summary="Actualizar un contacto")
 def update_contacto(
-    contacto_id: UUID, 
-    contacto: ContactoUpdate, 
+    contacto_id: UUID,
+    contacto: ContactoUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -86,7 +98,7 @@ def update_contacto(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contacto no encontrado"
         )
-        
+
     if current_user.rol == RolUsuario.SUPERVISOR:
         # El contacto debe pertenecer a un cliente que pertenezca a la empresa del supervisor
         cliente = db_contacto.cliente
@@ -94,12 +106,22 @@ def update_contacto(
         if not tiene_acceso:
              raise HTTPException(status_code=404, detail="Contacto no encontrado")
 
-    return contacto_repo.update(db, db_obj=db_contacto, obj_in=contacto)
+    actualizado = contacto_repo.update(db, db_obj=db_contacto, obj_in=contacto)
+    audit_svc.registrar(
+        db, accion=audit_svc.ACTUALIZAR_CONTACTO, entidad="contacto",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(contacto_id),
+        detalle={"nombre": getattr(actualizado, "nombre", None)},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    return actualizado
 
 
 @router.delete("/contactos/{contacto_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar un contacto")
 def delete_contacto(
-    contacto_id: UUID, 
+    contacto_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
@@ -114,6 +136,15 @@ def delete_contacto(
         tiene_acceso = any(e.id == current_user.empresa_id for e in cliente.empresas) if cliente else False
         if not tiene_acceso:
              raise HTTPException(status_code=404, detail="Contacto no encontrado")
-             
+
+    nombre_elim = getattr(db_contacto, "nombre", None)
     contacto_repo.remove(db, id=contacto_id)
+    audit_svc.registrar(
+        db, accion=audit_svc.ELIMINAR_CONTACTO, entidad="contacto",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=current_user.empresa_id, entidad_id=str(contacto_id),
+        detalle={"nombre": nombre_elim},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     return

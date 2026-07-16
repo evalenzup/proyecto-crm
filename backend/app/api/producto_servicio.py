@@ -1,10 +1,13 @@
 # app/api/producto_servicio.py
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
 
 from app.database import get_db
+from app.api import deps
+from app.models.usuario import Usuario
+from app.services import auditoria_service as audit_svc
 from app.models.empresa import Empresa
 from app.schemas.producto_servicio import (
     ProductoServicioOut,
@@ -141,8 +144,21 @@ def obtener_producto(id: UUID, db: Session = Depends(get_db)):
     response_model=ProductoServicioOut,
     summary="Crear producto o servicio",
 )
-def crear_producto(payload: ProductoServicioCreate, db: Session = Depends(get_db)):
+def crear_producto(
+    payload: ProductoServicioCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     result = producto_servicio_repo.create(db, obj_in=payload)
+    audit_svc.registrar(
+        db, accion=audit_svc.CREAR_PRODUCTO, entidad="producto_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=payload.empresa_id, entidad_id=str(result.id),
+        detalle={"descripcion": getattr(result, "descripcion", None), "clave": getattr(result, "clave_producto", None)},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     cache_invalidate_prefix(f"productos:busqueda:{payload.empresa_id}")
     return result
 
@@ -151,23 +167,47 @@ def crear_producto(payload: ProductoServicioCreate, db: Session = Depends(get_db
     "/{id}", response_model=ProductoServicioOut, summary="Editar producto o servicio"
 )
 def actualizar_producto(
-    id: UUID, payload: ProductoServicioUpdate, db: Session = Depends(get_db)
+    id: UUID, payload: ProductoServicioUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     prod = producto_servicio_repo.get(db, id)
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
     result = producto_servicio_repo.update(db, db_obj=prod, obj_in=payload)
+    audit_svc.registrar(
+        db, accion=audit_svc.ACTUALIZAR_PRODUCTO, entidad="producto_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=prod.empresa_id, entidad_id=str(id),
+        detalle={"descripcion": getattr(result, "descripcion", None)},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
     cache_invalidate_prefix(f"productos:busqueda:{prod.empresa_id}")
     return result
 
 
 @router.delete("/{id}", status_code=204, summary="Eliminar producto o servicio")
-def eliminar_producto(id: UUID, db: Session = Depends(get_db)):
+def eliminar_producto(
+    id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
     prod = producto_servicio_repo.get(db, id)
     if not prod:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
+    empresa_id, desc = prod.empresa_id, getattr(prod, "descripcion", None)
     ok = producto_servicio_repo.remove(db, id)
     if not ok:
         raise HTTPException(status_code=404, detail="Producto/Servicio no encontrado")
-    cache_invalidate_prefix(f"productos:busqueda:{prod.empresa_id}")
+    audit_svc.registrar(
+        db, accion=audit_svc.ELIMINAR_PRODUCTO, entidad="producto_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=empresa_id, entidad_id=str(id), detalle={"descripcion": desc},
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    cache_invalidate_prefix(f"productos:busqueda:{empresa_id}")
     return Response(status_code=204)
