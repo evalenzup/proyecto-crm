@@ -51,6 +51,7 @@ export interface ActividadUsuario {
   resultados: {
     facturas_timbradas: number; pagos: number; ordenes_creadas: number;
     ordenes_completadas: number; certificados: number; clientes: number;
+    cobranza: number;
   };
 }
 export interface ActividadReporte {

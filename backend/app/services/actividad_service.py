@@ -186,6 +186,8 @@ def reporte_actividad(
             resultados[uid]["certificados"] += 1
         elif acc == "CREAR_CLIENTE":
             resultados[uid]["clientes"] += 1
+        elif acc in ("CREAR_NOTA_COBRANZA", "ENVIAR_ESTADO_CUENTA"):
+            resultados[uid]["cobranza"] += 1
         elif acc == "CAMBIAR_ESTADO_ORDEN_SERVICIO":
             try:
                 d = json.loads(r.detalle or "{}")
@@ -245,6 +247,7 @@ def reporte_actividad(
                 "ordenes_completadas": resultados[uid].get("ordenes_completadas", 0),
                 "certificados": resultados[uid].get("certificados", 0),
                 "clientes": resultados[uid].get("clientes", 0),
+                "cobranza": resultados[uid].get("cobranza", 0),
             },
         })
 

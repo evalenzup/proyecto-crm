@@ -254,6 +254,7 @@ export const ActividadPersonal: React.FC = () => {
                 { title: 'Órdenes completadas', key: 'ok', align: 'right', render: (_, r) => r.resultados.ordenes_completadas },
                 { title: 'Certificados', key: 'ce', align: 'right', render: (_, r) => r.resultados.certificados },
                 { title: 'Clientes', key: 'cl', align: 'right', render: (_, r) => r.resultados.clientes },
+                { title: 'Cobranza', key: 'cb', align: 'right', render: (_, r) => r.resultados.cobranza },
               ]}
             />
           </Card>
