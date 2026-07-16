@@ -893,6 +893,12 @@ class FacturacionModernaPAC:
             # "cola" = en proceso; "previa" = ya existe solicitud en SAT → ambos son EN_CANCELACION
             is_pendiente = "cola" in soap_lower or "previa" in soap_lower or "solicitud de cancelacion" in soap_lower
             if not is_pendiente:
+                # SAT caído/intermitente: mensaje claro en vez del XML crudo
+                if "servicio no disponible" in soap_lower or "error al consultar estatus" in soap_lower:
+                    raise RuntimeError(
+                        "El SAT no está disponible en este momento para procesar cancelaciones. "
+                        "No es un problema del sistema ni del CFDI; intenta de nuevo en unos minutos."
+                    )
                 raise RuntimeError(
                     f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
                 )
@@ -1043,6 +1049,13 @@ class FacturacionModernaPAC:
             f"[PAC SOAP Cancel Pago] HTTP {resp.status_code}\n{soap_log}"
         )
         if resp.status_code >= 400:
+            # SAT caído/intermitente: mensaje claro en vez del XML crudo
+            soap_lower = soap_txt.lower()
+            if "servicio no disponible" in soap_lower or "error al consultar estatus" in soap_lower:
+                raise RuntimeError(
+                    "El SAT no está disponible en este momento para procesar cancelaciones. "
+                    "No es un problema del sistema ni del CFDI; intenta de nuevo en unos minutos."
+                )
             raise RuntimeError(
                 f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
             )
@@ -1053,7 +1066,7 @@ class FacturacionModernaPAC:
             raise RuntimeError(f"Respuesta SOAP inválida (cancelación): {e}")
 
         # 4) Parse Code/Message
-        res = _parse_cancel_response(root) 
+        res = _parse_cancel_response(root)
 
         # --- FIX: Actualizar estatus si es 201/202 O si está en cola ---
         code_str = (res.get("code") or "").strip()
