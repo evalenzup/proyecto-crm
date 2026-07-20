@@ -941,29 +941,60 @@ class FacturacionModernaPAC:
         if hasattr(f, "cancelacion_message"):
             f.cancelacion_message = res.get("message")
 
-        # Determinar el estatus correcto según la respuesta del PAC
-        # 201 = Cancelado sin necesidad de aceptación (Motivos 02/03/04)
-        # GT05 = CFDI ya cancelado en SAT
-        # 202 = Solicitud enviada, requiere aceptación del receptor (Motivo 01, 72h)
-        # GT12 = Solicitud recibida por el SAT, pendiente de aceptación
-        # "cola" = En cola de procesamiento → pendiente
+        # Determinar el estatus REAL consultando al SAT (fuente de verdad).
+        #
+        # Antes se confiaba en el código del PAC: un 201 se tomaba como
+        # "cancelado inmediato". Eso es incorrecto para CFDI "cancelable con
+        # aceptación" (motivo 01), donde un 201 solo significa "solicitud
+        # aceptada" y falta la aceptación del receptor (72h). Por eso facturas
+        # con aceptación quedaban marcadas CANCELADA antes de tiempo.
+        #
+        # Nueva regla: solo se marca CANCELADA si el SAT lo confirma. En
+        # cualquier otro caso (aceptación pendiente, o el SAT no respondió) se
+        # deja EN_CANCELACION y el cron diario la sincroniza hasta su resolución.
         code_str = (res.get("code") or "").strip()
         msg_str = (res.get("message") or "").lower()
 
         from datetime import datetime as _dt
 
-        # Cancelación inmediata (no requiere aceptación)
-        if code_str in ["201", "GT05"] or "cancelado" in msg_str:
+        # ¿El PAC aceptó la solicitud? (cualquier señal de éxito o de cola)
+        solicitud_aceptada = (
+            code_str in ["201", "202", "GT05", "GT12"]
+            or any(k in msg_str for k in ("cancelado", "cola", "recibida", "proceso"))
+        )
+
+        cancelada_confirmada_sat = False
+        if solicitud_aceptada:
+            try:
+                from app.services import sat_cfdi_service as _sat
+                receptor_rfc = (
+                    getattr(getattr(f, "cliente", None), "rfc", None) or ""
+                ).strip().upper()
+                acuse = _sat.consultar_cfdi(
+                    rfc_emisor=emisor_rfc,
+                    rfc_receptor=receptor_rfc,
+                    total=float(f.total or 0),
+                    uuid=uuid,
+                )
+                if acuse.encontrado and acuse.cancelado_por_sat:
+                    cancelada_confirmada_sat = True
+            except Exception as e:
+                (logger.warning if logger else print)(
+                    f"[Cancel] No se pudo verificar en SAT tras la solicitud: {e}"
+                )
+
+        if cancelada_confirmada_sat:
+            # El SAT confirma la cancelación (motivos sin aceptación o ya cancelada)
             try:
                 f.estatus = EstatusFactura.CANCELADA
             except NameError:
                 f.estatus = "CANCELADA"
-            f.fecha_solicitud_cancelacion = None  # Ya cancelada, no está en espera
-
-        # Solicitud enviada, pendiente de aceptación del receptor (72h hábiles)
-        elif code_str in ["202", "GT12"] or "cola" in msg_str or "recibida" in msg_str or "proceso" in msg_str:
+            f.fecha_solicitud_cancelacion = None
+        elif solicitud_aceptada:
+            # Solicitud aceptada pero el SAT aún no la confirma como cancelada
+            # (típico de motivo 01 "con aceptación", esperando al receptor).
             f.estatus = "EN_CANCELACION"
-            if hasattr(f, "fecha_solicitud_cancelacion"):
+            if hasattr(f, "fecha_solicitud_cancelacion") and not f.fecha_solicitud_cancelacion:
                 f.fecha_solicitud_cancelacion = _dt.utcnow()
         # ---------------------------------------------
 
