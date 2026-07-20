@@ -86,7 +86,7 @@ export const useFacturaForm = () => {
 
   const puedeTimbrar = Boolean(id) && estatusCFDI === 'BORRADOR';
   const puedeCancelar = Boolean(id) && estatusCFDI === 'TIMBRADA';
-  const puedeVerificarSat = Boolean(id) && (estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'TIMBRADA');
+  const puedeVerificarSat = Boolean(id) && (estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'TIMBRADA' || estatusCFDI === 'CANCELADA');
   const puedeRevertir = Boolean(id) && estatusCFDI === 'EN_CANCELACION';
 
   // ── Forma de pago options (filtered by PUE/PPD) ───────────────────────────────
