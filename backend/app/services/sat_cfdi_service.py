@@ -219,7 +219,14 @@ def aplicar_acuse_sat(
 
     else:
         # SAT reporta Vigente y no en proceso
-        if estatus_anterior == "EN_CANCELACION":
+        if estatus_anterior == "CANCELADA":
+            # El sistema la tenía como CANCELADA, pero el SAT la reporta Vigente
+            # (sin cancelación en proceso): la cancelación fue rechazada o nunca se
+            # aplicó (ej. "Relación no válida o inexistente" en motivo 01).
+            # El SAT es la fuente de verdad → reconciliar a TIMBRADA.
+            nuevo_estatus = "TIMBRADA"
+            factura.fecha_solicitud_cancelacion = None
+        elif estatus_anterior == "EN_CANCELACION":
             if acuse.rechazado_por_receptor:
                 # El receptor rechazó explícitamente → revertir a TIMBRADA
                 nuevo_estatus = "TIMBRADA"
