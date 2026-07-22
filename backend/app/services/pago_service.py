@@ -8,6 +8,7 @@ from app.models.pago import Pago, PagoDocumentoRelacionado, EstatusPago
 from app.models.factura import Factura
 from app.schemas.pago import PagoCreate
 from app.services.timbrado_factmoderna import FacturacionModernaPAC
+from app.services.pac_errors import interpretar_error_pac
 from app.services.pdf_pago import render_pago_pdf_bytes_from_model
 from app.services.email_sender import send_pago_email, EmailSendingError
 from app.services import notificacion_service as notif_svc
@@ -808,31 +809,8 @@ def timbrar_pago(db: Session, pago_id: UUID) -> dict:
 
     except RuntimeError as e:
         db.rollback()
-        # Extraer mensaje del PAC (SOAP) y regresarlo tal cual
-        msg = str(e)
-        m = re.search(
-            r"<faultstring>(.*?)</faultstring>", msg, flags=re.IGNORECASE | re.DOTALL
-        )
-        if m:
-            fault = m.group(1).strip()
-            raise HTTPException(status_code=400, detail=fault)
-        m2 = re.search(
-            r"PAC devolvió Fault:\s*\S*\s*(.+)$", msg, flags=re.IGNORECASE | re.DOTALL
-        )
-        if m2:
-            fault = m2.group(1).strip()
-            raise HTTPException(status_code=400, detail=fault)
-        # Validación local (nunca se contactó al PAC): devolver el mensaje real
-        # con 400 en vez del 502 que la UI muestra como "no se pudo contactar
-        # al servidor".
-        if not any(k in msg.lower() for k in ("<", "soap", "envelope", "http/")):
-            raise HTTPException(status_code=400, detail=msg)
-
-        logger.warning("Timbrado Pago PAC error no parseable: %s", msg)
-        raise HTTPException(
-            status_code=502,
-            detail="El PAC rechazó el timbrado del pago. Intenta nuevamente o verifica los datos.",
-        )
+        code, detalle = interpretar_error_pac(e)
+        raise HTTPException(status_code=code, detail=detalle)
 
     except Exception as e:
         db.rollback()
@@ -908,42 +886,59 @@ def cancelar_pago_sat(
             folio_sustituto=folio_sustituto,
         )
 
-        # 2. Actualizar estatus del pago
-        pago.estatus = EstatusPago.CANCELADO
+        # 2. Datos de la cancelación.
+        #    El estatus ya lo definió solicitar_cancelacion_pago consultando al
+        #    SAT (CANCELADO solo si el SAT lo confirma, si no EN_CANCELACION).
+        #    NO lo sobrescribimos: antes se forzaba CANCELADO aquí, lo que
+        #    anulaba esa verificación y dejaba el pago desfasado del SAT.
         pago.motivo_cancelacion = motivo
         pago.folio_fiscal_sustituto = folio_sustituto
-        # Nota: no tenemos campos para fecha de solicitud o mensaje del PAC en Pago,
-        # pero guardamos el motivo y sustituto que sí existen.
 
-        # 3. Revertir estatus de facturas relacionadas
-        # Si una factura estaba PAGADA gracias a este pago, la regresamos a NO_PAGADA.
-        for doc in pago.documentos_relacionados:
-            factura = db.query(Factura).filter(Factura.id == doc.factura_id).first()
-            if factura and factura.status_pago == "PAGADA":
-                # Asumimos que al cancelar este pago, deja de estar pagada en su totalidad.
-                # En un sistema más complejo, recalcularíamos el saldo con los pagos restantes.
-                factura.status_pago = "NO_PAGADA"
-                factura.fecha_cobro = None
-        
+        # 3. Revertir estatus de facturas relacionadas — solo si la cancelación
+        #    quedó confirmada. Si sigue EN_CANCELACION el complemento aún es
+        #    válido ante el SAT y la factura sigue pagada; el cron ajustará
+        #    cuando el SAT resuelva.
+        if pago.estatus == EstatusPago.CANCELADO:
+            for doc in pago.documentos_relacionados:
+                factura = db.query(Factura).filter(Factura.id == doc.factura_id).first()
+                if factura and factura.status_pago == "PAGADA":
+                    # Asumimos que al cancelar este pago, deja de estar pagada en su totalidad.
+                    # En un sistema más complejo, recalcularíamos el saldo con los pagos restantes.
+                    factura.status_pago = "NO_PAGADA"
+                    factura.fecha_cobro = None
+
         db.add(pago)
         db.commit()
         db.refresh(pago)
 
+        confirmado = pago.estatus == EstatusPago.CANCELADO
         try:
             notif_svc.crear_notificacion(
                 db=db,
                 empresa_id=pago.empresa_id,
                 tipo=notif_svc.ADVERTENCIA,
-                titulo="Complemento de pago cancelado",
-                mensaje=f"Complemento de pago {pago.serie}-{pago.folio} cancelado ante el SAT.",
+                titulo=(
+                    "Complemento de pago cancelado" if confirmado
+                    else "Cancelación de complemento en proceso"
+                ),
+                mensaje=(
+                    f"Complemento de pago {pago.serie}-{pago.folio} cancelado ante el SAT."
+                    if confirmado else
+                    f"Complemento de pago {pago.serie}-{pago.folio}: el SAT aún no confirma "
+                    "la cancelación (puede requerir la aceptación del receptor)."
+                ),
                 metadata={"pago_id": str(pago_id), "motivo": motivo},
             )
         except Exception:
             pass
 
         return {
-            "message": "Solicitud de cancelación enviada exitosamente.",
-            "pago_estatus": pago.estatus,
+            "message": (
+                "Complemento cancelado ante el SAT." if confirmado else
+                "Solicitud de cancelación enviada. El SAT aún no la confirma; "
+                "puede requerir la aceptación del receptor."
+            ),
+            "pago_estatus": getattr(pago.estatus, "value", pago.estatus),
             "pac_response": res,
         }
 
@@ -952,7 +947,7 @@ def cancelar_pago_sat(
     except Exception as e:
         db.rollback()
         logger.error(f"Error al cancelar pago {pago_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al procesar la cancelación: {str(e)}",
-        )
+        # Mensaje legible (extrae el <faultstring> del PAC) en vez de volcar el
+        # XML SOAP completo en la pantalla del usuario.
+        code, detalle = interpretar_error_pac(e)
+        raise HTTPException(status_code=code, detail=detalle)

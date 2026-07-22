@@ -18,6 +18,7 @@ from app.models.associations import cliente_empresa as cliente_empresa_associati
 from app.services.timbrado_factmoderna import FacturacionModernaPAC
 from app.services.cfdi40_xml import build_cfdi40_xml_sin_timbrar
 from app.services import notificacion_service as notif_svc
+from app.services.pac_errors import interpretar_error_pac
 from app.services.pdf_factura import (
     render_factura_pdf_bytes_from_model,
     load_factura_full,
@@ -404,36 +405,8 @@ def timbrar_factura(db: Session, factura_id: UUID) -> dict:
     except HTTPException:
         raise
     except RuntimeError as e:
-        # Propagar el mensaje del PAC (SOAP) tal cual al usuario
-        msg = str(e)
-        # 1) Buscar <faultstring>...</faultstring>
-        m = re.search(
-            r"<faultstring>(.*?)</faultstring>", msg, flags=re.IGNORECASE | re.DOTALL
-        )
-        if m:
-            fault = m.group(1).strip()
-            raise HTTPException(status_code=400, detail=fault)
-        # 2) Buscar formato "PAC devolvió Fault: <code> <mensaje>"
-        m2 = re.search(
-            r"PAC devolvió Fault:\s*\S*\s*(.+)$", msg, flags=re.IGNORECASE | re.DOTALL
-        )
-        if m2:
-            fault = m2.group(1).strip()
-            raise HTTPException(status_code=400, detail=fault)
-        # 3) Validación local (nunca se contactó al PAC): ej. falta MetodoPago /
-        #    FormaPago, CSD inválido. Es un dato que el usuario puede corregir,
-        #    así que devolvemos el mensaje real con 400. Antes caía al 502 de
-        #    abajo y la UI lo mostraba como "no se pudo contactar al servidor",
-        #    mandando al usuario a buscar una falla de infraestructura inexistente.
-        if not any(k in msg.lower() for k in ("<", "soap", "envelope", "http/")):
-            raise HTTPException(status_code=400, detail=msg)
-
-        # 4) Respuesta del PAC no parseable
-        logger.warning("Timbrado PAC error no parseable: %s", msg)
-        raise HTTPException(
-            status_code=502,
-            detail="El PAC rechazó el timbrado. Intenta nuevamente o verifica los datos.",
-        )
+        code, detalle = interpretar_error_pac(e)
+        raise HTTPException(status_code=code, detail=detalle)
     except Exception as e:
         logger.exception("Error de servicio al timbrar factura %s", factura_id)
         raise HTTPException(
@@ -479,21 +452,8 @@ def solicitar_cancelacion_cfdi(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
-        # Extraer mensaje del PAC (SOAP) y regresarlo tal cual
-        msg = str(e)
-        m = re.search(
-            r"<faultstring>(.*?)</faultstring>", msg, flags=re.IGNORECASE | re.DOTALL
-        )
-        if m:
-            fault = m.group(1).strip()
-            raise HTTPException(status_code=400, detail=fault)
-        m2 = re.search(
-            r"PAC cancelación Fault:\s*(.+)$", msg, flags=re.IGNORECASE | re.DOTALL
-        )
-        if m2:
-            fault = m2.group(1).strip()
-            raise HTTPException(status_code=400, detail=fault)
-        raise HTTPException(status_code=502, detail=str(e))
+        code, detalle = interpretar_error_pac(e)
+        raise HTTPException(status_code=code, detail=detalle)
     except Exception as e:
         logger.exception("Error de servicio al cancelar factura %s", factura_id)
         raise HTTPException(
