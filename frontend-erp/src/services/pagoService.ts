@@ -158,6 +158,9 @@ export interface VerificarSATPagoResult {
 export const verificarEstadoSATPago = (id: string) =>
   getData<VerificarSATPagoResult>(api.post(`/pagos/${id}/verificar-sat`));
 
+export const downloadAcuseCancelacionPago = (id: string, fmt: 'pdf' | 'xml' = 'pdf') =>
+  getBlob(api.get(`/pagos/${id}/acuse-cancelacion`, { params: { fmt }, responseType: 'blob' }));
+
 export const getFacturasPendientes = (clienteId: string, empresaId?: string, matchRfc = false) =>
   getData<FacturaPendiente[]>(api.get(`/pagos/clientes/${clienteId}/facturas-pendientes`, {
     params: { empresa_id: empresaId, match_rfc: matchRfc },

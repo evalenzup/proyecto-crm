@@ -421,6 +421,46 @@ def cancelar_pago_sat(
     return result
 
 
+@router.get(
+    "/{pago_id}/acuse-cancelacion",
+    summary="Descarga el acuse de cancelación del SAT del complemento (PDF o XML)",
+)
+def descargar_acuse_cancelacion_pago(
+    pago_id: uuid.UUID,
+    fmt: str = Query("pdf", pattern="^(pdf|xml)$"),
+    forzar: bool = Query(False, description="Re-descargar del PAC ignorando la caché"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    from app.services import acuse_cancelacion_service as acuse_svc
+
+    pago = db.query(Pago).filter(Pago.id == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    estatus = getattr(pago.estatus, "value", pago.estatus)
+    if estatus not in ("EN_CANCELACION", "CANCELADO"):
+        raise HTTPException(
+            status_code=400,
+            detail="El acuse solo está disponible para complementos en cancelación o cancelados.",
+        )
+
+    try:
+        contenido, media_type, filename = acuse_svc.obtener_acuse(
+            pago, fmt, forzar=forzar, etiqueta="acuse_cancelacion_pago"
+        )
+    except acuse_svc.AcuseError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return Response(
+        content=contenido,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post(
     "/{pago_id}/verificar-sat",
     summary="Consulta el estado del complemento en el SAT y actualiza el estatus",

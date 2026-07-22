@@ -60,23 +60,35 @@ def _find_text(root: ET.Element, local_name: str) -> str | None:
     return None
 
 
-def _resolver_datos(factura) -> tuple[str, str, str]:
-    """(rfc_emisor, rfc_receptor, uuid) — mismo criterio que la consulta SAT."""
-    uuid = (getattr(factura, "cfdi_uuid", None) or "").strip()
+def _resolver_datos(doc) -> tuple[str, str, str]:
+    """
+    (rfc_emisor, rfc_receptor, uuid) — mismo criterio que la consulta SAT.
+
+    Sirve tanto para Factura como para Pago: el UUID fiscal vive en
+    ``cfdi_uuid`` en facturas y en ``uuid`` en complementos de pago; el resto
+    de los datos (empresa/cliente) es idéntico en ambos modelos.
+    """
+    uuid = (
+        getattr(doc, "cfdi_uuid", None) or getattr(doc, "uuid", None) or ""
+    )
+    uuid = str(uuid).strip()
     if not uuid:
-        raise AcuseError("La factura no tiene UUID fiscal.")
-    emisor = (getattr(getattr(factura, "empresa", None), "rfc", None) or "").strip().upper()
+        raise AcuseError("El comprobante no tiene UUID fiscal.")
+    emisor = (getattr(getattr(doc, "empresa", None), "rfc", None) or "").strip().upper()
     if not emisor:
-        raise AcuseError("La factura no tiene RFC de emisor.")
-    receptor = (getattr(getattr(factura, "cliente", None), "rfc", None) or "").strip().upper()
+        raise AcuseError("El comprobante no tiene RFC de emisor.")
+    receptor = (getattr(getattr(doc, "cliente", None), "rfc", None) or "").strip().upper()
     # Si no hay RFC de receptor, el CFDI fue a público en general.
     receptor = receptor or _RFC_PUBLICO_GENERAL
     return emisor, receptor, uuid
 
 
-def descargar_acuse_xml(factura, *, forzar: bool = False) -> bytes:
-    """Descarga (y cachea) el XML del acuse de cancelación sellado por el SAT."""
-    emisor, receptor, uuid = _resolver_datos(factura)
+def descargar_acuse_xml(doc, *, forzar: bool = False) -> bytes:
+    """Descarga (y cachea) el XML del acuse de cancelación sellado por el SAT.
+
+    ``doc`` puede ser una Factura o un Pago (complemento).
+    """
+    emisor, receptor, uuid = _resolver_datos(doc)
 
     os.makedirs(_ACUSES_DIR, exist_ok=True)
     cache_path = os.path.join(_ACUSES_DIR, f"{uuid}.xml")
@@ -98,7 +110,7 @@ def descargar_acuse_xml(factura, *, forzar: bool = False) -> bytes:
 
     if resp.status_code != 200 or not resp.content:
         raise AcuseError(
-            "El PAC no devolvió el acuse. Verifica que la factura tenga una "
+            "El PAC no devolvió el acuse. Verifica que el comprobante tenga una "
             "solicitud de cancelación registrada (puede tardar unos minutos)."
         )
 
@@ -106,7 +118,7 @@ def descargar_acuse_xml(factura, *, forzar: bool = False) -> bytes:
     # Validar que sea el XML del acuse y no la página HTML de error.
     if b"<Acuse" not in contenido:
         raise AcuseError(
-            "Aún no está disponible el acuse de cancelación para esta factura. "
+            "Aún no está disponible el acuse de cancelación para este comprobante. "
             "Intenta de nuevo más tarde."
         )
 
@@ -252,12 +264,22 @@ def generar_pdf_acuse(xml_bytes: bytes, factura) -> bytes:
     return buf.getvalue()
 
 
-def obtener_acuse(factura, fmt: str = "pdf", *, forzar: bool = False) -> tuple[bytes, str, str]:
-    """Devuelve (contenido, media_type, filename) del acuse en el formato pedido."""
-    xml_bytes = descargar_acuse_xml(factura, forzar=forzar)
-    _emisor, _receptor, uuid = _resolver_datos(factura)
-    base = f"acuse_cancelacion_{factura.serie}-{factura.folio}"
+def obtener_acuse(
+    doc,
+    fmt: str = "pdf",
+    *,
+    forzar: bool = False,
+    etiqueta: str = "acuse_cancelacion",
+) -> tuple[bytes, str, str]:
+    """
+    Devuelve (contenido, media_type, filename) del acuse en el formato pedido.
+
+    ``doc`` puede ser una Factura o un Pago; ``etiqueta`` distingue el nombre
+    del archivo entre ambos (una factura y un pago pueden compartir serie-folio).
+    """
+    xml_bytes = descargar_acuse_xml(doc, forzar=forzar)
+    base = f"{etiqueta}_{doc.serie}-{doc.folio}"
     if (fmt or "pdf").lower() == "xml":
         return xml_bytes, "application/xml", f"{base}.xml"
-    pdf_bytes = generar_pdf_acuse(xml_bytes, factura)
+    pdf_bytes = generar_pdf_acuse(xml_bytes, doc)
     return pdf_bytes, "application/pdf", f"{base}.pdf"

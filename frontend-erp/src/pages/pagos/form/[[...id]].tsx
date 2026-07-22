@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   Form,
@@ -25,7 +25,8 @@ import {
 import { PageHeader } from '@/components/PageHeader';
 import { formatDate, formatDateOnly } from '@/utils/formatDate';
 import { usePagoForm } from '@/hooks/usePagoForm';
-import { FacturaPendiente } from '@/services/pagoService';
+import { FacturaPendiente, downloadAcuseCancelacionPago } from '@/services/pagoService';
+import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
 import {
   CheckCircleOutlined,
   SyncOutlined,
@@ -101,6 +102,9 @@ const PagoFormPage: React.FC = () => {
     confirmarEnvioCorreo(recips, "Envío de Complemento de Pago", "Se adjunta el complemento de recepción de pagos en formato XML y PDF.");
     emailForm.resetFields();
   };
+
+  // Modal del acuse de cancelación del SAT
+  const [acuseOpen, setAcuseOpen] = useState(false);
 
   // Formulario independiente para el modal de cancelación
   const [cancelacionForm] = Form.useForm();
@@ -233,6 +237,9 @@ const PagoFormPage: React.FC = () => {
   const getStatusTag = () => {
     if (isCancelado) {
       return <Tag icon={<CloseCircleOutlined />} color="error">Cancelado</Tag>;
+    }
+    if (isEnCancelacion) {
+      return <Tag icon={<SyncOutlined spin />} color="warning">En cancelación</Tag>;
     }
     if (isTimbrado) {
       return <Tag icon={<CheckCircleOutlined />} color="success">Timbrado</Tag>;
@@ -450,6 +457,15 @@ const PagoFormPage: React.FC = () => {
           >
             Verificar con SAT
           </Button>
+          {(isCancelado || isEnCancelacion) && (
+            <Button
+              icon={<FileTextOutlined />}
+              onClick={() => setAcuseOpen(true)}
+              title="Descarga el acuse de cancelación sellado por el SAT"
+            >
+              Acuse de cancelación
+            </Button>
+          )}
           <Button
             icon={<DeleteOutlined />}
             danger
@@ -460,6 +476,16 @@ const PagoFormPage: React.FC = () => {
           </Button>
         </Space>
       </div>
+
+      <AcuseCancelacionModal
+        facturaId={id ?? null}
+        serie={pago?.serie}
+        folio={pago?.folio}
+        open={acuseOpen}
+        onClose={() => setAcuseOpen(false)}
+        fetchAcuse={downloadAcuseCancelacionPago}
+        etiqueta="acuse_cancelacion_pago"
+      />
 
       {/* Modal: Confirmar Cancelación */}
       <Modal

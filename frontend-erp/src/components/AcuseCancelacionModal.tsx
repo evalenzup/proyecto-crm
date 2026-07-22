@@ -12,21 +12,30 @@ interface Props {
   folio?: number | string | null;
   open: boolean;
   onClose: () => void;
+  /** Descargador del acuse. Por defecto el de facturas; los complementos de
+   *  pago inyectan el suyo para reutilizar este mismo modal. */
+  fetchAcuse?: (id: string, fmt: 'pdf' | 'xml') => Promise<Blob>;
+  /** Prefijo del nombre de archivo (una factura y un pago pueden compartir serie-folio). */
+  etiqueta?: string;
 }
 
-export const AcuseCancelacionModal: React.FC<Props> = ({ facturaId, serie, folio, open, onClose }) => {
+export const AcuseCancelacionModal: React.FC<Props> = ({
+  facturaId, serie, folio, open, onClose,
+  fetchAcuse = downloadAcuseCancelacion,
+  etiqueta = 'acuse_cancelacion',
+}) => {
   const [loading, setLoading] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const nombreBase = `acuse_cancelacion_${serie ?? ''}-${folio ?? facturaId ?? ''}`;
+  const nombreBase = `${etiqueta}_${serie ?? ''}-${folio ?? facturaId ?? ''}`;
 
   const cargar = useCallback(async () => {
     if (!facturaId) return;
     setLoading(true);
     setError(null);
     try {
-      const blob = await downloadAcuseCancelacion(facturaId, 'pdf');
+      const blob = await fetchAcuse(facturaId, 'pdf');
       setPdfUrl(window.URL.createObjectURL(blob));
     } catch (e: any) {
       // El interceptor ya muestra el toast; aquí dejamos el detalle en el modal.
@@ -34,7 +43,7 @@ export const AcuseCancelacionModal: React.FC<Props> = ({ facturaId, serie, folio
     } finally {
       setLoading(false);
     }
-  }, [facturaId]);
+  }, [facturaId, fetchAcuse]);
 
   useEffect(() => {
     if (open) cargar();
@@ -50,7 +59,7 @@ export const AcuseCancelacionModal: React.FC<Props> = ({ facturaId, serie, folio
   const descargar = (fmt: 'pdf' | 'xml') => async () => {
     if (!facturaId) return;
     try {
-      const blob = await downloadAcuseCancelacion(facturaId, fmt);
+      const blob = await fetchAcuse(facturaId, fmt);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
