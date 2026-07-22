@@ -107,7 +107,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         str(exc),
         exc_info=exc,
     )
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
         content={
             "error": {
@@ -120,3 +120,36 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
             }
         },
     )
+    _aplicar_cors(request, response)
+    return response
+
+
+def _aplicar_cors(request: Request, response: JSONResponse) -> None:
+    """
+    Agrega manualmente los headers CORS a la respuesta.
+
+    Necesario SOLO para el handler de `Exception`: Starlette lo ejecuta en
+    ServerErrorMiddleware, que está POR ENCIMA de CORSMiddleware, así que su
+    respuesta no pasa por el middleware de CORS. Sin estos headers el navegador
+    bloquea la respuesta, axios no ve ninguna y el usuario recibe
+    "No se pudo contactar al servidor" en lugar del mensaje real con el código
+    de referencia. (Los demás handlers corren dentro de CORSMiddleware y no
+    necesitan esto.)
+    """
+    try:
+        from app.config import settings
+
+        origin = request.headers.get("origin")
+        if not origin:
+            return
+        permitidos = settings.ALLOWED_ORIGINS or []
+        if "*" in permitidos:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        elif origin in permitidos:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        else:
+            return
+        response.headers["Vary"] = "Origin"
+    except Exception:  # nunca romper la respuesta de error por esto
+        pass
