@@ -822,6 +822,12 @@ def timbrar_pago(db: Session, pago_id: UUID) -> dict:
         if m2:
             fault = m2.group(1).strip()
             raise HTTPException(status_code=400, detail=fault)
+        # Validación local (nunca se contactó al PAC): devolver el mensaje real
+        # con 400 en vez del 502 que la UI muestra como "no se pudo contactar
+        # al servidor".
+        if not any(k in msg.lower() for k in ("<", "soap", "envelope", "http/")):
+            raise HTTPException(status_code=400, detail=msg)
+
         logger.warning("Timbrado Pago PAC error no parseable: %s", msg)
         raise HTTPException(
             status_code=502,

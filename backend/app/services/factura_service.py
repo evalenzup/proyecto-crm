@@ -420,7 +420,15 @@ def timbrar_factura(db: Session, factura_id: UUID) -> dict:
         if m2:
             fault = m2.group(1).strip()
             raise HTTPException(status_code=400, detail=fault)
-        # 3) Si no hay detalle parseable, devolver 502 con mensaje acotado
+        # 3) Validación local (nunca se contactó al PAC): ej. falta MetodoPago /
+        #    FormaPago, CSD inválido. Es un dato que el usuario puede corregir,
+        #    así que devolvemos el mensaje real con 400. Antes caía al 502 de
+        #    abajo y la UI lo mostraba como "no se pudo contactar al servidor",
+        #    mandando al usuario a buscar una falla de infraestructura inexistente.
+        if not any(k in msg.lower() for k in ("<", "soap", "envelope", "http/")):
+            raise HTTPException(status_code=400, detail=msg)
+
+        # 4) Respuesta del PAC no parseable
         logger.warning("Timbrado PAC error no parseable: %s", msg)
         raise HTTPException(
             status_code=502,
