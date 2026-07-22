@@ -80,6 +80,7 @@ const PagoFormPage: React.FC = () => {
     abrirCancelacion,
     cerrarCancelacion,
     confirmarCancelacion,
+    handleVerificarSAT,
     // Email
     emailModalOpen,
     abrirEmailModal,
@@ -227,6 +228,7 @@ const PagoFormPage: React.FC = () => {
   // Estado calculado conforme al esquema del backend
   const isTimbrado = pago?.estatus === 'TIMBRADO' || !!pago?.uuid || !!pago?.fecha_timbrado;
   const isCancelado = pago?.estatus === 'CANCELADO';
+  const isEnCancelacion = pago?.estatus === 'EN_CANCELACION';
 
   const getStatusTag = () => {
     if (isCancelado) {
@@ -440,11 +442,20 @@ const PagoFormPage: React.FC = () => {
             Descargar XML
           </Button>
           <Button
+            icon={<SyncOutlined />}
+            onClick={handleVerificarSAT}
+            loading={accionLoading.verificandoSat}
+            disabled={!isTimbrado}
+            title="Consulta el estado real del complemento en el SAT y actualiza el estatus"
+          >
+            Verificar con SAT
+          </Button>
+          <Button
             icon={<DeleteOutlined />}
             danger
             onClick={abrirCancelacion}
             loading={accionLoading.cancelando}
-            disabled={!isTimbrado || isCancelado}
+            disabled={!isTimbrado || isCancelado || isEnCancelacion}
           >
           </Button>
         </Space>

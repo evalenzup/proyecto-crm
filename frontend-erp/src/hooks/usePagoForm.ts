@@ -28,6 +28,7 @@ export const usePagoForm = () => {
     cancelando: false,
     visualizando: false,
     descargando: false,
+    verificandoSat: false,
   });
 
   // Data para selects
@@ -462,6 +463,30 @@ export const usePagoForm = () => {
     }
   };
 
+  // Verificación contra el SAT (fuente de verdad del estatus del CFDI)
+  const handleVerificarSAT = async () => {
+    if (!id) return;
+    setAccionLoading((s) => ({ ...s, verificandoSat: true }));
+    try {
+      const result = await pagoService.verificarEstadoSATPago(id);
+      if (result.estatus_anterior !== result.estatus_nuevo) {
+        message.success(
+          `Estado actualizado: ${result.estatus_anterior} → ${result.estatus_nuevo}`,
+        );
+      } else {
+        let info = `SAT reporta: ${result.sat_estado}`;
+        if (result.sat_estatus_cancelacion) info += ` (${result.sat_estatus_cancelacion})`;
+        message.info(info, 6);
+      }
+      const updated = await pagoService.getPagoById(id);
+      setPago(updated);
+    } catch (error: any) {
+      if (!error?._handled) message.error(normalizeHttpError(error) || 'Error al consultar el SAT');
+    } finally {
+      setAccionLoading((s) => ({ ...s, verificandoSat: false }));
+    }
+  };
+
   // Envío por correo
   const [emailModalOpen, setEmailModalOpen] = useState(false);
 
@@ -609,6 +634,7 @@ export const usePagoForm = () => {
     abrirCancelacion,
     cerrarCancelacion,
     confirmarCancelacion,
+    handleVerificarSAT,
     verPdf,
     verFacturaPdf,
     descargarPdf,

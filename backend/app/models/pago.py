@@ -20,6 +20,9 @@ from app.models.base import Base
 class EstatusPago(str, enum.Enum):
     BORRADOR = "BORRADOR"
     TIMBRADO = "TIMBRADO"
+    # Cancelación solicitada al SAT pero aún no confirmada (p. ej. motivo 01,
+    # pendiente de aceptación del receptor). El cron diario la resuelve.
+    EN_CANCELACION = "EN_CANCELACION"
     CANCELADO = "CANCELADO"
 
 
@@ -60,6 +63,9 @@ class Pago(Base):
     qr_url = Column(Text, nullable=True)
 
     motivo_cancelacion = Column(String(2), nullable=True)
+    # Fecha en que se solicitó la cancelación al SAT (mientras está EN_CANCELACION).
+    # Se limpia cuando el SAT resuelve (cancelado o rechazado).
+    fecha_solicitud_cancelacion = Column(DateTime, nullable=True)
     folio_fiscal_sustituto = Column(String(36), nullable=True)
     no_certificado = Column(String(20), nullable=True)
     no_certificado_sat = Column(String(20), nullable=True)

@@ -225,6 +225,7 @@ const PagosIndexPage: React.FC = () => {
                 options={[
                   { value: 'BORRADOR', label: 'BORRADOR' },
                   { value: 'TIMBRADO', label: 'TIMBRADO' },
+                  { value: 'EN_CANCELACION', label: 'EN CANCELACIÓN' },
                   { value: 'CANCELADO', label: 'CANCELADO' },
                 ]}
               />

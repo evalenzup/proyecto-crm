@@ -419,3 +419,77 @@ def cancelar_pago_sat(
     except Exception:
         pass
     return result
+
+
+@router.post(
+    "/{pago_id}/verificar-sat",
+    summary="Consulta el estado del complemento en el SAT y actualiza el estatus",
+)
+def verificar_estado_sat_pago(
+    pago_id: uuid.UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    from app.services import sat_cfdi_service as sat_svc
+
+    pago = db.query(Pago).filter(Pago.id == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
+    estatus_actual = getattr(pago.estatus, "value", pago.estatus)
+    if estatus_actual not in ("TIMBRADO", "EN_CANCELACION", "CANCELADO"):
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede verificar un complemento timbrado.",
+        )
+    if not pago.uuid:
+        raise HTTPException(status_code=400, detail="El pago no tiene UUID fiscal")
+
+    try:
+        acuse = sat_svc.consultar_cfdi(
+            rfc_emisor=(getattr(getattr(pago, "empresa", None), "rfc", None) or "").strip().upper(),
+            rfc_receptor=(getattr(getattr(pago, "cliente", None), "rfc", None) or "").strip().upper(),
+            total=0.0,  # los complementos de pago timbran con Total=0
+            uuid=pago.uuid,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=f"Error al consultar SAT: {e}")
+
+    if not acuse.encontrado:
+        raise HTTPException(
+            status_code=404, detail=f"CFDI no encontrado en SAT: {acuse.codigo_estatus}"
+        )
+
+    estatus_anterior = estatus_actual
+    nuevo_estatus, _ = sat_svc.aplicar_acuse_sat_pago(pago, acuse)
+    db.add(pago)
+
+    audit_svc.registrar(
+        db=db, accion=audit_svc.VERIFICAR_SAT, entidad="pago",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=pago.empresa_id, entidad_id=str(pago.id),
+        detalle={
+            "uuid": pago.uuid,
+            "estatus_anterior": estatus_anterior,
+            "estatus_nuevo": nuevo_estatus,
+            "sat_estado": acuse.estado,
+            "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+            "actualizado": estatus_anterior != nuevo_estatus,
+        },
+        ip=audit_svc.get_ip(request),
+    )
+    db.commit()
+    db.refresh(pago)
+
+    return {
+        "id": str(pago.id),
+        "estatus_anterior": estatus_anterior,
+        "estatus_nuevo": nuevo_estatus,
+        "sat_codigo": acuse.codigo_estatus,
+        "sat_estado": acuse.estado,
+        "sat_es_cancelable": acuse.es_cancelable,
+        "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+    }

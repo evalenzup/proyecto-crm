@@ -117,6 +117,32 @@ def _sync_cancelaciones_job():
             except Exception as exc:
                 logger.warning("[SAT Sync] Error verificando factura %s: %s", f.id, exc)
 
+        # ── Complementos de pago EN_CANCELACION ───────────────────────────────
+        from app.models.pago import Pago, EstatusPago
+
+        pagos_pend = (
+            db.query(Pago)
+            .options(joinedload(Pago.empresa), joinedload(Pago.cliente))
+            .filter(Pago.estatus == EstatusPago.EN_CANCELACION, Pago.uuid.isnot(None))
+            .all()
+        )
+        logger.info("[SAT Sync] Verificando %d pagos EN_CANCELACION", len(pagos_pend))
+
+        for p in pagos_pend:
+            try:
+                acuse = sat_svc.consultar_cfdi(
+                    rfc_emisor=(getattr(p.empresa, "rfc", None) or "").strip().upper(),
+                    rfc_receptor=(getattr(p.cliente, "rfc", None) or "").strip().upper(),
+                    total=0.0,  # los complementos de pago timbran con Total=0
+                    uuid=p.uuid,
+                )
+                nuevo_estatus, hubo_cambio = sat_svc.aplicar_acuse_sat_pago(p, acuse)
+                if hubo_cambio:
+                    db.add(p)
+                    logger.info("[SAT Sync] Pago %s → %s", p.uuid, nuevo_estatus)
+            except Exception as exc:
+                logger.warning("[SAT Sync] Error verificando pago %s: %s", p.id, exc)
+
         # commit libera el xact_lock automáticamente
         db.commit()
     except Exception as exc:

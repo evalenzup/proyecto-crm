@@ -8,7 +8,7 @@ const getData = <T>(p: Promise<{ data: T }>): Promise<T> => p.then((r) => r.data
 const getBlob = (p: Promise<{ data: Blob }>): Promise<Blob> => p.then((r) => r.data);
 
 // ── Tipos ────────────────────────────────────────────────────
-export type EstatusPagoCfdi = 'BORRADOR' | 'TIMBRADO' | 'CANCELADO';
+export type EstatusPagoCfdi = 'BORRADOR' | 'TIMBRADO' | 'EN_CANCELACION' | 'CANCELADO';
 
 export interface PagoListParams {
   limit?: number;
@@ -144,6 +144,19 @@ export const timbrarPago = (id: string) =>
 
 export const cancelarPagoSat = (id: string, motivo: string, folioSustituto?: string) =>
   getData<Pago>(api.post(`/pagos/${id}/cancelar-sat`, { motivo, folio_sustituto: folioSustituto }));
+
+export interface VerificarSATPagoResult {
+  id: string;
+  estatus_anterior: string;
+  estatus_nuevo: string;
+  sat_codigo: string;
+  sat_estado: string;
+  sat_es_cancelable: string;
+  sat_estatus_cancelacion: string;
+}
+
+export const verificarEstadoSATPago = (id: string) =>
+  getData<VerificarSATPagoResult>(api.post(`/pagos/${id}/verificar-sat`));
 
 export const getFacturasPendientes = (clienteId: string, empresaId?: string, matchRfc = false) =>
   getData<FacturaPendiente[]>(api.get(`/pagos/clientes/${clienteId}/facturas-pendientes`, {

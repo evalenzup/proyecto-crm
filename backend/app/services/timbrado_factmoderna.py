@@ -1099,17 +1099,58 @@ class FacturacionModernaPAC:
         # 4) Parse Code/Message
         res = _parse_cancel_response(root)
 
-        # --- FIX: Actualizar estatus si es 201/202 O si está en cola ---
+        # Determinar el estatus REAL consultando al SAT (fuente de verdad).
+        #
+        # Antes bastaba un 201/202 o "cola" para marcar CANCELADO, incluyendo
+        # casos que explícitamente NO son una cancelación consumada (202 =
+        # pendiente de aceptación del receptor, "cola" = en proceso). Eso dejaba
+        # complementos marcados como cancelados mientras el SAT los reportaba
+        # Vigentes (incluso con la solicitud rechazada por el receptor).
+        #
+        # Ahora solo se marca CANCELADO si el SAT lo confirma; si la solicitud
+        # fue aceptada pero aún no se resuelve, queda EN_CANCELACION y el cron
+        # diario la sincroniza.
+        from datetime import datetime as _dt
+
         code_str = (res.get("code") or "").strip()
         msg_str = (res.get("message") or "").lower()
-        if code_str in ["201", "202"] or "cola" in msg_str:
+
+        solicitud_aceptada = (
+            code_str in ["201", "202", "GT05", "GT12"]
+            or any(k in msg_str for k in ("cancelado", "cola", "recibida", "proceso"))
+        )
+
+        cancelado_confirmado_sat = False
+        if solicitud_aceptada:
+            try:
+                from app.services import sat_cfdi_service as _sat
+                acuse = _sat.consultar_cfdi(
+                    rfc_emisor=emisor_rfc,
+                    rfc_receptor=(
+                        getattr(getattr(p, "cliente", None), "rfc", None) or ""
+                    ).strip().upper(),
+                    total=0.0,  # los complementos de pago timbran con Total=0
+                    uuid=uuid,
+                )
+                if acuse.encontrado and acuse.cancelado_por_sat:
+                    cancelado_confirmado_sat = True
+            except Exception as e:
+                (logger.warning if logger else print)(
+                    f"[Cancel Pago] No se pudo verificar en SAT tras la solicitud: {e}"
+                )
+
+        if cancelado_confirmado_sat:
             p.estatus = EstatusPago.CANCELADO
-            db.add(p)
-            db.commit()
-            db.refresh(p)
-        # ---------------------------------------------
+            p.fecha_solicitud_cancelacion = None
+            db.add(p); db.commit(); db.refresh(p)
+        elif solicitud_aceptada:
+            p.estatus = EstatusPago.EN_CANCELACION
+            if not p.fecha_solicitud_cancelacion:
+                p.fecha_solicitud_cancelacion = _dt.utcnow()
+            db.add(p); db.commit(); db.refresh(p)
 
         return {
+            "estatus": getattr(p.estatus, "value", p.estatus),
             "uuid": uuid,
             "code": res.get("code"),
             "message": res.get("message"),

@@ -240,3 +240,54 @@ def aplicar_acuse_sat(
 
     factura.estatus = nuevo_estatus
     return nuevo_estatus, estatus_anterior != nuevo_estatus
+
+
+def aplicar_acuse_sat_pago(
+    pago: Any,
+    acuse: AcuseSAT,
+    ahora: Optional[datetime] = None,
+) -> Tuple[str, bool]:
+    """
+    Equivalente de ``aplicar_acuse_sat`` para complementos de pago.
+
+    Misma lógica canónica, con los nombres de estatus propios de Pago
+    (TIMBRADO / EN_CANCELACION / CANCELADO en vez de TIMBRADA / …).
+
+    No llama a db.add() ni db.commit() — responsabilidad del llamador.
+
+    Returns:
+        (nuevo_estatus: str, hubo_cambio: bool)
+    """
+    from app.models.pago import EstatusPago
+
+    if ahora is None:
+        ahora = datetime.utcnow()
+
+    estatus_anterior: str = getattr(pago.estatus, "value", pago.estatus)
+    nuevo: str = estatus_anterior
+
+    if acuse.cancelado_por_sat:
+        nuevo = "CANCELADO"
+        pago.fecha_solicitud_cancelacion = None
+
+    elif acuse.en_proceso:
+        nuevo = "EN_CANCELACION"
+        if not pago.fecha_solicitud_cancelacion:
+            pago.fecha_solicitud_cancelacion = ahora
+
+    else:
+        # El SAT reporta Vigente y sin cancelación en proceso
+        if estatus_anterior == "CANCELADO":
+            # Marcado como cancelado localmente pero vigente ante el SAT
+            # (p. ej. el receptor rechazó la solicitud) → reconciliar.
+            nuevo = "TIMBRADO"
+            pago.fecha_solicitud_cancelacion = None
+        elif estatus_anterior == "EN_CANCELACION":
+            if acuse.rechazado_por_receptor:
+                nuevo = "TIMBRADO"
+                pago.fecha_solicitud_cancelacion = None
+            elif pago.fecha_solicitud_cancelacion is None:
+                pago.fecha_solicitud_cancelacion = ahora
+
+    pago.estatus = EstatusPago(nuevo)
+    return nuevo, estatus_anterior != nuevo
