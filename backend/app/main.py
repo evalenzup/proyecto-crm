@@ -38,6 +38,7 @@ from app.api.contratos import router as contratos_router
 from app.api.programacion_facturas import router as prog_facturas_router
 from app.api.equipos import router as equipos_router
 from app.api.certificados import router as certificados_router
+from app.api.planes_servicio import router as planes_servicio_router
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -167,6 +168,67 @@ def _ejecutar_programaciones_job():
         db.close()
 
 
+def _avisos_planes_servicio_job():
+    """
+    Cron 1x/día (3:10 AM): avisa los servicios de contrato que caen en 3 días
+    y aún no tienen orden programada. Una notificación por periodo.
+    """
+    from datetime import date, timedelta
+    from app.database import SessionLocal
+    from app.models.plan_servicio import PlanServicio
+    from app.models.orden_servicio import OrdenServicio
+    from app.services import plan_servicio_service as plan_svc
+    from app.services import notificacion_service as notif_svc
+
+    db = SessionLocal()
+    try:
+        objetivo = date.today() + timedelta(days=3)
+        planes = (
+            db.query(PlanServicio)
+            .filter(PlanServicio.activo.is_(True), PlanServicio.vigencia_desde <= objetivo)
+            .all()
+        )
+        avisos = 0
+        for plan in planes:
+            if plan.vigencia_hasta and plan.vigencia_hasta < objetivo:
+                continue
+            fechas = plan_svc.periodos_del_mes(plan, objetivo.year, objetivo.month)
+            if objetivo not in fechas:
+                continue
+            # ¿Ya hay orden del plan cerca de esa fecha (±3 días)?
+            ya = (
+                db.query(OrdenServicio)
+                .filter(
+                    OrdenServicio.plan_id == plan.id,
+                    OrdenServicio.fecha_programada >= objetivo - timedelta(days=3),
+                    OrdenServicio.fecha_programada <= objetivo + timedelta(days=3),
+                )
+                .first()
+            )
+            if ya:
+                continue
+            cliente = getattr(plan.cliente, "nombre_comercial", None) or "cliente"
+            try:
+                notif_svc.crear_notificacion(
+                    db=db,
+                    empresa_id=plan.empresa_id,
+                    tipo=notif_svc.ADVERTENCIA,
+                    titulo="Servicio de contrato por programar",
+                    mensaje=f"El plan de {cliente} tiene un servicio el {objetivo:%d/%m/%Y} y aún no está programado.",
+                    metadata={"plan_id": str(plan.id), "fecha": str(objetivo)},
+                )
+                avisos += 1
+            except Exception:
+                pass
+        db.commit()
+        logger.info("[Planes] Avisos de servicios por programar: %d", avisos)
+    except Exception as exc:
+        logger.error("[Planes] Error en cron de avisos: %s", exc)
+        db.rollback()
+    finally:
+        db.close()
+
+
 _scheduler = BackgroundScheduler(timezone="America/Mexico_City")
 _scheduler.add_job(
     _sync_cancelaciones_job,
@@ -182,6 +244,14 @@ _scheduler.add_job(
     hour=3,        # 3:05 AM hora México
     minute=5,
     id="ejecutar_programaciones_facturas",
+    replace_existing=True,
+)
+_scheduler.add_job(
+    _avisos_planes_servicio_job,
+    trigger="cron",
+    hour=3,        # 3:10 AM hora México
+    minute=10,
+    id="avisos_planes_servicio",
     replace_existing=True,
 )
 
@@ -410,6 +480,13 @@ app.include_router(
     certificados_router,
     prefix="/api/certificados",
     tags=["certificados"],
+    responses={404: {"description": "No encontrado"}},
+)
+
+app.include_router(
+    planes_servicio_router,
+    prefix="/api/planes-servicio",
+    tags=["planes-servicio"],
     responses={404: {"description": "No encontrado"}},
 )
 
