@@ -40,6 +40,7 @@ export const certificadoService = {
     empresa_id?: string;
     tipo?: string;
     q?: string;
+    cliente_id?: string;
     limit?: number;
     offset?: number;
     order_by?: string;

@@ -37,6 +37,7 @@ def listar_certificados(
     empresa_id: Optional[UUID] = Query(None),
     tipo: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
+    cliente_id: Optional[UUID] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     order_by: Optional[str] = Query(None),
@@ -47,7 +48,7 @@ def listar_certificados(
     if current_user.rol == RolUsuario.SUPERVISOR:
         empresa_id = current_user.empresa_id
     items, total = svc.list_certificados(
-        db, empresa_id=empresa_id, tipo=tipo, q=q,
+        db, empresa_id=empresa_id, tipo=tipo, q=q, cliente_id=cliente_id,
         limit=limit, offset=offset, order_by=order_by, order_dir=order_dir,
     )
     return CertificadoServicioPageOut(items=items, total=total, limit=limit, offset=offset)

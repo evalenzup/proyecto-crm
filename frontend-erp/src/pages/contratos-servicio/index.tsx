@@ -12,6 +12,7 @@ import { useEmpresaContext } from '@/context/EmpresaContext';
 import { clienteService } from '@/services/clienteService';
 import { tecnicoService } from '@/services/tecnicoService';
 import { servicioOperativoService } from '@/services/servicioOperativoService';
+import { certificadoService } from '@/services/certificadoService';
 import {
   PlanServicio, PlanServicioInput, Periodicidad, PERIODICIDAD_LABELS,
   PlanTableroRow, PeriodoTablero, EstatusPeriodo,
@@ -248,6 +249,19 @@ const PlanesTab: React.FC<{
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [certificados, setCertificados] = useState<Opt[]>([]);
+  const clienteSel = Form.useWatch('cliente_id', form);
+
+  // Cargar los certificados del cliente seleccionado para poder ligarlos.
+  useEffect(() => {
+    if (!modalOpen || !clienteSel) { setCertificados([]); return; }
+    certificadoService.list({ empresa_id: empresaId, cliente_id: clienteSel, limit: 100 })
+      .then((r) => setCertificados(r.items.map((c) => ({
+        value: c.id,
+        label: `Folio ${c.folio} · ${c.tipo === 'SANITIZACION' ? 'Sanitización' : 'Plaguicidas'} · ${dayjs(c.fecha).format('DD/MM/YYYY')}`,
+      }))))
+      .catch(() => setCertificados([]));
+  }, [modalOpen, clienteSel, empresaId]);
 
   const cargar = useCallback(() => {
     setLoading(true);
@@ -277,6 +291,7 @@ const PlanesTab: React.FC<{
       precio_pactado: p.precio_pactado || undefined,
       vigencia_desde: p.vigencia_desde ? dayjs(p.vigencia_desde) : undefined,
       vigencia_hasta: p.vigencia_hasta ? dayjs(p.vigencia_hasta) : undefined,
+      certificado_id: p.certificado_id || undefined,
       notas: p.notas || undefined,
       activo: p.activo,
     });
@@ -298,6 +313,7 @@ const PlanesTab: React.FC<{
       precio_pactado: v.precio_pactado ?? null,
       vigencia_desde: (v.vigencia_desde as Dayjs).format('YYYY-MM-DD'),
       vigencia_hasta: v.vigencia_hasta ? (v.vigencia_hasta as Dayjs).format('YYYY-MM-DD') : null,
+      certificado_id: v.certificado_id || null,
       notas: v.notas || null,
       activo: v.activo,
     };
@@ -333,6 +349,10 @@ const PlanesTab: React.FC<{
     { title: 'Día', dataIndex: 'dia_preferido', key: 'dia', width: 60, render: (v: number) => v || '—' },
     { title: 'Servicio', dataIndex: 'servicio_nombre', key: 'srv', render: (v: string) => v || '—' },
     { title: 'Técnico', dataIndex: 'tecnico_nombre', key: 'tec', render: (v: string) => v || '—' },
+    {
+      title: 'Certificado', dataIndex: 'certificado_folio', key: 'cert', width: 100,
+      render: (v: number | null) => v != null ? <Tag color="blue">Folio {v}</Tag> : '—',
+    },
     {
       title: 'Precio', dataIndex: 'precio_pactado', key: 'precio', width: 110, align: 'right' as const,
       render: (v: number | null) => v != null ? `$${Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—',
@@ -398,6 +418,16 @@ const PlanesTab: React.FC<{
           </Form.Item>
           <Form.Item name="precio_pactado" label="Precio pactado (opcional)">
             <InputNumber min={0} style={{ width: '100%' }} prefix="$" precision={2} />
+          </Form.Item>
+          <Form.Item name="certificado_id" label="Certificado de fumigación (opcional)"
+            tooltip="Liga el plan al certificado del cliente. Selecciona primero el cliente.">
+            <Select
+              allowClear
+              options={certificados}
+              placeholder={clienteSel ? 'Selecciona un certificado del cliente' : 'Primero elige el cliente'}
+              disabled={!clienteSel}
+              notFoundContent="Este cliente no tiene certificados registrados"
+            />
           </Form.Item>
           <Form.Item name="notas" label="Notas">
             <Input.TextArea rows={2} />

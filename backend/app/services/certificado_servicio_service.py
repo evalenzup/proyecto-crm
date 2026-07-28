@@ -91,6 +91,7 @@ def list_certificados(
     empresa_id: Optional[UUID] = None,
     tipo: Optional[str] = None,
     q: Optional[str] = None,
+    cliente_id: Optional[UUID] = None,
     limit: int = 50,
     offset: int = 0,
     order_by: Optional[str] = None,
@@ -101,6 +102,8 @@ def list_certificados(
     query = db.query(CertificadoServicio)
     if empresa_id:
         query = query.filter(CertificadoServicio.empresa_id == empresa_id)
+    if cliente_id:
+        query = query.filter(CertificadoServicio.cliente_id == cliente_id)
     if tipo:
         query = query.filter(CertificadoServicio.tipo == tipo.upper())
     if q:
