@@ -29,6 +29,7 @@ import {
   ToolOutlined,
   SafetyCertificateOutlined,
   CalendarOutlined,
+  ScheduleOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography, Select, Modal, Form, Input, message, Empty } from 'antd';
@@ -212,6 +213,7 @@ const baseMenuData = [
     children: [
       { path: '/ordenes-servicio', name: 'Órdenes de Servicio', icon: <UnorderedListOutlined /> },
       { path: '/agenda', name: 'Agenda', icon: <CalendarOutlined /> },
+      { path: '/contratos-servicio', name: 'Contratos de servicio', icon: <ScheduleOutlined /> },
       { path: '/certificados', name: 'Certificados', icon: <SafetyCertificateOutlined /> },
     ],
   },
