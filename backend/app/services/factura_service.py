@@ -414,6 +414,88 @@ def timbrar_factura(db: Session, factura_id: UUID) -> dict:
         )
 
 
+def _validar_sustitucion_motivo_01(
+    db: Session, factura: Factura, folio_sustitucion: Optional[str]
+) -> None:
+    """
+    Para el motivo 01 el SAT exige que el CFDI sustituto declare la relación
+    ``TipoRelacion=04`` (Sustitución de los CFDI previos) apuntando al UUID de
+    la factura que se cancela. Si no la trae, el SAT recibe la solicitud pero la
+    rechaza con "Relación no válida o inexistente" y la factura se queda vigente
+    sin que el usuario se entere.
+
+    Se valida antes de enviar para no gastar el trámite. Si el sustituto no está
+    en nuestra base (se emitió por fuera) no se puede validar y se deja pasar.
+    """
+    uuid_sust = (folio_sustitucion or "").strip().upper()
+    uuid_cancelar = (factura.cfdi_uuid or "").strip().upper()
+    if not uuid_sust or not uuid_cancelar:
+        return
+
+    sustituta = (
+        db.query(Factura)
+        .filter(func.upper(Factura.cfdi_uuid) == uuid_sust)
+        .first()
+    )
+    if not sustituta:
+        logger.warning(
+            "Motivo 01: el CFDI sustituto %s no está en la base; no se puede "
+            "validar la relación antes de cancelar.", uuid_sust,
+        )
+        return
+
+    tipo_rel = (sustituta.cfdi_relacionados_tipo or "").strip()
+    relacionados = (sustituta.cfdi_relacionados or "").upper()
+    etiqueta = f"{sustituta.serie}-{sustituta.folio}"
+
+    if tipo_rel != "04" or uuid_cancelar not in relacionados:
+        if not relacionados:
+            problema = f"la factura sustituta {etiqueta} no declara ningún CFDI relacionado"
+        elif tipo_rel != "04":
+            problema = (
+                f"la factura sustituta {etiqueta} usa el tipo de relación "
+                f"'{tipo_rel}' en lugar de '04'"
+            )
+        else:
+            problema = (
+                f"la relación de la factura sustituta {etiqueta} apunta a otro CFDI"
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No se puede cancelar con motivo 01: {problema}. El SAT exige que el "
+                "comprobante que sustituye declare la relación tipo 04 (Sustitución de "
+                "los CFDI previos) hacia esta factura; de lo contrario rechaza la "
+                "cancelación con «Relación no válida o inexistente». Como el sustituto "
+                "ya está timbrado y no se puede modificar, emite una nueva factura "
+                "sustituta con la relación correcta o cancela con motivo 02."
+            ),
+        )
+
+
+def _archivar_acuse_cancelacion(db: Session, doc) -> None:
+    """
+    Descarga y archiva el acuse sellado por el SAT justo después de solicitar la
+    cancelación. Es la prueba fechada y firmada de que el trámite se presentó.
+
+    Best-effort: el PAC puede tardar en publicarlo, así que un fallo aquí no
+    interrumpe la cancelación (el acuse se puede bajar después bajo demanda).
+    """
+    try:
+        from app.services import acuse_cancelacion_service as acuse_svc
+
+        acuse_svc.descargar_acuse_xml(doc, forzar=True)
+        uuid = (getattr(doc, "cfdi_uuid", None) or getattr(doc, "uuid", None) or "").strip()
+        if uuid and hasattr(doc, "cancelacion_acuse_path"):
+            doc.cancelacion_acuse_path = f"acuses/{uuid}.xml"
+            db.add(doc)
+    except Exception as exc:  # noqa: BLE001
+        logger.info(
+            "Acuse de cancelación aún no disponible en el PAC (%s); se podrá "
+            "descargar más tarde.", exc,
+        )
+
+
 def solicitar_cancelacion_cfdi(
     db: Session, factura_id: UUID, motivo: str, folio_sustitucion: Optional[str] = None
 ) -> dict:
@@ -434,6 +516,9 @@ def solicitar_cancelacion_cfdi(
             status_code=400, detail="La factura no tiene un UUID fiscal para cancelar."
         )
 
+    if (motivo or "").strip() == "01":
+        _validar_sustitucion_motivo_01(db, factura, folio_sustitucion)
+
     try:
         out = _pac.solicitar_cancelacion_cfdi(
             db=db,
@@ -441,6 +526,7 @@ def solicitar_cancelacion_cfdi(
             motivo=motivo,
             folio_sustitucion=folio_sustitucion,
         )
+        _archivar_acuse_cancelacion(db, factura)
         try:
             notif_svc.crear_notificacion(
                 db=db,

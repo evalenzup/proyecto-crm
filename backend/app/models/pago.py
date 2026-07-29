@@ -68,6 +68,10 @@ class Pago(Base):
     qr_url = Column(Text, nullable=True)
 
     motivo_cancelacion = Column(String(2), nullable=True)
+    # Evidencia del trámite de cancelación (ver la nota equivalente en Factura).
+    cancelacion_code = Column(String(10), nullable=True)
+    cancelacion_message = Column(Text, nullable=True)
+    cancelacion_acuse_path = Column(String(255), nullable=True)
     # Fecha en que se solicitó la cancelación al SAT (mientras está EN_CANCELACION).
     # Se limpia cuando el SAT resuelve (cancelado o rechazado).
     fecha_solicitud_cancelacion = Column(DateTime, nullable=True)

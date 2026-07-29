@@ -67,6 +67,11 @@ class Factura(Base):
     )  # BORRADOR, TIMBRADA, EN_CANCELACION, CANCELADA
     motivo_cancelacion = Column(String(2), nullable=True)
     folio_fiscal_sustituto = Column(String(36), nullable=True)
+    # Evidencia del trámite de cancelación: qué respondió el PAC y dónde quedó
+    # archivado el acuse sellado por el SAT.
+    cancelacion_code = Column(String(10), nullable=True)
+    cancelacion_message = Column(Text, nullable=True)
+    cancelacion_acuse_path = Column(String(255), nullable=True)
     cfdi_uuid = Column(String(36), nullable=True)
     # Snapshot de los datos con los que el SAT identifica el CFDI, tomados del
     # XML al timbrar. Son inmutables: el cliente puede cambiar de RFC o el total
