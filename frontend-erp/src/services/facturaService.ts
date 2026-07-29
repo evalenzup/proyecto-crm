@@ -215,6 +215,28 @@ export const sendPreviewEmail = (id: string, recipients: string | string[]) => {
   return getData<{ message: string }>(api.post(`/facturas/${id}/send-preview-email`, payload));
 };
 
+export interface FacturaRelacionable {
+  id: string;
+  serie?: string | null;
+  folio?: number | null;
+  cfdi_uuid: string;
+  fecha_emision?: string | null;
+  total?: number | null;
+  estatus: string;
+}
+
+/** Facturas timbradas del cliente, para elegir el CFDI relacionado sin teclear el UUID. */
+export const getFacturasRelacionables = (params: {
+  cliente_id: string;
+  empresa_id?: string;
+  solo_vigentes?: boolean;
+  excluir_id?: string;
+}) => getData<FacturaRelacionable[]>(api.get('/facturas/relacionables', { params }));
+
+/** Facturas que ya declaran sustituir a ésta (relación tipo 04). */
+export const getFacturasSustitutas = (id: string) =>
+  getData<FacturaRelacionable[]>(api.get(`/facturas/${id}/sustitutas`));
+
 export const duplicarFactura = (id: string, sustituta = false) =>
   getData<FacturaOut>(api.post(`/facturas/${id}/duplicar`, null, { params: { sustituta } }));
 

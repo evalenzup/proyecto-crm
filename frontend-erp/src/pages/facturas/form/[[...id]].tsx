@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Select,
+  AutoComplete,
   InputNumber,
   Button,
   Spin,
@@ -147,6 +148,7 @@ const FacturaFormPage: React.FC = () => {
     cancelModalOpen,
     setCancelModalOpen,
     abrirModalCancelacion,
+    sustitutasOpts,
     submitCancel,
 
     // acciones (CFDI / archivos)
@@ -162,6 +164,7 @@ const FacturaFormPage: React.FC = () => {
     // EN_CANCELACION
     fechaSolicitudCancelacion,
     cancelacionInfo,
+    relacionablesOpts,
     puedeVerificarSat,
     puedeRevertir,
     handleVerificarSAT,
@@ -599,10 +602,29 @@ const FacturaFormPage: React.FC = () => {
                         <Form.Item
                           label="CFDIs relacionados"
                           name="cfdi_relacionados"
-                          tooltip="Separados por coma o texto libre"
-                          rules={getFieldValue('tiene_relacion') ? [{ required: true, message: 'Ingresa el/los UUID relacionado(s)' }] : []}
+                          tooltip={
+                            getFieldValue('cfdi_relacionados_tipo') === '04'
+                              ? 'Elige la factura que estás sustituyendo. El sistema toma su folio fiscal para que no haya errores de captura.'
+                              : 'Elige las facturas relacionadas de este cliente. También puedes pegar un UUID si el CFDI se emitió fuera del sistema.'
+                          }
+                          rules={getFieldValue('tiene_relacion') ? [{ required: true, message: 'Elige o escribe el/los UUID relacionado(s)' }] : []}
+                          getValueProps={(v) => ({ value: v ? String(v).split(',').map((x: string) => x.trim()).filter(Boolean) : [] })}
+                          normalize={(v) => (Array.isArray(v) ? v.join(',') : v)}
                         >
-                          <Input disabled={fieldDisabled(!getFieldValue('tiene_relacion') || !empresaId)} />
+                          <Select
+                            mode="tags"
+                            allowClear
+                            options={relacionablesOpts}
+                            optionFilterProp="label"
+                            placeholder={
+                              !form.getFieldValue('cliente_id')
+                                ? 'Primero elige el cliente'
+                                : 'Selecciona la factura (o pega un UUID)'
+                            }
+                            tokenSeparators={[',']}
+                            disabled={fieldDisabled(!getFieldValue('tiene_relacion') || !empresaId)}
+                            notFoundContent="Este cliente no tiene facturas timbradas para relacionar"
+                          />
                         </Form.Item>
                       </Col>
                     </>
@@ -1096,13 +1118,28 @@ const FacturaFormPage: React.FC = () => {
                       : []
                   }
                 >
-                  <Input
-                    placeholder={
-                      necesitaSustituto
-                        ? 'Ej. ABC1147C-D41E-4596-9C3E-45629B090000'
-                        : 'Opcional'
+                  <AutoComplete
+                    allowClear
+                    options={sustitutasOpts}
+                    filterOption={(input, option) =>
+                      String(option?.label ?? '').toLowerCase().includes(input.toLowerCase()) ||
+                      String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
                     }
                     disabled={!necesitaSustituto}
+                    placeholder={
+                      !necesitaSustituto
+                        ? 'Opcional'
+                        : sustitutasOpts.length
+                          ? 'Selecciona la factura sustituta'
+                          : 'Pega el UUID de la factura sustituta'
+                    }
+                    notFoundContent={
+                      <span style={{ fontSize: 12 }}>
+                        No hay una factura sustituta relacionada a ésta. Créala con el
+                        botón <b>Crear sustituta</b> (queda ligada con tipo 04), o pega
+                        aquí el UUID si se emitió fuera del sistema.
+                      </span>
+                    }
                   />
                 </Form.Item>
               );

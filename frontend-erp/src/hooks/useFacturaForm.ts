@@ -58,6 +58,12 @@ export const useFacturaForm = () => {
 
   // ── Watchers ──────────────────────────────────────────────────────────────────
   const empresaId = Form.useWatch('empresa_id', form);
+  const clienteIdWatch = Form.useWatch('cliente_id', form);
+  const tipoRelacionWatch = Form.useWatch('cfdi_relacionados_tipo', form);
+  // Facturas del cliente para elegir el CFDI relacionado sin teclear el UUID
+  const [relacionablesOpts, setRelacionablesOpts] = useState<
+    { label: string; value: string }[]
+  >([]);
   const moneda = Form.useWatch('moneda', form);
   const metodoPago = Form.useWatch('metodo_pago', form);
   Form.useWatch('forma_pago', form); // side-effect watcher
@@ -306,6 +312,33 @@ export const useFacturaForm = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+
+  // Carga las facturas del cliente que se pueden relacionar. Para el tipo 04
+  // (sustitución) solo tiene sentido relacionar facturas vigentes.
+  useEffect(() => {
+    if (!clienteIdWatch) { setRelacionablesOpts([]); return; }
+    let cancelado = false;
+    svc.getFacturasRelacionables({
+      cliente_id: clienteIdWatch,
+      empresa_id: empresaId,
+      solo_vigentes: tipoRelacionWatch === '04',
+      excluir_id: id || undefined,
+    })
+      .then((rows) => {
+        if (cancelado) return;
+        setRelacionablesOpts(rows.map((r) => ({
+          value: r.cfdi_uuid,
+          label: `${r.serie ?? ''}-${r.folio ?? ''} · ${
+            r.fecha_emision ? new Date(r.fecha_emision).toLocaleDateString('es-MX') : ''
+          } · $${Number(r.total ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}${
+            r.estatus !== 'TIMBRADA' ? ` · ${r.estatus}` : ''
+          }`,
+        })));
+      })
+      .catch(() => { if (!cancelado) setRelacionablesOpts([]); });
+    return () => { cancelado = true; };
+  }, [clienteIdWatch, empresaId, tipoRelacionWatch, id]);
+
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
 
   // ── Save ──────────────────────────────────────────────────────────────────────
@@ -386,6 +419,7 @@ export const useFacturaForm = () => {
 
   // ── Return ────────────────────────────────────────────────────────────────────
   return {
+    relacionablesOpts,
     // state
     id, loading, saving, metadata, estatusCFDI, statusPago, rfcEmisor,
     fechaSolicitudCancelacion,
@@ -428,6 +462,7 @@ export const useFacturaForm = () => {
     previewPdfUrl: acciones.previewPdfUrl,
     timbrarFactura: acciones.timbrarFactura,
     abrirModalCancelacion: acciones.abrirModalCancelacion,
+    sustitutasOpts: acciones.sustitutasOpts,
     submitCancel: acciones.submitCancel,
     verPDF: acciones.verPDF,
     cerrarPreview: acciones.cerrarPreview,

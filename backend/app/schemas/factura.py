@@ -179,6 +179,23 @@ class FacturaSimpleOut(BaseModel):
         from_attributes = True
 
 
+class FacturaRelacionableOut(BaseModel):
+    """
+    Vista ligera de una factura timbrada para elegirla como CFDI relacionado
+    (o como sustituta) sin teclear el UUID a mano.
+    """
+    id: UUID
+    serie: Optional[str] = None
+    folio: Optional[int] = None
+    cfdi_uuid: str
+    fecha_emision: Optional[TijuanaDatetime] = None
+    total: Optional[condecimal(max_digits=18, decimal_places=6)] = None
+    estatus: str
+
+    class Config:
+        from_attributes = True
+
+
 class FacturaOut(FacturaBase):
     id: UUID
     estatus: Literal["BORRADOR", "TIMBRADA", "EN_CANCELACION", "CANCELADA"]

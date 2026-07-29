@@ -58,10 +58,32 @@ export const useFacturaAccionesCFDI = ({
   };
 
   // ── Cancel flow ──────────────────────────────────────────────────────────────
-  const abrirModalCancelacion = () => {
+  // Sustitutas ya relacionadas (tipo 04) a esta factura, para no teclear el UUID
+  const [sustitutasOpts, setSustitutasOpts] = useState<{ label: string; value: string }[]>([]);
+
+  const abrirModalCancelacion = async () => {
     cancelForm.resetFields();
     cancelForm.setFieldsValue({ motivo: motivosCancel?.[0]?.value || '02', folio_sustitucion: undefined });
+    setSustitutasOpts([]);
     setCancelModalOpen(true);
+
+    if (!id) return;
+    try {
+      const subs = await svc.getFacturasSustitutas(id);
+      const opts = subs.map((r) => ({
+        value: r.cfdi_uuid,
+        label: `${r.serie ?? ''}-${r.folio ?? ''} · ${
+          r.fecha_emision ? new Date(r.fecha_emision).toLocaleDateString('es-MX') : ''
+        } · $${Number(r.total ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+      }));
+      setSustitutasOpts(opts);
+      // Si hay exactamente una candidata, se prellena; con varias el usuario elige.
+      if (opts.length === 1) {
+        cancelForm.setFieldsValue({ folio_sustitucion: opts[0].value });
+      }
+    } catch {
+      setSustitutasOpts([]);
+    }
   };
 
   const submitCancel = async () => {
@@ -191,7 +213,7 @@ export const useFacturaAccionesCFDI = ({
     cancelModalOpen, setCancelModalOpen,
     previewModalOpen, previewPdfUrl,
     timbrarFactura,
-    abrirModalCancelacion, submitCancel,
+    abrirModalCancelacion, submitCancel, sustitutasOpts,
     verPDF, cerrarPreview, descargarPDF, descargarXML,
     handleVerificarSAT, handleRevertirCancelacion,
   };

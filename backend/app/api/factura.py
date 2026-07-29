@@ -9,6 +9,7 @@ from datetime import date
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, field_validator
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.utils.excel import generate_excel
@@ -18,7 +19,9 @@ from app.database import get_db
 from app.models.factura import Factura
 from app.models.usuario import Usuario, RolUsuario
 from app.api import deps
-from app.schemas.factura import FacturaCreate, FacturaUpdate, FacturaOut
+from app.schemas.factura import (
+    FacturaCreate, FacturaUpdate, FacturaOut, FacturaRelacionableOut,
+)
 
 # Catálogos (se mantienen aquí por ser data de solo lectura para el schema del UI)
 
@@ -259,9 +262,84 @@ def duplicar_factura_endpoint(
     return srv.duplicar_factura(db, id, como_sustituta=sustituta)
 
 
+@router.get(
+    "/relacionables",
+    response_model=List[FacturaRelacionableOut],
+    summary="Facturas timbradas del cliente para elegir como CFDI relacionado",
+)
+def listar_relacionables(
+    cliente_id: UUID = Query(..., description="Cliente al que se le factura"),
+    empresa_id: Optional[UUID] = Query(None),
+    solo_vigentes: bool = Query(
+        True, description="Solo TIMBRADAS (para sustitución tipo 04)"
+    ),
+    excluir_id: Optional[UUID] = Query(None, description="No incluir esta factura"),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Alimenta el selector de CFDI relacionados para que el usuario elija la
+    factura en vez de teclear el UUID (que es donde se cuelan los errores).
+    """
+    if current_user.rol == RolUsuario.SUPERVISOR:
+        empresa_id = current_user.empresa_id
+
+    q = db.query(Factura).filter(
+        Factura.cliente_id == cliente_id,
+        Factura.cfdi_uuid.isnot(None),
+    )
+    if empresa_id:
+        q = q.filter(Factura.empresa_id == empresa_id)
+    if solo_vigentes:
+        q = q.filter(Factura.estatus == "TIMBRADA")
+    else:
+        q = q.filter(Factura.estatus.in_(["TIMBRADA", "EN_CANCELACION", "CANCELADA"]))
+    if excluir_id:
+        q = q.filter(Factura.id != excluir_id)
+
+    return q.order_by(Factura.fecha_emision.desc()).limit(limit).all()
+
+
+@router.get(
+    "/{id}/sustitutas",
+    response_model=List[FacturaRelacionableOut],
+    summary="Facturas que declaran sustituir a ésta (relación tipo 04)",
+)
+def listar_sustitutas(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Busca las facturas que ya declaran la relación 04 hacia este CFDI, para
+    prellenar el folio sustituto al cancelar con motivo 01.
+    """
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if not factura.cfdi_uuid:
+        return []
+
+    return (
+        db.query(Factura)
+        .filter(
+            Factura.empresa_id == factura.empresa_id,
+            Factura.cfdi_relacionados_tipo == "04",
+            func.upper(Factura.cfdi_relacionados).contains(factura.cfdi_uuid.upper()),
+            Factura.cfdi_uuid.isnot(None),
+            Factura.id != factura.id,
+        )
+        .order_by(Factura.fecha_emision.desc())
+        .all()
+    )
+
+
 @router.get("/{id}", response_model=FacturaOut)
 def obtener_factura(
-    id: UUID, 
+    id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Factura:
