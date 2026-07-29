@@ -142,5 +142,10 @@ export const ACCIONES_AUDITORIA = [
     { label: 'Crear Fact. Programada', value: 'CREAR_PROGRAMACION_FACTURA' },
     { label: 'Actualizar Fact. Programada', value: 'ACTUALIZAR_PROGRAMACION_FACTURA' },
     { label: 'Eliminar Fact. Programada', value: 'ELIMINAR_PROGRAMACION_FACTURA' },
+    { label: 'Crear Plan de Servicio', value: 'CREAR_PLAN_SERVICIO' },
+    { label: 'Actualizar Plan de Servicio', value: 'ACTUALIZAR_PLAN_SERVICIO' },
+    { label: 'Eliminar Plan de Servicio', value: 'ELIMINAR_PLAN_SERVICIO' },
+    { label: 'Programar Servicio (contrato)', value: 'PROGRAMAR_PLAN_SERVICIO' },
+    { label: 'Marcar Cobro de Orden', value: 'MARCAR_COBRO_ORDEN' },
     { label: 'Exportar Excel', value: 'EXPORTAR_EXCEL' },
 ];
