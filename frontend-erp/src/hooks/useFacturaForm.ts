@@ -85,7 +85,9 @@ export const useFacturaForm = () => {
   };
 
   const puedeTimbrar = Boolean(id) && estatusCFDI === 'BORRADOR';
-  const puedeCancelar = Boolean(id) && estatusCFDI === 'TIMBRADA';
+  // EN_CANCELACION también permite cancelar: sirve para reintentar cuando la
+  // solicitud anterior no llegó a registrarse en el SAT.
+  const puedeCancelar = Boolean(id) && (estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION');
   const puedeVerificarSat = Boolean(id) && (estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'TIMBRADA' || estatusCFDI === 'CANCELADA');
   const puedeRevertir = Boolean(id) && estatusCFDI === 'EN_CANCELACION';
 

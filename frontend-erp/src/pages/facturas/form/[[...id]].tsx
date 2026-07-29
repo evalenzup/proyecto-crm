@@ -440,14 +440,18 @@ const FacturaFormPage: React.FC = () => {
                   type="warning"
                   showIcon
                   style={{ marginBottom: 16 }}
-                  message="Cancelación en proceso"
+                  message="Cancelación solicitada"
                   description={
                     <>
-                      Se envió la solicitud de cancelación al SAT. El receptor tiene 72 horas hábiles para aceptar o rechazar.
+                      Se envió la solicitud de cancelación al SAT
                       {fechaSolicitudCancelacion && (
-                        <> Solicitada el: <b>{new Date(fechaSolicitudCancelacion).toLocaleString('es-MX')}</b>.</>
+                        <> el <b>{new Date(fechaSolicitudCancelacion).toLocaleString('es-MX')}</b></>
                       )}
-                      {' '}El sistema verifica automáticamente el estado al cargar esta página.
+                      . Si requiere aceptación del receptor, él tiene 72 horas hábiles para responder;
+                      al vencer el plazo el SAT la cancela automáticamente.
+                      {' '}El sistema consulta el estado real al abrir esta página y una vez al día.
+                      {' '}Si el SAT no llega a registrar la solicitud, la factura vuelve a TIMBRADA
+                      {' '}y puedes reintentar la cancelación con el botón <b>Reintentar cancelación</b>.
                     </>
                   }
                 />
@@ -779,8 +783,13 @@ const FacturaFormPage: React.FC = () => {
                 onClick={abrirModalCancelacion}
                 loading={accionLoading.cancelar || cancelSubmitting}
                 disabled={!puedeCancelar}
+                title={
+                  estatusCFDI === 'EN_CANCELACION'
+                    ? 'Reenvía la solicitud al SAT (útil si la anterior no quedó registrada)'
+                    : undefined
+                }
               >
-                Cancelar CFDI
+                {estatusCFDI === 'EN_CANCELACION' ? 'Reintentar cancelación' : 'Cancelar CFDI'}
               </Button>
 
               {/* Botones EN_CANCELACION */}

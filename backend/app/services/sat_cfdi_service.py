@@ -24,10 +24,15 @@ from lxml import etree
 
 logger = logging.getLogger("app")
 
-# Días de antigüedad de la solicitud tras los cuales, si el SAT sigue reportando
-# el CFDI Vigente y SIN cancelación en proceso, damos la cancelación por vencida
-# (el receptor no la aceptó en el plazo) y revertimos a TIMBRADA/TIMBRADO.
-# Cubre las 72 horas hábiles del SAT más un fin de semana.
+# Margen tras enviar la solicitud durante el cual confiamos en nuestro estado
+# local aunque el SAT todavía no muestre el trámite (el registro puede tardar
+# unos minutos). Pasado ese margen, si el SAT sigue sin reportar solicitud
+# alguna, es que nunca se registró.
+HORAS_GRACIA_SOLICITUD = 24
+
+# Respaldo para el caso ambiguo: el SAT reporta un EstatusCancelacion que no
+# sabemos interpretar (ni vacío, ni en proceso, ni rechazada). Tras estos días
+# se revierte igual para no dejar el CFDI atorado indefinidamente.
 DIAS_CANCELACION_VENCIDA = 5
 
 SAT_CONSULTA_URL = (
@@ -76,6 +81,25 @@ class AcuseSAT:
     def rechazado_por_receptor(self) -> bool:
         """El receptor rechazó explícitamente la cancelación."""
         return "rechazada" in (self.estatus_cancelacion or "").lower()
+
+    @property
+    def sin_solicitud_registrada(self) -> bool:
+        """
+        El CFDI está Vigente y el SAT no reporta ningún trámite de cancelación.
+
+        EstatusCancelacion vacío sobre un CFDI vigente significa que el SAT no
+        tiene registrada ninguna solicitud: ni en proceso, ni rechazada, ni
+        aplicada. O nunca llegó, o ya se resolvió sin cancelar.
+        """
+        return not self.cancelado and not (self.estatus_cancelacion or "").strip()
+
+    @property
+    def no_cancelable(self) -> bool:
+        """
+        El SAT no permite cancelar este CFDI (normalmente porque tiene otros
+        CFDI relacionados). Una solicitud sobre él nunca va a prosperar.
+        """
+        return "no cancelable" in (self.es_cancelable or "").lower()
 
 
 def extraer_datos_cfdi(xml_bytes: bytes) -> dict:
@@ -278,9 +302,11 @@ def aplicar_acuse_sat(
       · SAT dice Vigente + "Solicitud rechazada"  → revertir a TIMBRADA (receptor rechazó explícitamente)
       · SAT dice Vigente sin fecha registrada     → anclar fecha actual, mantener EN_CANCELACION
       · SAT dice Vigente, solicitud reciente       → mantener EN_CANCELACION (el SAT puede tardar en
-                                                    reflejar la solicitud recién enviada)
-      · SAT dice Vigente, solicitud vencida        → revertir a TIMBRADA (cancelación "con aceptación"
-        (> DIAS_CANCELACION_VENCIDA)                que expiró sin que el receptor la aceptara)
+        (< HORAS_GRACIA_SOLICITUD)                  reflejar la solicitud recién enviada)
+      · SAT dice Vigente SIN trámite registrado    → revertir a TIMBRADA (la solicitud nunca se
+        (EstatusCancelacion vacío)                  registró en el SAT, o se resolvió sin cancelar)
+      · SAT dice Vigente con estatus desconocido   → revertir a TIMBRADA tras DIAS_CANCELACION_VENCIDA
+                                                    (respaldo, para no dejarlo atorado)
 
     No llama a db.add() ni db.commit() — responsabilidad del llamador.
 
@@ -325,22 +351,46 @@ def aplicar_acuse_sat(
             nuevo_estatus = "TIMBRADA"
             factura.fecha_solicitud_cancelacion = None
         elif estatus_anterior == "EN_CANCELACION":
+            antiguedad = (
+                ahora - factura.fecha_solicitud_cancelacion
+                if factura.fecha_solicitud_cancelacion
+                else None
+            )
             if acuse.rechazado_por_receptor:
                 # El receptor rechazó explícitamente → revertir a TIMBRADA
                 nuevo_estatus = "TIMBRADA"
                 factura.fecha_solicitud_cancelacion = None
-            elif factura.fecha_solicitud_cancelacion is None:
+            elif antiguedad is None:
                 # Sin fecha registrada: anclar ahora para tener referencia,
                 # pero NO revertir — el SAT puede tardar en reflejar la solicitud
                 factura.fecha_solicitud_cancelacion = ahora
-            elif (ahora - factura.fecha_solicitud_cancelacion) >= timedelta(days=DIAS_CANCELACION_VENCIDA):
-                # Solicitud vencida y el CFDI sigue Vigente sin cancelación en
-                # proceso: la cancelación "con aceptación" expiró sin que el
-                # receptor la aceptara → no procedió, revertir a TIMBRADA.
+            elif acuse.sin_solicitud_registrada and antiguedad >= timedelta(
+                hours=HORAS_GRACIA_SOLICITUD
+            ):
+                # El SAT no tiene registrada ninguna solicitud sobre este CFDI y
+                # ya pasó el margen: la cancelación nunca llegó a registrarse
+                # (o se resolvió sin cancelar) → revertir a TIMBRADA.
+                logger.info(
+                    "[SAT] CFDI %s sin solicitud de cancelación registrada en el SAT "
+                    "(%s) → se revierte a TIMBRADA",
+                    getattr(factura, "cfdi_uuid", "?"),
+                    "no cancelable" if acuse.no_cancelable else "cancelable",
+                )
                 nuevo_estatus = "TIMBRADA"
                 factura.fecha_solicitud_cancelacion = None
-            # else: solicitud reciente → mantener EN_CANCELACION (el SAT puede
-            # tardar en reflejar la solicitud recién enviada)
+            elif antiguedad >= timedelta(days=DIAS_CANCELACION_VENCIDA):
+                # Caso ambiguo: el SAT reporta un EstatusCancelacion que no
+                # sabemos interpretar. Se revierte para no dejarlo atorado.
+                logger.warning(
+                    "[SAT] CFDI %s con EstatusCancelacion no reconocido (%r) tras "
+                    "%d días → se revierte a TIMBRADA",
+                    getattr(factura, "cfdi_uuid", "?"),
+                    acuse.estatus_cancelacion,
+                    antiguedad.days,
+                )
+                nuevo_estatus = "TIMBRADA"
+                factura.fecha_solicitud_cancelacion = None
+            # else: solicitud dentro del margen → mantener EN_CANCELACION
 
     factura.estatus = nuevo_estatus
     return nuevo_estatus, estatus_anterior != nuevo_estatus
@@ -396,14 +446,24 @@ def aplicar_acuse_sat_pago(
             nuevo = "TIMBRADO"
             pago.fecha_solicitud_cancelacion = None
         elif estatus_anterior == "EN_CANCELACION":
+            antiguedad = (
+                ahora - pago.fecha_solicitud_cancelacion
+                if pago.fecha_solicitud_cancelacion
+                else None
+            )
             if acuse.rechazado_por_receptor:
                 nuevo = "TIMBRADO"
                 pago.fecha_solicitud_cancelacion = None
-            elif pago.fecha_solicitud_cancelacion is None:
+            elif antiguedad is None:
                 pago.fecha_solicitud_cancelacion = ahora
-            elif (ahora - pago.fecha_solicitud_cancelacion) >= timedelta(days=DIAS_CANCELACION_VENCIDA):
-                # Solicitud vencida y el complemento sigue Vigente sin proceso:
-                # la cancelación con aceptación expiró sin respuesta → revertir.
+            elif acuse.sin_solicitud_registrada and antiguedad >= timedelta(
+                hours=HORAS_GRACIA_SOLICITUD
+            ):
+                # El SAT no tiene registrada solicitud alguna → nunca se aplicó.
+                nuevo = "TIMBRADO"
+                pago.fecha_solicitud_cancelacion = None
+            elif antiguedad >= timedelta(days=DIAS_CANCELACION_VENCIDA):
+                # Caso ambiguo (EstatusCancelacion no reconocido) → no dejarlo atorado.
                 nuevo = "TIMBRADO"
                 pago.fecha_solicitud_cancelacion = None
 

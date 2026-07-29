@@ -420,10 +420,14 @@ def solicitar_cancelacion_cfdi(
     factura = db.query(Factura).filter(Factura.id == factura_id).first()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-    if factura.estatus != "TIMBRADA":
+    # Se permite reintentar desde EN_CANCELACION: si la solicitud anterior nunca
+    # llegó a registrarse en el SAT, esta es la única forma de destrabar la
+    # factura. Si sí hay una solicitud viva, el PAC responde "solicitud previa"
+    # y el flujo la deja EN_CANCELACION igual que antes.
+    if factura.estatus not in ("TIMBRADA", "EN_CANCELACION"):
         raise HTTPException(
             status_code=400,
-            detail="Solo se puede cancelar una factura que está TIMBRADA",
+            detail="Solo se puede cancelar una factura TIMBRADA o en proceso de cancelación",
         )
     if not factura.cfdi_uuid:
         raise HTTPException(

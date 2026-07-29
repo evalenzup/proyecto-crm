@@ -862,9 +862,12 @@ class FacturacionModernaPAC:
         if not f:
             raise ValueError("Factura no encontrada")
 
-        if (f.estatus or "").upper() != "TIMBRADA":
+        # EN_CANCELACION también se admite: permite reintentar cuando la
+        # solicitud anterior no llegó a registrarse en el SAT.
+        if (f.estatus or "").upper() not in ("TIMBRADA", "EN_CANCELACION"):
             raise ValueError(
-                "Solo se puede solicitar cancelación de una factura TIMBRADA"
+                "Solo se puede solicitar cancelación de una factura TIMBRADA "
+                "o en proceso de cancelación"
             )
 
         uuid = (getattr(f, "cfdi_uuid", None) or "").strip()
@@ -1028,7 +1031,9 @@ class FacturacionModernaPAC:
             # Solicitud aceptada pero el SAT aún no la confirma como cancelada
             # (típico de motivo 01 "con aceptación", esperando al receptor).
             f.estatus = "EN_CANCELACION"
-            if hasattr(f, "fecha_solicitud_cancelacion") and not f.fecha_solicitud_cancelacion:
+            if hasattr(f, "fecha_solicitud_cancelacion"):
+                # Siempre se reinicia: en un reintento el margen de gracia debe
+                # contarse desde este envío, no desde el intento anterior.
                 f.fecha_solicitud_cancelacion = _dt.utcnow()
         # ---------------------------------------------
 
@@ -1060,9 +1065,11 @@ class FacturacionModernaPAC:
         if not p:
             raise ValueError("Pago no encontrado")
 
-        if (p.estatus or "").upper() != "TIMBRADO":
+        # EN_CANCELACION también se admite (ver la nota en la cancelación de facturas).
+        if (p.estatus or "").upper() not in ("TIMBRADO", "EN_CANCELACION"):
             raise ValueError(
-                "Solo se puede solicitar cancelación de un pago TIMBRADO"
+                "Solo se puede solicitar cancelación de un pago TIMBRADO "
+                "o en proceso de cancelación"
             )
 
         uuid = getattr(p, "uuid", None)
@@ -1179,8 +1186,8 @@ class FacturacionModernaPAC:
             db.add(p); db.commit(); db.refresh(p)
         elif solicitud_aceptada:
             p.estatus = EstatusPago.EN_CANCELACION
-            if not p.fecha_solicitud_cancelacion:
-                p.fecha_solicitud_cancelacion = _dt.utcnow()
+            # Siempre se reinicia (ver la nota en la cancelación de facturas).
+            p.fecha_solicitud_cancelacion = _dt.utcnow()
             db.add(p); db.commit(); db.refresh(p)
 
         return {

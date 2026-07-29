@@ -864,10 +864,13 @@ def cancelar_pago_sat(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado"
         )
 
-    if pago.estatus != EstatusPago.TIMBRADO:
+    # EN_CANCELACION se admite para poder reintentar cuando la solicitud previa
+    # no llegó a registrarse en el SAT.
+    if pago.estatus not in (EstatusPago.TIMBRADO, EstatusPago.EN_CANCELACION):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede cancelar un pago con estatus {pago.estatus}. Solo TIMBRADO.",
+            detail=f"No se puede cancelar un pago con estatus {pago.estatus}. "
+                   "Solo TIMBRADO o en proceso de cancelación.",
         )
 
     # Validacion motivo 01
