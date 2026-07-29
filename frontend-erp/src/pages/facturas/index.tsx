@@ -259,6 +259,7 @@ const FacturasIndexPage: React.FC = () => {
                 options={[
                   { value: 'BORRADOR', label: 'BORRADOR' },
                   { value: 'TIMBRADA', label: 'TIMBRADA' },
+                  { value: 'EN_CANCELACION', label: 'EN CANCELACIÓN' },
                   { value: 'CANCELADA', label: 'CANCELADA' },
                 ]}
               />
