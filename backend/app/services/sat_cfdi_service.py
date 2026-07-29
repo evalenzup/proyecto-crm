@@ -78,6 +78,83 @@ class AcuseSAT:
         return "rechazada" in (self.estatus_cancelacion or "").lower()
 
 
+def extraer_datos_cfdi(xml_bytes: bytes) -> dict:
+    """
+    Extrae del XML timbrado los tres datos con los que el SAT identifica un CFDI:
+    RFC del emisor, RFC del receptor y Total.
+
+    Son inmutables una vez timbrado, a diferencia de los valores en la BD (el
+    cliente puede cambiar de RFC, el total puede recalcularse), que es lo que
+    rompe la consulta al SAT ("601: la expresión impresa no es válida").
+
+    Devuelve {} si no se pueden extraer.
+    """
+    datos: dict = {}
+    try:
+        root = etree.fromstring(xml_bytes)
+        for el in root.iter():
+            local = etree.QName(el.tag).localname if el.tag else ""
+            if local == "Comprobante":
+                total = el.get("Total") or el.get("total")
+                if total:
+                    datos["total"] = total
+            elif local == "Emisor":
+                rfc = el.get("Rfc") or el.get("rfc")
+                if rfc:
+                    datos["rfc_emisor"] = rfc.strip().upper()
+            elif local == "Receptor":
+                rfc = el.get("Rfc") or el.get("rfc")
+                if rfc:
+                    datos["rfc_receptor"] = rfc.strip().upper()
+    except Exception:  # noqa: BLE001 — caemos al regex de abajo
+        pass
+
+    if not datos:
+        import re
+
+        txt = xml_bytes.decode("utf-8", "ignore")
+        m = re.search(r"<[\w:]*Emisor[^>]*\sRfc=\"([^\"]+)\"", txt)
+        if m:
+            datos["rfc_emisor"] = m.group(1).strip().upper()
+        m = re.search(r"<[\w:]*Receptor[^>]*\sRfc=\"([^\"]+)\"", txt)
+        if m:
+            datos["rfc_receptor"] = m.group(1).strip().upper()
+        m = re.search(r"<[\w:]*Comprobante[^>]*\sTotal=\"([^\"]+)\"", txt)
+        if m:
+            datos["total"] = m.group(1)
+
+    return datos
+
+
+def datos_consulta(doc) -> Tuple[str, str, float]:
+    """
+    (rfc_emisor, rfc_receptor, total) para consultar un CFDI en el SAT.
+
+    Prefiere el snapshot tomado del XML al timbrar (``cfdi_rfc_emisor`` /
+    ``cfdi_rfc_receptor`` / ``cfdi_total``) porque es inmutable; sólo si no
+    existe cae a los valores actuales de la BD (empresa/cliente/total), que
+    pueden haber cambiado después de timbrar y hacen fallar la consulta.
+
+    Sirve para Factura y para Pago.
+    """
+    emisor = (getattr(doc, "cfdi_rfc_emisor", None) or "").strip().upper()
+    receptor = (getattr(doc, "cfdi_rfc_receptor", None) or "").strip().upper()
+    total_snap = getattr(doc, "cfdi_total", None)
+
+    if not emisor:
+        emisor = (getattr(getattr(doc, "empresa", None), "rfc", None) or "").strip().upper()
+    if not receptor:
+        receptor = (getattr(getattr(doc, "cliente", None), "rfc", None) or "").strip().upper()
+
+    if total_snap is not None:
+        total = float(total_snap)
+    else:
+        # Los complementos de pago timbran con Total=0; las facturas con su total.
+        total = float(getattr(doc, "total", 0) or 0)
+
+    return emisor, receptor, total
+
+
 def _build_expresion(rfc_emisor: str, rfc_receptor: str, total: float, uuid: str) -> str:
     """
     Construye la expresionImpresa para el CFDI 4.0.

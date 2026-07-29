@@ -68,6 +68,13 @@ class Factura(Base):
     motivo_cancelacion = Column(String(2), nullable=True)
     folio_fiscal_sustituto = Column(String(36), nullable=True)
     cfdi_uuid = Column(String(36), nullable=True)
+    # Snapshot de los datos con los que el SAT identifica el CFDI, tomados del
+    # XML al timbrar. Son inmutables: el cliente puede cambiar de RFC o el total
+    # recalcularse, y entonces la consulta al SAT falla con "601". Ver
+    # sat_cfdi_service.datos_consulta().
+    cfdi_rfc_emisor = Column(String(13), nullable=True)
+    cfdi_rfc_receptor = Column(String(13), nullable=True)
+    cfdi_total = Column(Numeric(18, 6), nullable=True)
     fecha_timbrado = Column(DateTime, nullable=True)
     fecha_solicitud_cancelacion = Column(DateTime, nullable=True)
     no_certificado = Column(String(20), nullable=True)

@@ -478,14 +478,13 @@ def verificar_estado_sat(
     if not factura.cfdi_uuid:
         raise HTTPException(status_code=400, detail="La factura no tiene UUID fiscal")
 
-    rfc_emisor = getattr(getattr(factura, "empresa", None), "rfc", None) or ""
-    rfc_receptor = getattr(getattr(factura, "cliente", None), "rfc", None) or ""
-    total = float(factura.total or 0)
+    # Datos del XML timbrado (inmutables) con fallback a la BD
+    rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(factura)
 
     try:
         acuse = sat_svc.consultar_cfdi(
-            rfc_emisor=rfc_emisor.strip().upper(),
-            rfc_receptor=rfc_receptor.strip().upper(),
+            rfc_emisor=rfc_emisor,
+            rfc_receptor=rfc_receptor,
             total=total,
             uuid=factura.cfdi_uuid,
         )

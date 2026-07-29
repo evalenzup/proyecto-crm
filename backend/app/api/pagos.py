@@ -488,11 +488,14 @@ def verificar_estado_sat_pago(
     if not pago.uuid:
         raise HTTPException(status_code=400, detail="El pago no tiene UUID fiscal")
 
+    # Datos del XML timbrado (inmutables) con fallback a la BD
+    rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(pago)
+
     try:
         acuse = sat_svc.consultar_cfdi(
-            rfc_emisor=(getattr(getattr(pago, "empresa", None), "rfc", None) or "").strip().upper(),
-            rfc_receptor=(getattr(getattr(pago, "cliente", None), "rfc", None) or "").strip().upper(),
-            total=0.0,  # los complementos de pago timbran con Total=0
+            rfc_emisor=rfc_emisor,
+            rfc_receptor=rfc_receptor,
+            total=total,  # los complementos de pago timbran con Total=0
             uuid=pago.uuid,
         )
     except RuntimeError as e:

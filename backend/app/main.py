@@ -99,13 +99,12 @@ def _sync_cancelaciones_job():
 
         no_verificables = 0
         for f in pendientes:
-            rfc_emisor = getattr(f.empresa, "rfc", None) or ""
-            rfc_receptor = getattr(f.cliente, "rfc", None) or ""
             try:
+                rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(f)
                 acuse = sat_svc.consultar_cfdi(
-                    rfc_emisor=rfc_emisor.strip().upper(),
-                    rfc_receptor=rfc_receptor.strip().upper(),
-                    total=float(f.total or 0),
+                    rfc_emisor=rfc_emisor,
+                    rfc_receptor=rfc_receptor,
+                    total=total,
                     uuid=f.cfdi_uuid,
                 )
                 if not acuse.encontrado:
@@ -151,10 +150,11 @@ def _sync_cancelaciones_job():
 
         for p in pagos_pend:
             try:
+                rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(p)
                 acuse = sat_svc.consultar_cfdi(
-                    rfc_emisor=(getattr(p.empresa, "rfc", None) or "").strip().upper(),
-                    rfc_receptor=(getattr(p.cliente, "rfc", None) or "").strip().upper(),
-                    total=0.0,  # los complementos de pago timbran con Total=0
+                    rfc_emisor=rfc_emisor,
+                    rfc_receptor=rfc_receptor,
+                    total=total,  # los complementos de pago timbran con Total=0
                     uuid=p.uuid,
                 )
                 nuevo_estatus, hubo_cambio = sat_svc.aplicar_acuse_sat_pago(p, acuse)

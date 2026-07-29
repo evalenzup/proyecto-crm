@@ -74,10 +74,16 @@ def _resolver_datos(doc) -> tuple[str, str, str]:
     uuid = str(uuid).strip()
     if not uuid:
         raise AcuseError("El comprobante no tiene UUID fiscal.")
-    emisor = (getattr(getattr(doc, "empresa", None), "rfc", None) or "").strip().upper()
+    # Preferir los RFC congelados del XML timbrado: el PAC indexa el acuse por
+    # los RFC del CFDI, y los de la BD pueden haber cambiado desde entonces.
+    emisor = (getattr(doc, "cfdi_rfc_emisor", None) or "").strip().upper()
+    if not emisor:
+        emisor = (getattr(getattr(doc, "empresa", None), "rfc", None) or "").strip().upper()
     if not emisor:
         raise AcuseError("El comprobante no tiene RFC de emisor.")
-    receptor = (getattr(getattr(doc, "cliente", None), "rfc", None) or "").strip().upper()
+    receptor = (getattr(doc, "cfdi_rfc_receptor", None) or "").strip().upper()
+    if not receptor:
+        receptor = (getattr(getattr(doc, "cliente", None), "rfc", None) or "").strip().upper()
     # Si no hay RFC de receptor, el CFDI fue a público en general.
     receptor = receptor or _RFC_PUBLICO_GENERAL
     return emisor, receptor, uuid

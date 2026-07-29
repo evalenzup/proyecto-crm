@@ -56,6 +56,11 @@ class Pago(Base):
 
     # --- Datos del timbrado (CFDI) ---
     uuid = Column(String, nullable=True, unique=True, index=True)
+    # Snapshot de los datos con los que el SAT identifica el CFDI (ver la nota
+    # equivalente en Factura). Los complementos de pago timbran con Total=0.
+    cfdi_rfc_emisor = Column(String(13), nullable=True)
+    cfdi_rfc_receptor = Column(String(13), nullable=True)
+    cfdi_total = Column(Numeric(18, 6), nullable=True)
     fecha_timbrado = Column(DateTime, nullable=True)
     xml_path = Column(String(255), nullable=True)
     pdf_path = Column(String(255), nullable=True)

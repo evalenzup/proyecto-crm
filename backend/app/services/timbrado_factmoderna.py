@@ -318,6 +318,33 @@ def _parse_tfd_fields_regex(cfdi_bytes: bytes) -> Dict[str, Any]:
     }
 
 
+def _guardar_snapshot_cfdi(doc, cfdi_bytes: bytes) -> None:
+    """
+    Congela en el documento (Factura o Pago) el RFC del emisor, el RFC del
+    receptor y el Total tal como quedaron en el XML timbrado.
+
+    Son los tres datos con los que el SAT identifica el CFDI. Guardarlos evita
+    que la consulta al SAT se rompa si después cambia el RFC del cliente o se
+    recalcula el total en la BD.
+    """
+    try:
+        from app.services.sat_cfdi_service import extraer_datos_cfdi
+
+        datos = extraer_datos_cfdi(cfdi_bytes)
+        if datos.get("rfc_emisor"):
+            doc.cfdi_rfc_emisor = datos["rfc_emisor"]
+        if datos.get("rfc_receptor"):
+            doc.cfdi_rfc_receptor = datos["rfc_receptor"]
+        if datos.get("total") is not None:
+            from decimal import Decimal
+
+            doc.cfdi_total = Decimal(str(datos["total"]))
+    except Exception as exc:  # noqa: BLE001 — nunca romper el timbrado por esto
+        (logger.warning if logger else print)(
+            f"[CFDI] No se pudo guardar el snapshot para consulta SAT: {exc}"
+        )
+
+
 def _parse_comprobante_no_certificado(cfdi_bytes: bytes) -> Optional[str]:
     """
     Intenta extraer el atributo NoCertificado del nodo Comprobante del CFDI timbrado.
@@ -567,6 +594,10 @@ class FacturacionModernaPAC:
         f.sello_cfdi = tfd.get("sello_cfdi")
         f.rfc_proveedor_sat = tfd.get("rfc_prov_certif")
 
+        # Snapshot para consultar el CFDI en el SAT (inmutable, ver
+        # sat_cfdi_service.datos_consulta)
+        _guardar_snapshot_cfdi(f, cfdi_bytes)
+
         # Paths
         if hasattr(f, "xml_path"):
             f.xml_path = xml_path
@@ -772,6 +803,9 @@ class FacturacionModernaPAC:
         p.rfc_proveedor_sat = tfd.get("rfc_prov_certif")
         # Comprobante@NoCertificado (emisor)
         p.no_certificado = _parse_comprobante_no_certificado(cfdi_bytes)
+
+        # Snapshot para consultar el CFDI en el SAT (inmutable)
+        _guardar_snapshot_cfdi(p, cfdi_bytes)
 
         # Paths
         if hasattr(p, "xml_path"):
