@@ -40,6 +40,10 @@ export const useFacturaForm = () => {
   const [statusPago, setStatusPago] = useState<StatusPago>('NO_PAGADA');
   const [rfcEmisor, setRfcEmisor] = useState<string>('');
   const [fechaSolicitudCancelacion, setFechaSolicitudCancelacion] = useState<string | null>(null);
+  // Diagnóstico del último intento de cancelación (para saber por qué el SAT no la aplicó)
+  const [cancelacionInfo, setCancelacionInfo] = useState<{
+    motivo?: string | null; code?: string | null; message?: string | null;
+  } | null>(null);
   const [retencionLocalMonto, setRetencionLocalMonto] = useState<number | null>(null);
 
   // ── Empresa / Cliente ─────────────────────────────────────────────────────────
@@ -220,6 +224,11 @@ export const useFacturaForm = () => {
         setEstatusCFDI(data.estatus);
         setStatusPago(data.status_pago);
         setFechaSolicitudCancelacion(data.fecha_solicitud_cancelacion ?? null);
+        setCancelacionInfo({
+          motivo: data.motivo_cancelacion ?? null,
+          code: data.cancelacion_code ?? null,
+          message: data.cancelacion_message ?? null,
+        });
         setRetencionLocalMonto(data.retencion_local_monto != null ? Number(data.retencion_local_monto) : null);
 
         await onEmpresaChange(data.empresa_id);
@@ -380,6 +389,7 @@ export const useFacturaForm = () => {
     // state
     id, loading, saving, metadata, estatusCFDI, statusPago, rfcEmisor,
     fechaSolicitudCancelacion,
+    cancelacionInfo,
 
     // forms
     form, conceptoForm, psForm, cancelForm,

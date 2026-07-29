@@ -92,6 +92,12 @@ export interface FacturaOut extends FacturaRow {
   fecha_emision?: string | null;
   fecha_timbrado?: string | null;
   fecha_solicitud_cancelacion?: string | null;
+  // Evidencia del último trámite de cancelación
+  motivo_cancelacion?: string | null;
+  folio_fiscal_sustituto?: string | null;
+  cancelacion_code?: string | null;
+  cancelacion_message?: string | null;
+  cancelacion_acuse_path?: string | null;
   fecha_pago?: string | null;
   fecha_cobro?: string | null;
   observaciones?: string | null;
@@ -209,8 +215,8 @@ export const sendPreviewEmail = (id: string, recipients: string | string[]) => {
   return getData<{ message: string }>(api.post(`/facturas/${id}/send-preview-email`, payload));
 };
 
-export const duplicarFactura = (id: string) =>
-  getData<FacturaOut>(api.post(`/facturas/${id}/duplicar`));
+export const duplicarFactura = (id: string, sustituta = false) =>
+  getData<FacturaOut>(api.post(`/facturas/${id}/duplicar`, null, { params: { sustituta } }));
 
 export const verificarEstadoSAT = (id: string) =>
   getData<VerificarSATResult>(api.post(`/facturas/${id}/verificar-sat`));

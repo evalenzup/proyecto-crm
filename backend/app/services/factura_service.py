@@ -290,9 +290,26 @@ def actualizar_factura(
     return factura
 
 
-def duplicar_factura(db: Session, factura_id: UUID) -> Factura:
+def duplicar_factura(
+    db: Session, factura_id: UUID, como_sustituta: bool = False
+) -> Factura:
+    """
+    Copia la factura como nuevo BORRADOR.
+
+    Con ``como_sustituta=True`` la nueva factura nace ya relacionada al CFDI
+    original con TipoRelacion 04 (Sustitución de los CFDI previos), que es lo
+    que el SAT exige para poder cancelar la original con motivo 01. Es la forma
+    de que la relación quede bien desde el origen, en vez de depender de que el
+    usuario la capture a mano después.
+    """
     original = obtener_factura(db, factura_id)
-    
+
+    if como_sustituta and not original.cfdi_uuid:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo una factura timbrada puede sustituirse: la original no tiene UUID fiscal.",
+        )
+
     # Calcular siguiente folio
     serie = original.serie
     folio = siguiente_folio(db, original.empresa_id, serie)
@@ -318,7 +335,11 @@ def duplicar_factura(db: Session, factura_id: UUID) -> Factura:
         lugar_expedicion=original.lugar_expedicion,
         condiciones_pago=original.condiciones_pago,
         rfc_proveedor_sat=original.rfc_proveedor_sat,
-        
+
+        # Relación de sustitución (04) hacia el CFDI que se va a cancelar
+        cfdi_relacionados_tipo="04" if como_sustituta else None,
+        cfdi_relacionados=original.cfdi_uuid if como_sustituta else None,
+
         # Copiamos totales (se podrían recalcular, pero si es copia fiel...)
         subtotal=original.subtotal,
         descuento=original.descuento,

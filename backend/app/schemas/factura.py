@@ -187,6 +187,11 @@ class FacturaOut(FacturaBase):
     cfdi_uuid: Optional[str] = None
     fecha_timbrado: Optional[TijuanaDatetime] = None
     fecha_solicitud_cancelacion: Optional[TijuanaDatetime] = None
+    # Evidencia del último trámite de cancelación (para diagnosticar por qué el
+    # SAT no la aplicó cuando la factura sigue vigente)
+    cancelacion_code: Optional[str] = None
+    cancelacion_message: Optional[str] = None
+    cancelacion_acuse_path: Optional[str] = None
     no_certificado: Optional[str] = None
     no_certificado_sat: Optional[str] = None
     xml_path: Optional[str] = None

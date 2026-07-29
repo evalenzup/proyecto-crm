@@ -242,17 +242,21 @@ def actualizar_factura_endpoint(
 @router.post("/{id}/duplicar", response_model=FacturaOut, status_code=status.HTTP_201_CREATED)
 def duplicar_factura_endpoint(
     id: UUID,
+    sustituta: bool = Query(
+        False,
+        description="Crea la copia ya relacionada al CFDI original con tipo 04 (sustitución)",
+    ),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     factura = srv.obtener_factura(db, id)
     if not factura:
          raise HTTPException(status_code=404, detail="Factura no encontrada")
-         
+
     if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
          raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    return srv.duplicar_factura(db, id)
+    return srv.duplicar_factura(db, id, como_sustituta=sustituta)
 
 
 @router.get("/{id}", response_model=FacturaOut)

@@ -161,6 +161,7 @@ const FacturaFormPage: React.FC = () => {
 
     // EN_CANCELACION
     fechaSolicitudCancelacion,
+    cancelacionInfo,
     puedeVerificarSat,
     puedeRevertir,
     handleVerificarSAT,
@@ -261,17 +262,23 @@ const FacturaFormPage: React.FC = () => {
     }
   }, [isConceptoModalOpen, editingConcepto, conceptoForm]);
 
-  const handleDuplicate = async () => {
+  const handleDuplicate = async (sustituta = false) => {
     if (!id) return;
+    const etiqueta = sustituta ? 'factura sustituta' : 'factura';
     try {
-      message.loading({ content: 'Duplicando factura...', key: 'duplicating' });
-      const newFactura = await duplicarFactura(id as string);
-      message.success({ content: 'Factura duplicada correctamente', key: 'duplicating' });
+      message.loading({ content: `Creando ${etiqueta}...`, key: 'duplicating' });
+      const newFactura = await duplicarFactura(id as string, sustituta);
+      message.success({
+        content: sustituta
+          ? 'Sustituta creada y relacionada (tipo 04) con esta factura'
+          : 'Factura duplicada correctamente',
+        key: 'duplicating',
+      });
       router.push(`/facturas/form/${newFactura.id}`);
     } catch (error: any) {
       console.error(error);
       if (!error?._handled) message.error({
-        content: error.response?.data?.detail || 'Error al duplicar la factura',
+        content: error.response?.data?.detail || `Error al crear la ${etiqueta}`,
         key: 'duplicating'
       });
     }
@@ -433,6 +440,36 @@ const FacturaFormPage: React.FC = () => {
                   </Form.Item>
                 </Col>
               </Row>
+
+              {/* Cancelación intentada que el SAT no aplicó: la factura sigue vigente */}
+              {estatusCFDI === 'TIMBRADA' && cancelacionInfo?.motivo && (
+                <Alert
+                  type="error"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message="La cancelación no se aplicó — la factura sigue vigente ante el SAT"
+                  description={
+                    <>
+                      Se solicitó la cancelación con motivo <b>{cancelacionInfo.motivo}</b>
+                      {fechaSolicitudCancelacion && (
+                        <> el <b>{new Date(fechaSolicitudCancelacion).toLocaleString('es-MX')}</b></>
+                      )}
+                      , pero el SAT no la aplicó y el comprobante sigue vigente.
+                      {cancelacionInfo.message && (
+                        <><br />Respuesta del PAC: <i>{cancelacionInfo.message}</i>
+                          {cancelacionInfo.code ? ` (código ${cancelacionInfo.code})` : ''}</>
+                      )}
+                      {cancelacionInfo.motivo === '01' && (
+                        <><br /><b>Motivo 01:</b> el SAT exige que la factura sustituta esté
+                          relacionada con tipo <b>04</b> hacia esta factura. Usa
+                          <b> Crear sustituta</b> para generarla ya relacionada, o cancela con
+                          motivo 02.</>
+                      )}
+                      {' '}Puedes revisar el <b>Acuse de cancelación</b> para ver el detalle del trámite.
+                    </>
+                  }
+                />
+              )}
 
               {/* Banner EN_CANCELACION */}
               {estatusCFDI === 'EN_CANCELACION' && (
@@ -802,7 +839,8 @@ const FacturaFormPage: React.FC = () => {
                   Verificar con SAT
                 </Button>
               )}
-              {(estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA') && (
+              {(estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA' ||
+                (estatusCFDI === 'TIMBRADA' && !!cancelacionInfo?.motivo)) && (
                 <Button
                   icon={<SafetyCertificateOutlined />}
                   onClick={() => setAcuseOpen(true)}
@@ -831,11 +869,25 @@ const FacturaFormPage: React.FC = () => {
                 <Popconfirm
                   title="¿Duplicar factura?"
                   description="Se creará una copia en borrador con un nuevo folio."
-                  onConfirm={handleDuplicate}
+                  onConfirm={() => handleDuplicate(false)}
                   okText="Sí, duplicar"
                   cancelText="Cancelar"
                 >
                   <Button icon={<CopyOutlined />}>Duplicar</Button>
+                </Popconfirm>
+              )}
+
+              {id && estatusCFDI === 'TIMBRADA' && (
+                <Popconfirm
+                  title="¿Crear factura sustituta?"
+                  description="Se creará una copia en borrador ya relacionada a esta factura con tipo 04 (Sustitución de los CFDI previos), que es lo que el SAT exige para cancelarla con motivo 01."
+                  onConfirm={() => handleDuplicate(true)}
+                  okText="Sí, crear"
+                  cancelText="Cancelar"
+                >
+                  <Button icon={<CopyOutlined />} title="Copia relacionada con tipo 04 para poder cancelar esta factura con motivo 01">
+                    Crear sustituta
+                  </Button>
                 </Popconfirm>
               )}
 
