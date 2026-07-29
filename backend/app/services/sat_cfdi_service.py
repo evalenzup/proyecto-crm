@@ -194,6 +194,7 @@ def aplicar_acuse_sat(
       - script    scripts/verificar_timbradas_en_sat.py
 
     Reglas:
+      · SAT no reconoce el CFDI (encontrado=False) → NO se toca nada (no verificable)
       · SAT dice Cancelado                        → estatus = "CANCELADA"
       · SAT dice En proceso                       → estatus = "EN_CANCELACION"
                                                     registra fecha_solicitud_cancelacion si no existe
@@ -214,6 +215,18 @@ def aplicar_acuse_sat(
 
     estatus_anterior: str = factura.estatus
     nuevo_estatus: str = estatus_anterior  # por defecto no cambia
+
+    if not acuse.encontrado:
+        # El SAT no reconoció el CFDI (típicamente "601: la expresión impresa no
+        # es válida", porque el RFC del receptor o el total ya no coinciden con
+        # los del XML timbrado). No sabemos nada de su estado real: cualquier
+        # decisión aquí sería a ciegas. Antes esto caía en la rama "Vigente sin
+        # proceso" y podía revertir a TIMBRADA una factura realmente cancelada.
+        logger.warning(
+            "[SAT] CFDI no verificable (%s) — no se modifica el estatus (%s)",
+            acuse.codigo_estatus, estatus_anterior,
+        )
+        return estatus_anterior, False
 
     if acuse.cancelado_por_sat:
         nuevo_estatus = "CANCELADA"
@@ -279,6 +292,15 @@ def aplicar_acuse_sat_pago(
 
     estatus_anterior: str = getattr(pago.estatus, "value", pago.estatus)
     nuevo: str = estatus_anterior
+
+    if not acuse.encontrado:
+        # Ver la nota en aplicar_acuse_sat: sin reconocimiento del SAT no hay
+        # información sobre el estado real, así que no se toca nada.
+        logger.warning(
+            "[SAT] Complemento no verificable (%s) — no se modifica el estatus (%s)",
+            acuse.codigo_estatus, estatus_anterior,
+        )
+        return estatus_anterior, False
 
     if acuse.cancelado_por_sat:
         nuevo = "CANCELADO"

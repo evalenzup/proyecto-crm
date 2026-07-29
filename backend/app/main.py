@@ -97,6 +97,7 @@ def _sync_cancelaciones_job():
         )
         logger.info("[SAT Sync] Verificando %d facturas EN_CANCELACION", len(pendientes))
 
+        no_verificables = 0
         for f in pendientes:
             rfc_emisor = getattr(f.empresa, "rfc", None) or ""
             rfc_receptor = getattr(f.cliente, "rfc", None) or ""
@@ -107,6 +108,17 @@ def _sync_cancelaciones_job():
                     total=float(f.total or 0),
                     uuid=f.cfdi_uuid,
                 )
+                if not acuse.encontrado:
+                    # El RFC del receptor o el total ya no coinciden con el XML
+                    # timbrado: la factura no se puede verificar contra el SAT.
+                    # aplicar_acuse_sat tampoco la tocaría; lo registramos con
+                    # folio para poder darles seguimiento.
+                    no_verificables += 1
+                    logger.warning(
+                        "[SAT Sync] Factura %s-%s NO verificable en SAT (%s) — sin cambios",
+                        f.serie, f.folio, acuse.codigo_estatus,
+                    )
+                    continue
                 nuevo_estatus, hubo_cambio = sat_svc.aplicar_acuse_sat(f, acuse)
                 if hubo_cambio:
                     db.add(f)
@@ -118,6 +130,13 @@ def _sync_cancelaciones_job():
                     logger.debug("[SAT Sync] Factura %s-%s sin cambio", f.serie, f.folio)
             except Exception as exc:
                 logger.warning("[SAT Sync] Error verificando factura %s: %s", f.id, exc)
+
+        if no_verificables:
+            logger.warning(
+                "[SAT Sync] %d factura(s) EN_CANCELACION no verificables en el SAT "
+                "(RFC del receptor o total distintos al XML timbrado)",
+                no_verificables,
+            )
 
         # ── Complementos de pago EN_CANCELACION ───────────────────────────────
         from app.models.pago import Pago, EstatusPago
