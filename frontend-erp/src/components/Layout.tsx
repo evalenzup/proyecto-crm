@@ -30,6 +30,7 @@ import {
   SafetyCertificateOutlined,
   CalendarOutlined,
   ScheduleOutlined,
+  DollarOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
 import { ConfigProvider, theme as antdTheme, Switch, Tooltip, Dropdown, Space, Avatar, MenuProps, Grid, Typography, Select, Modal, Form, Input, message, Empty } from 'antd';
@@ -41,6 +42,7 @@ import { usuarioService } from '@/services/usuarioService';
 import { useEmpresaSelector } from '@/hooks/useEmpresaSelector';
 import { empresaService } from '@/services/empresaService';
 import { canViewAuditoria, canVerActividad } from '@/services/auditoriaService';
+import { canVerIngresos } from '@/services/ingresosNoFacturadosService';
 import { canViewMapa } from '@/services/mapaService';
 import { OfflineBanner } from './OfflineBanner';
 import { useFilterContext } from '@/context/FilterContext';
@@ -419,6 +421,21 @@ export const Layout: React.FC<{
 
   const menuData = useMemo(() => {
     const menu = [...baseMenuData];
+
+    // Ingresos no facturados: solo para quien tenga el permiso (dentro de Finanzas).
+    if (canVerIngresos(user)) {
+      const idx = menu.findIndex((g: any) => g.path === '/group-finanzas');
+      if (idx >= 0) {
+        const grupo: any = menu[idx];
+        menu[idx] = {
+          ...grupo,
+          children: [
+            ...grupo.children,
+            { path: '/ingresos-no-facturados', name: 'Ingresos no facturados', icon: <DollarOutlined /> },
+          ],
+        };
+      }
+    }
 
     const adminChildren: any[] = [];
     if (user?.rol === 'superadmin' || user?.rol === 'admin') {

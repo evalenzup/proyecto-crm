@@ -60,9 +60,12 @@ const UsuarioFormPage: React.FC = () => {
                         is_active: user.is_active,
                         password: '',
                         empresas_ids: user.empresas_ids ?? [],
-                        // Separar el permiso especial de los módulos de estándar
-                        permisos: (user.permisos ?? []).filter((p) => p !== 'reportes_actividad'),
+                        // Separar los permisos especiales de los módulos de estándar
+                        permisos: (user.permisos ?? []).filter(
+                            (p) => p !== 'reportes_actividad' && p !== 'ingresos_no_facturados'
+                        ),
                         ver_actividad: (user.permisos ?? []).includes('reportes_actividad'),
+                        ver_ingresos: (user.permisos ?? []).includes('ingresos_no_facturados'),
                     });
                     setSelectedRol(user.rol);
                 } catch (error) {
@@ -96,11 +99,14 @@ const UsuarioFormPage: React.FC = () => {
             // actividad (cualquier rol, solo lo modifica el superadmin). Se envía
             // siempre para que el backend lo sincronice.
             const modPerms: string[] = values.rol === 'estandar' ? (values.permisos ?? []) : [];
-            const permisos = modPerms.filter((p: string) => p !== 'reportes_actividad');
-            // Solo el superadmin puede otorgar el permiso de reportes de actividad; el
-            // backend, además, ignora cambios a este permiso si el que edita no es
-            // superadmin (aquí solo lo incluimos cuando aplica).
+            const permisos = modPerms.filter(
+                (p: string) => p !== 'reportes_actividad' && p !== 'ingresos_no_facturados'
+            );
+            // Solo el superadmin puede otorgar los permisos especiales; el backend,
+            // además, ignora cambios a estos permisos si el que edita no es superadmin
+            // (aquí solo los incluimos cuando aplica).
             if (isSuperadmin && values.ver_actividad) permisos.push('reportes_actividad');
+            if (isSuperadmin && values.ver_ingresos) permisos.push('ingresos_no_facturados');
             payload.permisos = permisos;
 
             if (isEditing && !values.password) {
@@ -289,10 +295,15 @@ const UsuarioFormPage: React.FC = () => {
                                             Puede ver los reportes de actividad del personal
                                         </Checkbox>
                                     </Form.Item>
+                                    <Form.Item name="ver_ingresos" valuePropName="checked" style={{ marginBottom: 4 }}>
+                                        <Checkbox disabled={!isSuperadmin}>
+                                            Puede ver los ingresos no facturados
+                                        </Checkbox>
+                                    </Form.Item>
                                     <Text type="secondary" style={{ fontSize: 12 }}>
                                         {isSuperadmin
-                                            ? 'Información sensible: otórgalo solo a las personas de confianza.'
-                                            : 'Solo el superadministrador puede modificar este permiso.'}
+                                            ? 'Información sensible: otórgalos solo a las personas de confianza.'
+                                            : 'Solo el superadministrador puede modificar estos permisos.'}
                                     </Text>
                                 </>
                             )}
