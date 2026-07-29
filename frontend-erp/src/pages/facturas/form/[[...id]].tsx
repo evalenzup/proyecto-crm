@@ -447,8 +447,8 @@ const FacturaFormPage: React.FC = () => {
                       {fechaSolicitudCancelacion && (
                         <> el <b>{new Date(fechaSolicitudCancelacion).toLocaleString('es-MX')}</b></>
                       )}
-                      . Si requiere aceptación del receptor, él tiene 72 horas hábiles para responder;
-                      al vencer el plazo el SAT la cancela automáticamente.
+                      . Si requiere aceptación del receptor, él tiene <b>tres días hábiles</b> para
+                      responder; si no responde, el SAT la toma como aceptada y la cancela.
                       {' '}El sistema consulta el estado real al abrir esta página y una vez al día.
                       {' '}Si el SAT no llega a registrar la solicitud, la factura vuelve a TIMBRADA
                       {' '}y puedes reintentar la cancelación con el botón <b>Reintentar cancelación</b>.

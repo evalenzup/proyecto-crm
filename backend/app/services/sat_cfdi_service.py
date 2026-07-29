@@ -54,15 +54,44 @@ SOAP_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 
 @dataclass
 class AcuseSAT:
-    """Respuesta del SAT para la consulta de un CFDI."""
-    codigo_estatus: str          # "S" = encontrado | "N 601" | "N 602"
+    """
+    Respuesta del SAT para la consulta de un CFDI.
+
+    Campos y códigos según la "Documentación del Servicio de Consulta de CFDI"
+    v1.3 (SAT, nov 2020). El Acuse trae cinco campos: CodigoEstatus, EsCancelable,
+    Estado, EstatusCancelacion y ValidacionEFOS.
+    """
+    codigo_estatus: str          # "S - Comprobante obtenido satisfactoriamente" | "N - 601" | "N - 602"
     estado: str                  # "Vigente" | "Cancelado"
     es_cancelable: str           # "Cancelable sin aceptación" | "Cancelable con aceptación" | "No cancelable"
-    estatus_cancelacion: str     # "En proceso de cancelación" | "Cancelado sin aceptación" | "Cancelado con aceptación" | ""
+    estatus_cancelacion: str     # "En proceso" | "Solicitud rechazada" | "Cancelado con/sin aceptación" | "Plazo vencido" | ""
+    validacion_efos: str = ""    # "100" = emisor en lista EFOS (69-B CFF) | "200" = no está en la lista
 
     @property
     def encontrado(self) -> bool:
         return self.codigo_estatus.startswith("S")
+
+    @property
+    def expresion_invalida(self) -> bool:
+        """
+        601: la expresión impresa no respeta el formato definido. En la práctica,
+        que el RFC del emisor/receptor o el Total no coinciden con los del CFDI
+        timbrado. El comprobante puede existir perfectamente en el SAT.
+        """
+        return "601" in (self.codigo_estatus or "")
+
+    @property
+    def no_existe_en_sat(self) -> bool:
+        """602: el UUID no se encuentra en la base de datos del SAT."""
+        return "602" in (self.codigo_estatus or "")
+
+    @property
+    def emisor_en_lista_efos(self) -> bool:
+        """
+        El RFC emisor está publicado en la lista de Empresas que Facturan
+        Operaciones Simuladas (art. 69-B del CFF). Código 100 del servicio.
+        """
+        return (self.validacion_efos or "").strip() == "100"
 
     @property
     def cancelado(self) -> bool:
@@ -249,6 +278,7 @@ def _parse_response(content: bytes) -> AcuseSAT:
     estado = _text("Estado")
     es_cancelable = _text("EsCancelable")
     estatus_cancelacion = _text("EstatusCancelacion")
+    validacion_efos = _text("ValidacionEFOS")
 
     # Fallback: buscar con xpath más amplio si los namespace fallaron
     if not codigo_estatus:
@@ -262,16 +292,26 @@ def _parse_response(content: bytes) -> AcuseSAT:
                 es_cancelable = (el.text or "").strip()
             elif local == "EstatusCancelacion":
                 estatus_cancelacion = (el.text or "").strip()
+            elif local == "ValidacionEFOS":
+                validacion_efos = (el.text or "").strip()
 
     if not codigo_estatus:
         raise RuntimeError("El SAT no devolvió CodigoEstatus en la respuesta")
 
-    return AcuseSAT(
+    acuse = AcuseSAT(
         codigo_estatus=codigo_estatus,
         estado=estado,
         es_cancelable=es_cancelable,
         estatus_cancelacion=estatus_cancelacion,
+        validacion_efos=validacion_efos,
     )
+    if acuse.emisor_en_lista_efos:
+        # Alerta fiscal seria: el RFC emisor aparece en la lista del 69-B del CFF.
+        logger.error(
+            "[SAT] ⚠️ El RFC emisor está publicado en la lista EFOS (art. 69-B CFF). "
+            "Acuse: %s", codigo_estatus,
+        )
+    return acuse
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -320,14 +360,21 @@ def aplicar_acuse_sat(
     nuevo_estatus: str = estatus_anterior  # por defecto no cambia
 
     if not acuse.encontrado:
-        # El SAT no reconoció el CFDI (típicamente "601: la expresión impresa no
-        # es válida", porque el RFC del receptor o el total ya no coinciden con
-        # los del XML timbrado). No sabemos nada de su estado real: cualquier
-        # decisión aquí sería a ciegas. Antes esto caía en la rama "Vigente sin
-        # proceso" y podía revertir a TIMBRADA una factura realmente cancelada.
+        # El SAT no reconoció el CFDI. No sabemos nada de su estado real, así que
+        # cualquier decisión aquí sería a ciegas (antes esto caía en la rama
+        # "Vigente sin proceso" y podía revertir a TIMBRADA una factura cancelada).
+        #   601 → la expresión impresa no coincide: el RFC o el Total que enviamos
+        #         no son los del CFDI timbrado. El comprobante sí existe.
+        #   602 → el UUID no está en la base de datos del SAT.
+        if acuse.expresion_invalida:
+            detalle = "los datos enviados no coinciden con el CFDI timbrado (601)"
+        elif acuse.no_existe_en_sat:
+            detalle = "el UUID no existe en la base del SAT (602)"
+        else:
+            detalle = acuse.codigo_estatus
         logger.warning(
-            "[SAT] CFDI no verificable (%s) — no se modifica el estatus (%s)",
-            acuse.codigo_estatus, estatus_anterior,
+            "[SAT] CFDI no verificable: %s — no se modifica el estatus (%s)",
+            detalle, estatus_anterior,
         )
         return estatus_anterior, False
 
