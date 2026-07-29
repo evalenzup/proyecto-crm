@@ -16,13 +16,19 @@ from __future__ import annotations
 import html
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional, Tuple
 
 import httpx
 from lxml import etree
 
 logger = logging.getLogger("app")
+
+# Días de antigüedad de la solicitud tras los cuales, si el SAT sigue reportando
+# el CFDI Vigente y SIN cancelación en proceso, damos la cancelación por vencida
+# (el receptor no la aceptó en el plazo) y revertimos a TIMBRADA/TIMBRADO.
+# Cubre las 72 horas hábiles del SAT más un fin de semana.
+DIAS_CANCELACION_VENCIDA = 5
 
 SAT_CONSULTA_URL = (
     "https://consultaqr.facturaelectronica.sat.gob.mx/ConsultaCFDIService.svc"
@@ -193,8 +199,10 @@ def aplicar_acuse_sat(
                                                     registra fecha_solicitud_cancelacion si no existe
       · SAT dice Vigente + "Solicitud rechazada"  → revertir a TIMBRADA (receptor rechazó explícitamente)
       · SAT dice Vigente sin fecha registrada     → anclar fecha actual, mantener EN_CANCELACION
-      · SAT dice Vigente con fecha registrada     → mantener EN_CANCELACION (el SAT aún procesa
-                                                    la cancelación automática, no revertir por tiempo)
+      · SAT dice Vigente, solicitud reciente       → mantener EN_CANCELACION (el SAT puede tardar en
+                                                    reflejar la solicitud recién enviada)
+      · SAT dice Vigente, solicitud vencida        → revertir a TIMBRADA (cancelación "con aceptación"
+        (> DIAS_CANCELACION_VENCIDA)                que expiró sin que el receptor la aceptara)
 
     No llama a db.add() ni db.commit() — responsabilidad del llamador.
 
@@ -235,8 +243,14 @@ def aplicar_acuse_sat(
                 # Sin fecha registrada: anclar ahora para tener referencia,
                 # pero NO revertir — el SAT puede tardar en reflejar la solicitud
                 factura.fecha_solicitud_cancelacion = ahora
-            # else: tiene fecha y SAT aún no confirma → mantener EN_CANCELACION
-            # El SAT aplicará la cancelación automáticamente si el receptor no responde
+            elif (ahora - factura.fecha_solicitud_cancelacion) >= timedelta(days=DIAS_CANCELACION_VENCIDA):
+                # Solicitud vencida y el CFDI sigue Vigente sin cancelación en
+                # proceso: la cancelación "con aceptación" expiró sin que el
+                # receptor la aceptara → no procedió, revertir a TIMBRADA.
+                nuevo_estatus = "TIMBRADA"
+                factura.fecha_solicitud_cancelacion = None
+            # else: solicitud reciente → mantener EN_CANCELACION (el SAT puede
+            # tardar en reflejar la solicitud recién enviada)
 
     factura.estatus = nuevo_estatus
     return nuevo_estatus, estatus_anterior != nuevo_estatus
@@ -288,6 +302,11 @@ def aplicar_acuse_sat_pago(
                 pago.fecha_solicitud_cancelacion = None
             elif pago.fecha_solicitud_cancelacion is None:
                 pago.fecha_solicitud_cancelacion = ahora
+            elif (ahora - pago.fecha_solicitud_cancelacion) >= timedelta(days=DIAS_CANCELACION_VENCIDA):
+                # Solicitud vencida y el complemento sigue Vigente sin proceso:
+                # la cancelación con aceptación expiró sin respuesta → revertir.
+                nuevo = "TIMBRADO"
+                pago.fecha_solicitud_cancelacion = None
 
     pago.estatus = EstatusPago(nuevo)
     return nuevo, estatus_anterior != nuevo
