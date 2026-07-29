@@ -98,6 +98,7 @@ ACCION_LABEL: Dict[str, str] = {
     "ACTUALIZAR_PLAN_SERVICIO": "Planes de servicio editados",
     "ELIMINAR_PLAN_SERVICIO": "Planes de servicio eliminados",
     "PROGRAMAR_PLAN_SERVICIO": "Servicios programados desde contrato",
+    "MARCAR_COBRO_ORDEN": "Cobros de órdenes no facturadas",
     "LOGIN": "Inicios de sesión",
     "ENVIAR_FACTURA_EMAIL": "Facturas enviadas por correo",
     "ENVIAR_PAGO_EMAIL": "Pagos enviados por correo",

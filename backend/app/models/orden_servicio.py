@@ -53,6 +53,11 @@ class OrdenServicio(Base):
 
     # ── Información financiera ───────────────────────────────────────────────
     precio_acordado = Column(Numeric(12, 2), nullable=True)
+    # Cobro de órdenes NO facturadas (el módulo de ingresos no facturados).
+    # Las facturadas rastrean el pago vía la factura; estas no tienen otro lugar.
+    cobrado = Column(Boolean, nullable=False, default=False)
+    fecha_cobro = Column(Date, nullable=True)
+    forma_cobro = Column(String(40), nullable=True)  # efectivo / transferencia / etc.
 
     # ── Notas ────────────────────────────────────────────────────────────────
     notas_tecnico = Column(Text, nullable=True)     # instrucciones al técnico

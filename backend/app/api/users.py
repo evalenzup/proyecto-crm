@@ -38,7 +38,7 @@ def _sync_empresas(db: Session, user: UsuarioModel, empresas_ids: List[UUID]) ->
 
 
 # Permisos que SOLO el SUPERADMIN puede otorgar/revocar (info sensible).
-_PERMISOS_SOLO_SUPERADMIN = {"reportes_actividad"}
+_PERMISOS_SOLO_SUPERADMIN = {"reportes_actividad", "ingresos_no_facturados"}
 
 
 def _sync_permisos(
