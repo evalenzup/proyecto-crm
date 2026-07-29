@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Table, Card, Row, Col, Statistic, DatePicker, Select, Button, Tag, Space,
-  Modal, Form, message, Result, Typography,
+  Modal, Form, message, Result, Typography, Popconfirm,
 } from 'antd';
 import { CheckCircleOutlined, DollarOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
@@ -99,7 +99,14 @@ const IngresosNoFacturadosPage: React.FC = () => {
       title: '', key: 'acc', width: 130,
       render: (_: unknown, r: IngresoRow) =>
         r.cobrado ? (
-          <Button size="small" onClick={() => quitarCobro(r)}>Quitar cobro</Button>
+          <Popconfirm
+            title="Regresar a no pagado"
+            description="¿Seguro que quieres quitar el cobro de esta orden? Quedará registrado en la auditoría."
+            okText="Sí, quitar" cancelText="Cancelar"
+            onConfirm={() => quitarCobro(r)}
+          >
+            <Button size="small">Quitar cobro</Button>
+          </Popconfirm>
         ) : (
           <Button size="small" type="primary" onClick={() => setCobro(r)}>Marcar cobrado</Button>
         ),

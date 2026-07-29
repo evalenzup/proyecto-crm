@@ -80,8 +80,10 @@ def marcar_cobro(
         empresa_id=orden.empresa_id, entidad_id=str(orden.id),
         detalle={
             "folio_os": orden.folio_os,
+            "operacion": "Marcada como cobrada" if payload.cobrado else "Regresada a pendiente",
             "cobrado": payload.cobrado,
             "forma_cobro": payload.forma_cobro,
+            "fecha_cobro": str(orden.fecha_cobro) if orden.fecha_cobro else None,
         },
         ip=audit_svc.get_ip(request),
     )
