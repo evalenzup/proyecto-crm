@@ -233,6 +233,18 @@ export const getFacturasRelacionables = (params: {
   excluir_id?: string;
 }) => getData<FacturaRelacionable[]>(api.get('/facturas/relacionables', { params }));
 
+export interface DiagnosticoCancelacion {
+  puede_cancelar: boolean;
+  motivo?: string | null;
+  estado_sat?: string | null;
+  es_cancelable?: string | null;
+  complementos: { id: string; folio: string; estatus: string }[];
+}
+
+/** Pregunta al SAT si el CFDI se puede cancelar; si no, explica por qué. */
+export const getDiagnosticoCancelacion = (id: string) =>
+  getData<DiagnosticoCancelacion>(api.get(`/facturas/${id}/puede-cancelarse`));
+
 /** Facturas que ya declaran sustituir a ésta (relación tipo 04). */
 export const getFacturasSustitutas = (id: string) =>
   getData<FacturaRelacionable[]>(api.get(`/facturas/${id}/sustitutas`));

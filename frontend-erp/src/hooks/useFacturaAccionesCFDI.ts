@@ -60,14 +60,22 @@ export const useFacturaAccionesCFDI = ({
   // ── Cancel flow ──────────────────────────────────────────────────────────────
   // Sustitutas ya relacionadas (tipo 04) a esta factura, para no teclear el UUID
   const [sustitutasOpts, setSustitutasOpts] = useState<{ label: string; value: string }[]>([]);
+  // Por qué el SAT no dejaría cancelar esta factura (si aplica)
+  const [diagCancelacion, setDiagCancelacion] = useState<svc.DiagnosticoCancelacion | null>(null);
 
   const abrirModalCancelacion = async () => {
     cancelForm.resetFields();
     cancelForm.setFieldsValue({ motivo: motivosCancel?.[0]?.value || '02', folio_sustitucion: undefined });
     setSustitutasOpts([]);
+    setDiagCancelacion(null);
     setCancelModalOpen(true);
 
     if (!id) return;
+    // El SAT puede impedir la cancelación (p. ej. si un complemento de pago
+    // referencia la factura). Avisar antes de que el usuario llene el formulario.
+    svc.getDiagnosticoCancelacion(id)
+      .then((d) => setDiagCancelacion(d))
+      .catch(() => setDiagCancelacion(null));
     try {
       const subs = await svc.getFacturasSustitutas(id);
       const opts = subs.map((r) => ({
@@ -213,7 +221,7 @@ export const useFacturaAccionesCFDI = ({
     cancelModalOpen, setCancelModalOpen,
     previewModalOpen, previewPdfUrl,
     timbrarFactura,
-    abrirModalCancelacion, submitCancel, sustitutasOpts,
+    abrirModalCancelacion, submitCancel, sustitutasOpts, diagCancelacion,
     verPDF, cerrarPreview, descargarPDF, descargarXML,
     handleVerificarSAT, handleRevertirCancelacion,
   };

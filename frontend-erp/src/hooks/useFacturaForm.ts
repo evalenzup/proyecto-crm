@@ -463,6 +463,7 @@ export const useFacturaForm = () => {
     timbrarFactura: acciones.timbrarFactura,
     abrirModalCancelacion: acciones.abrirModalCancelacion,
     sustitutasOpts: acciones.sustitutasOpts,
+    diagCancelacion: acciones.diagCancelacion,
     submitCancel: acciones.submitCancel,
     verPDF: acciones.verPDF,
     cerrarPreview: acciones.cerrarPreview,

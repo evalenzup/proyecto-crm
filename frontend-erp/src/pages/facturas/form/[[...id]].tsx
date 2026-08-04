@@ -149,6 +149,7 @@ const FacturaFormPage: React.FC = () => {
     setCancelModalOpen,
     abrirModalCancelacion,
     sustitutasOpts,
+    diagCancelacion,
     submitCancel,
 
     // acciones (CFDI / archivos)
@@ -1072,14 +1073,43 @@ const FacturaFormPage: React.FC = () => {
         onOk={submitCancel}
         okText="Enviar cancelación"
         confirmLoading={cancelSubmitting}
+        okButtonProps={{ disabled: diagCancelacion?.puede_cancelar === false }}
         destroyOnClose
       >
-        <Alert
-          style={{ marginBottom: 12 }}
-          type="info"
-          message="Se enviará la solicitud de cancelación al PAC. Si el motivo es '01', debes indicar el folio fiscal del CFDI sustituto."
-          showIcon
-        />
+        {diagCancelacion?.puede_cancelar === false ? (
+          <Alert
+            style={{ marginBottom: 12 }}
+            type="error"
+            showIcon
+            message="El SAT no permite cancelar esta factura"
+            description={
+              <>
+                {diagCancelacion.motivo}
+                {!!diagCancelacion.complementos?.length && (
+                  <div style={{ marginTop: 8 }}>
+                    {diagCancelacion.complementos.map((c) => (
+                      <Button
+                        key={c.id}
+                        size="small"
+                        style={{ marginRight: 8 }}
+                        onClick={() => router.push(`/pagos/form/${c.id}`)}
+                      >
+                        Ir al complemento {c.folio}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </>
+            }
+          />
+        ) : (
+          <Alert
+            style={{ marginBottom: 12 }}
+            type="info"
+            message="Se enviará la solicitud de cancelación al PAC. Si el motivo es '01', debes indicar el folio fiscal del CFDI sustituto."
+            showIcon
+          />
+        )}
         <Form form={cancelForm} layout="vertical">
           <Form.Item
             label="Motivo de cancelación"

@@ -494,6 +494,94 @@ def _validar_sustitucion_motivo_01(
         )
 
 
+def _complementos_pago_vigentes(db: Session, factura: Factura) -> list:
+    """Complementos de pago que referencian a la factura y siguen sin cancelarse."""
+    from app.models.pago import EstatusPago, Pago, PagoDocumentoRelacionado
+
+    return (
+        db.query(Pago)
+        .join(PagoDocumentoRelacionado, PagoDocumentoRelacionado.pago_id == Pago.id)
+        .filter(
+            PagoDocumentoRelacionado.factura_id == factura.id,
+            Pago.estatus.in_([EstatusPago.TIMBRADO, EstatusPago.EN_CANCELACION]),
+        )
+        .all()
+    )
+
+
+def diagnostico_cancelacion(db: Session, factura: Factura) -> dict:
+    """
+    Consulta al SAT si el CFDI se puede cancelar y, si no, explica por qué.
+
+    El SAT marca "No cancelable" cuando otro comprobante lo referencia —lo más
+    común, un complemento de pago—: hay que cancelar primero ese comprobante.
+    Sin este aviso el usuario envía una solicitud que el SAT va a rechazar y se
+    queda sin saber la razón.
+    """
+    from app.services import sat_cfdi_service as sat_svc
+
+    resultado = {
+        "puede_cancelar": True,
+        "motivo": None,
+        "estado_sat": None,
+        "es_cancelable": None,
+        "complementos": [],
+    }
+    if not factura.cfdi_uuid:
+        return resultado
+
+    try:
+        rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(factura)
+        acuse = sat_svc.consultar_cfdi(
+            rfc_emisor=rfc_emisor, rfc_receptor=rfc_receptor,
+            total=total, uuid=factura.cfdi_uuid,
+        )
+    except Exception as exc:  # noqa: BLE001 — si el SAT no responde, no bloqueamos
+        logger.info("No se pudo consultar el SAT antes de cancelar: %s", exc)
+        return resultado
+
+    if not acuse.encontrado:
+        return resultado
+
+    resultado["estado_sat"] = acuse.estado
+    resultado["es_cancelable"] = acuse.es_cancelable
+
+    if acuse.cancelado_por_sat:
+        resultado.update(
+            puede_cancelar=False,
+            motivo="El CFDI ya está cancelado en el SAT. Usa «Verificar con SAT» para actualizar el estatus.",
+        )
+        return resultado
+
+    if acuse.no_cancelable:
+        complementos = _complementos_pago_vigentes(db, factura)
+        resultado["complementos"] = [
+            {"id": str(p.id), "folio": f"{p.serie or ''}-{p.folio}",
+             "estatus": getattr(p.estatus, "value", p.estatus)}
+            for p in complementos
+        ]
+        if complementos:
+            listado = ", ".join(c["folio"] for c in resultado["complementos"])
+            uno = len(complementos) == 1
+            motivo = (
+                "El SAT no permite cancelar esta factura porque tiene "
+                + (f"relacionado el complemento de pago {listado}. " if uno
+                   else f"relacionados los complementos de pago {listado}. ")
+                + ("Cancela primero ese complemento" if uno
+                   else "Cancela primero esos complementos")
+                + " y después la factura."
+            )
+        else:
+            motivo = (
+                "El SAT reporta esta factura como «No cancelable», normalmente porque "
+                "otro comprobante la relaciona (un complemento de pago o una nota de "
+                "crédito). Cancela primero ese comprobante y vuelve a intentarlo."
+            )
+        resultado.update(puede_cancelar=False, motivo=motivo)
+
+    return resultado
+
+
 def _archivar_acuse_cancelacion(db: Session, doc) -> None:
     """
     Descarga y archiva el acuse sellado por el SAT justo después de solicitar la
@@ -536,6 +624,12 @@ def solicitar_cancelacion_cfdi(
         raise HTTPException(
             status_code=400, detail="La factura no tiene un UUID fiscal para cancelar."
         )
+
+    # El SAT no permite cancelar un CFDI que otro comprobante referencia
+    # (típicamente un complemento de pago). Avisar antes de gastar el trámite.
+    diag = diagnostico_cancelacion(db, factura)
+    if not diag["puede_cancelar"]:
+        raise HTTPException(status_code=400, detail=diag["motivo"])
 
     if (motivo or "").strip() == "01":
         _validar_sustitucion_motivo_01(db, factura, folio_sustitucion)

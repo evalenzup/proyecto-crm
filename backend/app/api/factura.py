@@ -302,6 +302,23 @@ def listar_relacionables(
 
 
 @router.get(
+    "/{id}/puede-cancelarse",
+    summary="Verifica en el SAT si el CFDI se puede cancelar y explica por qué no",
+)
+def puede_cancelarse(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    return srv.diagnostico_cancelacion(db, factura)
+
+
+@router.get(
     "/{id}/sustitutas",
     response_model=List[FacturaRelacionableOut],
     summary="Facturas que declaran sustituir a ésta (relación tipo 04)",
