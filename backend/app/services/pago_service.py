@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import cast, Integer, or_
+from sqlalchemy import cast, func, Integer, or_
 from fastapi import HTTPException, status
 import re
 from decimal import Decimal, ROUND_HALF_UP
@@ -384,11 +384,45 @@ def crear_pago(db: Session, pago: PagoCreate):
         
         # Validar contra el total real de la factura (convertido a Decimal)
         factura_total_d = Decimal(str(factura.total)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        
-        if doc_in.imp_pagado > factura_total_d:
-             raise HTTPException(
+
+        # ...y sobre todo contra el saldo que REALMENTE queda, calculado de los
+        # complementos ya timbrados. Antes sólo se comparaba contra el total, así
+        # que una factura ya saldada admitía otro pago: el saldo insoluto quedaba
+        # negativo, el complemento salía mal ante el SAT y el listado de pagos
+        # se caía al serializarlo. No se confía en status_pago (puede quedar
+        # desactualizado) ni en el imp_saldo_ant que manda el formulario.
+        ya_pagado = (
+            db.query(func.coalesce(func.sum(PagoDocumentoRelacionado.imp_pagado), 0))
+            .join(Pago, Pago.id == PagoDocumentoRelacionado.pago_id)
+            .filter(
+                PagoDocumentoRelacionado.factura_id == factura.id,
+                Pago.estatus == EstatusPago.TIMBRADO,
+            )
+            .scalar()
+        )
+        saldo_pendiente = (
+            factura_total_d - Decimal(str(ya_pagado or 0))
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        if saldo_pendiente <= 0:
+            raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El importe pagado ({doc_in.imp_pagado}) para la factura {factura.folio} no puede ser mayor a su saldo total ({factura_total_d}).",
+                detail=(
+                    f"La factura {factura.serie}-{factura.folio} ya está pagada en su "
+                    f"totalidad (${factura_total_d}); no se le puede aplicar otro pago. "
+                    "Verifica si el pago corresponde a otra factura."
+                ),
+            )
+
+        if doc_in.imp_pagado > saldo_pendiente:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"El importe pagado (${doc_in.imp_pagado}) para la factura "
+                    f"{factura.serie}-{factura.folio} excede su saldo pendiente "
+                    f"(${saldo_pendiente}). El total de la factura es ${factura_total_d} "
+                    f"y ya tiene ${Decimal(str(ya_pagado or 0))} aplicados."
+                ),
             )
 
         # --- START: Calculate proportional taxes using Decimal ---
