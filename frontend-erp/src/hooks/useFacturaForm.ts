@@ -60,6 +60,7 @@ export const useFacturaForm = () => {
   const empresaId = Form.useWatch('empresa_id', form);
   const clienteIdWatch = Form.useWatch('cliente_id', form);
   const tipoRelacionWatch = Form.useWatch('cfdi_relacionados_tipo', form);
+  const tieneRelacionWatch = Form.useWatch('tiene_relacion', form);
   // Facturas del cliente para elegir el CFDI relacionado sin teclear el UUID
   const [relacionablesOpts, setRelacionablesOpts] = useState<
     { label: string; value: string }[]
@@ -315,8 +316,10 @@ export const useFacturaForm = () => {
 
   // Carga las facturas del cliente que se pueden relacionar. Para el tipo 04
   // (sustitución) solo tiene sentido relacionar facturas vigentes.
+  // Solo se consulta cuando la factura declara relación: antes se pedía en cada
+  // apertura del formulario (2-4 veces por carga) aunque no se fuera a usar.
   useEffect(() => {
-    if (!clienteIdWatch) { setRelacionablesOpts([]); return; }
+    if (!clienteIdWatch || !tieneRelacionWatch) { setRelacionablesOpts([]); return; }
     let cancelado = false;
     svc.getFacturasRelacionables({
       cliente_id: clienteIdWatch,
@@ -337,7 +340,7 @@ export const useFacturaForm = () => {
       })
       .catch(() => { if (!cancelado) setRelacionablesOpts([]); });
     return () => { cancelado = true; };
-  }, [clienteIdWatch, empresaId, tipoRelacionWatch, id]);
+  }, [clienteIdWatch, empresaId, tipoRelacionWatch, tieneRelacionWatch, id]);
 
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
 
