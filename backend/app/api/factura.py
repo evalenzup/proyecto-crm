@@ -572,8 +572,13 @@ def verificar_estado_sat(
     factura = db.query(Factura).filter(Factura.id == id).first()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
     if factura.estatus not in ("EN_CANCELACION", "TIMBRADA", "CANCELADA"):
-        raise HTTPException(status_code=400, detail="Solo se puede verificar facturas TIMBRADAS o EN_CANCELACION")
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede verificar una factura TIMBRADA, EN CANCELACIÓN o CANCELADA",
+        )
     if not factura.cfdi_uuid:
         raise HTTPException(status_code=400, detail="La factura no tiene UUID fiscal")
 
@@ -638,8 +643,12 @@ def revertir_cancelacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    from app.services import sat_cfdi_service as sat_svc
+
     factura = db.query(Factura).filter(Factura.id == id).first()
     if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     if factura.estatus != "EN_CANCELACION":
         raise HTTPException(
@@ -647,10 +656,44 @@ def revertir_cancelacion(
             detail="Solo se puede revertir una factura EN_CANCELACION"
         )
 
+    # Antes se revertía a ciegas: si el CFDI sí estaba cancelado en el SAT, esto
+    # recreaba el desfase entre el sistema y el SAT. Ahora se consulta primero.
+    estado_sat = None
+    try:
+        rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(factura)
+        acuse = sat_svc.consultar_cfdi(
+            rfc_emisor=rfc_emisor, rfc_receptor=rfc_receptor,
+            total=total, uuid=factura.cfdi_uuid,
+        )
+        if acuse.encontrado:
+            estado_sat = acuse.estado
+            if acuse.cancelado_por_sat:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "No se puede revertir: el SAT ya tiene esta factura como "
+                        "CANCELADA. Usa «Verificar con SAT» para dejar el estatus "
+                        "igual al del SAT."
+                    ),
+                )
+            if acuse.en_proceso:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "No se puede revertir: el SAT reporta la cancelación en "
+                        "proceso, esperando la respuesta del receptor. Si él la "
+                        "rechaza, la factura vuelve a TIMBRADA automáticamente."
+                    ),
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 — si el SAT no responde, se permite revertir
+        logger.info("No se pudo consultar el SAT antes de revertir: %s", exc)
+
     factura.estatus = "TIMBRADA"
-    factura.motivo_cancelacion = None
-    factura.folio_fiscal_sustituto = None
     factura.fecha_solicitud_cancelacion = None
+    # Se conservan motivo_cancelacion y folio_fiscal_sustituto: son la
+    # trazabilidad del intento y alimentan el aviso de "cancelación no aplicada".
     db.add(factura)
     db.commit()
     db.refresh(factura)
@@ -660,7 +703,10 @@ def revertir_cancelacion(
             db=db, accion="REVERTIR_CANCELACION", entidad="factura",
             usuario_id=current_user.id, usuario_email=current_user.email,
             empresa_id=factura.empresa_id, entidad_id=str(id),
-            detalle={"serie": factura.serie, "folio": factura.folio},
+            detalle={
+                "serie": factura.serie, "folio": factura.folio,
+                "estado_sat": estado_sat,
+            },
         )
         db.commit()
     except Exception:

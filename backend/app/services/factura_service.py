@@ -509,7 +509,7 @@ def _complementos_pago_vigentes(db: Session, factura: Factura) -> list:
     )
 
 
-def diagnostico_cancelacion(db: Session, factura: Factura) -> dict:
+def diagnostico_cancelacion(db: Session, doc) -> dict:
     """
     Consulta al SAT si el CFDI se puede cancelar y, si no, explica por qué.
 
@@ -517,6 +517,9 @@ def diagnostico_cancelacion(db: Session, factura: Factura) -> dict:
     común, un complemento de pago—: hay que cancelar primero ese comprobante.
     Sin este aviso el usuario envía una solicitud que el SAT va a rechazar y se
     queda sin saber la razón.
+
+    Sirve para Factura y para Pago (a los complementos no se les buscan
+    complementos relacionados, sólo se reporta el motivo del SAT).
     """
     from app.services import sat_cfdi_service as sat_svc
 
@@ -527,14 +530,15 @@ def diagnostico_cancelacion(db: Session, factura: Factura) -> dict:
         "es_cancelable": None,
         "complementos": [],
     }
-    if not factura.cfdi_uuid:
+    uuid_cfdi = (getattr(doc, "cfdi_uuid", None) or getattr(doc, "uuid", None) or "").strip()
+    if not uuid_cfdi:
         return resultado
 
     try:
-        rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(factura)
+        rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(doc)
         acuse = sat_svc.consultar_cfdi(
             rfc_emisor=rfc_emisor, rfc_receptor=rfc_receptor,
-            total=total, uuid=factura.cfdi_uuid,
+            total=total, uuid=uuid_cfdi,
         )
     except Exception as exc:  # noqa: BLE001 — si el SAT no responde, no bloqueamos
         logger.info("No se pudo consultar el SAT antes de cancelar: %s", exc)
@@ -554,7 +558,10 @@ def diagnostico_cancelacion(db: Session, factura: Factura) -> dict:
         return resultado
 
     if acuse.no_cancelable:
-        complementos = _complementos_pago_vigentes(db, factura)
+        # Los complementos de pago sólo aplican cuando el documento es una factura
+        complementos = (
+            _complementos_pago_vigentes(db, doc) if isinstance(doc, Factura) else []
+        )
         resultado["complementos"] = [
             {"id": str(p.id), "folio": f"{p.serie or ''}-{p.folio}",
              "estatus": getattr(p.estatus, "value", p.estatus)}

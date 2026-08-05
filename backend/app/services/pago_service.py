@@ -873,6 +873,14 @@ def cancelar_pago_sat(
                    "Solo TIMBRADO o en proceso de cancelación.",
         )
 
+    # El SAT puede impedir la cancelación (lo reporta como "No cancelable").
+    # Avisar antes de enviar, igual que en facturas.
+    from app.services.factura_service import diagnostico_cancelacion
+
+    diag = diagnostico_cancelacion(db, pago)
+    if not diag["puede_cancelar"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=diag["motivo"])
+
     # Validacion motivo 01
     if motivo == "01" and not folio_sustituto:
         raise HTTPException(
