@@ -13,15 +13,25 @@ from app.utils.datetime_utils import TijuanaDatetime
 
 
 class PagoDocumentoRelacionadoBase(BaseModel):
+    """
+    Base SIN restricciones de rango: la heredan tanto la entrada como la salida,
+    y un registro histórico fuera de rango (p. ej. un saldo insoluto negativo)
+    haría fallar la serialización y tumbaría el listado completo de pagos.
+    Las restricciones viven en la clase de creación.
+    """
     factura_id: uuid.UUID
+    num_parcialidad: int
+    imp_saldo_ant: Decimal = Field(..., max_digits=18)
+    imp_pagado: Decimal = Field(..., max_digits=18)
+    imp_saldo_insoluto: Decimal = Field(..., max_digits=18)
+
+
+class PagoDocumentoRelacionadoCreate(PagoDocumentoRelacionadoBase):
+    # Validaciones solo de ENTRADA (no afectan la lectura de datos existentes)
     num_parcialidad: int = Field(..., gt=0)
     imp_saldo_ant: Decimal = Field(..., ge=0, max_digits=18)
     imp_pagado: Decimal = Field(..., gt=0, max_digits=18)
     imp_saldo_insoluto: Decimal = Field(..., ge=0, max_digits=18)
-
-
-class PagoDocumentoRelacionadoCreate(PagoDocumentoRelacionadoBase):
-    pass
 
 
 class PagoDocumentoRelacionado(PagoDocumentoRelacionadoBase):

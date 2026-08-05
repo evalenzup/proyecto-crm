@@ -24,24 +24,31 @@ logger = logging.getLogger(__name__)
 _pac = FacturacionModernaPAC()
 
 
-def siguiente_folio_pago(db: Session, empresa_id: UUID, serie: str) -> int:
-    logger.info(
-        f"siguiente_folio_pago called with empresa_id: {empresa_id}, serie: {serie}"
-    )
-    query = db.query(Pago).filter(Pago.empresa_id == empresa_id)
+def siguiente_folio_pago(db: Session, empresa_id: UUID, serie: str = None) -> int:
+    """
+    Siguiente folio disponible para la empresa.
 
-    if serie:
-        query = query.filter(Pago.serie == serie)
-    else:
-        query = query.filter(or_(Pago.serie.is_(None), Pago.serie == ""))
-
+    Se calcula sobre TODA la empresa, sin filtrar por serie, porque la
+    restricción única de la tabla es (folio, empresa_id): un folio repetido en
+    otra serie rompería el guardado igual.
+    """
     latest_pago = (
-        query.order_by(cast(Pago.folio, Integer).desc()).with_for_update().first()
+        db.query(Pago)
+        .filter(Pago.empresa_id == empresa_id)
+        .order_by(cast(Pago.folio, Integer).desc())
+        .with_for_update()
+        .first()
     )
-    result_folio = int(latest_pago.folio) + 1 if latest_pago else 1
-    logger.info(f"latest_pago: {latest_pago}")
-    logger.info(f"Returning folio: {result_folio}")
-    return result_folio
+    return int(latest_pago.folio) + 1 if latest_pago else 1
+
+
+def _folio_ocupado(db: Session, empresa_id: UUID, folio: str) -> bool:
+    return (
+        db.query(Pago.id)
+        .filter(Pago.empresa_id == empresa_id, Pago.folio == str(folio))
+        .first()
+        is not None
+    )
 
 
 def leer_pago(db: Session, pago_id: UUID) -> Pago:
@@ -338,11 +345,17 @@ def crear_pago(db: Session, pago: PagoCreate):
     pago.documentos = docs_procesados
 
     serie = (pago.serie or "P").upper()
-    folio = (
-        pago.folio
-        if pago.folio is not None
-        else str(siguiente_folio_pago(db, pago.empresa_id, serie))
-    )
+    # El formulario manda el folio que calculó al abrirse; si mientras tanto se
+    # creó otro pago, ese folio ya está ocupado y el guardado reventaba con un
+    # error de llave duplicada. Se recalcula en ese caso.
+    folio = str(pago.folio) if pago.folio is not None else None
+    if folio is None or _folio_ocupado(db, pago.empresa_id, folio):
+        if folio is not None:
+            logger.info(
+                "El folio %s ya está ocupado en la empresa %s; se recalcula.",
+                folio, pago.empresa_id,
+            )
+        folio = str(siguiente_folio_pago(db, pago.empresa_id))
 
     logger.info(f"Generated serie: {serie}, folio: {folio}")
 
