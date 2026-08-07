@@ -523,9 +523,15 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
     """
     from app.services import sat_cfdi_service as sat_svc
 
+    # puede_cancelar=False se reserva para lo que es definitivo (ya cancelada).
+    # "No cancelable" viaja como ADVERTENCIA: el procedimiento oficial del SAT es
+    # emitir primero la sustituta con relación 04 y después cancelar con motivo 01,
+    # así que bloquear ese envío impediría justo el trámite correcto. Se informa y
+    # se deja decidir al usuario; si el SAT lo rechaza, se muestra su respuesta.
     resultado = {
         "puede_cancelar": True,
         "motivo": None,
+        "advertencia": None,
         "estado_sat": None,
         "es_cancelable": None,
         "complementos": [],
@@ -592,32 +598,31 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
             listado = ", ".join(c["folio"] for c in resultado["complementos"])
             uno = len(complementos) == 1
             motivo = (
-                "El SAT no permite cancelar esta factura porque tiene "
+                "El SAT reporta esta factura como «No cancelable» porque tiene "
                 + (f"relacionado el complemento de pago {listado}. " if uno
                    else f"relacionados los complementos de pago {listado}. ")
-                + ("Cancela primero ese complemento" if uno
-                   else "Cancela primero esos complementos")
+                + ("Debe cancelarse primero ese complemento" if uno
+                   else "Deben cancelarse primero esos complementos")
                 + " y después la factura."
             )
         elif relacionadas:
             listado = ", ".join(r["folio"] for r in resultado["relacionadas"])
             uno = len(relacionadas) == 1
             motivo = (
-                "El SAT no permite cancelar esta factura porque "
+                "El SAT reporta esta factura como «No cancelable» porque "
                 + (f"la factura {listado} la relaciona" if uno
                    else f"las facturas {listado} la relacionan")
-                + ". El SAT bloquea la cancelación mientras otro comprobante vigente "
-                + ("la referencie. Cancela primero esa factura" if uno
-                   else "la referencie. Cancela primero esas facturas")
-                + " y vuelve a intentarlo."
+                + ". Si el SAT rechaza la solicitud, primero habrá que cancelar "
+                + ("esa factura." if uno else "esas facturas.")
             )
         else:
             motivo = (
                 "El SAT reporta esta factura como «No cancelable», normalmente porque "
                 "otro comprobante la relaciona (un complemento de pago o una nota de "
-                "crédito). Cancela primero ese comprobante y vuelve a intentarlo."
+                "crédito). Puedes intentar la cancelación; si el SAT la rechaza, "
+                "habrá que cancelar primero ese comprobante."
             )
-        resultado.update(puede_cancelar=False, motivo=motivo)
+        resultado.update(advertencia=motivo)
 
     return resultado
 
@@ -665,11 +670,17 @@ def solicitar_cancelacion_cfdi(
             status_code=400, detail="La factura no tiene un UUID fiscal para cancelar."
         )
 
-    # El SAT no permite cancelar un CFDI que otro comprobante referencia
-    # (típicamente un complemento de pago). Avisar antes de gastar el trámite.
+    # Sólo se detiene el trámite cuando ya está cancelada en el SAT. Un
+    # "No cancelable" se registra y se envía igual: el procedimiento oficial es
+    # emitir la sustituta y luego cancelar, y es el SAT quien resuelve.
     diag = diagnostico_cancelacion(db, factura)
     if not diag["puede_cancelar"]:
         raise HTTPException(status_code=400, detail=diag["motivo"])
+    if diag.get("advertencia"):
+        logger.info(
+            "[CANCELACION] %s-%s marcada «%s» por el SAT; se envía la solicitud igual.",
+            factura.serie, factura.folio, diag.get("es_cancelable"),
+        )
 
     if (motivo or "").strip() == "01":
         _validar_sustitucion_motivo_01(db, factura, folio_sustitucion)

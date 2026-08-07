@@ -1081,13 +1081,22 @@ const FacturaFormPage: React.FC = () => {
             style={{ marginBottom: 12 }}
             type="error"
             showIcon
-            message="El SAT no permite cancelar esta factura"
+            message="Esta factura ya está cancelada en el SAT"
+            description={diagCancelacion.motivo}
+          />
+        ) : diagCancelacion?.advertencia ? (
+          <Alert
+            style={{ marginBottom: 12 }}
+            type="warning"
+            showIcon
+            message="El SAT reporta un impedimento"
             description={
               <>
-                {diagCancelacion.motivo}
-                {!!diagCancelacion.complementos?.length && (
+                {diagCancelacion.advertencia}
+                {(!!diagCancelacion.complementos?.length ||
+                  !!diagCancelacion.relacionadas?.length) && (
                   <div style={{ marginTop: 8 }}>
-                    {diagCancelacion.complementos.map((c) => (
+                    {diagCancelacion.complementos?.map((c) => (
                       <Button
                         key={c.id}
                         size="small"
@@ -1095,6 +1104,16 @@ const FacturaFormPage: React.FC = () => {
                         onClick={() => router.push(`/pagos/form/${c.id}`)}
                       >
                         Ir al complemento {c.folio}
+                      </Button>
+                    ))}
+                    {diagCancelacion.relacionadas?.map((r) => (
+                      <Button
+                        key={r.id}
+                        size="small"
+                        style={{ marginRight: 8 }}
+                        onClick={() => router.push(`/facturas/form/${r.id}`)}
+                      >
+                        Ir a la factura {r.folio}
                       </Button>
                     ))}
                   </div>
