@@ -529,6 +529,7 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
         "estado_sat": None,
         "es_cancelable": None,
         "complementos": [],
+        "relacionadas": [],
     }
     uuid_cfdi = (getattr(doc, "cfdi_uuid", None) or getattr(doc, "uuid", None) or "").strip()
     if not uuid_cfdi:
@@ -562,6 +563,26 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
         complementos = (
             _complementos_pago_vigentes(db, doc) if isinstance(doc, Factura) else []
         )
+        # El SAT también bloquea cuando OTRO CFDI la referencia (por ejemplo la
+        # factura que la sustituye o una nota de crédito). Se nombran para que el
+        # usuario sepa cuál es, en vez de recibir un mensaje genérico.
+        relacionadas = []
+        if isinstance(doc, Factura) and doc.cfdi_uuid:
+            relacionadas = (
+                db.query(Factura)
+                .filter(
+                    Factura.empresa_id == doc.empresa_id,
+                    func.upper(Factura.cfdi_relacionados).contains(doc.cfdi_uuid.upper()),
+                    Factura.id != doc.id,
+                    Factura.estatus.in_(["TIMBRADA", "EN_CANCELACION"]),
+                )
+                .all()
+            )
+        resultado["relacionadas"] = [
+            {"id": str(x.id), "folio": f"{x.serie}-{x.folio}",
+             "tipo_relacion": x.cfdi_relacionados_tipo}
+            for x in relacionadas
+        ]
         resultado["complementos"] = [
             {"id": str(p.id), "folio": f"{p.serie or ''}-{p.folio}",
              "estatus": getattr(p.estatus, "value", p.estatus)}
@@ -577,6 +598,18 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
                 + ("Cancela primero ese complemento" if uno
                    else "Cancela primero esos complementos")
                 + " y después la factura."
+            )
+        elif relacionadas:
+            listado = ", ".join(r["folio"] for r in resultado["relacionadas"])
+            uno = len(relacionadas) == 1
+            motivo = (
+                "El SAT no permite cancelar esta factura porque "
+                + (f"la factura {listado} la relaciona" if uno
+                   else f"las facturas {listado} la relacionan")
+                + ". El SAT bloquea la cancelación mientras otro comprobante vigente "
+                + ("la referencie. Cancela primero esa factura" if uno
+                   else "la referencie. Cancela primero esas facturas")
+                + " y vuelve a intentarlo."
             )
         else:
             motivo = (
