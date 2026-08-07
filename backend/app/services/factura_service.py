@@ -612,15 +612,18 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
                 "El SAT reporta esta factura como «No cancelable» porque "
                 + (f"la factura {listado} la relaciona" if uno
                    else f"las facturas {listado} la relacionan")
-                + ". Aun así puedes enviar la cancelación: al recibirla, el SAT "
-                + "rompe la relación y la vuelve cancelable."
+                + ". Envíala con motivo 01 indicando "
+                + ("esa factura" if uno else "una de esas facturas")
+                + " como sustituta: al recibir la solicitud el SAT rompe la "
+                + "relación y la vuelve cancelable."
             )
         else:
             motivo = (
                 "El SAT reporta esta factura como «No cancelable», normalmente porque "
                 "otro comprobante la relaciona (un complemento de pago o una nota de "
-                "crédito). Aun así puedes enviar la cancelación: al recibirla, el "
-                "SAT suele romper la relación y volverla cancelable."
+                "crédito). Envíala con motivo 01 indicando el CFDI que la sustituye: "
+                "al recibir la solicitud el SAT rompe la relación y la vuelve "
+                "cancelable."
             )
         resultado.update(advertencia=motivo)
 
@@ -676,6 +679,19 @@ def solicitar_cancelacion_cfdi(
     diag = diagnostico_cancelacion(db, factura)
     if not diag["puede_cancelar"]:
         raise HTTPException(status_code=400, detail=diag["motivo"])
+
+    # Un CFDI "No cancelable" sólo lo libera el SAT si la solicitud llega con
+    # motivo 01 y el UUID que lo sustituye; con cualquier otro motivo la
+    # descarta. Se exige aquí para no gastar el trámite en balde.
+    if diag.get("advertencia") and (motivo or "").strip() != "01":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "El SAT reporta esta factura como «No cancelable». Para cancelarla "
+                "hay que enviarla con motivo 01 indicando el CFDI que la sustituye; "
+                "así el SAT rompe la relación y la vuelve cancelable."
+            ),
+        )
 
     if (motivo or "").strip() == "01":
         _validar_sustitucion_motivo_01(db, factura, folio_sustitucion)

@@ -58,7 +58,12 @@ _SAT_SYNC_LOCK_KEY = 0x53415453  # "SATS" en hex — clave fija para pg_advisory
 
 def _sync_cancelaciones_job():
     """
-    Cron 1x/día: verifica en el SAT todas las facturas EN_CANCELACION.
+    Cada 15 min: verifica en el SAT todas las facturas EN_CANCELACION.
+
+    Corre seguido a propósito. El acuse del PAC no prueba que la solicitud haya
+    llegado al SAT (ver MINUTOS_GRACIA_SOLICITUD en sat_cfdi_service), así que
+    conviene detectar pronto las que nunca se registraron en vez de esperar al
+    día siguiente. Sólo consulta los comprobantes EN_CANCELACION, que son pocos.
 
     Usa pg_try_advisory_lock para evitar ejecución doble si hay más de una instancia
     del proceso web activa (blue/green deploy, reinicio sin apagado graceful, etc.).
@@ -252,11 +257,12 @@ def _avisos_planes_servicio_job():
 _scheduler = BackgroundScheduler(timezone="America/Mexico_City")
 _scheduler.add_job(
     _sync_cancelaciones_job,
-    trigger="cron",
-    hour=3,        # 3:00 AM hora México
-    minute=0,
+    trigger="interval",
+    minutes=15,
     id="sync_cancelaciones_sat",
     replace_existing=True,
+    max_instances=1,
+    coalesce=True,
 )
 _scheduler.add_job(
     _ejecutar_programaciones_job,
@@ -279,7 +285,7 @@ _scheduler.add_job(
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     _scheduler.start()
-    logger.info("[SAT Sync] Scheduler iniciado — cron diario 03:00 AM MX")
+    logger.info("[SAT Sync] Scheduler iniciado — cancelaciones cada 15 min; demás cron 03:00 AM MX")
     yield
     _scheduler.shutdown(wait=False)
     logger.info("[SAT Sync] Scheduler detenido")

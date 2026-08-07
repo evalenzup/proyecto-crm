@@ -172,6 +172,17 @@ const FacturaFormPage: React.FC = () => {
     handleRevertirCancelacion,
   } = useFacturaForm();
 
+  // Cuando el SAT la reporta "No cancelable" hay que enviarla forzosamente con
+  // motivo 01 y el UUID que la sustituye: así el SAT rompe la relación y la
+  // vuelve cancelable. Se fuerza el motivo para que el usuario no elija otro.
+  const forzarSustitucion = diagCancelacion?.es_cancelable === 'No cancelable';
+
+  React.useEffect(() => {
+    if (cancelModalOpen && forzarSustitucion) {
+      cancelForm.setFieldValue('motivo', '01');
+    }
+  }, [cancelModalOpen, forzarSustitucion, cancelForm]);
+
   // Auto-verificar SAT al cargar si la factura está EN_CANCELACION
   React.useEffect(() => {
     if (id && estatusCFDI === 'EN_CANCELACION') {
@@ -1089,7 +1100,7 @@ const FacturaFormPage: React.FC = () => {
             style={{ marginBottom: 12 }}
             type="warning"
             showIcon
-            message="El SAT la reporta «No cancelable»"
+            message="El SAT la reporta «No cancelable» — hay que relacionarla"
             description={
               <>
                 {diagCancelacion.advertencia}
@@ -1137,7 +1148,11 @@ const FacturaFormPage: React.FC = () => {
             tooltip="Si eliges 01 debes indicar el folio fiscal (UUID) del CFDI sustituto."
           >
             <Select
-              options={motivosCancel}
+              options={
+                forzarSustitucion
+                  ? motivosCancel.filter((m: { value: string }) => m.value === '01')
+                  : motivosCancel
+              }
               showSearch
               optionFilterProp="label"
               placeholder="Selecciona el motivo…"
@@ -1147,7 +1162,7 @@ const FacturaFormPage: React.FC = () => {
           <Form.Item noStyle shouldUpdate={(p, c) => p.motivo !== c.motivo}>
             {({ getFieldValue }) => {
               const motivo = String(getFieldValue('motivo') || '');
-              const necesitaSustituto = motivo === '01';
+              const necesitaSustituto = motivo === '01' || forzarSustitucion;
               return (
                 <Form.Item
                   label="Folio fiscal sustituto (UUID)"

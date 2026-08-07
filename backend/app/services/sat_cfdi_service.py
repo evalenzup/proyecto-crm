@@ -25,10 +25,12 @@ from lxml import etree
 logger = logging.getLogger("app")
 
 # Margen tras enviar la solicitud durante el cual confiamos en nuestro estado
-# local aunque el SAT todavía no muestre el trámite (el registro puede tardar
-# unos minutos). Pasado ese margen, si el SAT sigue sin reportar solicitud
-# alguna, es que nunca se registró.
-HORAS_GRACIA_SOLICITUD = 24
+# local aunque el SAT todavía no muestre el trámite. La documentación de
+# Facturación Moderna dice que la cancelación se procesa "de 2 a 3 minutos"
+# después del envío; damos 30 para cubrir su cola con holgura. Pasado ese
+# margen, si el SAT sigue sin reportar solicitud alguna, es que nunca se
+# registró y el comprobante vuelve a TIMBRADA.
+MINUTOS_GRACIA_SOLICITUD = 30
 
 # Respaldo para el caso ambiguo: el SAT reporta un EstatusCancelacion que no
 # sabemos interpretar (ni vacío, ni en proceso, ni rechazada). Tras estos días
@@ -342,7 +344,7 @@ def aplicar_acuse_sat(
       · SAT dice Vigente + "Solicitud rechazada"  → revertir a TIMBRADA (receptor rechazó explícitamente)
       · SAT dice Vigente sin fecha registrada     → anclar fecha actual, mantener EN_CANCELACION
       · SAT dice Vigente, solicitud reciente       → mantener EN_CANCELACION (el SAT puede tardar en
-        (< HORAS_GRACIA_SOLICITUD)                  reflejar la solicitud recién enviada)
+        (< MINUTOS_GRACIA_SOLICITUD)                  reflejar la solicitud recién enviada)
       · SAT dice Vigente SIN trámite registrado    → revertir a TIMBRADA (la solicitud nunca se
         (EstatusCancelacion vacío)                  registró en el SAT, o se resolvió sin cancelar)
       · SAT dice Vigente con estatus desconocido   → revertir a TIMBRADA tras DIAS_CANCELACION_VENCIDA
@@ -412,7 +414,7 @@ def aplicar_acuse_sat(
                 # pero NO revertir — el SAT puede tardar en reflejar la solicitud
                 factura.fecha_solicitud_cancelacion = ahora
             elif acuse.sin_solicitud_registrada and antiguedad >= timedelta(
-                hours=HORAS_GRACIA_SOLICITUD
+                minutes=MINUTOS_GRACIA_SOLICITUD
             ):
                 # El SAT no tiene registrada ninguna solicitud sobre este CFDI y
                 # ya pasó el margen: la cancelación nunca llegó a registrarse
@@ -504,7 +506,7 @@ def aplicar_acuse_sat_pago(
             elif antiguedad is None:
                 pago.fecha_solicitud_cancelacion = ahora
             elif acuse.sin_solicitud_registrada and antiguedad >= timedelta(
-                hours=HORAS_GRACIA_SOLICITUD
+                minutes=MINUTOS_GRACIA_SOLICITUD
             ):
                 # El SAT no tiene registrada solicitud alguna → nunca se aplicó.
                 nuevo = "TIMBRADO"
