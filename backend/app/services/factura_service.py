@@ -523,15 +523,16 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
     """
     from app.services import sat_cfdi_service as sat_svc
 
-    # puede_cancelar=False se reserva para lo que es definitivo (ya cancelada).
-    # "No cancelable" viaja como ADVERTENCIA: el procedimiento oficial del SAT es
-    # emitir primero la sustituta con relación 04 y después cancelar con motivo 01,
-    # así que bloquear ese envío impediría justo el trámite correcto. Se informa y
-    # se deja decidir al usuario; si el SAT lo rechaza, se muestra su respuesta.
+    # "No cancelable" bloquea. Comprobado con A-2202 (2026-08-07): el PAC acusa
+    # "GT12 solicitud recibida" pero el SAT no registra nada — su EstatusCancelacion
+    # queda vacío, mientras que las solicitudes que sí acepta aparecen "En proceso"
+    # de inmediato. Enviarla sólo dejaría un EN_CANCELACION fantasma.
+    # Regla oficial: "Se deberán cancelar los documentos relacionados a un
+    # comprobante para que su estatus se modifique a cancelable"
+    # (ar_servicio_cancelacion.pdf, SAT).
     resultado = {
         "puede_cancelar": True,
         "motivo": None,
-        "advertencia": None,
         "estado_sat": None,
         "es_cancelable": None,
         "complementos": [],
@@ -612,17 +613,17 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
                 "El SAT reporta esta factura como «No cancelable» porque "
                 + (f"la factura {listado} la relaciona" if uno
                    else f"las facturas {listado} la relacionan")
-                + ". Si el SAT rechaza la solicitud, primero habrá que cancelar "
+                + ". Para poder cancelarla hay que cancelar primero "
                 + ("esa factura." if uno else "esas facturas.")
             )
         else:
             motivo = (
                 "El SAT reporta esta factura como «No cancelable», normalmente porque "
                 "otro comprobante la relaciona (un complemento de pago o una nota de "
-                "crédito). Puedes intentar la cancelación; si el SAT la rechaza, "
-                "habrá que cancelar primero ese comprobante."
+                "crédito). Hay que cancelar primero ese comprobante para que el SAT "
+                "cambie su estatus a cancelable."
             )
-        resultado.update(advertencia=motivo)
+        resultado.update(puede_cancelar=False, motivo=motivo)
 
     return resultado
 
@@ -676,11 +677,6 @@ def solicitar_cancelacion_cfdi(
     diag = diagnostico_cancelacion(db, factura)
     if not diag["puede_cancelar"]:
         raise HTTPException(status_code=400, detail=diag["motivo"])
-    if diag.get("advertencia"):
-        logger.info(
-            "[CANCELACION] %s-%s marcada «%s» por el SAT; se envía la solicitud igual.",
-            factura.serie, factura.folio, diag.get("es_cancelable"),
-        )
 
     if (motivo or "").strip() == "01":
         _validar_sustitucion_motivo_01(db, factura, folio_sustitucion)

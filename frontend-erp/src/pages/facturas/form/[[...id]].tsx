@@ -1081,18 +1081,10 @@ const FacturaFormPage: React.FC = () => {
             style={{ marginBottom: 12 }}
             type="error"
             showIcon
-            message="Esta factura ya está cancelada en el SAT"
-            description={diagCancelacion.motivo}
-          />
-        ) : diagCancelacion?.advertencia ? (
-          <Alert
-            style={{ marginBottom: 12 }}
-            type="warning"
-            showIcon
-            message="El SAT reporta un impedimento"
+            message="El SAT no permite cancelar esta factura todavía"
             description={
               <>
-                {diagCancelacion.advertencia}
+                {diagCancelacion.motivo}
                 {(!!diagCancelacion.complementos?.length ||
                   !!diagCancelacion.relacionadas?.length) && (
                   <div style={{ marginTop: 8 }}>

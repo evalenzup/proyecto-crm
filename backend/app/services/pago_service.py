@@ -927,11 +927,6 @@ def cancelar_pago_sat(
     diag = diagnostico_cancelacion(db, pago)
     if not diag["puede_cancelar"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=diag["motivo"])
-    if diag.get("advertencia"):
-        logger.info(
-            "[CANCELACION] Pago %s-%s marcado «%s» por el SAT; se envía la solicitud igual.",
-            pago.serie, pago.folio, diag.get("es_cancelable"),
-        )
 
     # Validacion motivo 01
     if motivo == "01" and not folio_sustituto:

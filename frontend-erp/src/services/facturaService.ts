@@ -236,8 +236,6 @@ export const getFacturasRelacionables = (params: {
 export interface DiagnosticoCancelacion {
   puede_cancelar: boolean;
   motivo?: string | null;
-  /** El SAT reporta un impedimento, pero se permite intentar el trámite. */
-  advertencia?: string | null;
   relacionadas?: { id: string; folio: string; tipo_relacion?: string | null }[];
   estado_sat?: string | null;
   es_cancelable?: string | null;

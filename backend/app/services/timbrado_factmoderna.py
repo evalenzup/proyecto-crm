@@ -9,6 +9,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 import httpx
+from fastapi import HTTPException
 from xml.etree.ElementTree import Element, SubElement, tostring, fromstring
 
 from sqlalchemy.orm import Session
@@ -1001,6 +1002,8 @@ class FacturacionModernaPAC:
         )
 
         cancelada_confirmada_sat = False
+        # None = no se pudo consultar; True/False = el SAT registró o no la solicitud
+        sat_registro_solicitud = None
         if solicitud_aceptada:
             try:
                 from app.services import sat_cfdi_service as _sat
@@ -1015,6 +1018,13 @@ class FacturacionModernaPAC:
                 )
                 if acuse.encontrado and acuse.cancelado_por_sat:
                     cancelada_confirmada_sat = True
+                elif acuse.encontrado:
+                    # El SAT publica "En proceso" en cuanto acepta la solicitud.
+                    # Si viene vacío, el acuse del PAC no significa que el SAT la
+                    # haya registrado: hay que verlo antes de marcar EN_CANCELACION.
+                    sat_registro_solicitud = bool(
+                        (acuse.estatus_cancelacion or "").strip()
+                    )
             except Exception as e:
                 (logger.warning if logger else print)(
                     f"[Cancel] No se pudo verificar en SAT tras la solicitud: {e}"
@@ -1027,6 +1037,22 @@ class FacturacionModernaPAC:
             except NameError:
                 f.estatus = "CANCELADA"
             f.fecha_solicitud_cancelacion = None
+        elif solicitud_aceptada and sat_registro_solicitud is False:
+            # El PAC acusó recibo pero el SAT no registró nada. Pasa cuando el
+            # CFDI está "No cancelable": el SAT descarta la solicitud en silencio.
+            # Dejarla EN_CANCELACION crearía un estatus fantasma, así que se
+            # revierte y se informa en vez de fingir que el trámite va en camino.
+            db.rollback()
+            detalle = (
+                "El PAC recibió la solicitud, pero el SAT no la registró: el "
+                f"comprobante sigue como «{acuse.es_cancelable}». "
+                "Hay que cancelar primero el CFDI que lo relaciona."
+            )
+            (logger.warning if logger else print)(
+                f"[Cancel] {uuid}: PAC {code_str} pero el SAT no registró la solicitud "
+                f"(EsCancelable={acuse.es_cancelable!r})"
+            )
+            raise HTTPException(status_code=409, detail=detalle)
         elif solicitud_aceptada:
             # Solicitud aceptada pero el SAT aún no la confirma como cancelada
             # (típico de motivo 01 "con aceptación", esperando al receptor).
@@ -1162,6 +1188,7 @@ class FacturacionModernaPAC:
         )
 
         cancelado_confirmado_sat = False
+        sat_registro_solicitud = None
         if solicitud_aceptada:
             try:
                 from app.services import sat_cfdi_service as _sat
@@ -1175,6 +1202,10 @@ class FacturacionModernaPAC:
                 )
                 if acuse.encontrado and acuse.cancelado_por_sat:
                     cancelado_confirmado_sat = True
+                elif acuse.encontrado:
+                    sat_registro_solicitud = bool(
+                        (acuse.estatus_cancelacion or "").strip()
+                    )
             except Exception as e:
                 (logger.warning if logger else print)(
                     f"[Cancel Pago] No se pudo verificar en SAT tras la solicitud: {e}"
@@ -1184,6 +1215,19 @@ class FacturacionModernaPAC:
             p.estatus = EstatusPago.CANCELADO
             p.fecha_solicitud_cancelacion = None
             db.add(p); db.commit(); db.refresh(p)
+        elif solicitud_aceptada and sat_registro_solicitud is False:
+            # Mismo caso que en facturas: el PAC acusó recibo pero el SAT no
+            # registró la solicitud. No se marca EN_CANCELACION.
+            db.rollback()
+            (logger.warning if logger else print)(
+                f"[Cancel Pago] {uuid}: PAC {code_str} pero el SAT no registró la "
+                f"solicitud (EsCancelable={acuse.es_cancelable!r})"
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=("El PAC recibió la solicitud, pero el SAT no la registró: el "
+                        f"complemento sigue como «{acuse.es_cancelable}»."),
+            )
         elif solicitud_aceptada:
             p.estatus = EstatusPago.EN_CANCELACION
             # Siempre se reinicia (ver la nota en la cancelación de facturas).
