@@ -9,7 +9,6 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import HTTPException
 from xml.etree.ElementTree import Element, SubElement, tostring, fromstring
 
 from sqlalchemy.orm import Session
@@ -1037,22 +1036,6 @@ class FacturacionModernaPAC:
             except NameError:
                 f.estatus = "CANCELADA"
             f.fecha_solicitud_cancelacion = None
-        elif solicitud_aceptada and sat_registro_solicitud is False:
-            # El PAC acusó recibo pero el SAT no registró nada. Pasa cuando el
-            # CFDI está "No cancelable": el SAT descarta la solicitud en silencio.
-            # Dejarla EN_CANCELACION crearía un estatus fantasma, así que se
-            # revierte y se informa en vez de fingir que el trámite va en camino.
-            db.rollback()
-            detalle = (
-                "El PAC recibió la solicitud, pero el SAT no la registró: el "
-                f"comprobante sigue como «{acuse.es_cancelable}». "
-                "Hay que cancelar primero el CFDI que lo relaciona."
-            )
-            (logger.warning if logger else print)(
-                f"[Cancel] {uuid}: PAC {code_str} pero el SAT no registró la solicitud "
-                f"(EsCancelable={acuse.es_cancelable!r})"
-            )
-            raise HTTPException(status_code=409, detail=detalle)
         elif solicitud_aceptada:
             # Solicitud aceptada pero el SAT aún no la confirma como cancelada
             # (típico de motivo 01 "con aceptación", esperando al receptor).
@@ -1061,6 +1044,24 @@ class FacturacionModernaPAC:
                 # Siempre se reinicia: en un reintento el margen de gracia debe
                 # contarse desde este envío, no desde el intento anterior.
                 f.fecha_solicitud_cancelacion = _dt.utcnow()
+            if sat_registro_solicitud is False:
+                # El acuse del PAC no es prueba: comprobado con A-2202 (2026-08-06),
+                # Facturación Moderna contestó "GT12 solicitud recibida" sin haberla
+                # enviado, y el SAT no tenía registro. La misma solicitud hecha desde
+                # el portal del SAT sí quedó "En proceso". Se conserva EN_CANCELACION
+                # por si el SAT sólo tardó, pero se avisa para que el usuario no crea
+                # que el trámite va en camino cuando puede no haber salido.
+                res["sat_registro_solicitud"] = False
+                f.cancelacion_message = (
+                    f"{res.get('message') or ''} ⚠ El SAT todavía no registra esta "
+                    "solicitud (EstatusCancelacion vacío). Usa «Verificar con SAT» "
+                    "en unos minutos; si sigue igual, el PAC no la envió y hay que "
+                    "hacerla desde el portal del SAT."
+                ).strip()
+                (logger.warning if logger else print)(
+                    f"[Cancel] {uuid}: el PAC contestó {code_str} pero el SAT no "
+                    f"registró la solicitud (EsCancelable={acuse.es_cancelable!r})"
+                )
         # ---------------------------------------------
 
         db.add(f)
@@ -1215,20 +1216,14 @@ class FacturacionModernaPAC:
             p.estatus = EstatusPago.CANCELADO
             p.fecha_solicitud_cancelacion = None
             db.add(p); db.commit(); db.refresh(p)
-        elif solicitud_aceptada and sat_registro_solicitud is False:
-            # Mismo caso que en facturas: el PAC acusó recibo pero el SAT no
-            # registró la solicitud. No se marca EN_CANCELACION.
-            db.rollback()
-            (logger.warning if logger else print)(
-                f"[Cancel Pago] {uuid}: PAC {code_str} pero el SAT no registró la "
-                f"solicitud (EsCancelable={acuse.es_cancelable!r})"
-            )
-            raise HTTPException(
-                status_code=409,
-                detail=("El PAC recibió la solicitud, pero el SAT no la registró: el "
-                        f"complemento sigue como «{acuse.es_cancelable}»."),
-            )
         elif solicitud_aceptada:
+            if sat_registro_solicitud is False:
+                # Mismo caso que en facturas (ver la nota allá).
+                res["sat_registro_solicitud"] = False
+                (logger.warning if logger else print)(
+                    f"[Cancel Pago] {uuid}: el PAC contestó {code_str} pero el SAT no "
+                    f"registró la solicitud (EsCancelable={acuse.es_cancelable!r})"
+                )
             p.estatus = EstatusPago.EN_CANCELACION
             # Siempre se reinicia (ver la nota en la cancelación de facturas).
             p.fecha_solicitud_cancelacion = _dt.utcnow()

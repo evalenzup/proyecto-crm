@@ -523,16 +523,15 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
     """
     from app.services import sat_cfdi_service as sat_svc
 
-    # "No cancelable" bloquea. Comprobado con A-2202 (2026-08-07): el PAC acusa
-    # "GT12 solicitud recibida" pero el SAT no registra nada — su EstatusCancelacion
-    # queda vacío, mientras que las solicitudes que sí acepta aparecen "En proceso"
-    # de inmediato. Enviarla sólo dejaría un EN_CANCELACION fantasma.
-    # Regla oficial: "Se deberán cancelar los documentos relacionados a un
-    # comprobante para que su estatus se modifique a cancelable"
-    # (ar_servicio_cancelacion.pdf, SAT).
+    # "No cancelable" NO bloquea: es sólo una advertencia. Comprobado con A-2202
+    # (2026-08-06): enviada desde el portal del SAT con motivo 01 y el UUID que la
+    # reemplaza, el SAT la aceptó, rompió la relación él mismo y la pasó de
+    # "No cancelable" a "Cancelable con aceptación" / "En proceso".
+    # puede_cancelar=False se reserva para lo definitivo: ya cancelada en el SAT.
     resultado = {
         "puede_cancelar": True,
         "motivo": None,
+        "advertencia": None,
         "estado_sat": None,
         "es_cancelable": None,
         "complementos": [],
@@ -613,17 +612,17 @@ def diagnostico_cancelacion(db: Session, doc) -> dict:
                 "El SAT reporta esta factura como «No cancelable» porque "
                 + (f"la factura {listado} la relaciona" if uno
                    else f"las facturas {listado} la relacionan")
-                + ". Para poder cancelarla hay que cancelar primero "
-                + ("esa factura." if uno else "esas facturas.")
+                + ". Aun así puedes enviar la cancelación: al recibirla, el SAT "
+                + "rompe la relación y la vuelve cancelable."
             )
         else:
             motivo = (
                 "El SAT reporta esta factura como «No cancelable», normalmente porque "
                 "otro comprobante la relaciona (un complemento de pago o una nota de "
-                "crédito). Hay que cancelar primero ese comprobante para que el SAT "
-                "cambie su estatus a cancelable."
+                "crédito). Aun así puedes enviar la cancelación: al recibirla, el "
+                "SAT suele romper la relación y volverla cancelable."
             )
-        resultado.update(puede_cancelar=False, motivo=motivo)
+        resultado.update(advertencia=motivo)
 
     return resultado
 
