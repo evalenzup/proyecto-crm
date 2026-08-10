@@ -14,6 +14,10 @@ from app.services.usuario_service import usuario_repo
 from app.database import get_db
 from app.models.usuario import Usuario as UsuarioModel, UsuarioEmpresa, UsuarioPermiso
 
+import logging
+
+logger = logging.getLogger("app")
+
 router = APIRouter()
 
 _PREF_DEFAULTS = {"theme": "light", "font_size": 14}
@@ -74,13 +78,26 @@ def get_user_preferences(
     return _get_prefs(current_user)
 
 
-def _aplicar_restricciones(user, restricciones) -> list[str]:
+def _aplicar_restricciones(
+    user, restricciones, *, actor: Optional[UsuarioModel] = None,
+) -> list[str]:
     """Escribe las restricciones que vengan en el payload. Devuelve qué cambió.
 
-    Sólo se tocan los campos presentes: un None significa "no cambiar", y para
-    limpiar una restricción se manda el valor vacío correspondiente.
+    Sólo las cambia el SUPERADMIN: son un control del dueño sobre el personal,
+    y un admin no debe poder quitarse el candado a sí mismo ni a otro. Para
+    cualquier otro actor se ignoran en silencio y se conserva lo que ya había.
+
+    De los campos presentes, un None significa "no cambiar"; para limpiar una
+    restricción se manda el valor vacío correspondiente.
     """
     if restricciones is None:
+        return []
+    if actor is None or actor.rol != RolUsuario.SUPERADMIN:
+        logger.warning(
+            "[Restricciones] %s intentó cambiar las restricciones de %s sin ser "
+            "SUPERADMIN — se ignoran",
+            getattr(actor, "email", "?"), user.email,
+        )
         return []
     cambios = []
     for campo in ("puede_eliminar", "horario_inicio", "horario_fin",
@@ -170,7 +187,7 @@ def create_user(
         raise HTTPException(status_code=400,
                             detail="Ya existe un usuario con ese email.")
     user = usuario_repo.create(db, obj_in=user_in.model_copy(update={"restricciones": None}))
-    _aplicar_restricciones(user, user_in.restricciones)
+    _aplicar_restricciones(user, user_in.restricciones, actor=current_user)
     # Empresas accesibles (para admin)
     if user_in.empresas_ids is not None:
         _sync_empresas(db, user, user_in.empresas_ids)
@@ -244,7 +261,9 @@ def update_user(
     user = usuario_repo.update(
         db, db_obj=user, obj_in=user_in.model_copy(update={"restricciones": None})
     )
-    update_data.update(dict.fromkeys(_aplicar_restricciones(user, user_in.restricciones)))
+    update_data.update(dict.fromkeys(
+        _aplicar_restricciones(user, user_in.restricciones, actor=current_user)
+    ))
 
     if empresas_ids is not None:
         _sync_empresas(db, user, empresas_ids)

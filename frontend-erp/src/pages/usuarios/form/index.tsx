@@ -162,6 +162,9 @@ const UsuarioFormPage: React.FC = () => {
 
             // Restricciones de acceso. Se mandan siempre para que se puedan
             // limpiar: vacío significa "sin restricción".
+            // Solo el superadmin las manda; el backend además las ignora
+            // si el que edita no lo es.
+            if (isSuperadmin) {
             const horarioSemanal: Record<string, [string, string]> = {};
             for (const dia of DIAS_SEMANA) {
                 if (!values[`dia_${dia.value}`]) continue;
@@ -181,6 +184,7 @@ const UsuarioFormPage: React.FC = () => {
                 dias_laborales: null,
                 ips_permitidas: (values.ips_permitidas ?? '').trim() || null,
             };
+            }
 
             if (isEditing && !values.password) {
                 delete payload.password;
@@ -381,13 +385,15 @@ const UsuarioFormPage: React.FC = () => {
                                 </>
                             )}
 
+                            {isSuperadmin && (
+                            <>
                             <Divider orientation="left">Restricciones de acceso</Divider>
                             <Alert
                                 type="info"
                                 showIcon
                                 style={{ marginBottom: 16 }}
                                 message="Déjalas vacías para no restringir nada."
-                                description="Se aplican en cada petición, así que una sesión ya abierta también se corta al salir del horario o de la red permitida."
+                                description="Se aplican en cada petición, así que una sesión ya abierta también se corta al salir del horario o de la red permitida. Solo tú puedes modificarlas."
                             />
 
                             <Form.Item name="puede_eliminar" valuePropName="checked" style={{ marginBottom: 12 }}>
@@ -440,6 +446,8 @@ const UsuarioFormPage: React.FC = () => {
                             >
                                 <Input placeholder="Ej. 189.223.202.22, 192.168.1.0/24" allowClear />
                             </Form.Item>
+                            </>
+                            )}
 
                             <Form.Item style={{ textAlign: 'right', marginTop: 16 }}>
                                 <Button onClick={() => router.back()} style={{ marginRight: 8 }}>
