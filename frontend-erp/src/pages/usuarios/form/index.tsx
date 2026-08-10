@@ -3,14 +3,28 @@ import { useRouter } from 'next/router';
 import { PageHeader } from '@/components/PageHeader';
 import {
     Form, Input, Button, Card, Select, Switch, message,
-    Spin, Row, Col, Checkbox, Divider, Typography,
+    Spin, Row, Col, Checkbox, Divider, Typography, TimePicker, Alert,
 } from 'antd';
+import dayjs from 'dayjs';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { usuarioService, UsuarioCreate, UsuarioUpdate } from '@/services/usuarioService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
 import { useAuth } from '@/context/AuthContext';
 
 const { Text } = Typography;
+
+// ISO: 1=lunes … 7=domingo, igual que el backend
+const DIAS_SEMANA = [
+    { value: '1', label: 'Lun' },
+    { value: '2', label: 'Mar' },
+    { value: '3', label: 'Mié' },
+    { value: '4', label: 'Jue' },
+    { value: '5', label: 'Vie' },
+    { value: '6', label: 'Sáb' },
+    { value: '7', label: 'Dom' },
+];
+
+const FORMATO_HORA = 'HH:mm';
 
 // Módulos disponibles para usuarios ESTANDAR
 const MODULOS_DISPONIBLES = [
@@ -66,6 +80,15 @@ const UsuarioFormPage: React.FC = () => {
                         ),
                         ver_actividad: (user.permisos ?? []).includes('reportes_actividad'),
                         ver_ingresos: (user.permisos ?? []).includes('ingresos_no_facturados'),
+                        puede_eliminar: user.puede_eliminar ?? true,
+                        horario: user.horario_inicio && user.horario_fin
+                            ? [dayjs(user.horario_inicio, FORMATO_HORA),
+                               dayjs(user.horario_fin, FORMATO_HORA)]
+                            : undefined,
+                        dias_laborales: user.dias_laborales
+                            ? user.dias_laborales.split(',').map((d) => d.trim())
+                            : [],
+                        ips_permitidas: user.ips_permitidas ?? '',
                     });
                     setSelectedRol(user.rol);
                 } catch (error) {
@@ -108,6 +131,19 @@ const UsuarioFormPage: React.FC = () => {
             if (isSuperadmin && values.ver_actividad) permisos.push('reportes_actividad');
             if (isSuperadmin && values.ver_ingresos) permisos.push('ingresos_no_facturados');
             payload.permisos = permisos;
+
+            // Restricciones de acceso. Se mandan siempre para que se puedan
+            // limpiar: vacío significa "sin restricción".
+            const [desde, hasta] = values.horario ?? [];
+            payload.restricciones = {
+                puede_eliminar: values.puede_eliminar !== false,
+                horario_inicio: desde ? desde.format(FORMATO_HORA) : null,
+                horario_fin: hasta ? hasta.format(FORMATO_HORA) : null,
+                dias_laborales: (values.dias_laborales ?? []).length
+                    ? (values.dias_laborales as string[]).join(',')
+                    : null,
+                ips_permitidas: (values.ips_permitidas ?? '').trim() || null,
+            };
 
             if (isEditing && !values.password) {
                 delete payload.password;
@@ -307,6 +343,50 @@ const UsuarioFormPage: React.FC = () => {
                                     </Text>
                                 </>
                             )}
+
+                            <Divider orientation="left">Restricciones de acceso</Divider>
+                            <Alert
+                                type="info"
+                                showIcon
+                                style={{ marginBottom: 16 }}
+                                message="Déjalas vacías para no restringir nada."
+                                description="Se aplican en cada petición, así que una sesión ya abierta también se corta al salir del horario o de la red permitida."
+                            />
+
+                            <Form.Item name="puede_eliminar" valuePropName="checked" style={{ marginBottom: 12 }}>
+                                <Checkbox>Puede eliminar registros</Checkbox>
+                            </Form.Item>
+
+                            <Row gutter={16}>
+                                <Col xs={24} md={10}>
+                                    <Form.Item
+                                        name="horario"
+                                        label="Horario permitido"
+                                        tooltip="Hora del centro. Fuera de este rango no puede entrar ni seguir trabajando."
+                                    >
+                                        <TimePicker.RangePicker
+                                            format={FORMATO_HORA}
+                                            minuteStep={15}
+                                            style={{ width: '100%' }}
+                                            placeholder={['Desde', 'Hasta']}
+                                        />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={14}>
+                                    <Form.Item name="dias_laborales" label="Días permitidos">
+                                        <Checkbox.Group options={DIAS_SEMANA} />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+
+                            <Form.Item
+                                name="ips_permitidas"
+                                label="Solo desde estas IP"
+                                tooltip="IP pública de las instalaciones. Acepta varias separadas por coma y rangos como 192.168.1.0/24."
+                                extra="Requiere que el internet de la oficina tenga IP fija; si el proveedor la cambia, el usuario queda fuera."
+                            >
+                                <Input placeholder="Ej. 189.223.202.22, 192.168.1.0/24" allowClear />
+                            </Form.Item>
 
                             <Form.Item style={{ textAlign: 'right', marginTop: 16 }}>
                                 <Button onClick={() => router.back()} style={{ marginRight: 8 }}>

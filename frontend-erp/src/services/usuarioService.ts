@@ -1,5 +1,17 @@
 import api from '@/lib/axios';
 
+export interface RestriccionesAcceso {
+    /** false bloquea cualquier eliminación en el sistema */
+    puede_eliminar?: boolean;
+    /** "HH:MM" u "HH:MM:SS", hora del centro */
+    horario_inicio?: string | null;
+    horario_fin?: string | null;
+    /** ISO: 1=lunes … 7=domingo, separados por coma. Ej. "1,2,3,4,5" */
+    dias_laborales?: string | null;
+    /** IPs o rangos CIDR separados por coma */
+    ips_permitidas?: string | null;
+}
+
 export interface Usuario {
     id: string;
     email: string;
@@ -9,6 +21,11 @@ export interface Usuario {
     empresa_id: string | null;
     empresas_ids: string[];
     permisos: string[];
+    puede_eliminar: boolean;
+    horario_inicio: string | null;
+    horario_fin: string | null;
+    dias_laborales: string | null;
+    ips_permitidas: string | null;
     empresa?: {
         id: string;
         nombre_comercial: string;
@@ -24,6 +41,7 @@ export interface UsuarioCreate {
     empresa_id?: string | null;
     empresas_ids?: string[];
     permisos?: string[];
+    restricciones?: RestriccionesAcceso;
 }
 
 export interface UsuarioUpdate {
@@ -35,6 +53,7 @@ export interface UsuarioUpdate {
     empresa_id?: string | null;
     empresas_ids?: string[];
     permisos?: string[];
+    restricciones?: RestriccionesAcceso;
 }
 
 export interface UsuarioPreferences {
