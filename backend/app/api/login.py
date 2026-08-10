@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.config import settings
 from app.core import security
+from app.core import restricciones
 from app.core.limiter import limiter
 from app.database import get_db
 from app.models.usuario import Usuario
@@ -17,6 +18,10 @@ from app.models.refresh_token import RefreshToken
 from app.schemas.token import AccessTokenResponse
 from app.schemas.usuario import Usuario as UsuarioSchema
 from app.services import auditoria_service as audit_svc
+
+import logging
+
+logger = logging.getLogger("app")
 
 router = APIRouter()
 
@@ -90,6 +95,25 @@ def login_access_token(
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    # Restricciones de horario y red. Se avisa aquí para que el usuario sepa el
+    # motivo al entrar, en vez de iniciar sesión y toparse con 403 en cada
+    # pantalla. get_current_active_user las vuelve a verificar en cada petición,
+    # así que una sesión abierta tampoco sobrevive al cierre del horario.
+    motivo = restricciones.verificar_acceso(user, request)
+    if motivo:
+        logger.warning("[Restricciones] login bloqueado a %s — %s", user.email, motivo)
+        try:
+            audit_svc.registrar(
+                db=db, accion=audit_svc.LOGIN, entidad="usuario",
+                usuario_id=user.id, usuario_email=user.email,
+                empresa_id=user.empresa_id, entidad_id=str(user.id),
+                descripcion=f"Acceso denegado: {motivo}",
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=motivo)
 
     try:
         audit_svc.registrar(

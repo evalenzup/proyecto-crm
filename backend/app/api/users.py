@@ -74,6 +74,23 @@ def get_user_preferences(
     return _get_prefs(current_user)
 
 
+def _aplicar_restricciones(user, restricciones) -> list[str]:
+    """Escribe las restricciones que vengan en el payload. Devuelve qué cambió.
+
+    Sólo se tocan los campos presentes: un None significa "no cambiar", y para
+    limpiar una restricción se manda el valor vacío correspondiente.
+    """
+    if restricciones is None:
+        return []
+    cambios = []
+    for campo in ("puede_eliminar", "horario_inicio", "horario_fin",
+                  "dias_laborales", "ips_permitidas"):
+        if campo in restricciones.model_fields_set:
+            setattr(user, campo, getattr(restricciones, campo))
+            cambios.append(campo)
+    return cambios
+
+
 @router.put("/preferences", response_model=UsuarioPreferences)
 def update_user_preferences(
     prefs_in: UsuarioPreferencesUpdate,
@@ -152,7 +169,8 @@ def create_user(
     if existing:
         raise HTTPException(status_code=400,
                             detail="Ya existe un usuario con ese email.")
-    user = usuario_repo.create(db, obj_in=user_in)
+    user = usuario_repo.create(db, obj_in=user_in.model_copy(update={"restricciones": None}))
+    _aplicar_restricciones(user, user_in.restricciones)
     # Empresas accesibles (para admin)
     if user_in.empresas_ids is not None:
         _sync_empresas(db, user, user_in.empresas_ids)
@@ -221,8 +239,12 @@ def update_user(
     # Extraer campos de relaciones antes de actualizar el modelo base
     empresas_ids = update_data.pop("empresas_ids", None)
     permisos = update_data.pop("permisos", None)
+    update_data.pop("restricciones", None)
 
-    user = usuario_repo.update(db, db_obj=user, obj_in=user_in)
+    user = usuario_repo.update(
+        db, db_obj=user, obj_in=user_in.model_copy(update={"restricciones": None})
+    )
+    update_data.update(dict.fromkeys(_aplicar_restricciones(user, user_in.restricciones)))
 
     if empresas_ids is not None:
         _sync_empresas(db, user, empresas_ids)

@@ -1,17 +1,22 @@
 # app/api/deps.py
 import uuid as _uuid
 from typing import Generator, List, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core import security
+from app.core import restricciones
 from app.database import get_db
 from app.models.usuario import Usuario, RolUsuario, UsuarioEmpresa
 from app.schemas.token import TokenPayload
 from app.config import settings
+
+import logging
+
+logger = logging.getLogger("app")
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
@@ -65,10 +70,37 @@ def get_current_user(
 
 
 def get_current_active_user(
+    request: Request,
     current_user: Usuario = Depends(get_current_user),
 ) -> Usuario:
+    """Puerta única de los endpoints protegidos.
+
+    Además de la cuenta activa, aquí se aplican las restricciones por usuario
+    (horario, red de origen y facultad de eliminar). Al estar en un solo punto
+    cubren los endpoints que ya existen y los que se agreguen después, sin
+    tener que acordarse de ponerlas en cada uno.
+    """
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    motivo = restricciones.verificar_acceso(current_user, request)
+    if motivo:
+        logger.warning(
+            "[Restricciones] %s bloqueado en %s %s — %s",
+            current_user.email, request.method, request.url.path, motivo,
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=motivo)
+
+    if request.method == "DELETE" and not current_user.puede_eliminar:
+        logger.warning(
+            "[Restricciones] %s intentó eliminar en %s",
+            current_user.email, request.url.path,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta no tiene permitido eliminar registros.",
+        )
+
     return current_user
 
 

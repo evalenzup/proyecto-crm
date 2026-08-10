@@ -1,6 +1,6 @@
 # app/models/usuario.py
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, Enum, DateTime
+from sqlalchemy import Column, String, Boolean, ForeignKey, Enum, DateTime, Time
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -55,6 +55,16 @@ class Usuario(Base):
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=True)
 
     empresa = relationship("Empresa", back_populates="usuarios")
+
+    # ── Restricciones de acceso (opcionales, NULL = sin restricción) ─────────
+    # Acotan a un usuario sin tener que bajarle el rol. Se aplican en
+    # deps.get_current_active_user, que es la puerta por la que pasan todos
+    # los endpoints protegidos.
+    puede_eliminar = Column(Boolean, nullable=False, server_default="true", default=True)
+    horario_inicio = Column(Time, nullable=True)   # hora local de México
+    horario_fin = Column(Time, nullable=True)
+    dias_laborales = Column(String(20), nullable=True)   # ISO: "1,2,3,4,5" (1=lunes)
+    ips_permitidas = Column(String(500), nullable=True)  # IPs o CIDR separados por coma
 
     # Preferencias de UI (tema, fuente, etc.) almacenadas en BD
     preferences = Column(JSONB, nullable=False,
