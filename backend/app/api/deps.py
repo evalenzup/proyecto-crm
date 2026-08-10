@@ -18,6 +18,9 @@ import logging
 
 logger = logging.getLogger("app")
 
+# Sufijos de ruta que se consideran exportación masiva de datos.
+_SUFIJOS_EXPORTACION = ("/export-excel", "/export-csv")
+
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
 )
@@ -90,6 +93,21 @@ def get_current_active_user(
             current_user.email, request.method, request.url.path, motivo,
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=motivo)
+
+    # Los 5 endpoints de exportación masiva comparten el sufijo /export-excel.
+    # Se filtra por la ruta para cubrirlos todos desde un solo punto; los que se
+    # agreguen después deben respetar esa convención de nombre.
+    if not current_user.puede_exportar and request.url.path.rstrip("/").endswith(
+        _SUFIJOS_EXPORTACION
+    ):
+        logger.warning(
+            "[Restricciones] %s intentó exportar en %s",
+            current_user.email, request.url.path,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta no tiene permitido exportar información.",
+        )
 
     if request.method == "DELETE" and not current_user.puede_eliminar:
         logger.warning(

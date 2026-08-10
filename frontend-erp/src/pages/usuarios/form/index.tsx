@@ -115,6 +115,7 @@ const UsuarioFormPage: React.FC = () => {
                         ver_actividad: (user.permisos ?? []).includes('reportes_actividad'),
                         ver_ingresos: (user.permisos ?? []).includes('ingresos_no_facturados'),
                         puede_eliminar: user.puede_eliminar ?? true,
+                        puede_exportar: user.puede_exportar ?? true,
                         ips_permitidas: user.ips_permitidas ?? '',
                         ...horarioAFormulario(user),
                     });
@@ -177,6 +178,7 @@ const UsuarioFormPage: React.FC = () => {
             }
             payload.restricciones = {
                 puede_eliminar: values.puede_eliminar !== false,
+                puede_exportar: values.puede_exportar !== false,
                 horario_semanal: Object.keys(horarioSemanal).length ? horarioSemanal : null,
                 // Los campos simples quedan vacíos: el mapa por día los sustituye.
                 horario_inicio: null,
@@ -396,8 +398,11 @@ const UsuarioFormPage: React.FC = () => {
                                 description="Se aplican en cada petición, así que una sesión ya abierta también se corta al salir del horario o de la red permitida. Solo tú puedes modificarlas."
                             />
 
-                            <Form.Item name="puede_eliminar" valuePropName="checked" style={{ marginBottom: 12 }}>
+                            <Form.Item name="puede_eliminar" valuePropName="checked" style={{ marginBottom: 4 }}>
                                 <Checkbox>Puede eliminar registros</Checkbox>
+                            </Form.Item>
+                            <Form.Item name="puede_exportar" valuePropName="checked" style={{ marginBottom: 12 }}>
+                                <Checkbox>Puede exportar a Excel</Checkbox>
                             </Form.Item>
 
                             <Text strong>Horario permitido</Text>

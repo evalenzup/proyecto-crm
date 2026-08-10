@@ -3,6 +3,8 @@ import api from '@/lib/axios';
 export interface RestriccionesAcceso {
     /** false bloquea cualquier eliminación en el sistema */
     puede_eliminar?: boolean;
+    /** false bloquea las exportaciones a Excel */
+    puede_exportar?: boolean;
     /** "HH:MM" u "HH:MM:SS", hora del centro */
     horario_inicio?: string | null;
     horario_fin?: string | null;
@@ -24,6 +26,7 @@ export interface Usuario {
     empresas_ids: string[];
     permisos: string[];
     puede_eliminar: boolean;
+    puede_exportar: boolean;
     horario_inicio: string | null;
     horario_fin: string | null;
     dias_laborales: string | null;

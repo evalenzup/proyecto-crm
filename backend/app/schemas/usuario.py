@@ -19,6 +19,7 @@ class RestriccionesAcceso(BaseModel):
     """Acotan a un usuario sin cambiarle el rol. Todas opcionales."""
 
     puede_eliminar: Optional[bool] = None
+    puede_exportar: Optional[bool] = None
     horario_inicio: Optional[time] = None
     horario_fin: Optional[time] = None
     # ISO: 1=lunes … 7=domingo, separados por coma. Ej. "1,2,3,4,5"
@@ -154,6 +155,7 @@ class UsuarioInDBBase(UsuarioBase):
     empresas_ids: List[UUID] = []
     permisos: List[str] = []
     puede_eliminar: bool = True
+    puede_exportar: bool = True
     horario_inicio: Optional[time] = None
     horario_fin: Optional[time] = None
     dias_laborales: Optional[str] = None

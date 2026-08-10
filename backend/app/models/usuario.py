@@ -61,6 +61,7 @@ class Usuario(Base):
     # deps.get_current_active_user, que es la puerta por la que pasan todos
     # los endpoints protegidos.
     puede_eliminar = Column(Boolean, nullable=False, server_default="true", default=True)
+    puede_exportar = Column(Boolean, nullable=False, server_default="true", default=True)
     horario_inicio = Column(Time, nullable=True)   # hora local de México
     horario_fin = Column(Time, nullable=True)
     dias_laborales = Column(String(20), nullable=True)   # ISO: "1,2,3,4,5" (1=lunes)
