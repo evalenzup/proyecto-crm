@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-from datetime import datetime
+from datetime import datetime, time
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -27,14 +27,59 @@ def _ahora_mx() -> datetime:
     return datetime.now(TZ_MX)
 
 
+def _hora(texto: str) -> Optional[time]:
+    """Convierte "HH:MM" o "HH:MM:SS" a time; None si no se puede."""
+    try:
+        partes = [int(p) for p in str(texto).split(":")[:2]]
+        return time(partes[0], partes[1] if len(partes) > 1 else 0)
+    except (ValueError, IndexError):
+        return None
+
+
+def _dentro_del_rango(hora: time, inicio: time, fin: time) -> bool:
+    # Si el fin es menor que el inicio, el horario cruza la medianoche.
+    return (inicio <= hora <= fin) if inicio <= fin else (hora >= inicio or hora <= fin)
+
+
+def motivo_horario_semanal(usuario, ahora: datetime) -> Optional[str]:
+    """Evalúa el horario por día. Devuelve el motivo del rechazo, o None."""
+    mapa = usuario.horario_semanal or {}
+    if not mapa:
+        return None
+
+    dia = str(ahora.isoweekday())
+    rango = mapa.get(dia)
+    if not rango:
+        dias_con_acceso = sorted(int(d) for d in mapa if str(d).isdigit())
+        legibles = ", ".join(_DIAS[d] for d in dias_con_acceso if d in _DIAS)
+        return f"Tu cuenta solo tiene acceso los días: {legibles}."
+
+    inicio, fin = _hora(rango[0]), _hora(rango[1] if len(rango) > 1 else None)
+    if not inicio or not fin:
+        logger.warning("[Restricciones] horario_semanal inválido en %s: %r",
+                       usuario.email, rango)
+        return None
+
+    hora = ahora.time()
+    if not _dentro_del_rango(hora, inicio, fin):
+        return (f"Hoy {_DIAS[ahora.isoweekday()]} tu cuenta tiene acceso de "
+                f"{inicio.strftime('%H:%M')} a {fin.strftime('%H:%M')} "
+                f"(hora del centro). Ahora son las {hora.strftime('%H:%M')}.")
+    return None
+
+
 def motivo_horario(usuario, ahora: Optional[datetime] = None) -> Optional[str]:
     """Devuelve el motivo del rechazo, o None si el momento está permitido."""
+    ahora = ahora or _ahora_mx()
+
+    # El horario por día, si está configurado, sustituye al horario único.
+    if getattr(usuario, "horario_semanal", None):
+        return motivo_horario_semanal(usuario, ahora)
+
     inicio, fin = usuario.horario_inicio, usuario.horario_fin
     dias = (usuario.dias_laborales or "").strip()
     if not inicio and not fin and not dias:
         return None
-
-    ahora = ahora or _ahora_mx()
 
     if dias:
         try:
@@ -49,9 +94,7 @@ def motivo_horario(usuario, ahora: Optional[datetime] = None) -> Optional[str]:
 
     if inicio and fin:
         hora = ahora.time()
-        # Si el fin es menor que el inicio, el horario cruza la medianoche.
-        dentro = (inicio <= hora <= fin) if inicio <= fin else (hora >= inicio or hora <= fin)
-        if not dentro:
+        if not _dentro_del_rango(hora, inicio, fin):
             return (f"Tu cuenta solo tiene acceso de {inicio.strftime('%H:%M')} "
                     f"a {fin.strftime('%H:%M')} (hora del centro). "
                     f"Ahora son las {hora.strftime('%H:%M')}.")

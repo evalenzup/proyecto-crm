@@ -15,16 +15,50 @@ const { Text } = Typography;
 
 // ISO: 1=lunes … 7=domingo, igual que el backend
 const DIAS_SEMANA = [
-    { value: '1', label: 'Lun' },
-    { value: '2', label: 'Mar' },
-    { value: '3', label: 'Mié' },
-    { value: '4', label: 'Jue' },
-    { value: '5', label: 'Vie' },
-    { value: '6', label: 'Sáb' },
-    { value: '7', label: 'Dom' },
+    { value: '1', label: 'Lunes' },
+    { value: '2', label: 'Martes' },
+    { value: '3', label: 'Miércoles' },
+    { value: '4', label: 'Jueves' },
+    { value: '5', label: 'Viernes' },
+    { value: '6', label: 'Sábado' },
+    { value: '7', label: 'Domingo' },
 ];
 
 const FORMATO_HORA = 'HH:mm';
+
+/** Convierte lo que guarda el backend a los campos por día del formulario. */
+function horarioAFormulario(user: {
+    horario_semanal?: Record<string, [string, string]> | null;
+    horario_inicio?: string | null;
+    horario_fin?: string | null;
+    dias_laborales?: string | null;
+}): Record<string, unknown> {
+    const campos: Record<string, unknown> = {};
+    const mapa = user.horario_semanal;
+    if (mapa && Object.keys(mapa).length) {
+        for (const dia of DIAS_SEMANA) {
+            const rango = mapa[dia.value];
+            campos[`dia_${dia.value}`] = !!rango;
+            if (rango) {
+                campos[`horas_${dia.value}`] = [
+                    dayjs(rango[0], FORMATO_HORA),
+                    dayjs(rango[1], FORMATO_HORA),
+                ];
+            }
+        }
+        return campos;
+    }
+    // Retrocompatible: usuarios guardados con el horario único anterior.
+    const dias = (user.dias_laborales ?? '').split(',').map((d) => d.trim()).filter(Boolean);
+    const rango = user.horario_inicio && user.horario_fin
+        ? [dayjs(user.horario_inicio, FORMATO_HORA), dayjs(user.horario_fin, FORMATO_HORA)]
+        : undefined;
+    for (const dia of DIAS_SEMANA) {
+        campos[`dia_${dia.value}`] = dias.includes(dia.value);
+        if (dias.includes(dia.value) && rango) campos[`horas_${dia.value}`] = rango;
+    }
+    return campos;
+}
 
 // Módulos disponibles para usuarios ESTANDAR
 const MODULOS_DISPONIBLES = [
@@ -81,14 +115,8 @@ const UsuarioFormPage: React.FC = () => {
                         ver_actividad: (user.permisos ?? []).includes('reportes_actividad'),
                         ver_ingresos: (user.permisos ?? []).includes('ingresos_no_facturados'),
                         puede_eliminar: user.puede_eliminar ?? true,
-                        horario: user.horario_inicio && user.horario_fin
-                            ? [dayjs(user.horario_inicio, FORMATO_HORA),
-                               dayjs(user.horario_fin, FORMATO_HORA)]
-                            : undefined,
-                        dias_laborales: user.dias_laborales
-                            ? user.dias_laborales.split(',').map((d) => d.trim())
-                            : [],
                         ips_permitidas: user.ips_permitidas ?? '',
+                        ...horarioAFormulario(user),
                     });
                     setSelectedRol(user.rol);
                 } catch (error) {
@@ -134,14 +162,23 @@ const UsuarioFormPage: React.FC = () => {
 
             // Restricciones de acceso. Se mandan siempre para que se puedan
             // limpiar: vacío significa "sin restricción".
-            const [desde, hasta] = values.horario ?? [];
+            const horarioSemanal: Record<string, [string, string]> = {};
+            for (const dia of DIAS_SEMANA) {
+                if (!values[`dia_${dia.value}`]) continue;
+                const rango = values[`horas_${dia.value}`];
+                if (!rango?.[0] || !rango?.[1]) continue;
+                horarioSemanal[dia.value] = [
+                    rango[0].format(FORMATO_HORA),
+                    rango[1].format(FORMATO_HORA),
+                ];
+            }
             payload.restricciones = {
                 puede_eliminar: values.puede_eliminar !== false,
-                horario_inicio: desde ? desde.format(FORMATO_HORA) : null,
-                horario_fin: hasta ? hasta.format(FORMATO_HORA) : null,
-                dias_laborales: (values.dias_laborales ?? []).length
-                    ? (values.dias_laborales as string[]).join(',')
-                    : null,
+                horario_semanal: Object.keys(horarioSemanal).length ? horarioSemanal : null,
+                // Los campos simples quedan vacíos: el mapa por día los sustituye.
+                horario_inicio: null,
+                horario_fin: null,
+                dias_laborales: null,
                 ips_permitidas: (values.ips_permitidas ?? '').trim() || null,
             };
 
@@ -357,27 +394,43 @@ const UsuarioFormPage: React.FC = () => {
                                 <Checkbox>Puede eliminar registros</Checkbox>
                             </Form.Item>
 
-                            <Row gutter={16}>
-                                <Col xs={24} md={10}>
-                                    <Form.Item
-                                        name="horario"
-                                        label="Horario permitido"
-                                        tooltip="Hora del centro. Fuera de este rango no puede entrar ni seguir trabajando."
-                                    >
-                                        <TimePicker.RangePicker
-                                            format={FORMATO_HORA}
-                                            minuteStep={15}
-                                            style={{ width: '100%' }}
-                                            placeholder={['Desde', 'Hasta']}
-                                        />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={14}>
-                                    <Form.Item name="dias_laborales" label="Días permitidos">
-                                        <Checkbox.Group options={DIAS_SEMANA} />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
+                            <Text strong>Horario permitido</Text>
+                            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>
+                                Hora del centro. Los días sin marcar no tienen acceso.
+                                Sin ningún día marcado, no hay restricción de horario.
+                            </Text>
+                            {DIAS_SEMANA.map((dia) => (
+                                <Row gutter={12} align="middle" key={dia.value} style={{ marginBottom: 4 }}>
+                                    <Col flex="120px">
+                                        <Form.Item
+                                            name={`dia_${dia.value}`}
+                                            valuePropName="checked"
+                                            style={{ marginBottom: 0 }}
+                                        >
+                                            <Checkbox>{dia.label}</Checkbox>
+                                        </Form.Item>
+                                    </Col>
+                                    <Col flex="auto">
+                                        <Form.Item
+                                            noStyle
+                                            shouldUpdate={(p, c) => p[`dia_${dia.value}`] !== c[`dia_${dia.value}`]}
+                                        >
+                                            {({ getFieldValue }) => (
+                                                <Form.Item name={`horas_${dia.value}`} style={{ marginBottom: 0 }}>
+                                                    <TimePicker.RangePicker
+                                                        format={FORMATO_HORA}
+                                                        minuteStep={15}
+                                                        disabled={!getFieldValue(`dia_${dia.value}`)}
+                                                        placeholder={['Desde', 'Hasta']}
+                                                        style={{ width: 240 }}
+                                                    />
+                                                </Form.Item>
+                                            )}
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                            ))}
+                            <div style={{ height: 16 }} />
 
                             <Form.Item
                                 name="ips_permitidas"

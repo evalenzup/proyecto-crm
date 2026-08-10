@@ -84,7 +84,7 @@ def _aplicar_restricciones(user, restricciones) -> list[str]:
         return []
     cambios = []
     for campo in ("puede_eliminar", "horario_inicio", "horario_fin",
-                  "dias_laborales", "ips_permitidas"):
+                  "dias_laborales", "ips_permitidas", "horario_semanal"):
         if campo in restricciones.model_fields_set:
             setattr(user, campo, getattr(restricciones, campo))
             cambios.append(campo)

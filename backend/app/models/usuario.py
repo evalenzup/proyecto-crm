@@ -64,6 +64,10 @@ class Usuario(Base):
     horario_inicio = Column(Time, nullable=True)   # hora local de México
     horario_fin = Column(Time, nullable=True)
     dias_laborales = Column(String(20), nullable=True)   # ISO: "1,2,3,4,5" (1=lunes)
+    # Horario distinto por día. Cuando está presente manda sobre los dos campos
+    # de arriba. {"1": ["08:00","18:00"], "6": ["08:00","14:00"]} — un día que
+    # no aparece en el mapa no tiene acceso.
+    horario_semanal = Column(JSONB, nullable=True)
     ips_permitidas = Column(String(500), nullable=True)  # IPs o CIDR separados por coma
 
     # Preferencias de UI (tema, fuente, etc.) almacenadas en BD

@@ -1,6 +1,6 @@
 # app/schemas/usuario.py
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import time
 from uuid import UUID
 from enum import Enum
@@ -25,6 +25,29 @@ class RestriccionesAcceso(BaseModel):
     dias_laborales: Optional[str] = None
     # IPs o rangos CIDR separados por coma. Ej. "189.223.202.22, 192.168.1.0/24"
     ips_permitidas: Optional[str] = None
+    # Horario por día; manda sobre horario_inicio/fin y dias_laborales.
+    # {"1": ["08:00","18:00"], "6": ["08:00","14:00"]} — día ausente = sin acceso.
+    horario_semanal: Optional[Dict[str, List[str]]] = None
+
+    @field_validator("horario_semanal")
+    @classmethod
+    def validar_horario_semanal(cls, v):
+        if not v:
+            return None
+        limpio = {}
+        for dia, rango in v.items():
+            if not str(dia).isdigit() or not 1 <= int(dia) <= 7:
+                raise ValueError("Los días van del 1 (lunes) al 7 (domingo)")
+            if not isinstance(rango, (list, tuple)) or len(rango) != 2:
+                raise ValueError(f"El día {dia} necesita hora de inicio y de fin")
+            for hora in rango:
+                partes = str(hora).split(":")
+                if len(partes) < 2 or not all(p.isdigit() for p in partes[:2]):
+                    raise ValueError(f"«{hora}» no es una hora válida (formato HH:MM)")
+                if not (0 <= int(partes[0]) <= 23 and 0 <= int(partes[1]) <= 59):
+                    raise ValueError(f"«{hora}» no es una hora válida")
+            limpio[str(int(dia))] = [str(rango[0])[:5], str(rango[1])[:5]]
+        return limpio or None
 
     @field_validator("dias_laborales")
     @classmethod
@@ -135,6 +158,7 @@ class UsuarioInDBBase(UsuarioBase):
     horario_fin: Optional[time] = None
     dias_laborales: Optional[str] = None
     ips_permitidas: Optional[str] = None
+    horario_semanal: Optional[Dict[str, List[str]]] = None
 
     class Config:
         from_attributes = True

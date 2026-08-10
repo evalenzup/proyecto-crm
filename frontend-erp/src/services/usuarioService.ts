@@ -10,6 +10,8 @@ export interface RestriccionesAcceso {
     dias_laborales?: string | null;
     /** IPs o rangos CIDR separados por coma */
     ips_permitidas?: string | null;
+    /** Horario por día; manda sobre horario_inicio/fin. {"1": ["08:00","18:00"]} */
+    horario_semanal?: Record<string, [string, string]> | null;
 }
 
 export interface Usuario {
@@ -26,6 +28,7 @@ export interface Usuario {
     horario_fin: string | null;
     dias_laborales: string | null;
     ips_permitidas: string | null;
+    horario_semanal: Record<string, [string, string]> | null;
     empresa?: {
         id: string;
         nombre_comercial: string;
