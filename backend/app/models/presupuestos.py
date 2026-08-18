@@ -24,7 +24,13 @@ class Presupuesto(Base):
     __tablename__ = "presupuestos"
 
     __table_args__ = (
-        UniqueConstraint('folio', 'empresa_id', name='uq_presupuesto_folio_empresa'),
+        # La versión forma parte de la llave: al editar un presupuesto se crea
+        # una fila nueva con el mismo folio y la versión siguiente. Sin ella,
+        # guardar cualquier cambio fallaba con "Ya existe un registro con esos
+        # datos". Dos presupuestos distintos de una empresa siguen sin poder
+        # compartir folio, porque ambos nacen en versión 1.
+        UniqueConstraint('folio', 'empresa_id', 'version',
+                         name='uq_presupuesto_folio_empresa_version'),
     )
 
     id = Column(pgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
