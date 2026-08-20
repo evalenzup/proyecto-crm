@@ -93,6 +93,7 @@ export const canVerActividad = (
 // Catálogo de acciones para el filtro
 export const ACCIONES_AUDITORIA = [
     { label: 'Login', value: 'LOGIN' },
+    { label: 'Acceso denegado', value: 'ACCESO_DENEGADO' },
     { label: 'Crear Factura', value: 'CREAR_FACTURA' },
     { label: 'Timbrar Factura', value: 'TIMBRAR_FACTURA' },
     { label: 'Cancelar Factura', value: 'CANCELAR_FACTURA' },

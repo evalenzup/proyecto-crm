@@ -2,9 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Usuario, AuthState } from '@/types/auth';
 import { authService } from '@/services/authService';
-import { setAccessToken } from '@/lib/axios';
+import { setAccessToken, setRestriccionHandler, resetBloqueoRestriccion } from '@/lib/axios';
 import { queryClient } from '@/lib/queryClient';
-import { message } from 'antd';
+import { message, Modal } from 'antd';
 
 const EMPRESA_STORAGE_KEY = 'ui.empresa.selected';
 
@@ -57,6 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userData = await authService.getMe();
             setUser(userData);
             setIsAuthenticated(true);
+            // Nueva sesión: vuelve a armarse el aviso de bloqueo.
+            resetBloqueoRestriccion();
             message.success('Bienvenido');
 
             router.push('/');
@@ -71,17 +73,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const logout = async () => {
-        // El backend invalida el JTI y borra la cookie usando el refresh_token de la cookie
-        await authService.logout();
-
-        // Limpiar estado local
+    // Corta la sesión localmente. No llama a /logout porque ese endpoint
+    // también responde 403 cuando la cuenta está fuera de horario o de red.
+    const cerrarSesionLocal = React.useCallback(() => {
         setAccessToken(null);
         localStorage.removeItem(EMPRESA_STORAGE_KEY);
         queryClient.clear();
         setUser(null);
         setIsAuthenticated(false);
         router.push('/login');
+    }, [queryClient, router]);
+
+    // El interceptor de axios avisa cuando el backend bloquea por horario o
+    // red. Sin esto la pestaña seguía reintentando cada minuto en silencio.
+    useEffect(() => {
+        setRestriccionHandler((motivo) => {
+            cerrarSesionLocal();
+            Modal.warning({
+                title: 'Acceso restringido',
+                content: motivo,
+                okText: 'Entendido',
+            });
+        });
+        return () => setRestriccionHandler(null);
+    }, [cerrarSesionLocal]);
+
+    const logout = async () => {
+        // El backend invalida el JTI y borra la cookie usando el refresh_token de la cookie
+        await authService.logout();
+        cerrarSesionLocal();
         message.info('Sesión cerrada');
     };
 

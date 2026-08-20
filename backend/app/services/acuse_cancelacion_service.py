@@ -11,6 +11,7 @@ El XML es la fuente oficial; el PDF lo generamos nosotros replicando el formato 
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from io import BytesIO
 from xml.etree import ElementTree as ET
 
@@ -127,6 +128,19 @@ def descargar_acuse_xml(doc, *, forzar: bool = False) -> bytes:
             "Aún no está disponible el acuse de cancelación para este comprobante. "
             "Intenta de nuevo más tarde."
         )
+
+    # Si ya había un acuse distinto para este UUID (un intento anterior), se
+    # conserva con marca de tiempo en vez de sobrescribirlo: cada acuse sellado
+    # es evidencia de un trámite concreto y no debe perderse al reintentar.
+    if os.path.isfile(cache_path):
+        with open(cache_path, "rb") as fh:
+            previo = fh.read()
+        if previo and previo != contenido:
+            marca = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+            respaldo = os.path.join(_ACUSES_DIR, f"{uuid}.{marca}.xml")
+            with open(respaldo, "wb") as fh:
+                fh.write(previo)
+            logger.info("Acuse anterior de %s conservado en %s", uuid, respaldo)
 
     with open(cache_path, "wb") as fh:
         fh.write(contenido)

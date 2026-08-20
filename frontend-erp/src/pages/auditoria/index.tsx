@@ -43,6 +43,7 @@ const getAccionColor = (accion: string): string => {
   if (accion.startsWith('ENVIAR')) return 'cyan';
   if (accion.startsWith('EXPORTAR')) return 'orange';
   if (accion === 'LOGIN') return 'geekblue';
+  if (accion === 'ACCESO_DENEGADO') return 'volcano';
   return 'default';
 };
 

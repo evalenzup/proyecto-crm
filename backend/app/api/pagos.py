@@ -472,6 +472,7 @@ def verificar_estado_sat_pago(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     from app.services import sat_cfdi_service as sat_svc
+    from app.services import cancelacion_intento_service as bitacora_svc
 
     pago = db.query(Pago).filter(Pago.id == pago_id).first()
     if not pago:
@@ -509,6 +510,7 @@ def verificar_estado_sat_pago(
     estatus_anterior = estatus_actual
     nuevo_estatus, _ = sat_svc.aplicar_acuse_sat_pago(pago, acuse)
     db.add(pago)
+    bitacora_svc.cerrar_si_resuelto(db, pago, estatus_anterior, nuevo_estatus)
 
     audit_svc.registrar(
         db=db, accion=audit_svc.VERIFICAR_SAT, entidad="pago",

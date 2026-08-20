@@ -14,6 +14,29 @@ export const setAccessToken = (token: string | null): void => {
 
 export const getAccessToken = (): string | null => _accessToken;
 
+// ─── Bloqueo por restricciones de la cuenta ──────────────────────────────────
+// El backend marca estos 403 con la cabecera X-Restriccion (horario, red,
+// eliminar, exportar). Los de horario y red invalidan la sesión completa: sin
+// esto, una pestaña abierta se quedaba reintentando cada minuto sin decirle
+// nada al usuario. AuthContext registra aquí qué hacer, porque este módulo no
+// puede usar el contexto de React.
+type ManejadorRestriccion = (motivo: string, tipo: string) => void;
+
+let _onRestriccion: ManejadorRestriccion | null = null;
+let _bloqueoNotificado = false;
+
+export const setRestriccionHandler = (fn: ManejadorRestriccion | null): void => {
+  _onRestriccion = fn;
+};
+
+/** Se llama tras un login correcto para volver a armar el aviso. */
+export const resetBloqueoRestriccion = (): void => {
+  _bloqueoNotificado = false;
+};
+
+/** Tipos que dejan la sesión inservible; los demás sólo afectan a esa acción. */
+const RESTRICCIONES_DE_SESION = ['horario', 'red'];
+
 // ─── Instancia de axios ───────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -61,6 +84,28 @@ api.interceptors.response.use(
     const isValidationError = status === 422;
     const isAuthError = status === 401 || status === 403;
     const isSilent = error?.config?.silentError === true;
+
+    // 403 por restricción de la cuenta: si invalida la sesión, se cierra una
+    // sola vez aunque lleguen varias peticiones en paralelo.
+    const tipoRestriccion: string | undefined =
+      status === 403 ? error?.response?.headers?.['x-restriccion'] : undefined;
+
+    if (tipoRestriccion && RESTRICCIONES_DE_SESION.includes(tipoRestriccion)) {
+      if (!_bloqueoNotificado) {
+        _bloqueoNotificado = true;
+        _onRestriccion?.(normalizeHttpError(error) || 'Acceso restringido.', tipoRestriccion);
+      }
+      error._handled = true;
+      return Promise.reject(error);
+    }
+
+    // Restricción puntual (eliminar / exportar): sí se avisa, no cierra sesión.
+    if (tipoRestriccion) {
+      const msg = normalizeHttpError(error);
+      if (msg) message.error(msg);
+      error._handled = true;
+      return Promise.reject(error);
+    }
 
     if (!isEmailConfigNotFound && !isValidationError && !isAuthError && !isSilent) {
       const msg = normalizeHttpError(error);

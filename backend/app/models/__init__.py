@@ -32,6 +32,7 @@ from .equipo import TipoEquipo, TipoEquipoCampo, EstadoEquipo, EquipoControl
 from .croquis import Croquis
 from .certificado_servicio import CertificadoServicio
 from .plan_servicio import PlanServicio
+from .cancelacion_intento import CancelacionIntento
 
 # Usar uno de los Base como referencia unificada
 Base = BaseCliente
@@ -78,4 +79,5 @@ __all__ = [
     "Croquis",
     "CertificadoServicio",
     "PlanServicio",
+    "CancelacionIntento",
 ]

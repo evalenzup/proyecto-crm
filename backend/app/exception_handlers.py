@@ -12,10 +12,18 @@ from app.core.logger import logger
 async def http_exception_handler(
     request: Request, exc: StarletteHTTPException
 ) -> JSONResponse:
-    logger.warning("HTTP %s %s → %s", request.method, request.url, exc.detail)
+    headers = getattr(exc, "headers", None) or {}
+    # Los bloqueos por restricción de cuenta ya se registran (con su propia
+    # ventana de silencio) en deps._registrar_bloqueo. Volver a loguearlos aquí
+    # duplicaba cada línea y llenaba el log con una pestaña abierta reintentando.
+    if "X-Restriccion" not in headers:
+        logger.warning("HTTP %s %s → %s", request.method, request.url, exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": {"type": "HTTPException", "detail": exc.detail}},
+        # Sin esto se perdían las cabeceras de la excepción (X-Restriccion, y
+        # el WWW-Authenticate de los 401).
+        headers=headers or None,
     )
 
 

@@ -501,7 +501,8 @@ const FacturaFormPage: React.FC = () => {
                       )}
                       . Si requiere aceptación del receptor, él tiene <b>tres días hábiles</b> para
                       responder; si no responde, el SAT la toma como aceptada y la cancela.
-                      {' '}El sistema consulta el estado real al abrir esta página y una vez al día.
+                      {' '}El sistema consulta el estado real al abrir esta página y, en automático,
+                      {' '}cada 15 minutos durante las primeras horas y cada 2 horas después.
                       {' '}Si el SAT no llega a registrar la solicitud, la factura vuelve a TIMBRADA
                       {' '}y puedes reintentar la cancelación con el botón <b>Reintentar cancelación</b>.
                     </>

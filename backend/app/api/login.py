@@ -100,20 +100,29 @@ def login_access_token(
     # motivo al entrar, en vez de iniciar sesión y toparse con 403 en cada
     # pantalla. get_current_active_user las vuelve a verificar en cada petición,
     # así que una sesión abierta tampoco sobrevive al cierre del horario.
-    motivo = restricciones.verificar_acceso(user, request)
-    if motivo:
-        logger.warning("[Restricciones] login bloqueado a %s — %s", user.email, motivo)
+    bloqueo = restricciones.verificar_acceso(user, request)
+    if bloqueo:
+        # Un intento de entrar se registra siempre, sin la ventana de silencio
+        # de los reintentos: es un acto deliberado, no una pestaña olvidada.
+        logger.warning("[Restricciones] login bloqueado a %s — %s",
+                       user.email, bloqueo.motivo)
         try:
             audit_svc.registrar(
-                db=db, accion=audit_svc.LOGIN, entidad="usuario",
+                db=db, accion=audit_svc.ACCESO_DENEGADO, entidad="usuario",
                 usuario_id=user.id, usuario_email=user.email,
                 empresa_id=user.empresa_id, entidad_id=str(user.id),
-                descripcion=f"Acceso denegado: {motivo}",
+                detalle={"tipo": bloqueo.tipo, "motivo": bloqueo.motivo,
+                         "ruta": "POST /login/access-token"},
+                ip=restricciones.ip_del_request(request),
             )
             db.commit()
         except Exception:
             db.rollback()
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=motivo)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=bloqueo.motivo,
+            headers={"X-Restriccion": bloqueo.tipo},
+        )
 
     try:
         audit_svc.registrar(

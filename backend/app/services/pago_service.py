@@ -944,7 +944,14 @@ def cancelar_pago_sat(
             folio_sustituto=folio_sustituto,
         )
 
-        # 2. Datos de la cancelación.
+        # 2. Acuse sellado: se archiva igual que en facturas. Antes sólo se
+        #    bajaba bajo demanda desde el botón, así que no quedaba constancia
+        #    fechada de si el PAC lo había emitido o no.
+        from app.services.factura_service import _archivar_acuse_cancelacion
+
+        _archivar_acuse_cancelacion(db, pago)
+
+        # 3. Datos de la cancelación.
         #    El estatus ya lo definió solicitar_cancelacion_pago consultando al
         #    SAT (CANCELADO solo si el SAT lo confirma, si no EN_CANCELACION).
         #    NO lo sobrescribimos: antes se forzaba CANCELADO aquí, lo que
@@ -952,7 +959,7 @@ def cancelar_pago_sat(
         pago.motivo_cancelacion = motivo
         pago.folio_fiscal_sustituto = folio_sustituto
 
-        # 3. Revertir estatus de facturas relacionadas — solo si la cancelación
+        # 4. Revertir estatus de facturas relacionadas — solo si la cancelación
         #    quedó confirmada. Si sigue EN_CANCELACION el complemento aún es
         #    válido ante el SAT y la factura sigue pagada; el cron ajustará
         #    cuando el SAT resuelva.

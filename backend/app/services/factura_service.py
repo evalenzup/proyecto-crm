@@ -638,15 +638,22 @@ def _archivar_acuse_cancelacion(db: Session, doc) -> None:
     Best-effort: el PAC puede tardar en publicarlo, así que un fallo aquí no
     interrumpe la cancelación (el acuse se puede bajar después bajo demanda).
     """
+    from app.services import cancelacion_intento_service as bitacora_svc
+
     try:
         from app.services import acuse_cancelacion_service as acuse_svc
 
         acuse_svc.descargar_acuse_xml(doc, forzar=True)
         uuid = (getattr(doc, "cfdi_uuid", None) or getattr(doc, "uuid", None) or "").strip()
-        if uuid and hasattr(doc, "cancelacion_acuse_path"):
-            doc.cancelacion_acuse_path = f"acuses/{uuid}.xml"
+        ruta = f"acuses/{uuid}.xml" if uuid else None
+        if ruta and hasattr(doc, "cancelacion_acuse_path"):
+            doc.cancelacion_acuse_path = ruta
             db.add(doc)
+        bitacora_svc.anotar_acuse(db, doc, path=ruta)
     except Exception as exc:  # noqa: BLE001
+        # La ausencia del acuse se registra igual que su presencia: es el hecho
+        # fechado que desmiente al PAC cuando afirma tener uno (caso A-2202).
+        bitacora_svc.anotar_acuse(db, doc, error=str(exc))
         logger.info(
             "Acuse de cancelación aún no disponible en el PAC (%s); se podrá "
             "descargar más tarde.", exc,
@@ -704,13 +711,37 @@ def solicitar_cancelacion_cfdi(
             folio_sustitucion=folio_sustitucion,
         )
         _archivar_acuse_cancelacion(db, factura)
+        # El aviso tiene que decir la verdad: antes anunciaba "Factura cancelada"
+        # aunque el trámite hubiera quedado en proceso —o aunque el SAT no
+        # hubiera registrado nada—, que es justo la falsa confianza que el resto
+        # del flujo combate. Mismo criterio que en pago_service.
+        confirmada = (factura.estatus or "").upper() == "CANCELADA"
+        sat_sin_registro = out.get("sat_registro_solicitud") is False
         try:
+            if confirmada:
+                titulo = "Factura cancelada"
+                mensaje = f"Factura {factura.serie}-{factura.folio} cancelada ante el SAT."
+            elif sat_sin_registro:
+                titulo = "Cancelación sin registro en el SAT"
+                mensaje = (
+                    f"Factura {factura.serie}-{factura.folio}: el PAC acusó recibo "
+                    "pero el SAT todavía no registra la solicitud. Verifica en unos "
+                    "minutos; si sigue igual hay que hacer el trámite desde el "
+                    "portal del SAT."
+                )
+            else:
+                titulo = "Cancelación en proceso"
+                mensaje = (
+                    f"Factura {factura.serie}-{factura.folio}: solicitud enviada al "
+                    "SAT. Falta la resolución (puede requerir la aceptación del "
+                    "receptor)."
+                )
             notif_svc.crear_notificacion(
                 db=db,
                 empresa_id=factura.empresa_id,
-                tipo=notif_svc.ADVERTENCIA,
-                titulo="Factura cancelada",
-                mensaje=f"Factura {factura.serie}-{factura.folio} cancelada ante el SAT.",
+                tipo=notif_svc.ERROR if sat_sin_registro else notif_svc.ADVERTENCIA,
+                titulo=titulo,
+                mensaje=mensaje,
                 metadata={"factura_id": str(factura_id), "motivo": motivo},
             )
         except Exception:

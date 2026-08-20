@@ -1,5 +1,6 @@
 # app/models/usuario.py
 import uuid
+import sqlalchemy as sa
 from sqlalchemy import Column, String, Boolean, ForeignKey, Enum, DateTime, Time
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -7,6 +8,11 @@ from sqlalchemy.sql import func
 import enum
 
 from app.models.base import Base
+
+# JSONB en PostgreSQL, JSON plano en el resto (SQLite, que es donde corren los
+# tests). Sin la variante, crear el esquema en SQLite falla con
+# "can't render element of type JSONB" y se cae la suite entera.
+_JSON_TYPE = sa.JSON().with_variant(JSONB(), "postgresql")
 
 
 class RolUsuario(str, enum.Enum):
@@ -68,11 +74,11 @@ class Usuario(Base):
     # Horario distinto por día. Cuando está presente manda sobre los dos campos
     # de arriba. {"1": ["08:00","18:00"], "6": ["08:00","14:00"]} — un día que
     # no aparece en el mapa no tiene acceso.
-    horario_semanal = Column(JSONB, nullable=True)
+    horario_semanal = Column(_JSON_TYPE, nullable=True)
     ips_permitidas = Column(String(500), nullable=True)  # IPs o CIDR separados por coma
 
     # Preferencias de UI (tema, fuente, etc.) almacenadas en BD
-    preferences = Column(JSONB, nullable=False,
+    preferences = Column(_JSON_TYPE, nullable=False,
                          server_default='{"theme": "light", "font_size": 14}')
 
     # Empresas accesibles para admin/superadmin (muchos a muchos)

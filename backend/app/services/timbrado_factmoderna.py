@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.factura import Factura
 from app.models.pago import Pago, EstatusPago
+from app.services import cancelacion_intento_service as _bitacora
 from app.services.cfdi40_xml import build_cfdi40_xml_sin_timbrar
 from app.services.pago20_xml import build_pago20_xml_sin_timbrar
 
@@ -262,6 +263,66 @@ def _parse_cancel_response(root) -> dict:
         )
 
     return {"code": code, "message": message}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Códigos de respuesta de requestCancelarCFDI
+# ─────────────────────────────────────────────────────────────────────────────
+# Documentados por el PAC en
+# https://partners.facturacionmoderna.com/customers/procesocancel:
+#     GT05 → cancelación directa (no requiere aceptación del receptor)
+#     GT11 → cancelación con aceptación del receptor
+# Su soporte (correo del 7-ago-2026) además usa GT12 con el mismo sentido que
+# GT11; no aparece en la documentación pública, pero lo devuelven en producción.
+# Los numéricos son los del SAT que el PAC reenvía tal cual.
+#
+# NINGUNO significa que el SAT haya registrado la solicitud. Su propia
+# documentación lo dice: "La respuesta sólo confirmará la recepción de la
+# solicitud, no dará un status de Cancelado". El estatus real siempre se
+# resuelve consultando al SAT (ver la lógica más abajo).
+#
+# Valor: (descripción oficial, requiere aceptación del receptor)
+CODIGOS_SOLICITUD_ACEPTADA: Dict[str, tuple[str, bool]] = {
+    "201": ("Solicitud de cancelación recibida por el SAT.", False),
+    "202": ("El UUID tiene una solicitud de cancelación previa en el SAT.", False),
+    "GT05": ("Cancelación directa: no requiere aceptación del receptor.", False),
+    "GT11": ("Cancelación con aceptación: el receptor debe autorizarla.", True),
+    "GT12": ("Cancelación con aceptación: el receptor debe autorizarla.", True),
+}
+
+# Palabras que delatan una aceptación cuando el código no está en la tabla.
+# Es un respaldo, no la vía normal: hasta agosto de 2026 GT11 no estaba en la
+# lista y sólo llegaba a EN_CANCELACION porque su mensaje traía "recibida".
+_PALABRAS_ACEPTACION = ("cancelado", "cola", "recibida", "proceso")
+
+
+def _clasificar_respuesta_cancelacion(code: str, message: str) -> tuple[bool, bool]:
+    """
+    ¿El PAC aceptó la solicitud de cancelación?
+
+    Returns:
+        (aceptada, codigo_conocido)
+    """
+    code_str = (code or "").strip().upper()
+    entrada = CODIGOS_SOLICITUD_ACEPTADA.get(code_str)
+    if entrada is not None:
+        descripcion, _requiere_aceptacion = entrada
+        (logger.info if logger else print)(
+            f"[Cancel] Código {code_str} del PAC: {descripcion}"
+        )
+        return True, True
+
+    # Código fuera de la tabla: se interpreta por el texto para no perder una
+    # solicitud que sí salió, pero se avisa — cada código nuevo que aparezca
+    # aquí debe documentarse en CODIGOS_SOLICITUD_ACEPTADA.
+    msg_str = (message or "").lower()
+    aceptada = any(k in msg_str for k in _PALABRAS_ACEPTACION)
+    (logger.warning if logger else print)(
+        f"[Cancel] Código {code_str!r} no documentado por el PAC; interpretado "
+        f"por el texto del mensaje como {'aceptada' if aceptada else 'rechazada'}: "
+        f"{message!r}"
+    )
+    return aceptada, False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -990,19 +1051,19 @@ class FacturacionModernaPAC:
         # cualquier otro caso (aceptación pendiente, o el SAT no respondió) se
         # deja EN_CANCELACION y el cron diario la sincroniza hasta su resolución.
         code_str = (res.get("code") or "").strip()
-        msg_str = (res.get("message") or "").lower()
 
         from datetime import datetime as _dt
 
-        # ¿El PAC aceptó la solicitud? (cualquier señal de éxito o de cola)
-        solicitud_aceptada = (
-            code_str in ["201", "202", "GT05", "GT12"]
-            or any(k in msg_str for k in ("cancelado", "cola", "recibida", "proceso"))
+        # ¿El PAC aceptó la solicitud? Se resuelve por el código documentado;
+        # el texto del mensaje sólo es respaldo (ver _clasificar_respuesta_cancelacion).
+        solicitud_aceptada, codigo_conocido = _clasificar_respuesta_cancelacion(
+            res.get("code"), res.get("message")
         )
 
         cancelada_confirmada_sat = False
         # None = no se pudo consultar; True/False = el SAT registró o no la solicitud
         sat_registro_solicitud = None
+        acuse_sat = None
         if solicitud_aceptada:
             try:
                 from app.services import sat_cfdi_service as _sat
@@ -1015,6 +1076,7 @@ class FacturacionModernaPAC:
                     total=float(f.total or 0),
                     uuid=uuid,
                 )
+                acuse_sat = acuse
                 if acuse.encontrado and acuse.cancelado_por_sat:
                     cancelada_confirmada_sat = True
                 elif acuse.encontrado:
@@ -1060,9 +1122,23 @@ class FacturacionModernaPAC:
                 ).strip()
                 (logger.warning if logger else print)(
                     f"[Cancel] {uuid}: el PAC contestó {code_str} pero el SAT no "
-                    f"registró la solicitud (EsCancelable={acuse.es_cancelable!r})"
+                    f"registró la solicitud (EsCancelable={acuse_sat.es_cancelable!r})"
                 )
         # ---------------------------------------------
+
+        # Bitácora: un renglón por envío, con lo que dijeron el PAC y el SAT en
+        # ese momento. Es la evidencia que las columnas de Factura no conservan
+        # porque se sobrescriben en cada reintento.
+        _bitacora.registrar(
+            db, f,
+            motivo=motivo,
+            folio_sustitucion=folio_sustitucion,
+            pac_code=res.get("code"),
+            pac_message=res.get("message"),
+            pac_codigo_conocido=codigo_conocido,
+            acuse_sat=acuse_sat,
+            sat_registro_solicitud=sat_registro_solicitud,
+        )
 
         db.add(f)
         db.commit()
@@ -1074,6 +1150,9 @@ class FacturacionModernaPAC:
             "uuid": uuid,
             "code": res.get("code"),
             "message": res.get("message"),
+            # None = no se pudo consultar al SAT; False = el PAC acusó recibo
+            # pero el SAT no tenía registro de la solicitud.
+            "sat_registro_solicitud": sat_registro_solicitud,
         }
 
     def solicitar_cancelacion_pago(
@@ -1181,15 +1260,14 @@ class FacturacionModernaPAC:
         from datetime import datetime as _dt
 
         code_str = (res.get("code") or "").strip()
-        msg_str = (res.get("message") or "").lower()
 
-        solicitud_aceptada = (
-            code_str in ["201", "202", "GT05", "GT12"]
-            or any(k in msg_str for k in ("cancelado", "cola", "recibida", "proceso"))
+        solicitud_aceptada, codigo_conocido = _clasificar_respuesta_cancelacion(
+            res.get("code"), res.get("message")
         )
 
         cancelado_confirmado_sat = False
         sat_registro_solicitud = None
+        acuse_sat = None
         if solicitud_aceptada:
             try:
                 from app.services import sat_cfdi_service as _sat
@@ -1201,6 +1279,7 @@ class FacturacionModernaPAC:
                     total=0.0,  # los complementos de pago timbran con Total=0
                     uuid=uuid,
                 )
+                acuse_sat = acuse
                 if acuse.encontrado and acuse.cancelado_por_sat:
                     cancelado_confirmado_sat = True
                 elif acuse.encontrado:
@@ -1212,6 +1291,24 @@ class FacturacionModernaPAC:
                     f"[Cancel Pago] No se pudo verificar en SAT tras la solicitud: {e}"
                 )
 
+        # Evidencia del trámite. Las columnas existen en Pago desde la migración
+        # b9e3c6a4d708 pero no se llenaban: el aviso de "el SAT no registró la
+        # solicitud" se quedaba en el log y nunca llegaba a la pantalla, a
+        # diferencia de lo que sí pasa con las facturas.
+        p.cancelacion_code = res.get("code")
+        p.cancelacion_message = res.get("message")
+
+        _bitacora.registrar(
+            db, p,
+            motivo=motivo,
+            folio_sustitucion=folio_sustituto,
+            pac_code=res.get("code"),
+            pac_message=res.get("message"),
+            pac_codigo_conocido=codigo_conocido,
+            acuse_sat=acuse_sat,
+            sat_registro_solicitud=sat_registro_solicitud,
+        )
+
         if cancelado_confirmado_sat:
             p.estatus = EstatusPago.CANCELADO
             p.fecha_solicitud_cancelacion = None
@@ -1220,9 +1317,15 @@ class FacturacionModernaPAC:
             if sat_registro_solicitud is False:
                 # Mismo caso que en facturas (ver la nota allá).
                 res["sat_registro_solicitud"] = False
+                p.cancelacion_message = (
+                    f"{res.get('message') or ''} ⚠ El SAT todavía no registra esta "
+                    "solicitud (EstatusCancelacion vacío). Usa «Verificar con SAT» "
+                    "en unos minutos; si sigue igual, el PAC no la envió y hay que "
+                    "hacerla desde el portal del SAT."
+                ).strip()
                 (logger.warning if logger else print)(
                     f"[Cancel Pago] {uuid}: el PAC contestó {code_str} pero el SAT no "
-                    f"registró la solicitud (EsCancelable={acuse.es_cancelable!r})"
+                    f"registró la solicitud (EsCancelable={acuse_sat.es_cancelable!r})"
                 )
             p.estatus = EstatusPago.EN_CANCELACION
             # Siempre se reinicia (ver la nota en la cancelación de facturas).
@@ -1234,4 +1337,5 @@ class FacturacionModernaPAC:
             "uuid": uuid,
             "code": res.get("code"),
             "message": res.get("message"),
+            "sat_registro_solicitud": sat_registro_solicitud,
         }

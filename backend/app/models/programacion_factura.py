@@ -3,11 +3,18 @@ import uuid
 from sqlalchemy import (
     Column, String, Boolean, Date, DateTime, Integer, Text, ForeignKey
 )
+import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.models.base import Base
+
+# JSONB en PostgreSQL, JSON plano en el resto (SQLite, que es donde corren los
+# tests). Sin la variante, crear el esquema en SQLite falla con
+# "can't render element of type JSONB".
+_JSON_TYPE = sa.JSON().with_variant(JSONB(), "postgresql")
+
 
 
 class ProgramacionFactura(Base):
@@ -41,7 +48,7 @@ class ProgramacionFactura(Base):
     # ── Conceptos (copia de FacturaDetalleIn serializada) ────────────────────
     # Lista de dicts: [{clave_producto, clave_unidad, descripcion, cantidad,
     #                   valor_unitario, descuento, iva_tasa, ...}, ...]
-    conceptos = Column(JSONB, nullable=False, default=list)
+    conceptos = Column(_JSON_TYPE, nullable=False, default=list)
 
     # ── Programación ─────────────────────────────────────────────────────────
     # 'unica' | 'semanal' | 'quincenal' | 'mensual' | 'bimestral' | 'trimestral' | 'semestral' | 'anual'
@@ -53,7 +60,7 @@ class ProgramacionFactura(Base):
     auto_timbrar        = Column(Boolean, nullable=False, default=False)
     auto_enviar         = Column(Boolean, nullable=False, default=False)
     # Lista de strings: ["cliente@ejemplo.com", "pagos@empresa.com"]
-    emails_destino      = Column(JSONB, nullable=True, default=list)
+    emails_destino      = Column(_JSON_TYPE, nullable=True, default=list)
 
     # ── Control / estadísticas ───────────────────────────────────────────────
     nombre              = Column(String(120), nullable=True)   # etiqueta descriptiva

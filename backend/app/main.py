@@ -55,25 +55,68 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 _SAT_SYNC_LOCK_KEY = 0x53415453  # "SATS" en hex — clave fija para pg_advisory_lock
 
+# Frontera entre las dos ventanas de verificación (ver _sync_cancelaciones_job).
+HORAS_VENTANA_CALIENTE = 4
 
-def _sync_cancelaciones_job():
+
+def _reintentar_acuse(db, doc) -> None:
     """
-    Cada 15 min: verifica en el SAT todas las facturas EN_CANCELACION.
+    Vuelve a intentar la descarga del acuse sellado si aún no se tiene.
 
-    Corre seguido a propósito. El acuse del PAC no prueba que la solicitud haya
-    llegado al SAT (ver MINUTOS_GRACIA_SOLICITUD en sat_cfdi_service), así que
-    conviene detectar pronto las que nunca se registraron en vez de esperar al
-    día siguiente. Sólo consulta los comprobantes EN_CANCELACION, que son pocos.
+    La descarga original se hace una sola vez, segundos después de enviar la
+    solicitud, cuando el PAC muchas veces todavía no lo publicó. Sin reintento,
+    un acuse que aparece dos minutos más tarde no se recogía nunca: el cron
+    pasaba cada 15 min junto al comprobante y lo ignoraba (caso A-2291, dos días
+    EN_CANCELACION sin acuse archivado).
+    """
+    if getattr(doc, "cancelacion_acuse_path", None):
+        return
+    try:
+        from app.services.factura_service import _archivar_acuse_cancelacion
+
+        _archivar_acuse_cancelacion(db, doc)
+    except Exception as exc:  # noqa: BLE001 — nunca debe tumbar la sincronización
+        logger.debug("Reintento de acuse sin éxito para %s: %s", doc.id, exc)
+
+
+def _sync_cancelaciones_job(solo_recientes: bool = True):
+    """
+    Verifica en el SAT los comprobantes EN_CANCELACION (facturas y complementos).
+
+    Corre en dos ventanas porque hay dos fenómenos con escalas de tiempo muy
+    distintas:
+
+      · ``solo_recientes=True``  — solicitudes de menos de HORAS_VENTANA_CALIENTE
+        horas, cada 15 min. Es la ventana donde importa la frecuencia: si el PAC
+        acusó recibo pero el SAT nunca registró la solicitud, el SAT lo publica
+        de inmediato (EstatusCancelacion deja de estar vacío al instante), y
+        detectarlo el mismo día permite reintentar o hacer el trámite desde el
+        portal del SAT.
+
+      · ``solo_recientes=False`` — todo lo demás, cada 2 h. Aquí ya sólo se
+        espera la respuesta del receptor, que tiene 72 horas hábiles: consultar
+        más seguido es preguntar cientos de veces por algo que cambia una vez.
+
+    Las dos ventanas son disjuntas, así que ningún comprobante se procesa dos
+    veces en la misma pasada.
 
     Usa pg_try_advisory_lock para evitar ejecución doble si hay más de una instancia
     del proceso web activa (blue/green deploy, reinicio sin apagado graceful, etc.).
     Si otra instancia ya tiene el lock, este invocation se omite silenciosamente.
     """
+    from datetime import datetime, timedelta
+
     from app.database import SessionLocal
     from app.models.factura import Factura
+    from app.services import cancelacion_intento_service as bitacora_svc
+    from app.services import notificacion_cancelacion_service as notif_cancelacion_svc
     from app.services import sat_cfdi_service as sat_svc
-    from sqlalchemy import text
+    from sqlalchemy import or_, text
     from sqlalchemy.orm import joinedload
+
+    # fecha_solicitud_cancelacion se escribe con datetime.utcnow()
+    corte = datetime.utcnow() - timedelta(hours=HORAS_VENTANA_CALIENTE)
+    ventana = "reciente" if solo_recientes else "seguimiento"
 
     db = SessionLocal()
     try:
@@ -91,16 +134,30 @@ def _sync_cancelaciones_job():
             return
 
         # ── Cargar facturas con joinedload para evitar N+1 ────────────────────
-        pendientes = (
+        q_fact = (
             db.query(Factura)
             .options(
                 joinedload(Factura.empresa),
                 joinedload(Factura.cliente),
             )
             .filter(Factura.estatus == "EN_CANCELACION", Factura.cfdi_uuid.isnot(None))
-            .all()
         )
-        logger.info("[SAT Sync] Verificando %d facturas EN_CANCELACION", len(pendientes))
+        if solo_recientes:
+            # Sin fecha registrada también entra aquí: aplicar_acuse_sat la ancla
+            # en la primera pasada y a partir de ahí ya cae en la ventana que toca.
+            q_fact = q_fact.filter(
+                or_(
+                    Factura.fecha_solicitud_cancelacion.is_(None),
+                    Factura.fecha_solicitud_cancelacion >= corte,
+                )
+            )
+        else:
+            q_fact = q_fact.filter(Factura.fecha_solicitud_cancelacion < corte)
+        pendientes = q_fact.all()
+        logger.info(
+            "[SAT Sync/%s] Verificando %d facturas EN_CANCELACION",
+            ventana, len(pendientes),
+        )
 
         no_verificables = 0
         for f in pendientes:
@@ -123,12 +180,18 @@ def _sync_cancelaciones_job():
                         f.serie, f.folio, acuse.codigo_estatus,
                     )
                     continue
+                _reintentar_acuse(db, f)
+                estatus_previo = f.estatus
                 nuevo_estatus, hubo_cambio = sat_svc.aplicar_acuse_sat(f, acuse)
                 if hubo_cambio:
                     db.add(f)
+                    bitacora_svc.cerrar_si_resuelto(db, f, estatus_previo, nuevo_estatus)
+                    notif_cancelacion_svc.avisar_resolucion(
+                        db, f, estatus_previo, nuevo_estatus, acuse
+                    )
                     logger.info(
-                        "[SAT Sync] Factura %s-%s → %s",
-                        f.serie, f.folio, nuevo_estatus,
+                        "[SAT Sync/%s] Factura %s-%s → %s",
+                        ventana, f.serie, f.folio, nuevo_estatus,
                     )
                 else:
                     logger.debug("[SAT Sync] Factura %s-%s sin cambio", f.serie, f.folio)
@@ -145,13 +208,25 @@ def _sync_cancelaciones_job():
         # ── Complementos de pago EN_CANCELACION ───────────────────────────────
         from app.models.pago import Pago, EstatusPago
 
-        pagos_pend = (
+        q_pago = (
             db.query(Pago)
             .options(joinedload(Pago.empresa), joinedload(Pago.cliente))
             .filter(Pago.estatus == EstatusPago.EN_CANCELACION, Pago.uuid.isnot(None))
-            .all()
         )
-        logger.info("[SAT Sync] Verificando %d pagos EN_CANCELACION", len(pagos_pend))
+        if solo_recientes:
+            q_pago = q_pago.filter(
+                or_(
+                    Pago.fecha_solicitud_cancelacion.is_(None),
+                    Pago.fecha_solicitud_cancelacion >= corte,
+                )
+            )
+        else:
+            q_pago = q_pago.filter(Pago.fecha_solicitud_cancelacion < corte)
+        pagos_pend = q_pago.all()
+        logger.info(
+            "[SAT Sync/%s] Verificando %d pagos EN_CANCELACION",
+            ventana, len(pagos_pend),
+        )
 
         for p in pagos_pend:
             try:
@@ -162,10 +237,18 @@ def _sync_cancelaciones_job():
                     total=total,  # los complementos de pago timbran con Total=0
                     uuid=p.uuid,
                 )
+                _reintentar_acuse(db, p)
+                estatus_previo = getattr(p.estatus, "value", p.estatus)
                 nuevo_estatus, hubo_cambio = sat_svc.aplicar_acuse_sat_pago(p, acuse)
                 if hubo_cambio:
                     db.add(p)
-                    logger.info("[SAT Sync] Pago %s → %s", p.uuid, nuevo_estatus)
+                    bitacora_svc.cerrar_si_resuelto(db, p, estatus_previo, nuevo_estatus)
+                    notif_cancelacion_svc.avisar_resolucion(
+                        db, p, estatus_previo, nuevo_estatus, acuse
+                    )
+                    logger.info(
+                        "[SAT Sync/%s] Pago %s → %s", ventana, p.uuid, nuevo_estatus
+                    )
             except Exception as exc:
                 logger.warning("[SAT Sync] Error verificando pago %s: %s", p.id, exc)
 
@@ -255,11 +338,24 @@ def _avisos_planes_servicio_job():
 
 
 _scheduler = BackgroundScheduler(timezone="America/Mexico_City")
+# Ventana caliente: solicitudes de menos de HORAS_VENTANA_CALIENTE horas.
 _scheduler.add_job(
     _sync_cancelaciones_job,
     trigger="interval",
     minutes=15,
+    kwargs={"solo_recientes": True},
     id="sync_cancelaciones_sat",
+    replace_existing=True,
+    max_instances=1,
+    coalesce=True,
+)
+# Seguimiento: el resto, que sólo espera la respuesta del receptor (72 h hábiles).
+_scheduler.add_job(
+    _sync_cancelaciones_job,
+    trigger="interval",
+    hours=2,
+    kwargs={"solo_recientes": False},
+    id="sync_cancelaciones_sat_seguimiento",
     replace_existing=True,
     max_instances=1,
     coalesce=True,
@@ -285,7 +381,10 @@ _scheduler.add_job(
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     _scheduler.start()
-    logger.info("[SAT Sync] Scheduler iniciado — cancelaciones cada 15 min; demás cron 03:00 AM MX")
+    logger.info(
+        "[SAT Sync] Scheduler iniciado — cancelaciones recientes cada 15 min, "
+        "seguimiento cada 2 h; demás cron 03:00 AM MX"
+    )
     yield
     _scheduler.shutdown(wait=False)
     logger.info("[SAT Sync] Scheduler detenido")
@@ -313,6 +412,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Sin esto el navegador no deja al front leer X-Restriccion y no podría
+    # distinguir un 403 por restricción de cuenta de uno por permisos.
+    expose_headers=["X-Restriccion"],
 )
 
 # Routers

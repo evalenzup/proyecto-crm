@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-from datetime import datetime, time
-from typing import Optional
+from datetime import datetime, time, timedelta
+from typing import NamedTuple, Optional
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger("app")
@@ -21,6 +21,36 @@ TZ_MX = ZoneInfo("America/Mexico_City")
 
 _DIAS = {1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves",
          5: "viernes", 6: "sábado", 7: "domingo"}
+
+
+class Bloqueo(NamedTuple):
+    """Motivo legible del rechazo y el tipo de restricción que lo produjo."""
+    motivo: str
+    tipo: str          # "horario" | "red" | "eliminar" | "exportar"
+
+
+# Una pestaña abierta reintenta cada minuto, así que sin control se llenaban
+# el log y la auditoría con la misma línea toda la noche. Se avisa una vez por
+# usuario y tipo dentro de esta ventana; los reintentos siguen recibiendo 403.
+MINUTOS_ENTRE_AVISOS = 15
+_ULTIMO_AVISO: dict[tuple, datetime] = {}
+
+
+def debe_avisar(usuario_id, tipo: str) -> bool:
+    """True si toca dejar constancia de este bloqueo (log y auditoría)."""
+    ahora = _ahora_mx()
+    corte = ahora - timedelta(minutes=MINUTOS_ENTRE_AVISOS)
+
+    # Poda para que el diccionario no crezca sin límite en procesos largos.
+    if len(_ULTIMO_AVISO) > 500:
+        for k in [k for k, v in _ULTIMO_AVISO.items() if v < corte]:
+            _ULTIMO_AVISO.pop(k, None)
+
+    clave = (str(usuario_id), tipo)
+    if _ULTIMO_AVISO.get(clave, datetime.min.replace(tzinfo=TZ_MX)) > corte:
+        return False
+    _ULTIMO_AVISO[clave] = ahora
+    return True
 
 
 def _ahora_mx() -> datetime:
@@ -149,6 +179,12 @@ def ip_del_request(request) -> Optional[str]:
     return getattr(getattr(request, "client", None), "host", None)
 
 
-def verificar_acceso(usuario, request) -> Optional[str]:
-    """Motivo por el que el usuario no puede operar ahora, o None si sí puede."""
-    return motivo_red(usuario, ip_del_request(request)) or motivo_horario(usuario)
+def verificar_acceso(usuario, request) -> Optional[Bloqueo]:
+    """Bloqueo que impide operar ahora, o None si el usuario sí puede."""
+    motivo = motivo_red(usuario, ip_del_request(request))
+    if motivo:
+        return Bloqueo(motivo, "red")
+    motivo = motivo_horario(usuario)
+    if motivo:
+        return Bloqueo(motivo, "horario")
+    return None

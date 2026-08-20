@@ -72,8 +72,41 @@ def get_current_user(
     return user
 
 
+def _registrar_bloqueo(db: Session, usuario: Usuario, request: Request, bloqueo) -> None:
+    """Deja constancia del bloqueo, como mucho una vez cada MINUTOS_ENTRE_AVISOS.
+
+    Una pestaña abierta reintenta cada minuto; sin este control el log y la
+    auditoría se llenaban con la misma línea toda la noche. El 403 se devuelve
+    igual en cada intento, sólo se limita la constancia.
+    """
+    if not restricciones.debe_avisar(usuario.id, bloqueo.tipo):
+        return
+    logger.warning(
+        "[Restricciones] %s bloqueado en %s %s — %s",
+        usuario.email, request.method, request.url.path, bloqueo.motivo,
+    )
+    try:
+        from app.services import auditoria_service as audit_svc
+
+        audit_svc.registrar(
+            db, accion=audit_svc.ACCESO_DENEGADO, entidad="usuario",
+            usuario_id=usuario.id, usuario_email=usuario.email,
+            empresa_id=usuario.empresa_id, entidad_id=str(usuario.id),
+            detalle={
+                "tipo": bloqueo.tipo,
+                "motivo": bloqueo.motivo,
+                "ruta": f"{request.method} {request.url.path}",
+            },
+            ip=restricciones.ip_del_request(request),
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001 — la auditoría nunca debe tapar el 403
+        db.rollback()
+
+
 def get_current_active_user(
     request: Request,
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ) -> Usuario:
     """Puerta única de los endpoints protegidos.
@@ -86,13 +119,16 @@ def get_current_active_user(
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    motivo = restricciones.verificar_acceso(current_user, request)
-    if motivo:
-        logger.warning(
-            "[Restricciones] %s bloqueado en %s %s — %s",
-            current_user.email, request.method, request.url.path, motivo,
+    bloqueo = restricciones.verificar_acceso(current_user, request)
+    if bloqueo:
+        _registrar_bloqueo(db, current_user, request, bloqueo)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=bloqueo.motivo,
+            # El front distingue esto de un 403 por permisos: cierra la sesión
+            # en vez de fallar en silencio y reintentar cada minuto.
+            headers={"X-Restriccion": bloqueo.tipo},
         )
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=motivo)
 
     # Los 5 endpoints de exportación masiva comparten el sufijo /export-excel.
     # Se filtra por la ruta para cubrirlos todos desde un solo punto; los que se
@@ -100,23 +136,21 @@ def get_current_active_user(
     if not current_user.puede_exportar and request.url.path.rstrip("/").endswith(
         _SUFIJOS_EXPORTACION
     ):
-        logger.warning(
-            "[Restricciones] %s intentó exportar en %s",
-            current_user.email, request.url.path,
-        )
+        _registrar_bloqueo(db, current_user, request, restricciones.Bloqueo(
+            "Tu cuenta no tiene permitido exportar información.", "exportar"))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tu cuenta no tiene permitido exportar información.",
+            headers={"X-Restriccion": "exportar"},
         )
 
     if request.method == "DELETE" and not current_user.puede_eliminar:
-        logger.warning(
-            "[Restricciones] %s intentó eliminar en %s",
-            current_user.email, request.url.path,
-        )
+        _registrar_bloqueo(db, current_user, request, restricciones.Bloqueo(
+            "Tu cuenta no tiene permitido eliminar registros.", "eliminar"))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tu cuenta no tiene permitido eliminar registros.",
+            headers={"X-Restriccion": "eliminar"},
         )
 
     return current_user

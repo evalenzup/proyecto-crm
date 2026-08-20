@@ -568,6 +568,7 @@ def verificar_estado_sat(
 ):
     from app.services import sat_cfdi_service as sat_svc
     from app.services import auditoria_service as aud
+    from app.services import cancelacion_intento_service as bitacora_svc
 
     factura = db.query(Factura).filter(Factura.id == id).first()
     if not factura:
@@ -601,6 +602,7 @@ def verificar_estado_sat(
     estatus_anterior = factura.estatus
     nuevo_estatus, _ = sat_svc.aplicar_acuse_sat(factura, acuse)
     db.add(factura)
+    bitacora_svc.cerrar_si_resuelto(db, factura, estatus_anterior, nuevo_estatus)
 
     aud.registrar(
         db,
@@ -695,6 +697,9 @@ def revertir_cancelacion(
     # Se conservan motivo_cancelacion y folio_fiscal_sustituto: son la
     # trazabilidad del intento y alimentan el aviso de "cancelación no aplicada".
     db.add(factura)
+    from app.services import cancelacion_intento_service as bitacora_svc
+
+    bitacora_svc.cerrar_si_resuelto(db, factura, "EN_CANCELACION", "TIMBRADA")
     db.commit()
     db.refresh(factura)
 

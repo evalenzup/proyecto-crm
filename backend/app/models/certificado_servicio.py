@@ -5,11 +5,18 @@ from sqlalchemy import (
     Boolean, Column, Date, ForeignKey, Integer, String, Text, TIMESTAMP,
     UniqueConstraint,
 )
+import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.models.base import Base
+
+# JSONB en PostgreSQL, JSON plano en el resto (SQLite, que es donde corren los
+# tests). Sin la variante, crear el esquema en SQLite falla con
+# "can't render element of type JSONB".
+_JSON_TYPE = sa.JSON().with_variant(JSONB(), "postgresql")
+
 
 
 class CertificadoServicio(Base):
@@ -43,9 +50,9 @@ class CertificadoServicio(Base):
     actividad = Column(String(255), nullable=True)
 
     # Contenido del certificado — valores de texto libre ("X", números, etc.)
-    areas = Column(JSONB, nullable=True)          # {"habitaciones": "X", ...}
-    plagas = Column(JSONB, nullable=True)         # {"cucaracha": "X", ...}
-    aplicaciones = Column(JSONB, nullable=True)   # {"tiempo_entrada": "2 HRS", ...}
+    areas = Column(_JSON_TYPE, nullable=True)          # {"habitaciones": "X", ...}
+    plagas = Column(_JSON_TYPE, nullable=True)         # {"cucaracha": "X", ...}
+    aplicaciones = Column(_JSON_TYPE, nullable=True)   # {"tiempo_entrada": "2 HRS", ...}
     observaciones = Column(Text, nullable=True)   # líneas separadas por \n
 
     gerente_nombre = Column(String(255), nullable=True)  # quien firma
