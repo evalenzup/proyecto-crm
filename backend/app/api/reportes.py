@@ -147,3 +147,73 @@ def get_financiero_por_empresa(
         raise HTTPException(status_code=422, detail="fecha_inicio no puede ser posterior a fecha_fin.")
     empresa_ids = _resolve_empresa_ids(db, empresa_id, rfc, current_user)
     return financiero_por_empresa(db, empresa_ids=empresa_ids, fecha_inicio=fi, fecha_fin=ff)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bitácora de cancelaciones ante el SAT
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _intento_out(i) -> dict:
+    return {
+        "id": str(i.id),
+        "documento_tipo": i.documento_tipo,
+        "documento_id": str(i.documento_id),
+        "documento_folio": i.documento_folio,
+        "cfdi_uuid": i.cfdi_uuid,
+        "fecha_envio": i.fecha_envio,
+        "motivo": i.motivo,
+        "folio_sustitucion": i.folio_sustitucion,
+        "origen": i.origen,
+        "pac_code": i.pac_code,
+        "pac_message": i.pac_message,
+        "pac_codigo_conocido": i.pac_codigo_conocido,
+        "sat_estado": i.sat_estado,
+        "sat_es_cancelable": i.sat_es_cancelable,
+        "sat_estatus_cancelacion": i.sat_estatus_cancelacion,
+        "sat_registro_solicitud": i.sat_registro_solicitud,
+        "tiene_acuse": bool(i.acuse_path),
+        "acuse_error": i.acuse_error,
+        "resultado": i.resultado,
+        "fecha_resultado": i.fecha_resultado,
+    }
+
+
+@router.get(
+    "/cancelaciones",
+    summary="Bitácora de intentos de cancelación ante el SAT",
+)
+def bitacora_cancelaciones(
+    empresa_id: Optional[str] = Query(default=None),
+    rfc: Optional[str] = Query(default=None),
+    dias: int = Query(default=90, ge=1, le=1095),
+    solo_no_registradas: bool = Query(
+        default=False,
+        description="Sólo las que el PAC acusó y el SAT nunca registró",
+    ),
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Un renglón por solicitud enviada, con lo que contestó el PAC y lo que el SAT
+    decía en ese mismo instante.
+    """
+    from datetime import timedelta
+
+    from app.services import cancelacion_intento_service as bitacora
+
+    empresa_ids = _resolve_empresa_ids(db, empresa_id, rfc, current_user)
+    desde = datetime.utcnow() - timedelta(days=dias)
+    intentos = bitacora.listar(
+        db,
+        empresa_ids=empresa_ids,
+        desde=desde,
+        solo_no_registrados=solo_no_registradas,
+        limit=limit,
+    )
+    return {
+        "desde": desde,
+        "resumen": bitacora.resumen(db, empresa_ids=empresa_ids, desde=desde),
+        "intentos": [_intento_out(i) for i in intentos],
+    }

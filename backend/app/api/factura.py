@@ -6,7 +6,10 @@ from uuid import UUID
 from typing import List, Optional, Literal
 from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status, Response
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query,
+    Request, Response, UploadFile, status,
+)
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy import func
@@ -319,6 +322,47 @@ def puede_cancelarse(
 
 
 @router.get(
+    "/{id}/cancelacion-intentos",
+    summary="Historial de solicitudes de cancelación de esta factura",
+)
+def historial_cancelacion(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Todos los envíos, no sólo el último. Las columnas de la factura guardan
+    únicamente el intento más reciente porque se sobrescriben al reintentar.
+    """
+    from app.services import cancelacion_intento_service as bitacora_svc
+
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    return [
+        {
+            "id": str(i.id),
+            "fecha_envio": i.fecha_envio,
+            "motivo": i.motivo,
+            "folio_sustitucion": i.folio_sustitucion,
+            "origen": i.origen,
+            "pac_code": i.pac_code,
+            "pac_message": i.pac_message,
+            "sat_estatus_cancelacion": i.sat_estatus_cancelacion,
+            "sat_registro_solicitud": i.sat_registro_solicitud,
+            "tiene_acuse": bool(i.acuse_path),
+            "acuse_error": i.acuse_error,
+            "resultado": i.resultado,
+            "fecha_resultado": i.fecha_resultado,
+        }
+        for i in bitacora_svc.listar(db, documento_id=factura.id)
+    ]
+
+
+@router.get(
     "/{id}/sustitutas",
     response_model=List[FacturaRelacionableOut],
     summary="Facturas que declaran sustituir a ésta (relación tipo 04)",
@@ -521,6 +565,61 @@ def solicitar_cancelacion_endpoint(
     except Exception:
         pass
     return result
+
+
+@router.post(
+    "/{id}/registrar-cancelacion-portal",
+    summary="Registra una cancelación tramitada en el portal del SAT",
+)
+def registrar_cancelacion_portal_endpoint(
+    id: UUID,
+    request: Request,
+    motivo: Optional[str] = Form(default=None),
+    folio_sustitucion: Optional[str] = Form(default=None),
+    acuse: Optional[UploadFile] = File(
+        default=None, description="Acuse XML sellado que entrega el portal del SAT"
+    ),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Fallback cuando el PAC acusa recibo sin transmitir la solicitud: el trámite
+    se hace en el portal del SAT y aquí se deja constancia.
+
+    El estatus no se toma de lo que diga el usuario sino de lo que el SAT
+    reporte en este momento.
+    """
+    factura = db.query(Factura).filter(Factura.id == id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    contenido = acuse.file.read() if acuse is not None else None
+    if contenido and b"<Acuse" not in contenido:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo no parece el acuse XML del SAT (no contiene <Acuse>).",
+        )
+
+    resultado = srv.registrar_cancelacion_portal(
+        db, factura,
+        motivo=motivo, folio_sustitucion=folio_sustitucion, acuse_xml=contenido,
+    )
+
+    try:
+        audit_svc.registrar(
+            db=db, accion="REGISTRAR_CANCELACION_PORTAL", entidad="factura",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=factura.empresa_id, entidad_id=str(id),
+            detalle={"serie": factura.serie, "folio": factura.folio, **resultado},
+            ip=audit_svc.get_ip(request),
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    return resultado
 
 
 @router.get("/{id}/acuse-cancelacion", summary="Descarga el acuse de cancelación del SAT (PDF o XML)")

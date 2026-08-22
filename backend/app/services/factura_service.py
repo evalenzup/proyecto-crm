@@ -1,6 +1,7 @@
 # app/services/factura_service.py
 from __future__ import annotations
 import logging
+import os
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 from typing import List, Optional, Tuple, Literal
@@ -435,6 +436,29 @@ def timbrar_factura(db: Session, factura_id: UUID) -> dict:
         )
 
 
+# Código con el que se marca una cancelación tramitada fuera del PAC. No es un
+# código de Facturación Moderna: es etiqueta nuestra.
+CODIGO_SAT_PORTAL = "SAT-PORTAL"
+
+
+def _buscar_comprobante_por_uuid(db: Session, uuid_str: str):
+    """
+    Busca un CFDI por UUID entre facturas y complementos de pago.
+
+    Returns:
+        (documento | None, es_complemento: bool)
+    """
+    from app.models.pago import Pago
+
+    doc = (
+        db.query(Factura).filter(func.upper(Factura.cfdi_uuid) == uuid_str).first()
+    )
+    if doc:
+        return doc, False
+    pago = db.query(Pago).filter(func.upper(Pago.uuid) == uuid_str).first()
+    return (pago, True) if pago else (None, False)
+
+
 def _validar_sustitucion_motivo_01(
     db: Session, factura: Factura, folio_sustitucion: Optional[str]
 ) -> None:
@@ -445,41 +469,72 @@ def _validar_sustitucion_motivo_01(
     rechaza con "Relación no válida o inexistente" y la factura se queda vigente
     sin que el usuario se entere.
 
-    Se valida antes de enviar para no gastar el trámite. Si el sustituto no está
-    en nuestra base (se emitió por fuera) no se puede validar y se deja pasar.
+    Además el sustituto tiene que seguir VIGENTE: señalar como reemplazo un
+    comprobante que ya se canceló es pedirle al SAT que sustituya por algo que
+    fiscalmente no existe, y descarta la solicitud. Le pasó a A-785, que declaraba
+    a A-1202 estando A-1202 cancelada, y el trámite se perdió sin explicación.
+
+    El sustituto puede ser una factura o un complemento de pago, así que se busca
+    en los dos lados y el mensaje dice cuál es. Si no está en nuestra base (se
+    emitió por fuera) no se puede validar y se deja pasar.
     """
     uuid_sust = (folio_sustitucion or "").strip().upper()
     uuid_cancelar = (factura.cfdi_uuid or "").strip().upper()
     if not uuid_sust or not uuid_cancelar:
         return
 
-    sustituta = (
-        db.query(Factura)
-        .filter(func.upper(Factura.cfdi_uuid) == uuid_sust)
-        .first()
-    )
+    sustituta, es_complemento = _buscar_comprobante_por_uuid(db, uuid_sust)
     if not sustituta:
         logger.warning(
             "Motivo 01: el CFDI sustituto %s no está en la base; no se puede "
-            "validar la relación antes de cancelar.", uuid_sust,
+            "validar antes de cancelar.", uuid_sust,
+        )
+        return
+
+    tipo_doc = "el complemento de pago" if es_complemento else "la factura"
+    etiqueta_doc = f"{tipo_doc} {sustituta.serie or ''}-{sustituta.folio}"
+    estatus_sust = getattr(sustituta.estatus, "value", sustituta.estatus)
+
+    # 1) ¿Sigue vigente? Un sustituto cancelado invalida la sustitución.
+    if estatus_sust in ("CANCELADA", "CANCELADO"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No se puede cancelar con motivo 01: {etiqueta_doc}, que se indicó "
+                # El propio estatus trae el género que toca: CANCELADA para una
+                # factura, CANCELADO para un complemento.
+                f"como sustituto, está {estatus_sust}. El SAT no acepta que un comprobante "
+                f"se reemplace por otro que ya no existe fiscalmente, y descarta la "
+                f"solicitud sin avisar. Indica un sustituto vigente o cancela con "
+                f"motivo 02 si en realidad no hubo reemplazo."
+            ),
+        )
+
+    # 2) ¿Declara la relación? Sólo se puede comprobar en facturas: el sistema no
+    #    guarda CfdiRelacionados de los complementos de pago (pago20_xml tampoco
+    #    los emite), así que ahí no hay nada que revisar.
+    if es_complemento:
+        logger.warning(
+            "Motivo 01: el sustituto %s es un complemento de pago; el sistema no "
+            "guarda sus CFDI relacionados, así que no se puede validar la relación.",
+            etiqueta_doc,
         )
         return
 
     tipo_rel = (sustituta.cfdi_relacionados_tipo or "").strip()
     relacionados = (sustituta.cfdi_relacionados or "").upper()
-    etiqueta = f"{sustituta.serie}-{sustituta.folio}"
 
     if tipo_rel != "04" or uuid_cancelar not in relacionados:
         if not relacionados:
-            problema = f"la factura sustituta {etiqueta} no declara ningún CFDI relacionado"
+            problema = f"{etiqueta_doc}, indicada como sustituta, no declara ningún CFDI relacionado"
         elif tipo_rel != "04":
             problema = (
-                f"la factura sustituta {etiqueta} usa el tipo de relación "
+                f"{etiqueta_doc}, indicada como sustituta, usa el tipo de relación "
                 f"'{tipo_rel}' en lugar de '04'"
             )
         else:
             problema = (
-                f"la relación de la factura sustituta {etiqueta} apunta a otro CFDI"
+                f"la relación de {etiqueta_doc}, indicada como sustituta, apunta a otro CFDI"
             )
         raise HTTPException(
             status_code=400,
@@ -687,18 +742,33 @@ def solicitar_cancelacion_cfdi(
     if not diag["puede_cancelar"]:
         raise HTTPException(status_code=400, detail=diag["motivo"])
 
-    # Un CFDI "No cancelable" sólo lo libera el SAT si la solicitud llega con
-    # motivo 01 y el UUID que lo sustituye; con cualquier otro motivo la
-    # descarta. Se exige aquí para no gastar el trámite en balde.
-    if diag.get("advertencia") and (motivo or "").strip() != "01":
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "El SAT reporta esta factura como «No cancelable». Para cancelarla "
-                "hay que enviarla con motivo 01 indicando el CFDI que la sustituye; "
-                "así el SAT rompe la relación y la vuelve cancelable."
-            ),
-        )
+    # Un CFDI "No cancelable" lo está por una de dos razones, y cada una necesita
+    # lo contrario que la otra. Como el complemento de pago está obligado a
+    # declarar qué factura paga, siempre sabemos cuál de las dos es:
+    #
+    #   · Lo traba un COMPLEMENTO DE PAGO → hay que cancelar primero el
+    #     complemento. El motivo 01 no ayuda: la regla del SAT es liberar antes
+    #     los documentos relacionados.
+    #   · Lo traba una FACTURA SUSTITUTA → el motivo 01 con el UUID de esa
+    #     sustituta es justo lo que hace que el SAT rompa la relación
+    #     (comprobado con A-2202, A-390 y A-786).
+    #
+    # Antes se exigía motivo 01 en los dos casos, y a las trabadas por un
+    # complemento se les mandaba por el camino que no lleva a ningún lado: A-783
+    # y A-787, detenidas por P-299, recibieron ese consejo equivocado.
+    if diag.get("advertencia"):
+        if diag.get("complementos"):
+            # diag["advertencia"] ya nombra los complementos que estorban.
+            raise HTTPException(status_code=400, detail=diag["advertencia"])
+        if (motivo or "").strip() != "01":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El SAT reporta esta factura como «No cancelable». Para cancelarla "
+                    "hay que enviarla con motivo 01 indicando el CFDI que la sustituye; "
+                    "así el SAT rompe la relación y la vuelve cancelable."
+                ),
+            )
 
     if (motivo or "").strip() == "01":
         _validar_sustitucion_motivo_01(db, factura, folio_sustitucion)
@@ -717,17 +787,32 @@ def solicitar_cancelacion_cfdi(
         # del flujo combate. Mismo criterio que en pago_service.
         confirmada = (factura.estatus or "").upper() == "CANCELADA"
         sat_sin_registro = out.get("sat_registro_solicitud") is False
+        # El PAC bloqueó el reenvío alegando una solicitud previa que el SAT no
+        # tiene. Reintentar por aquí no avanza, así que el aviso debe decirlo.
+        pac_bloqueo = out.get("code") == "PAC-PREVIA" and sat_sin_registro
         try:
             if confirmada:
                 titulo = "Factura cancelada"
                 mensaje = f"Factura {factura.serie}-{factura.folio} cancelada ante el SAT."
-            elif sat_sin_registro:
-                titulo = "Cancelación sin registro en el SAT"
+            elif pac_bloqueo:
+                titulo = "El PAC no reenvió la cancelación"
                 mensaje = (
-                    f"Factura {factura.serie}-{factura.folio}: el PAC acusó recibo "
-                    "pero el SAT todavía no registra la solicitud. Verifica en unos "
-                    "minutos; si sigue igual hay que hacer el trámite desde el "
-                    "portal del SAT."
+                    f"Factura {factura.serie}-{factura.folio}: el PAC se niega a "
+                    "reenviar la solicitud porque cree tener una previa, y el SAT no "
+                    "tiene ninguna registrada. Reintentar desde el sistema no va a "
+                    "avanzar: hay que hacer el trámite en el portal del SAT."
+                )
+            elif sat_sin_registro:
+                # NO es una falla todavía. El 20-ago-2026 este aviso se disparó en
+                # tres cancelaciones que sí habían entrado y que el SAT reflejó ~16
+                # minutos después: las tres alarmas fueron falsas. Quien sí puede
+                # afirmar que el trámite se perdió es el cron, cuando vence el margen
+                # de gracia y revierte a TIMBRADA (ver notificacion_cancelacion_service).
+                titulo = "Cancelación enviada, falta que el SAT la refleje"
+                mensaje = (
+                    f"Factura {factura.serie}-{factura.folio}: el PAC acusó recibo y "
+                    "el SAT todavía no la muestra, cosa normal en los primeros "
+                    "minutos. El sistema la vigila y avisa si de verdad no prosperó."
                 )
             else:
                 titulo = "Cancelación en proceso"
@@ -739,7 +824,10 @@ def solicitar_cancelacion_cfdi(
             notif_svc.crear_notificacion(
                 db=db,
                 empresa_id=factura.empresa_id,
-                tipo=notif_svc.ERROR if sat_sin_registro else notif_svc.ADVERTENCIA,
+                # ERROR sólo cuando ya se sabe que el trámite no va a avanzar.
+                # En el resto, al enviar todavía no hay nada que reportar como
+                # error: eso lo levanta el cron si vence el margen de gracia.
+                tipo=notif_svc.ERROR if pac_bloqueo else notif_svc.ADVERTENCIA,
                 titulo=titulo,
                 mensaje=mensaje,
                 metadata={"factura_id": str(factura_id), "motivo": motivo},
@@ -761,6 +849,135 @@ def solicitar_cancelacion_cfdi(
 
 # ────────────────────────────────────────────────────────────────
 # Generación de Archivos
+
+
+def registrar_cancelacion_portal(
+    db: Session,
+    doc,
+    *,
+    motivo: Optional[str] = None,
+    folio_sustitucion: Optional[str] = None,
+    acuse_xml: Optional[bytes] = None,
+) -> dict:
+    """
+    Deja constancia de una cancelación tramitada directamente en el portal del SAT.
+
+    Es el fallback operativo cuando el PAC acusa recibo sin transmitir la
+    solicitud (caso A-2202). Hasta ahora terminaba en un UPDATE a mano sobre la
+    base, sin bitácora ni acuse archivado.
+
+    No se cree lo que diga el usuario: el estatus se toma de lo que el SAT
+    reporta en el momento de registrar. Si el SAT no ve ni cancelación ni
+    solicitud en proceso, no hay nada que registrar.
+    """
+    from app.models.cancelacion_intento import PORTAL_SAT
+    from app.services import cancelacion_intento_service as bitacora_svc
+    from app.services import sat_cfdi_service as sat_svc
+
+    uuid_cfdi = (
+        getattr(doc, "cfdi_uuid", None) or getattr(doc, "uuid", None) or ""
+    ).strip()
+    if not uuid_cfdi:
+        raise HTTPException(status_code=400, detail="El comprobante no tiene UUID fiscal.")
+
+    try:
+        rfc_emisor, rfc_receptor, total = sat_svc.datos_consulta(doc)
+        acuse = sat_svc.consultar_cfdi(
+            rfc_emisor=rfc_emisor, rfc_receptor=rfc_receptor,
+            total=total, uuid=uuid_cfdi,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"No se pudo consultar el SAT para confirmar el trámite: {exc}",
+        )
+
+    if not acuse.encontrado:
+        raise HTTPException(
+            status_code=404,
+            detail=f"El SAT no reconoce este CFDI ({acuse.codigo_estatus}).",
+        )
+    if not (acuse.cancelado_por_sat or acuse.en_proceso):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "El SAT no tiene registrada ninguna cancelación para este "
+                f"comprobante (Estado={acuse.estado}, "
+                f"EstatusCancelacion={acuse.estatus_cancelacion or 'vacío'}). "
+                "Verifica que la solicitud en el portal se haya completado."
+            ),
+        )
+
+    es_factura = isinstance(doc, Factura)
+    if acuse.cancelado_por_sat:
+        nuevo_estatus = "CANCELADA" if es_factura else "CANCELADO"
+    else:
+        nuevo_estatus = "EN_CANCELACION"
+
+    # El acuse sellado que el portal entrega es la prueba del trámite; el PAC no
+    # lo tiene, porque la solicitud no pasó por él.
+    ruta_acuse = None
+    if acuse_xml:
+        from app.config import settings
+
+        destino = os.path.join(settings.DATA_DIR, "acuses")
+        os.makedirs(destino, exist_ok=True)
+        ruta_abs = os.path.join(destino, f"{uuid_cfdi}.portal.xml")
+        with open(ruta_abs, "wb") as fh:
+            fh.write(acuse_xml)
+        ruta_acuse = f"acuses/{uuid_cfdi}.portal.xml"
+
+    estatus_anterior = getattr(doc.estatus, "value", doc.estatus)
+    if es_factura:
+        doc.estatus = nuevo_estatus
+    else:
+        from app.models.pago import EstatusPago
+
+        doc.estatus = EstatusPago(nuevo_estatus)
+
+    if motivo:
+        doc.motivo_cancelacion = motivo
+    if (folio_sustitucion or "").strip():
+        doc.folio_fiscal_sustituto = folio_sustitucion.strip()
+    doc.cancelacion_code = CODIGO_SAT_PORTAL
+    doc.cancelacion_message = (
+        "Cancelación tramitada directamente en el portal del SAT. "
+        f"El SAT reporta Estado={acuse.estado}, "
+        f"EstatusCancelacion={acuse.estatus_cancelacion or 'vacío'}."
+    )
+    if ruta_acuse:
+        doc.cancelacion_acuse_path = ruta_acuse
+    doc.fecha_solicitud_cancelacion = (
+        None if acuse.cancelado_por_sat else datetime.utcnow()
+    )
+    db.add(doc)
+
+    bitacora_svc.registrar(
+        db, doc,
+        motivo=motivo or getattr(doc, "motivo_cancelacion", None),
+        folio_sustitucion=folio_sustitucion,
+        pac_code=CODIGO_SAT_PORTAL,
+        pac_message="Trámite hecho en el portal del SAT (no pasó por el PAC).",
+        pac_codigo_conocido=None,
+        acuse_sat=acuse,
+        sat_registro_solicitud=True,  # el SAT lo confirma, por eso llegamos aquí
+        origen=PORTAL_SAT,
+    )
+    if ruta_acuse:
+        bitacora_svc.anotar_acuse(db, doc, path=ruta_acuse)
+    if nuevo_estatus != "EN_CANCELACION":
+        bitacora_svc.cerrar_si_resuelto(db, doc, "EN_CANCELACION", nuevo_estatus)
+
+    db.commit()
+    db.refresh(doc)
+
+    return {
+        "estatus_anterior": estatus_anterior,
+        "estatus_nuevo": nuevo_estatus,
+        "sat_estado": acuse.estado,
+        "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+        "acuse_guardado": bool(ruta_acuse),
+    }
 
 
 def generar_xml_preview_bytes(db: Session, factura_id: UUID) -> bytes:

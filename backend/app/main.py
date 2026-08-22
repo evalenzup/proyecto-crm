@@ -53,7 +53,20 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 
 
-_SAT_SYNC_LOCK_KEY = 0x53415453  # "SATS" en hex — clave fija para pg_advisory_lock
+# Una clave de advisory lock POR VENTANA, no una compartida. Las dos ventanas
+# procesan conjuntos disjuntos de comprobantes, así que pueden correr a la vez sin
+# pisarse; cada una conserva su candado para lo que el candado sí protege: que dos
+# instancias del proceso web no procesen el mismo comprobante.
+#
+# Con una sola clave compartida pasaba esto: ambos jobs se registran en el mismo
+# instante, sus intervalos quedan en fase, y cada 2 h el de seguimiento disparaba en
+# el mismo segundo que uno de la ventana caliente. Como la caliente toma el candado
+# primero, el de seguimiento se saltaba SIEMPRE — 22 de 22 veces, todas a las :49:06.
+# Estuvo 45 horas sin correr ni una sola vez y nadie lo notó.
+_SAT_SYNC_LOCK_KEYS = {
+    True: 0x53415453,   # "SATS" — ventana caliente
+    False: 0x53415454,  # "SATT" — seguimiento
+}
 
 # Frontera entre las dos ventanas de verificación (ver _sync_cancelaciones_job).
 HORAS_VENTANA_CALIENTE = 4
@@ -71,6 +84,18 @@ def _reintentar_acuse(db, doc) -> None:
     """
     if getattr(doc, "cancelacion_acuse_path", None):
         return
+
+    # Si el trámite no salió por el PAC, su storage no va a tener acuse jamás y
+    # reintentarlo cada 15 minutos es ruido permanente —cuatro peticiones por
+    # vuelta contra algo que por construcción no existe—, además de ensuciar el
+    # log justo donde uno busca problemas de verdad. Lo delata el código:
+    # vacío = nunca pasó por el PAC; SAT-PORTAL = se hizo en el portal del SAT.
+    from app.services.factura_service import CODIGO_SAT_PORTAL
+
+    code = (getattr(doc, "cancelacion_code", None) or "").strip().upper()
+    if not code or code == CODIGO_SAT_PORTAL:
+        return
+
     try:
         from app.services.factura_service import _archivar_acuse_cancelacion
 
@@ -125,11 +150,17 @@ def _sync_cancelaciones_job(solo_recientes: bool = True):
         # sin depender del ciclo de vida de la conexión en el pool de SQLAlchemy.
         # Esto evita que el lock quede pegado a una conexión idle del pool.
         lock_acquired = db.execute(
-            text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": _SAT_SYNC_LOCK_KEY}
+            text("SELECT pg_try_advisory_xact_lock(:key)"),
+            {"key": _SAT_SYNC_LOCK_KEYS[bool(solo_recientes)]},
         ).scalar()
 
         if not lock_acquired:
-            logger.info("[SAT Sync] Otra instancia ya ejecuta el cron — saltando.")
+            # Nombrar la ventana: un salteo silencioso e indistinguible fue lo que
+            # dejó pasar 45 horas sin que el seguimiento corriera nunca.
+            logger.warning(
+                "[SAT Sync/%s] Otra instancia ya ejecuta esta ventana — saltando.",
+                ventana,
+            )
             db.rollback()
             return
 

@@ -33,9 +33,13 @@ from app.models.base import Base
 FACTURA = "FACTURA"
 PAGO = "PAGO"
 
-# Valores de origen
-SISTEMA = "SISTEMA"       # enviado por el CRM a través del PAC
-PORTAL_SAT = "PORTAL_SAT"  # capturado a mano tras hacer el trámite en el portal
+# Valores de origen — de dónde salió este renglón
+SISTEMA = "SISTEMA"          # enviado por el CRM a través del PAC (caso normal)
+PORTAL_SAT = "PORTAL_SAT"    # capturado a mano tras hacer el trámite en el portal
+RECONSTRUIDO = "RECONSTRUIDO"  # deducido de las columnas del documento: el envío
+                               # ocurrió antes de que existiera esta bitácora, así
+                               # que nadie observó lo que el SAT decía en ese momento
+                               # y los campos sat_* quedan en nulo.
 
 # Valores de resultado
 CANCELADO = "CANCELADO"    # el SAT terminó cancelando el comprobante
@@ -76,6 +80,14 @@ class CancelacionIntento(Base):
     # False = el PAC acusó recibo pero el SAT no tenía registro  ← el caso grave
     # None  = no se pudo consultar al SAT en ese momento
     sat_registro_solicitud = Column(Boolean, nullable=True)
+
+    # ── Segunda opinión: el estatus según el propio PAC ─────────────────────
+    # Se pide con consultarEstatusCFDI sólo cuando nuestra consulta directa al
+    # SAT dice que no hay solicitud registrada. Si su propia herramienta
+    # contesta lo mismo, queda documentado con la fuente que ellos señalan como
+    # la oficial.
+    pac_consulta_estado = Column(String(20), nullable=True)
+    pac_consulta_estatus_cancelacion = Column(String(40), nullable=True)
 
     # ── Evidencia ───────────────────────────────────────────────────────────
     acuse_path = Column(String(255), nullable=True)

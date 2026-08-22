@@ -51,6 +51,7 @@ def registrar(
     pac_codigo_conocido: Optional[bool] = None,
     acuse_sat: Any = None,
     sat_registro_solicitud: Optional[bool] = None,
+    pac_consulta: Optional[dict] = None,
     origen: str = SISTEMA,
     fecha_envio: Optional[datetime] = None,
 ) -> Optional[CancelacionIntento]:
@@ -79,6 +80,10 @@ def registrar(
             sat_es_cancelable=getattr(acuse_sat, "es_cancelable", None),
             sat_estatus_cancelacion=getattr(acuse_sat, "estatus_cancelacion", None),
             sat_registro_solicitud=sat_registro_solicitud,
+            pac_consulta_estado=(pac_consulta or {}).get("estado"),
+            pac_consulta_estatus_cancelacion=(
+                (pac_consulta or {}).get("estatus_cancelacion")
+            ),
         )
         db.add(intento)
         db.flush()
@@ -166,7 +171,9 @@ def listar(
     db: Session,
     *,
     empresa_id: Optional[UUID] = None,
+    empresa_ids: Optional[list] = None,
     documento_id: Optional[UUID] = None,
+    desde: Optional[datetime] = None,
     solo_no_registrados: bool = False,
     limit: int = 200,
 ) -> list[CancelacionIntento]:
@@ -174,9 +181,61 @@ def listar(
     q = db.query(CancelacionIntento)
     if empresa_id:
         q = q.filter(CancelacionIntento.empresa_id == empresa_id)
+    if empresa_ids:
+        q = q.filter(CancelacionIntento.empresa_id.in_(empresa_ids))
     if documento_id:
         q = q.filter(CancelacionIntento.documento_id == documento_id)
+    if desde:
+        q = q.filter(CancelacionIntento.fecha_envio >= desde)
     if solo_no_registrados:
         # Las que el PAC acusó pero el SAT nunca registró.
         q = q.filter(CancelacionIntento.sat_registro_solicitud.is_(False))
     return q.order_by(CancelacionIntento.fecha_envio.desc()).limit(limit).all()
+
+
+def resumen(
+    db: Session,
+    *,
+    empresa_ids: Optional[list] = None,
+    desde: Optional[datetime] = None,
+) -> dict:
+    """
+    Cuántas solicitudes salieron y cuántas el SAT nunca registró.
+
+    Es la respuesta a la pregunta que quedó abierta con Facturación Moderna:
+    ¿acusan recibo de solicitudes que no transmiten, y con qué frecuencia?
+    Sólo cuenta los envíos observados (origen SISTEMA): los RECONSTRUIDOS no
+    tienen dato de lo que el SAT decía en ese momento.
+    """
+    q = db.query(CancelacionIntento).filter(
+        CancelacionIntento.origen == SISTEMA
+    )
+    if empresa_ids:
+        q = q.filter(CancelacionIntento.empresa_id.in_(empresa_ids))
+    if desde:
+        q = q.filter(CancelacionIntento.fecha_envio >= desde)
+
+    intentos = q.all()
+    total = len(intentos)
+    sin_registro = sum(1 for i in intentos if i.sat_registro_solicitud is False)
+    registradas = sum(1 for i in intentos if i.sat_registro_solicitud is True)
+    sin_verificar = total - sin_registro - registradas
+    sin_acuse = sum(1 for i in intentos if not i.acuse_path)
+    codigos: dict = {}
+    for i in intentos:
+        codigos[i.pac_code or "(sin código)"] = codigos.get(i.pac_code or "(sin código)", 0) + 1
+
+    return {
+        "total_envios": total,
+        "sat_registro_la_solicitud": registradas,
+        "sat_nunca_la_registro": sin_registro,
+        "no_se_pudo_verificar": sin_verificar,
+        "porcentaje_no_registradas": (
+            round(100 * sin_registro / total, 1) if total else 0.0
+        ),
+        "sin_acuse_del_pac": sin_acuse,
+        "codigos_del_pac": dict(sorted(codigos.items(), key=lambda kv: -kv[1])),
+        "canceladas": sum(1 for i in intentos if i.resultado == CANCELADO),
+        "revertidas": sum(1 for i in intentos if i.resultado == REVERTIDO),
+        "abiertas": sum(1 for i in intentos if i.resultado is None),
+    }

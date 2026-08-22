@@ -1,5 +1,8 @@
 import uuid
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query,
+    Request, UploadFile,
+)
 from fastapi.responses import Response, FileResponse, StreamingResponse
 import os
 from sqlalchemy.orm import Session, selectinload
@@ -419,6 +422,54 @@ def cancelar_pago_sat(
     except Exception:
         pass
     return result
+
+
+@router.post(
+    "/{pago_id}/registrar-cancelacion-portal",
+    summary="Registra una cancelación del complemento hecha en el portal del SAT",
+)
+def registrar_cancelacion_portal_pago(
+    pago_id: uuid.UUID,
+    request: Request,
+    motivo: Optional[str] = Form(default=None),
+    folio_sustitucion: Optional[str] = Form(default=None),
+    acuse: Optional[UploadFile] = File(default=None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Ver la nota del endpoint equivalente en facturas."""
+    from app.services.factura_service import registrar_cancelacion_portal
+
+    pago = db.query(Pago).filter(Pago.id == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
+    contenido = acuse.file.read() if acuse is not None else None
+    if contenido and b"<Acuse" not in contenido:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo no parece el acuse XML del SAT (no contiene <Acuse>).",
+        )
+
+    resultado = registrar_cancelacion_portal(
+        db, pago,
+        motivo=motivo, folio_sustitucion=folio_sustitucion, acuse_xml=contenido,
+    )
+
+    try:
+        audit_svc.registrar(
+            db=db, accion="REGISTRAR_CANCELACION_PORTAL", entidad="pago",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=pago.empresa_id, entidad_id=str(pago_id),
+            detalle=resultado, ip=audit_svc.get_ip(request),
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    return resultado
 
 
 @router.get(

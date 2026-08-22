@@ -25,12 +25,25 @@ from lxml import etree
 logger = logging.getLogger("app")
 
 # Margen tras enviar la solicitud durante el cual confiamos en nuestro estado
-# local aunque el SAT todavía no muestre el trámite. La documentación de
-# Facturación Moderna dice que la cancelación se procesa "de 2 a 3 minutos"
-# después del envío; damos 30 para cubrir su cola con holgura. Pasado ese
-# margen, si el SAT sigue sin reportar solicitud alguna, es que nunca se
-# registró y el comprobante vuelve a TIMBRADA.
-MINUTOS_GRACIA_SOLICITUD = 30
+# local aunque el SAT todavía no muestre el trámite. Pasado ese margen, si el
+# SAT sigue sin reportar solicitud alguna, es que nunca se registró y el
+# comprobante vuelve a TIMBRADA.
+#
+# 360 minutos = 6 horas. La documentación de Facturación Moderna promete "de 2 a
+# 3 minutos" y con eso se había puesto un margen de 30; la prueba en vivo del
+# 20-ago-2026 (A-961, A-1002 y A-22130) lo desmintió: el servicio de consulta
+# del SAT tardó unos 16 minutos en reflejar solicitudes que sí habían entrado,
+# más de cinco veces lo prometido. Con 30 el margen quedaba en apenas el doble
+# de lo observado, y equivocarse aquí es caro: revertir a TIMBRADA un
+# comprobante que sí está en curso lo saca del radar del cron —que sólo vigila
+# los EN_CANCELACION— hasta la siguiente auditoría completa. Esperar de más no
+# cuesta nada: un comprobante en cancelación no estorba mientras espera.
+MINUTOS_GRACIA_SOLICITUD = 360
+
+# Marca con la que se anota en cancelacion_message que el SAT todavía no
+# reflejaba la solicitud. Se recorta en cuanto el SAT sí la reporta, para que el
+# aviso no se quede pegado en pantalla diciendo algo que ya no es cierto.
+MARCA_SIN_REGISTRO = "⚠ El SAT todavía no registra"
 
 # Respaldo para el caso ambiguo: el SAT reporta un EstatusCancelacion que no
 # sabemos interpretar (ni vacío, ni en proceso, ni rechazada). Tras estos días
@@ -322,6 +335,14 @@ def _parse_response(content: bytes) -> AcuseSAT:
 
 
 
+def _limpiar_marca_sin_registro(doc: Any) -> None:
+    """Quita de ``cancelacion_message`` el aviso de "el SAT aún no la registra"."""
+    mensaje = getattr(doc, "cancelacion_message", None)
+    if not mensaje or MARCA_SIN_REGISTRO not in mensaje:
+        return
+    doc.cancelacion_message = mensaje.split(MARCA_SIN_REGISTRO)[0].strip() or None
+
+
 def aplicar_acuse_sat(
     factura: Any,
     acuse: AcuseSAT,
@@ -383,12 +404,16 @@ def aplicar_acuse_sat(
     if acuse.cancelado_por_sat:
         nuevo_estatus = "CANCELADA"
         factura.fecha_solicitud_cancelacion = None
+        _limpiar_marca_sin_registro(factura)
 
     elif acuse.en_proceso:
         nuevo_estatus = "EN_CANCELACION"
         # Registrar la fecha de solicitud si aún no existe
         if not factura.fecha_solicitud_cancelacion:
             factura.fecha_solicitud_cancelacion = ahora
+        # El SAT ya reporta el trámite: el aviso de "todavía no lo registra"
+        # dejó de ser cierto y no debe seguir en pantalla.
+        _limpiar_marca_sin_registro(factura)
 
     else:
         # SAT reporta Vigente y no en proceso
@@ -481,11 +506,13 @@ def aplicar_acuse_sat_pago(
     if acuse.cancelado_por_sat:
         nuevo = "CANCELADO"
         pago.fecha_solicitud_cancelacion = None
+        _limpiar_marca_sin_registro(pago)
 
     elif acuse.en_proceso:
         nuevo = "EN_CANCELACION"
         if not pago.fecha_solicitud_cancelacion:
             pago.fecha_solicitud_cancelacion = ahora
+        _limpiar_marca_sin_registro(pago)
 
     else:
         # El SAT reporta Vigente y sin cancelación en proceso

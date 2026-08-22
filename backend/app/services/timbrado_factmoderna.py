@@ -212,6 +212,89 @@ def _soap_cancelar_envelope(
     return tostring(envelope, encoding="utf-8", xml_declaration=True)
 
 
+def _soap_consultar_estatus_envelope(
+    *,
+    user_id: str,
+    user_pass: str,
+    emisor_rfc: str,
+    receptor_rfc: str,
+    total: str,
+    uuid: str,
+) -> bytes:
+    """
+    Envelope SOAP para consultarEstatusCFDI (Facturación Moderna).
+
+    Es el método que el propio PAC señala como la forma de confirmar el estatus
+    real de un CFDI: su respuesta a requestCancelarCFDI "sólo confirmará la
+    recepción de la solicitud, no dará un status de Cancelado".
+    """
+    ENV = "http://schemas.xmlsoap.org/soap/envelope/"
+    NS1 = "https://t1demo.facturacionmoderna.com/timbrado/soap"
+    XSD = "http://www.w3.org/2001/XMLSchema"
+    XSI = "http://www.w3.org/2001/XMLSchema-instance"
+    ENC = "http://schemas.xmlsoap.org/soap/encoding/"
+
+    envelope = Element(
+        "SOAP-ENV:Envelope",
+        {
+            "xmlns:SOAP-ENV": ENV,
+            "xmlns:ns1": NS1,
+            "xmlns:xsd": XSD,
+            "xmlns:xsi": XSI,
+            "xmlns:SOAP-ENC": ENC,
+            "SOAP-ENV:encodingStyle": ENC,
+        },
+    )
+    body = SubElement(envelope, "SOAP-ENV:Body")
+    op = SubElement(body, "ns1:consultarEstatusCFDI")
+    req = SubElement(op, "request", {"xsi:type": "SOAP-ENC:Struct"})
+
+    def add_str(name: str, value: str):
+        SubElement(req, name, {"xsi:type": "xsd:string"}).text = value
+
+    add_str("UserPass", user_pass)
+    add_str("UserID", user_id)
+    add_str("emisorRFC", emisor_rfc)
+    add_str("receptorRFC", receptor_rfc)
+    add_str("total", total)
+    add_str("UUID", uuid)
+
+    return tostring(envelope, encoding="utf-8", xml_declaration=True)
+
+
+def _faultstring(contenido: bytes) -> Optional[str]:
+    """Texto del <faultstring> de una respuesta SOAP de error, si lo trae."""
+    try:
+        root = fromstring(contenido)
+    except Exception:  # noqa: BLE001
+        return None
+    for el in root.iter():
+        if _etree_strip_ns(el.tag) == "faultstring" and el.text:
+            return el.text.strip()
+    return None
+
+
+def _parse_estatus_response(root) -> dict:
+    """
+    Extrae los cuatro campos de consultarEstatusCFDI.
+
+    Devuelve claves con los mismos nombres que usa el WS del SAT para poder
+    compararlas directamente: estado, es_cancelable, estatus_cancelacion.
+    """
+    campos = {"http_code": None, "estado": None, "esCancelable": None,
+              "estatusCancelacion": None}
+    for el in root.iter():
+        ln = _etree_strip_ns(el.tag)
+        if ln in campos:
+            campos[ln] = (el.text or "").strip()
+    return {
+        "http_code": campos["http_code"],
+        "estado": campos["estado"],
+        "es_cancelable": campos["esCancelable"],
+        "estatus_cancelacion": campos["estatusCancelacion"],
+    }
+
+
 def _parse_cancel_response(root) -> dict:
     """
     Extrae Code/Message de la respuesta SOAP de cancelación.
@@ -323,6 +406,63 @@ def _clasificar_respuesta_cancelacion(code: str, message: str) -> tuple[bool, bo
         f"{message!r}"
     )
     return aceptada, False
+
+
+# Reintentos de la consulta al SAT inmediatamente después de enviar la
+# solicitud. Las que el SAT sí acepta aparecen "En proceso" al instante, pero su
+# documentación habla de 2 a 3 minutos, así que una sola consulta a los pocos
+# segundos puede dar un falso "no registró la solicitud" y alarmar al usuario
+# sin motivo. Sólo se reintenta en ese caso concreto; si el SAT ya contestó
+# algo, no se espera.
+REINTENTOS_CONSULTA_SAT = 2
+ESPERA_ENTRE_CONSULTAS_SEG = 6.0
+
+
+def _consultar_sat_tras_envio(
+    *, rfc_emisor: str, rfc_receptor: str, total: float, uuid: str
+):
+    """
+    Consulta el estado del CFDI justo después de pedir la cancelación.
+
+    Returns:
+        (acuse | None, sat_registro_solicitud)
+        donde sat_registro_solicitud es True si el SAT ya reporta la solicitud,
+        False si no la tiene registrada, y None si no se pudo consultar.
+    """
+    import time
+
+    from app.services import sat_cfdi_service as _sat
+
+    acuse = None
+    for intento in range(REINTENTOS_CONSULTA_SAT + 1):
+        try:
+            acuse = _sat.consultar_cfdi(
+                rfc_emisor=rfc_emisor,
+                rfc_receptor=rfc_receptor,
+                total=total,
+                uuid=uuid,
+            )
+        except Exception as e:  # noqa: BLE001
+            (logger.warning if logger else print)(
+                f"[Cancel] No se pudo verificar en SAT tras la solicitud: {e}"
+            )
+            return acuse, None
+
+        if not acuse.encontrado:
+            return acuse, None
+        if acuse.cancelado_por_sat or (acuse.estatus_cancelacion or "").strip():
+            # El SAT ya sabe de la solicitud: no hay nada que esperar.
+            return acuse, True
+
+        if intento < REINTENTOS_CONSULTA_SAT:
+            (logger.info if logger else print)(
+                f"[Cancel] {uuid}: el SAT aún no reporta la solicitud; "
+                f"reintento {intento + 1}/{REINTENTOS_CONSULTA_SAT} en "
+                f"{ESPERA_ENTRE_CONSULTAS_SEG:.0f}s"
+            )
+            time.sleep(ESPERA_ENTRE_CONSULTAS_SEG)
+
+    return acuse, False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -906,6 +1046,52 @@ class FacturacionModernaPAC:
         out["cfdi_b64"] = cfdi_b64
         return out
 
+    def consultar_estatus_cfdi(
+        self,
+        *,
+        emisor_rfc: str,
+        receptor_rfc: str,
+        total: float,
+        uuid: str,
+    ) -> dict:
+        """
+        Segunda opinión: el estatus según el propio PAC.
+
+        No aporta información nueva —consulta el mismo servicio del SAT que ya
+        consultamos directo— pero sí valor probatorio. Cuando nuestra consulta
+        dice que el SAT no registró la solicitud, tener la misma respuesta desde
+        la herramienta que Facturación Moderna señala como la oficial cierra la
+        discusión antes de empezar: ya no cabe el argumento de que consultamos mal.
+
+        Devuelve {} si no se pudo obtener; nunca lanza.
+        """
+        try:
+            env = _soap_consultar_estatus_envelope(
+                user_id=_fm_user_id(),
+                user_pass=_fm_user_pass(),
+                emisor_rfc=(emisor_rfc or "").strip().upper(),
+                receptor_rfc=(receptor_rfc or "").strip().upper(),
+                total=f"{float(total or 0):.2f}",
+                uuid=(uuid or "").strip(),
+            )
+            headers = {
+                "Content-Type": "text/xml; charset=utf-8",
+                "SOAPAction": "consultarEstatusCFDI",
+            }
+            with httpx.Client(timeout=self.timeout) as client:
+                resp = client.post(_fm_url(), content=env, headers=headers)
+            datos = _parse_estatus_response(fromstring(resp.content))
+            (logger.info if logger else print)(
+                f"[PAC Estatus] {uuid}: estado={datos.get('estado')!r} "
+                f"estatusCancelacion={datos.get('estatus_cancelacion')!r}"
+            )
+            return datos
+        except Exception as e:  # noqa: BLE001 — es evidencia, no parte del trámite
+            (logger.warning if logger else print)(
+                f"[PAC Estatus] No se pudo consultar el estatus al PAC: {e}"
+            )
+            return {}
+
     def solicitar_cancelacion_cfdi(
         self,
         *,
@@ -1000,20 +1186,84 @@ class FacturacionModernaPAC:
                 raise RuntimeError(
                     f"HTTP {resp.status_code} del PAC (cancelación): {soap_txt}"
                 )
-            # Si hay solicitud previa o está en cola, marcamos EN_CANCELACION y salimos
+            # El PAC se niega a reenviar diciendo que ya existe una solicitud
+            # previa. Eso NO prueba que el SAT la tenga: el 20-ago-2026, A-21895 y
+            # A-22069 recibieron esta respuesta mientras el SAT no reportaba
+            # trámite alguno, y A-22069 llevaba siete reintentos rebotando igual.
+            # Antes se daba por buena la versión del PAC, se inventaba un código
+            # "202" que él nunca devuelve y se salía sin dejar rastro. Ahora se le
+            # pregunta al SAT, que es quien decide.
             if "previa" in soap_lower or "solicitud de cancelacion" in soap_lower:
                 from datetime import datetime as _dt
-                f.estatus = "EN_CANCELACION"
-                if not f.fecha_solicitud_cancelacion:
+
+                from app.services.sat_cfdi_service import MARCA_SIN_REGISTRO
+
+                detalle_pac = _faultstring(resp.content) or soap_txt.strip()[:300]
+                receptor_rfc = (
+                    getattr(getattr(f, "cliente", None), "rfc", None) or ""
+                ).strip().upper()
+                acuse_sat, sat_registro_solicitud = _consultar_sat_tras_envio(
+                    rfc_emisor=emisor_rfc,
+                    rfc_receptor=receptor_rfc,
+                    total=float(f.total or 0),
+                    uuid=uuid,
+                )
+
+                if (
+                    acuse_sat is not None
+                    and acuse_sat.encontrado
+                    and acuse_sat.cancelado_por_sat
+                ):
+                    f.estatus = "CANCELADA"
+                    f.fecha_solicitud_cancelacion = None
+                    sat_registro_solicitud = True
+                    mensaje = (
+                        f"{detalle_pac} El SAT reporta el CFDI como CANCELADO, "
+                        "así que la solicitud previa sí prosperó."
+                    )
+                else:
+                    f.estatus = "EN_CANCELACION"
+                    # Siempre se reinicia, igual que en el resto del flujo: el
+                    # margen de gracia debe contarse desde este envío.
                     f.fecha_solicitud_cancelacion = _dt.utcnow()
+                    if sat_registro_solicitud:
+                        mensaje = (
+                            f"{detalle_pac} El SAT confirma que la solicitud previa "
+                            "sigue en curso; hay que esperar a que se resuelva."
+                        )
+                    else:
+                        # El caso trampa: el PAC bloquea el reenvío por una solicitud
+                        # que el SAT nunca recibió. Reintentar aquí no lleva a ningún
+                        # lado, y hay que decirlo en vez de aparentar avance.
+                        mensaje = (
+                            f"{detalle_pac} {MARCA_SIN_REGISTRO} ninguna solicitud "
+                            "sobre este CFDI. El PAC se niega a reenviarla porque cree "
+                            "tener una previa, así que reintentar desde aquí no va a "
+                            "avanzar: hay que hacer el trámite en el portal del SAT y "
+                            "registrarlo con «Registrar cancelación del portal»."
+                        )
+
+                f.cancelacion_code = "PAC-PREVIA"  # etiqueta nuestra, el PAC no da código
+                f.cancelacion_message = mensaje
+                _bitacora.registrar(
+                    db, f,
+                    motivo=motivo,
+                    folio_sustitucion=folio_sustitucion,
+                    pac_code="PAC-PREVIA",
+                    pac_message=detalle_pac,
+                    pac_codigo_conocido=None,  # no es un código del catálogo del PAC
+                    acuse_sat=acuse_sat,
+                    sat_registro_solicitud=sat_registro_solicitud,
+                )
                 db.add(f)
                 db.commit()
                 db.refresh(f)
                 return {
                     "estatus": f.estatus,
                     "uuid": uuid,
-                    "code": "202",
-                    "message": "El UUID tiene una solicitud de cancelación previa en el SAT.",
+                    "code": "PAC-PREVIA",
+                    "message": mensaje,
+                    "sat_registro_solicitud": sat_registro_solicitud,
                 }
             # Si es solo "cola", dejamos pasar para que el parseo de abajo lo lea
 
@@ -1064,31 +1314,30 @@ class FacturacionModernaPAC:
         # None = no se pudo consultar; True/False = el SAT registró o no la solicitud
         sat_registro_solicitud = None
         acuse_sat = None
+        pac_consulta = None
         if solicitud_aceptada:
-            try:
-                from app.services import sat_cfdi_service as _sat
-                receptor_rfc = (
-                    getattr(getattr(f, "cliente", None), "rfc", None) or ""
-                ).strip().upper()
-                acuse = _sat.consultar_cfdi(
-                    rfc_emisor=emisor_rfc,
-                    rfc_receptor=receptor_rfc,
+            receptor_rfc = (
+                getattr(getattr(f, "cliente", None), "rfc", None) or ""
+            ).strip().upper()
+            # El SAT publica "En proceso" en cuanto acepta la solicitud. Si sigue
+            # vacío tras los reintentos, el acuse del PAC no significa que la
+            # haya registrado: hay que verlo antes de marcar EN_CANCELACION.
+            acuse_sat, sat_registro_solicitud = _consultar_sat_tras_envio(
+                rfc_emisor=emisor_rfc,
+                rfc_receptor=receptor_rfc,
+                total=float(f.total or 0),
+                uuid=uuid,
+            )
+            if acuse_sat is not None and acuse_sat.encontrado and acuse_sat.cancelado_por_sat:
+                cancelada_confirmada_sat = True
+                sat_registro_solicitud = True
+            elif sat_registro_solicitud is False:
+                # Segunda opinión con la herramienta del propio PAC.
+                pac_consulta = self.consultar_estatus_cfdi(
+                    emisor_rfc=emisor_rfc,
+                    receptor_rfc=receptor_rfc,
                     total=float(f.total or 0),
                     uuid=uuid,
-                )
-                acuse_sat = acuse
-                if acuse.encontrado and acuse.cancelado_por_sat:
-                    cancelada_confirmada_sat = True
-                elif acuse.encontrado:
-                    # El SAT publica "En proceso" en cuanto acepta la solicitud.
-                    # Si viene vacío, el acuse del PAC no significa que el SAT la
-                    # haya registrado: hay que verlo antes de marcar EN_CANCELACION.
-                    sat_registro_solicitud = bool(
-                        (acuse.estatus_cancelacion or "").strip()
-                    )
-            except Exception as e:
-                (logger.warning if logger else print)(
-                    f"[Cancel] No se pudo verificar en SAT tras la solicitud: {e}"
                 )
 
         if cancelada_confirmada_sat:
@@ -1114,15 +1363,25 @@ class FacturacionModernaPAC:
                 # por si el SAT sólo tardó, pero se avisa para que el usuario no crea
                 # que el trámite va en camino cuando puede no haber salido.
                 res["sat_registro_solicitud"] = False
+                from app.services.sat_cfdi_service import MARCA_SIN_REGISTRO
+
                 f.cancelacion_message = (
-                    f"{res.get('message') or ''} ⚠ El SAT todavía no registra esta "
-                    "solicitud (EstatusCancelacion vacío). Usa «Verificar con SAT» "
-                    "en unos minutos; si sigue igual, el PAC no la envió y hay que "
-                    "hacerla desde el portal del SAT."
+                    f"{res.get('message') or ''} {MARCA_SIN_REGISTRO} esta "
+                    "solicitud (EstatusCancelacion vacío). Puede tardar; se comprueba "
+                    "en automático y este aviso desaparece solo cuando el SAT la "
+                    "refleje. Si sigue igual en unas horas, hay que hacerla desde el "
+                    "portal del SAT."
                 ).strip()
+                if (pac_consulta or {}).get("estatus_cancelacion") == "":
+                    # Su propia herramienta dice lo mismo que el SAT.
+                    f.cancelacion_message += (
+                        " El servicio consultarEstatusCFDI del propio PAC también "
+                        "reporta EstatusCancelacion vacío."
+                    )
                 (logger.warning if logger else print)(
                     f"[Cancel] {uuid}: el PAC contestó {code_str} pero el SAT no "
-                    f"registró la solicitud (EsCancelable={acuse_sat.es_cancelable!r})"
+                    f"registró la solicitud (EsCancelable={acuse_sat.es_cancelable!r}; "
+                    f"segunda opinión del PAC: {pac_consulta or 'no disponible'})"
                 )
         # ---------------------------------------------
 
@@ -1138,6 +1397,7 @@ class FacturacionModernaPAC:
             pac_codigo_conocido=codigo_conocido,
             acuse_sat=acuse_sat,
             sat_registro_solicitud=sat_registro_solicitud,
+            pac_consulta=pac_consulta,
         )
 
         db.add(f)
@@ -1268,27 +1528,27 @@ class FacturacionModernaPAC:
         cancelado_confirmado_sat = False
         sat_registro_solicitud = None
         acuse_sat = None
+        pac_consulta = None
         if solicitud_aceptada:
-            try:
-                from app.services import sat_cfdi_service as _sat
-                acuse = _sat.consultar_cfdi(
-                    rfc_emisor=emisor_rfc,
-                    rfc_receptor=(
+            acuse_sat, sat_registro_solicitud = _consultar_sat_tras_envio(
+                rfc_emisor=emisor_rfc,
+                rfc_receptor=(
+                    getattr(getattr(p, "cliente", None), "rfc", None) or ""
+                ).strip().upper(),
+                total=0.0,  # los complementos de pago timbran con Total=0
+                uuid=uuid,
+            )
+            if acuse_sat is not None and acuse_sat.encontrado and acuse_sat.cancelado_por_sat:
+                cancelado_confirmado_sat = True
+                sat_registro_solicitud = True
+            elif sat_registro_solicitud is False:
+                pac_consulta = self.consultar_estatus_cfdi(
+                    emisor_rfc=emisor_rfc,
+                    receptor_rfc=(
                         getattr(getattr(p, "cliente", None), "rfc", None) or ""
                     ).strip().upper(),
-                    total=0.0,  # los complementos de pago timbran con Total=0
+                    total=0.0,
                     uuid=uuid,
-                )
-                acuse_sat = acuse
-                if acuse.encontrado and acuse.cancelado_por_sat:
-                    cancelado_confirmado_sat = True
-                elif acuse.encontrado:
-                    sat_registro_solicitud = bool(
-                        (acuse.estatus_cancelacion or "").strip()
-                    )
-            except Exception as e:
-                (logger.warning if logger else print)(
-                    f"[Cancel Pago] No se pudo verificar en SAT tras la solicitud: {e}"
                 )
 
         # Evidencia del trámite. Las columnas existen en Pago desde la migración
@@ -1307,6 +1567,7 @@ class FacturacionModernaPAC:
             pac_codigo_conocido=codigo_conocido,
             acuse_sat=acuse_sat,
             sat_registro_solicitud=sat_registro_solicitud,
+            pac_consulta=pac_consulta,
         )
 
         if cancelado_confirmado_sat:
@@ -1316,16 +1577,20 @@ class FacturacionModernaPAC:
         elif solicitud_aceptada:
             if sat_registro_solicitud is False:
                 # Mismo caso que en facturas (ver la nota allá).
+                from app.services.sat_cfdi_service import MARCA_SIN_REGISTRO
+
                 res["sat_registro_solicitud"] = False
                 p.cancelacion_message = (
-                    f"{res.get('message') or ''} ⚠ El SAT todavía no registra esta "
-                    "solicitud (EstatusCancelacion vacío). Usa «Verificar con SAT» "
-                    "en unos minutos; si sigue igual, el PAC no la envió y hay que "
-                    "hacerla desde el portal del SAT."
+                    f"{res.get('message') or ''} {MARCA_SIN_REGISTRO} esta "
+                    "solicitud (EstatusCancelacion vacío). Puede tardar; se comprueba "
+                    "en automático y este aviso desaparece solo cuando el SAT la "
+                    "refleje. Si sigue igual en unas horas, hay que hacerla desde el "
+                    "portal del SAT."
                 ).strip()
                 (logger.warning if logger else print)(
                     f"[Cancel Pago] {uuid}: el PAC contestó {code_str} pero el SAT no "
-                    f"registró la solicitud (EsCancelable={acuse_sat.es_cancelable!r})"
+                    f"registró la solicitud (EsCancelable={acuse_sat.es_cancelable!r}; "
+                    f"segunda opinión del PAC: {pac_consulta or 'no disponible'})"
                 )
             p.estatus = EstatusPago.EN_CANCELACION
             # Siempre se reinicia (ver la nota en la cancelación de facturas).
