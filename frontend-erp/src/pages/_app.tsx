@@ -34,12 +34,24 @@ const requiredRoles = (pathname: string): string[] | null => {
   return match ? match.roles : null;
 };
 
+// ─── Rutas que no requieren sesión ────────────────────────────────────────────
+// Una sola lista para el guardia y para el layout: cuando estaban duplicadas se
+// desincronizaron y /p/agenda quedó sin menú (layout) pero redirigiendo a login
+// (guardia), así que el enlace público no servía.
+//   /login      — pantalla de acceso
+//   /verificar  — verificación pública de técnicos por QR
+//   /p/         — páginas abiertas con token en la URL (agenda de campo)
+const PREFIJOS_PUBLICOS = ['/login', '/verificar', '/p/'];
+
+const esRutaPublica = (pathname: string): boolean =>
+  PREFIJOS_PUBLICOS.some((pre) => pathname === pre || pathname.startsWith(pre));
+
 // ─── Guard de autenticación ───────────────────────────────────────────────────
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
-  const isPublicRoute = router.pathname === '/login' || router.pathname.startsWith('/verificar');
+  const isPublicRoute = esRutaPublica(router.pathname);
 
   React.useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublicRoute) {
@@ -138,7 +150,7 @@ export default function App({ Component, pageProps }: AppProps) {
 // Helper para renderizar layout condicionalmente
 const RenderLayout = ({ Component, pageProps }: any) => {
   const router = useRouter();
-  const isPublicPage = router.pathname === '/login' || router.pathname.startsWith('/verificar') || router.pathname.startsWith('/p/');
+  const isPublicPage = esRutaPublica(router.pathname);
 
   if (isPublicPage) {
     return <Component {...pageProps} />;
