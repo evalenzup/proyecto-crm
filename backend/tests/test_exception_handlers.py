@@ -20,7 +20,11 @@ def test_422_validacion_devuelve_formato_estandar(auth_client):
     assert r.status_code == 422
     body = r.json()
     assert body["error"]["type"] == "ValidationError"
-    assert isinstance(body["error"]["detail"], list)
+    # `detail` es el mensaje legible del primer campo inválido y `errors` el
+    # detalle completo (ver validation_exception_handler). Antes `detail` era la
+    # lista cruda de Pydantic y el usuario nunca veía el mensaje real.
+    assert isinstance(body["error"]["detail"], str)
+    assert isinstance(body["error"]["errors"], list)
 
 
 def test_integrity_error_unique_devuelve_409(auth_client, db_session):
