@@ -1,7 +1,7 @@
 // src/services/pagoService.ts
 
 import api from '@/lib/axios';
-import type { FacturaOut } from './facturaService';
+import type { FacturaOut, HistorialDocumento } from './facturaService';
 
 // Helper
 const getData = <T>(p: Promise<{ data: T }>): Promise<T> => p.then((r) => r.data);
@@ -16,6 +16,7 @@ export interface PagoListParams {
   empresa_id?: string;
   cliente_id?: string;
   estatus?: EstatusPagoCfdi;
+  cancelacion?: FiltroCancelacion;
   fecha_desde?: string;
   fecha_hasta?: string;
   order_by?: string;
@@ -118,6 +119,7 @@ export interface ExportPagosParams {
   fecha_desde?: string;
   fecha_hasta?: string;
   cliente_id?: string;
+  cancelacion?: FiltroCancelacion;
 }
 
 // ── Pagos ────────────────────────────────────────────────────
@@ -161,6 +163,25 @@ export interface VerificarSATPagoResult {
   estatus_propuesto?: string;
   advertencia?: string;
 }
+
+/** Estado del trámite de cancelación; no es el estatus del complemento. */
+export type FiltroCancelacion =
+  | 'con_solicitud'
+  | 'atorada'
+  | 'en_tramite'
+  | 'sin_registro_sat'
+  | 'cancelada';
+
+export const FILTROS_CANCELACION: { value: FiltroCancelacion; label: string; ayuda: string }[] = [
+  { value: 'atorada', label: 'Atorados', ayuda: 'Se pidió cancelarlos y siguen vigentes ante el SAT' },
+  { value: 'sin_registro_sat', label: 'Sin registro en el SAT', ayuda: 'El PAC acusó recibo y el SAT nunca tuvo la solicitud' },
+  { value: 'en_tramite', label: 'En trámite', ayuda: 'Esperando al SAT o al receptor' },
+  { value: 'cancelada', label: 'Cancelados', ayuda: 'El trámite llegó a su fin' },
+  { value: 'con_solicitud', label: 'Con solicitud (todos)', ayuda: 'Cualquiera que alguna vez se intentó cancelar' },
+];
+
+export const getHistorialPago = (id: string) =>
+  getData<HistorialDocumento>(api.get(`/pagos/${id}/historial`));
 
 export const verificarEstadoSATPago = (id: string, confirmarRetroceso = false) =>
   getData<VerificarSATPagoResult>(

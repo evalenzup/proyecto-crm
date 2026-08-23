@@ -13,7 +13,7 @@ import { useFacturasList } from '@/hooks/useFacturasList';
 import { useTableHeight } from '@/hooks/useTableHeight';
 import { FacturaRow, exportFacturasExcel, duplicarFactura, FILTROS_CANCELACION } from '@/services/facturaService';
 import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
-import { HistorialFacturaModal } from '@/components/HistorialFacturaModal';
+import { HistorialDocumentoModal } from '@/components/HistorialDocumentoModal';
 
 const { RangePicker } = DatePicker;
 
@@ -411,7 +411,7 @@ const FacturasIndexPage: React.FC = () => {
         </Form>
       </Modal>
 
-      <HistorialFacturaModal
+      <HistorialDocumentoModal
         facturaId={historialRow?.id ?? null}
         open={!!historialRow}
         onClose={() => setHistorialRow(null)}

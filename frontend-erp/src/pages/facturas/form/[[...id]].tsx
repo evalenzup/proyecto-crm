@@ -63,7 +63,7 @@ import {
 } from '@/services/facturaService';
 import { formatDate } from '@/utils/formatDate';
 import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
-import { HistorialFacturaModal } from '@/components/HistorialFacturaModal';
+import { HistorialDocumentoModal } from '@/components/HistorialDocumentoModal';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
 import { TipoProductoServicio } from '@/services/productoServicioService';
 import api from '@/lib/axios';
@@ -1276,7 +1276,7 @@ const FacturaFormPage: React.FC = () => {
         </Form>
       </Modal>
 
-      <HistorialFacturaModal
+      <HistorialDocumentoModal
         facturaId={id ?? null}
         open={historialOpen}
         onClose={() => setHistorialOpen(false)}

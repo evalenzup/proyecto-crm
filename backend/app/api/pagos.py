@@ -144,6 +144,11 @@ def exportar_pagos_excel(
     empresa_id: Optional[uuid.UUID] = None,
     cliente_id: Optional[uuid.UUID] = None,
     estatus: Optional[str] = None,
+    # La exportación comparte los filtros del listado a propósito: el caso de
+    # uso es sacar "los atorados" para revisarlos.
+    cancelacion: Optional[
+        Literal["con_solicitud", "atorada", "en_tramite", "sin_registro_sat", "cancelada"]
+    ] = Query(None),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     current_user: Usuario = Depends(deps.get_current_active_user),
@@ -160,6 +165,7 @@ def exportar_pagos_excel(
         empresa_id=empresa_id,
         cliente_id=cliente_id,
         estatus=estatus,
+        cancelacion=cancelacion,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
     )

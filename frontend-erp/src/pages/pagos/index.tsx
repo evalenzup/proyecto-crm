@@ -5,11 +5,12 @@ import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageHeader } from '@/components/PageHeader';
 import { Table, Button, Space, Select, DatePicker, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { FilterBar } from '@/components/FilterBar';
+import { HistorialDocumentoModal } from '@/components/HistorialDocumentoModal';
 import { usePagosList } from '@/hooks/usePagosList';
-import { PagoRow, timbrarPago, exportPagosExcel } from '@/services/pagoService';
+import { PagoRow, timbrarPago, exportPagosExcel, getHistorialPago, FILTROS_CANCELACION } from '@/services/pagoService';
 import { useTableHeight } from '@/hooks/useTableHeight';
 
 const { RangePicker } = DatePicker;
@@ -29,6 +30,7 @@ const PagosIndexPage: React.FC = () => {
   const { empresas } = filters;
 
   const [emailForm] = Form.useForm();
+  const [historialRow, setHistorialRow] = React.useState<PagoRow | null>(null);
 
   React.useEffect(() => {
     if (emailModalOpen && emailRow) {
@@ -73,13 +75,14 @@ const PagosIndexPage: React.FC = () => {
     debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
     setClienteQuery,
     estatus, setEstatus,
+    cancelacion, setCancelacion,
     rangoFechas, setRangoFechas,
   } = filters;
 
   // Auto-fetch on filter change
   React.useEffect(() => {
     fetchPagos({ ...pagination, current: 1 });
-  }, [empresaId, clienteId, estatus, rangoFechas]);
+  }, [empresaId, clienteId, estatus, cancelacion, rangoFechas]);
 
   const handleTimbrar = async (pagoId: string) => {
     try {
@@ -98,6 +101,7 @@ const PagosIndexPage: React.FC = () => {
         empresa_id: empresaId,
         cliente_id: clienteId,
         estatus: estatus || undefined,
+        cancelacion: cancelacion || undefined,
         fecha_desde: rangoFechas?.[0]?.format('YYYY-MM-DD'),
         fecha_hasta: rangoFechas?.[1]?.format('YYYY-MM-DD'),
       });
@@ -134,7 +138,7 @@ const PagosIndexPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 120,
+      width: 160,
       render: (_: any, r) => (
         <Space>
           <Tooltip title="Editar">
@@ -142,6 +146,9 @@ const PagosIndexPage: React.FC = () => {
           </Tooltip>
           <Tooltip title="Ver PDF">
             <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} />
+          </Tooltip>
+          <Tooltip title="Historial">
+            <Button type="link" icon={<HistoryOutlined />} onClick={() => setHistorialRow(r)} />
           </Tooltip>
           <Tooltip title="Enviar por Correo">
             <Button type="link" icon={<MailOutlined />} onClick={() => {
@@ -228,6 +235,27 @@ const PagosIndexPage: React.FC = () => {
                   { value: 'EN_CANCELACION', label: 'EN CANCELACIÓN' },
                   { value: 'CANCELADO', label: 'CANCELADO' },
                 ]}
+              />
+              <Select
+                allowClear
+                placeholder="Cancelación"
+                style={{ width: 210, minWidth: 170 }}
+                value={cancelacion}
+                onChange={setCancelacion}
+                title="Estado del trámite de cancelación, que no es el estatus del complemento"
+                options={FILTROS_CANCELACION.map((f) => ({
+                  value: f.value,
+                  label: f.label,
+                  title: f.ayuda,
+                }))}
+                optionRender={(opt) => (
+                  <div>
+                    <div>{opt.data.label}</div>
+                    <div style={{ fontSize: 12, color: '#888', whiteSpace: 'normal' }}>
+                      {opt.data.title}
+                    </div>
+                  </div>
+                )}
               />
               <RangePicker
                 onChange={(range) => setRangoFechas(range as any)}
@@ -325,6 +353,13 @@ const PagosIndexPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+      <HistorialDocumentoModal
+        facturaId={historialRow?.id ?? null}
+        open={!!historialRow}
+        onClose={() => setHistorialRow(null)}
+        fetchHistorial={getHistorialPago}
+        tipo="pago"
+      />
     </>
   );
 };

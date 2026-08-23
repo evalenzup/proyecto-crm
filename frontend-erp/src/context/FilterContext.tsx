@@ -29,6 +29,8 @@ interface PagoFilters {
     clienteId?: string;
     clienteQuery: string;
     estatus?: string; // e.g. 'VIGENTE' | 'CANCELADO'
+    // Estado del TRÁMITE de cancelación, que no es el estatus del complemento.
+    cancelacion?: string;
     fechaInicio?: string;
     fechaFin?: string;
 }

@@ -7,6 +7,7 @@ import {
   getPagos,
   type PagoRow,
   type EstatusPagoCfdi,
+  type FiltroCancelacion,
 } from '@/services/pagoService';
 import { useEmpresaSelector } from './useEmpresaSelector';
 import { useFilterContext } from '@/context/FilterContext';
@@ -54,6 +55,7 @@ export const usePagosList = () => {
   const clienteId = filters.clienteId;
   const clienteQuery = filters.clienteQuery;
   const estatus = filters.estatus as EstatusPagoCfdi | undefined;
+  const cancelacion = filters.cancelacion as FiltroCancelacion | undefined;
 
   // Convert string dates from context back to Dayjs for RangePicker
   const rangoFechas: [Dayjs, Dayjs] | null = useMemo(() => {
@@ -67,6 +69,7 @@ export const usePagosList = () => {
   const setClienteId = (val: string | undefined) => setFilters(prev => ({ ...prev, clienteId: val }));
   const setClienteQuery = (val: string) => setFilters(prev => ({ ...prev, clienteQuery: val }));
   const setEstatus = (val: EstatusPagoCfdi | undefined) => setFilters(prev => ({ ...prev, estatus: val }));
+  const setCancelacion = (val: FiltroCancelacion | undefined) => setFilters(prev => ({ ...prev, cancelacion: val }));
 
   const setRangoFechas = (dates: [Dayjs, Dayjs] | null) => {
     setFilters(prev => ({
@@ -107,6 +110,7 @@ export const usePagosList = () => {
     if (empresaId) params.empresa_id = empresaId;
     if (clienteId) params.cliente_id = clienteId;
     if (estatus) params.estatus = estatus;
+    if (cancelacion) params.cancelacion = cancelacion;
     if (rangoFechas) {
       params.fecha_desde = rangoFechas[0].format('YYYY-MM-DD');
       params.fecha_hasta = rangoFechas[1].format('YYYY-MM-DD');
@@ -123,7 +127,7 @@ export const usePagosList = () => {
     } finally {
       setLoading(false);
     }
-  }, [empresaId, clienteId, estatus, rangoFechas, sort]);
+  }, [empresaId, clienteId, estatus, cancelacion, rangoFechas, sort]);
 
   const handleTableChange = useCallback((pag: TablePaginationConfig, _filters: any, sorter: any) => {
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
@@ -141,7 +145,7 @@ export const usePagosList = () => {
   // Reset page logic
   useEffect(() => {
     setPagination(p => ({ ...p, current: 1 }));
-  }, [empresaId, clienteId, estatus, rangoFechas]);
+  }, [empresaId, clienteId, estatus, cancelacion, rangoFechas]);
 
 
   // Sync client options when clienteId changes
@@ -189,6 +193,7 @@ export const usePagosList = () => {
       debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
       clienteQuery, setClienteQuery,
       estatus, setEstatus,
+      cancelacion, setCancelacion,
       rangoFechas, setRangoFechas,
       isAdmin,
     },

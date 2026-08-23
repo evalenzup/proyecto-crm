@@ -1,5 +1,6 @@
-// components/HistorialFacturaModal.tsx
-// Todo lo que le pasó a una factura, en una sola línea de tiempo: lo que hizo
+// components/HistorialDocumentoModal.tsx
+// Todo lo que le pasó a un comprobante —factura o complemento de pago—, en una
+// sola línea de tiempo: lo que hizo
 // la gente (auditoría) y lo que contestaron el PAC y el SAT en cada solicitud
 // de cancelación (bitácora). Antes esto sólo se podía ver entrando a la base y
 // cruzando dos tablas a mano.
@@ -10,7 +11,7 @@ import {
   CloseCircleOutlined, SearchOutlined, WarningOutlined, HistoryOutlined,
 } from '@ant-design/icons';
 import { getHistorialFactura } from '@/services/facturaService';
-import type { CambioFactura, EventoHistorial, HistorialFactura } from '@/services/facturaService';
+import type { CambioFactura, EventoHistorial, HistorialDocumento } from '@/services/facturaService';
 import { formatDate } from '@/utils/formatDate';
 
 const { Text } = Typography;
@@ -19,6 +20,12 @@ interface Props {
   facturaId: string | null;
   open: boolean;
   onClose: () => void;
+  /** De dónde traer el historial. Por defecto el de facturas; los complementos
+   *  de pago inyectan el suyo para reutilizar este mismo modal, igual que hace
+   *  AcuseCancelacionModal. */
+  fetchHistorial?: (id: string) => Promise<HistorialDocumento>;
+  /** Qué comprobante es. Decide el título y cómo se nombran los campos. */
+  tipo?: 'factura' | 'pago';
 }
 
 /** Icono y color por tipo de evento, para poder recorrer la lista de un vistazo. */
@@ -31,6 +38,12 @@ const APARIENCIA: Record<string, { color: string; icono: React.ReactNode }> = {
   CANCELAR_FACTURA: { color: 'orange', icono: <CloseCircleOutlined /> },
   SOLICITUD_CANCELACION: { color: 'orange', icono: <CloseCircleOutlined /> },
   VERIFICAR_SAT: { color: 'cyan', icono: <SearchOutlined /> },
+  CREAR_PAGO: { color: 'gray', icono: <FileAddOutlined /> },
+  ACTUALIZAR_PAGO: { color: 'blue', icono: <EditOutlined /> },
+  TIMBRAR_PAGO: { color: 'green', icono: <SafetyCertificateOutlined /> },
+  ENVIAR_PAGO_EMAIL: { color: 'gray', icono: <MailOutlined /> },
+  CANCELAR_PAGO: { color: 'orange', icono: <CloseCircleOutlined /> },
+  ELIMINAR_PAGO: { color: 'red', icono: <WarningOutlined /> },
   REVERTIR_CANCELACION: { color: 'red', icono: <WarningOutlined /> },
 };
 
@@ -54,8 +67,22 @@ const ETIQUETA_CAMPO: Record<string, string> = {
   conceptos: 'Conceptos',
 };
 
-const nombreCampo = (campo: string) =>
-  ETIQUETA_CAMPO[campo] ?? campo.replace(/_/g, ' ');
+// Los complementos nombran distinto algunos campos, y `fecha_pago` significa
+// otra cosa: en la factura es la fecha programada de cobro y en el complemento
+// la fecha real del pago que va en el CFDI.
+const ETIQUETA_CAMPO_PAGO: Record<string, string> = {
+  forma_pago_p: 'Forma de pago',
+  moneda_p: 'Moneda',
+  tipo_cambio_p: 'Tipo de cambio',
+  monto: 'Monto',
+  fecha_pago: 'Fecha del pago',
+  documentos_relacionados: 'Documentos pagados',
+};
+
+const nombreCampo = (campo: string, esPago: boolean) =>
+  (esPago ? ETIQUETA_CAMPO_PAGO[campo] : undefined)
+  ?? ETIQUETA_CAMPO[campo]
+  ?? campo.replace(/_/g, ' ');
 
 const comoTexto = (v: any): string => {
   if (v === null || v === undefined || v === '') return '—';
@@ -65,7 +92,7 @@ const comoTexto = (v: any): string => {
 };
 
 /** Los cambios de una modificación, en tabla chica. */
-const Cambios: React.FC<{ cambios: CambioFactura[] }> = ({ cambios }) => (
+const Cambios: React.FC<{ cambios: CambioFactura[]; esPago: boolean }> = ({ cambios, esPago }) => (
   <table style={{ marginTop: 6, fontSize: 12, borderCollapse: 'collapse', width: '100%' }}>
     <tbody>
       {cambios.map((c, i) => (
@@ -74,7 +101,7 @@ const Cambios: React.FC<{ cambios: CambioFactura[] }> = ({ cambios }) => (
             <Tag color={COLOR_GRUPO[c.grupo]} style={{ marginInlineEnd: 6 }}>
               {c.grupo}
             </Tag>
-            {nombreCampo(c.campo)}
+            {nombreCampo(c.campo, esPago)}
           </td>
           <td style={{ padding: '2px 8px 2px 0', color: '#999', textDecoration: 'line-through' }}>
             {comoTexto(c.antes)}
@@ -127,18 +154,23 @@ const DetalleVerificacion: React.FC<{ d: any }> = ({ d }) => {
   );
 };
 
-const Detalle: React.FC<{ evento: EventoHistorial }> = ({ evento }) => {
+const Detalle: React.FC<{ evento: EventoHistorial; esPago: boolean }> = ({ evento, esPago }) => {
   const d = evento.detalle;
   if (!d || typeof d !== 'object') return null;
   if (evento.fuente === 'cancelacion') return <DetalleCancelacion d={d} />;
   if (evento.accion === 'VERIFICAR_SAT') return <DetalleVerificacion d={d} />;
-  if (Array.isArray(d.cambios) && d.cambios.length) return <Cambios cambios={d.cambios} />;
+  if (Array.isArray(d.cambios) && d.cambios.length) return <Cambios cambios={d.cambios} esPago={esPago} />;
   return null;
 };
 
-export const HistorialFacturaModal: React.FC<Props> = ({ facturaId, open, onClose }) => {
+export const HistorialDocumentoModal: React.FC<Props> = ({
+  facturaId, open, onClose,
+  fetchHistorial = getHistorialFactura,
+  tipo = 'factura',
+}) => {
+  const esPago = tipo === 'pago';
   const [loading, setLoading] = useState(false);
-  const [datos, setDatos] = useState<HistorialFactura | null>(null);
+  const [datos, setDatos] = useState<HistorialDocumento | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Los cambios internos (notas, observaciones) se esconden por defecto: si no,
   // una corrección de texto tapa el cambio de receptor que sí importa.
@@ -149,7 +181,7 @@ export const HistorialFacturaModal: React.FC<Props> = ({ facturaId, open, onClos
     setLoading(true);
     setError(null);
     try {
-      setDatos(await getHistorialFactura(facturaId));
+      setDatos(await fetchHistorial(facturaId));
     } catch (e: any) {
       setError(
         e?.response?.data?.error?.detail ||
@@ -159,7 +191,7 @@ export const HistorialFacturaModal: React.FC<Props> = ({ facturaId, open, onClos
     } finally {
       setLoading(false);
     }
-  }, [facturaId]);
+  }, [facturaId, fetchHistorial]);
 
   useEffect(() => {
     if (open) cargar();
@@ -184,21 +216,23 @@ export const HistorialFacturaModal: React.FC<Props> = ({ facturaId, open, onClos
             <Text type="secondary" style={{ fontSize: 12 }}>{formatDate(e.fecha)}</Text>
             {e.usuario && <Text type="secondary" style={{ fontSize: 12 }}>· {e.usuario}</Text>}
           </Space>
-          <Detalle evento={e} />
+          <Detalle evento={e} esPago={esPago} />
         </div>
       ),
     };
   });
 
-  const f = datos?.factura;
+  const doc = datos?.documento;
 
   return (
     <Modal
       title={
         <Space>
           <HistoryOutlined />
-          {f ? `Historial de ${f.serie ?? ''}-${f.folio ?? ''}` : 'Historial de la factura'}
-          {f?.estatus && <Tag>{f.estatus}</Tag>}
+          {doc
+            ? `Historial de ${doc.serie ?? ''}-${doc.folio ?? ''}`
+            : `Historial ${esPago ? 'del complemento' : 'de la factura'}`}
+          {doc?.estatus && <Tag>{doc.estatus}</Tag>}
         </Space>
       }
       open={open}
@@ -232,4 +266,4 @@ export const HistorialFacturaModal: React.FC<Props> = ({ facturaId, open, onClos
   );
 };
 
-export default HistorialFacturaModal;
+export default HistorialDocumentoModal;

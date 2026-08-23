@@ -105,8 +105,9 @@ export interface EventoHistorial {
   detalle: any;
 }
 
-export interface HistorialFactura {
-  factura: {
+export interface HistorialDocumento {
+  /** Factura o complemento: el backend devuelve la misma forma para los dos. */
+  documento: {
     id: string;
     serie: string | null;
     folio: number | null;
@@ -313,7 +314,7 @@ export const duplicarFactura = (id: string, sustituta = false) =>
   getData<FacturaOut>(api.post(`/facturas/${id}/duplicar`, null, { params: { sustituta } }));
 
 export const getHistorialFactura = (id: string) =>
-  getData<HistorialFactura>(api.get(`/facturas/${id}/historial`));
+  getData<HistorialDocumento>(api.get(`/facturas/${id}/historial`));
 
 export const verificarEstadoSAT = (id: string, confirmarRetroceso = false) =>
   getData<VerificarSATResult>(

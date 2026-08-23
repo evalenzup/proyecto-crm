@@ -21,12 +21,15 @@ import {
   Modal,
   Radio,
   Popconfirm,
+  Dropdown,
 } from 'antd';
+import type { MenuProps } from 'antd';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDate, formatDateOnly } from '@/utils/formatDate';
 import { usePagoForm } from '@/hooks/usePagoForm';
-import { FacturaPendiente, downloadAcuseCancelacionPago } from '@/services/pagoService';
+import { FacturaPendiente, downloadAcuseCancelacionPago, getHistorialPago } from '@/services/pagoService';
 import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
+import { HistorialDocumentoModal } from '@/components/HistorialDocumentoModal';
 import {
   CheckCircleOutlined,
   SyncOutlined,
@@ -41,6 +44,8 @@ import {
   FileTextOutlined,
   DeleteOutlined,
   CopyOutlined,
+  HistoryOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -105,6 +110,7 @@ const PagoFormPage: React.FC = () => {
 
   // Modal del acuse de cancelación del SAT
   const [acuseOpen, setAcuseOpen] = useState(false);
+  const [historialOpen, setHistorialOpen] = useState(false);
 
   // Formulario independiente para el modal de cancelación
   const [cancelacionForm] = Form.useForm();
@@ -233,6 +239,73 @@ const PagoFormPage: React.FC = () => {
   const isTimbrado = pago?.estatus === 'TIMBRADO' || !!pago?.uuid || !!pago?.fecha_timbrado;
   const isCancelado = pago?.estatus === 'CANCELADO';
   const isEnCancelacion = pago?.estatus === 'EN_CANCELACION';
+
+  // ── Acciones ───────────────────────────────────────────────────────────────
+  // Mismo criterio que en el formulario de facturas: se ve una sola acción
+  // fiscal —la que aplica al estatus de ahora— y el resto vive en «Más»,
+  // agrupado por lo que responde. Lo que no aplica se oculta en vez de
+  // mostrarse en gris.
+  const accionFiscal: 'timbrar' | 'cancelar' | 'verificar' | null =
+    !id ? null
+    : !isTimbrado ? 'timbrar'
+    : (isEnCancelacion || isCancelado) ? 'verificar'
+    : 'cancelar';
+
+  const enviarPorCorreo = () => {
+    if (currentEmpresa && !currentEmpresa.tiene_config_email) {
+      Modal.warning({
+        title: 'Falta configuración de correo',
+        content: 'La empresa no tiene configurado el servicio de correo electrónico. Por favor, realiza la configuración en el módulo de Empresas antes de enviar.',
+      });
+      return;
+    }
+    const clientEmail = form.getFieldValue(['cliente', 'email']) || clienteEmail;
+    emailForm.setFieldsValue({ recipient_emails: clientEmail });
+    abrirEmailModal();
+  };
+
+  const itemsDocumento: MenuProps['items'] = [
+    { key: 'pdf', icon: <FilePdfOutlined />, label: 'Ver PDF', onClick: verPdf },
+    ...(isTimbrado
+      ? [{ key: 'xml', icon: <FileTextOutlined />, label: 'Descargar XML', onClick: descargarXml }]
+      : []),
+    ...((isTimbrado || isCancelado)
+      ? [{ key: 'correo', icon: <MailOutlined />, label: 'Enviar por correo', onClick: enviarPorCorreo }]
+      : []),
+  ];
+
+  const itemsSat: MenuProps['items'] = [
+    ...((isTimbrado && accionFiscal !== 'verificar')
+      ? [{ key: 'verificar', icon: <SyncOutlined />, label: 'Verificar con SAT', onClick: handleVerificarSAT }]
+      : []),
+    ...((isCancelado || isEnCancelacion)
+      ? [{ key: 'acuse', icon: <FileTextOutlined />, label: 'Acuse de cancelación', onClick: () => setAcuseOpen(true) }]
+      : []),
+    ...(isEnCancelacion
+      ? [{
+          key: 'reintentar',
+          icon: <DeleteOutlined />,
+          danger: true,
+          label: 'Reintentar cancelación',
+          onClick: abrirCancelacion,
+        }]
+      : []),
+  ];
+
+  const itemsMas: MenuProps['items'] = [
+    { key: 'g-doc', type: 'group', label: 'Documento', children: itemsDocumento },
+    ...((itemsSat as any[]).length
+      ? [{ key: 'g-sat', type: 'group' as const, label: 'SAT', children: itemsSat }]
+      : []),
+    {
+      key: 'g-otras',
+      type: 'group',
+      label: 'Otras',
+      children: [
+        { key: 'historial', icon: <HistoryOutlined />, label: 'Historial', onClick: () => setHistorialOpen(true) },
+      ],
+    },
+  ];
 
   const getStatusTag = () => {
     if (isCancelado) {
@@ -390,93 +463,86 @@ const PagoFormPage: React.FC = () => {
 
         <Divider />
 
-        <Space wrap>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/pagos')}>Regresar</Button>
-          <Button icon={<SaveOutlined />} type="primary" onClick={() => form.submit()} loading={saving} disabled={isTimbrado || isCancelado}>
-            {id ? 'Actualizar Pago' : 'Guardar Borrador'}
+        {/* Barra en tres zonas: navegación a la izquierda; a la derecha la
+            acción fiscal del momento, guardar, y el resto en un menú. */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/pagos')}>
+            Regresar
           </Button>
-          <Popconfirm
-            title="¿Timbrar este pago?"
-            description="Se enviará al SAT. Esta acción no se puede deshacer."
-            onConfirm={generarComplemento}
-            okText="Sí, timbrar"
-            cancelText="Cancelar"
-            okButtonProps={{ danger: true }}
-            disabled={!id || isTimbrado || isCancelado}
-          >
-            <Button
-              icon={<ThunderboltOutlined />}
-              loading={accionLoading.timbrando}
-              disabled={!id || isTimbrado || isCancelado}
-            >
-              Timbrar
-            </Button>
-          </Popconfirm>
-          <Button
-            icon={<MailOutlined />}
-            onClick={() => {
-              if (currentEmpresa && !currentEmpresa.tiene_config_email) {
-                Modal.warning({
-                  title: 'Falta configuración de correo',
-                  content: 'La empresa no tiene configurado el servicio de correo electrónico. Por favor, realiza la configuración en el módulo de Empresas antes de enviar.',
-                });
-                return;
-              }
 
-              const clientEmail = form.getFieldValue(['cliente', 'email']) || clienteEmail;
-              emailForm.setFieldsValue({ recipient_emails: clientEmail });
-              abrirEmailModal();
-            }}
-            loading={accionLoading.enviando}
-            disabled={!isTimbrado && !isCancelado}
-          >
-            Enviar por Correo
-          </Button>
-          <Button
-            icon={<FilePdfOutlined />}
-            onClick={verPdf}
-            loading={accionLoading.visualizando}
-            disabled={!id}
-          >
-            Ver PDF
-          </Button>
-          <Button
-            icon={<FileTextOutlined />}
-            onClick={descargarXml}
-            loading={accionLoading.descargando}
-            disabled={!isTimbrado}
-          >
-            Descargar XML
-          </Button>
-          <Button
-            icon={<SyncOutlined />}
-            onClick={handleVerificarSAT}
-            loading={accionLoading.verificandoSat}
-            disabled={!isTimbrado}
-            title="Consulta el estado real del complemento en el SAT y actualiza el estatus"
-          >
-            Verificar con SAT
-          </Button>
-          {(isCancelado || isEnCancelacion) && (
+          <Space wrap>
+            {accionFiscal === 'timbrar' && (
+              <Popconfirm
+                title="¿Timbrar este pago?"
+                description="Se enviará al SAT. Esta acción no se puede deshacer."
+                onConfirm={generarComplemento}
+                okText="Sí, timbrar"
+                cancelText="Cancelar"
+                okButtonProps={{ danger: true }}
+              >
+                <Button icon={<ThunderboltOutlined />} loading={accionLoading.timbrando}>
+                  Timbrar
+                </Button>
+              </Popconfirm>
+            )}
+
+            {accionFiscal === 'cancelar' && (
+              <Button
+                icon={<DeleteOutlined />}
+                danger
+                onClick={abrirCancelacion}
+                loading={accionLoading.cancelando}
+              >
+                Cancelar complemento
+              </Button>
+            )}
+
+            {accionFiscal === 'verificar' && (
+              <Button
+                icon={<SyncOutlined />}
+                onClick={handleVerificarSAT}
+                loading={accionLoading.verificandoSat}
+                title="Consulta el estado real del complemento en el SAT y actualiza el estatus"
+              >
+                Verificar con SAT
+              </Button>
+            )}
+
             <Button
-              icon={<FileTextOutlined />}
-              onClick={() => setAcuseOpen(true)}
-              title="Descarga el acuse de cancelación sellado por el SAT"
+              icon={<SaveOutlined />}
+              type="primary"
+              onClick={() => form.submit()}
+              loading={saving}
+              disabled={isTimbrado || isCancelado}
             >
-              Acuse de cancelación
+              {id ? 'Actualizar Pago' : 'Guardar Borrador'}
             </Button>
-          )}
-          <Button
-            icon={<DeleteOutlined />}
-            danger
-            onClick={abrirCancelacion}
-            loading={accionLoading.cancelando}
-            disabled={!isTimbrado || isCancelado || isEnCancelacion}
-          >
-          </Button>
-        </Space>
+
+            {/* Sin complemento guardado todavía no hay nada que hacerle. */}
+            <Dropdown menu={{ items: itemsMas }} trigger={['click']} disabled={!id}>
+              <Button>
+                Más <DownOutlined />
+              </Button>
+            </Dropdown>
+          </Space>
+        </div>
       </div>
 
+      <HistorialDocumentoModal
+        facturaId={id ?? null}
+        open={historialOpen}
+        onClose={() => setHistorialOpen(false)}
+        fetchHistorial={getHistorialPago}
+        tipo="pago"
+      />
       <AcuseCancelacionModal
         facturaId={id ?? null}
         serie={pago?.serie}
