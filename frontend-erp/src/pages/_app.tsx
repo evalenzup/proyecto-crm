@@ -46,6 +46,9 @@ const PREFIJOS_PUBLICOS = ['/login', '/verificar', '/p/'];
 const esRutaPublica = (pathname: string): boolean =>
   PREFIJOS_PUBLICOS.some((pre) => pathname === pre || pathname.startsWith(pre));
 
+// Única pantalla de una cuenta de técnico (rol operativo).
+const RUTA_TECNICO = '/mi-agenda';
+
 // ─── Guard de autenticación ───────────────────────────────────────────────────
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -53,11 +56,21 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const isPublicRoute = esRutaPublica(router.pathname);
 
+  const esTecnico = user?.rol === 'operativo';
+
   React.useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isPublicRoute) {
+    if (isLoading) return;
+    if (!isAuthenticated && !isPublicRoute) {
       router.push('/login');
+      return;
     }
-  }, [isLoading, isAuthenticated, router, isPublicRoute]);
+    // Un técnico sólo tiene su agenda: cualquier otra ruta lo devuelve ahí.
+    // El backend además le niega el resto de los endpoints, esto es para que
+    // no se tope con pantallas vacías.
+    if (isAuthenticated && esTecnico && !isPublicRoute && router.pathname !== RUTA_TECNICO) {
+      router.replace(RUTA_TECNICO);
+    }
+  }, [isLoading, isAuthenticated, router, isPublicRoute, esTecnico]);
 
   if (isLoading && !isPublicRoute) {
     return (
@@ -150,9 +163,12 @@ export default function App({ Component, pageProps }: AppProps) {
 // Helper para renderizar layout condicionalmente
 const RenderLayout = ({ Component, pageProps }: any) => {
   const router = useRouter();
+  const { user } = useAuth();
   const isPublicPage = esRutaPublica(router.pathname);
 
-  if (isPublicPage) {
+  // La agenda del técnico va sin MainLayout: es una pantalla de celular y el
+  // menú lateral no le sirve de nada, sólo estorba.
+  if (isPublicPage || (user?.rol === 'operativo' && router.pathname === RUTA_TECNICO)) {
     return <Component {...pageProps} />;
   }
 

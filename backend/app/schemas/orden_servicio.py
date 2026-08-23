@@ -75,6 +75,15 @@ class OrdenServicioUpdate(BaseModel):
     notas_cierre: Optional[str] = None
 
 
+class IncidenciaOS(BaseModel):
+    """Reporte del técnico de que el servicio no se pudo realizar.
+
+    No cambia el estado: sólo deja constancia y avisa a la oficina, que decide
+    si la orden se cancela o se reagenda.
+    """
+    motivo: str = Field(..., min_length=5, max_length=500)
+
+
 class CambioEstadoOS(BaseModel):
     estado: EstadoOSLiteral
     notas: Optional[str] = None

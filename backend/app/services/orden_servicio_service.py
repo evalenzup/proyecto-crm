@@ -182,6 +182,24 @@ def cambiar_estado(
     return obj
 
 
+def registrar_incidencia(
+    db: Session,
+    orden: OrdenServicio,
+    motivo: str,
+    usuario_id: Optional[UUID] = None,
+) -> None:
+    """Anota que el servicio no se pudo realizar, sin mover el estado.
+
+    Se guarda en el mismo historial que los cambios de estado —con el estado
+    repetido, porque no cambia— para que la orden tenga una sola bitácora y se
+    lea en orden. La oficina decide después si cancela o reagenda.
+    """
+    _registrar_historial(
+        db, orden.id, orden.estado, orden.estado, usuario_id,
+        notas=f"NO SE PUDO REALIZAR: {motivo}",
+    )
+
+
 def delete_orden(db: Session, orden_id: UUID) -> None:
     """Soft delete."""
     obj = get_orden(db, orden_id)

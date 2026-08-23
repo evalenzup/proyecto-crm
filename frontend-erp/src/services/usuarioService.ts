@@ -23,6 +23,7 @@ export interface Usuario {
     rol: 'superadmin' | 'admin' | 'supervisor' | 'estandar' | 'operativo';
     is_active: boolean;
     empresa_id: string | null;
+    tecnico_id: string | null;
     empresas_ids: string[];
     permisos: string[];
     puede_eliminar: boolean;
@@ -45,6 +46,7 @@ export interface UsuarioCreate {
     rol: 'admin' | 'supervisor' | 'estandar' | 'operativo';
     is_active?: boolean;
     empresa_id?: string | null;
+    tecnico_id?: string | null;
     empresas_ids?: string[];
     permisos?: string[];
     restricciones?: RestriccionesAcceso;
@@ -57,6 +59,7 @@ export interface UsuarioUpdate {
     rol?: 'admin' | 'supervisor' | 'estandar' | 'operativo';
     is_active?: boolean;
     empresa_id?: string | null;
+    tecnico_id?: string | null;
     empresas_ids?: string[];
     permisos?: string[];
     restricciones?: RestriccionesAcceso;

@@ -153,6 +153,13 @@ export interface ListOrdenesParams {
 }
 
 const ordenServicioService = {
+  /** El técnico avisa que el servicio no se pudo realizar. No cambia el
+   *  estado: deja constancia y le avisa a la oficina, que decide. */
+  reportarIncidencia: async (id: string, motivo: string): Promise<OrdenServicioOut> => {
+    const { data } = await api.post(`/ordenes-servicio/${id}/incidencia`, { motivo });
+    return data;
+  },
+
   /** Excel con las órdenes que cumplan los mismos filtros de la lista. */
   exportExcel: async (params: ListOrdenesParams = {}): Promise<Blob> => {
     const { data } = await api.get('/ordenes-servicio/export-excel', {

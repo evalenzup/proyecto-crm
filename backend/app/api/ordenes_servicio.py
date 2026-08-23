@@ -15,9 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.database import get_db
-from app.models.usuario import Usuario
+from app.models.usuario import RolUsuario, Usuario
 from app.schemas.orden_servicio import (
     CambioEstadoOS,
+    IncidenciaOS,
     OrdenServicioCreate,
     OrdenServicioListOut,
     OrdenServicioOut,
@@ -26,6 +27,12 @@ from app.schemas.orden_servicio import (
 from app.services import orden_servicio_service as svc
 from app.services import auditoria_service as audit_svc
 from app.utils.excel import generate_excel
+from app.core import operativo as op_rules
+from app.services import notificacion_service as notif_svc
+
+import logging
+
+logger = logging.getLogger("app")
 
 router = APIRouter()
 
@@ -65,6 +72,18 @@ def listar_ordenes(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     eid = _resolve_empresa_id(empresa_id, current_user, db)
+
+    # Una cuenta de técnico sólo ve sus propias órdenes, sin importar lo que
+    # venga en el parámetro.
+    if current_user.rol == RolUsuario.OPERATIVO:
+        tecnico_id = current_user.tecnico_id
+        if tecnico_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Tu cuenta todavía no está ligada a una ficha de técnico. "
+                       "Pídele a la oficina que la asocie.",
+            )
+
     items, total = svc.list_ordenes(
         db,
         empresa_id=eid,
@@ -115,6 +134,55 @@ def listar_ordenes(
         )
 
     return {"items": result, "total": total}
+
+
+# ── Incidencia del técnico ────────────────────────────────────────────────────
+
+@router.post("/{orden_id}/incidencia", response_model=OrdenServicioOut)
+def reportar_incidencia(
+    orden_id: UUID,
+    request: Request,
+    payload: IncidenciaOS,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """El técnico avisa que el servicio no se pudo realizar.
+
+    No cambia el estado a propósito: cancelar o reagendar arrastra consecuencias
+    de facturación y cobranza que el técnico no ve. Queda constancia en el
+    historial de la orden y le llega un aviso a la oficina, que decide.
+    """
+    obj = svc.get_orden(db, orden_id)
+
+    if current_user.rol == RolUsuario.OPERATIVO and obj.tecnico_id != current_user.tecnico_id:
+        raise HTTPException(status_code=403, detail="Esa orden no está asignada a ti.")
+
+    quien = (current_user.nombre_completo or current_user.email)
+    svc.registrar_incidencia(
+        db, orden=obj, motivo=payload.motivo, usuario_id=current_user.id,
+    )
+    try:
+        notif_svc.crear_notificacion(
+            db,
+            empresa_id=obj.empresa_id,
+            tipo="ORDEN_SERVICIO",
+            titulo=f"{obj.folio_os}: el servicio no se pudo realizar",
+            mensaje=f"{quien} reportó: {payload.motivo}",
+            metadata={"orden_id": str(obj.id), "folio_os": obj.folio_os},
+        )
+    except Exception:  # noqa: BLE001 — el aviso no debe tumbar el reporte
+        logger.warning("No se pudo crear la notificación de incidencia de %s", obj.folio_os)
+
+    audit_svc.registrar(
+        db=db, accion=audit_svc.CAMBIAR_ESTADO_ORDEN_SERVICIO, entidad="orden_servicio",
+        usuario_id=current_user.id, usuario_email=current_user.email,
+        empresa_id=obj.empresa_id, entidad_id=str(orden_id),
+        ip=audit_svc.get_ip(request),
+        detalle={"folio_os": obj.folio_os, "incidencia": payload.motivo},
+    )
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 # ── Exportar ──────────────────────────────────────────────────────────────────
@@ -275,6 +343,20 @@ def cambiar_estado(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    # Reglas del técnico: sólo sus órdenes, sólo hacia adelante y sin cancelar.
+    if current_user.rol == RolUsuario.OPERATIVO:
+        actual = svc.get_orden(db, orden_id)
+        if actual.tecnico_id != current_user.tecnico_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Esa orden no está asignada a ti.",
+            )
+        if not op_rules.transicion_permitida(actual.estado, payload.estado):
+            raise HTTPException(
+                status_code=409,
+                detail=op_rules.explicar_transicion(actual.estado, payload.estado),
+            )
+
     obj = svc.cambiar_estado(db, orden_id=orden_id, payload=payload, usuario_id=current_user.id)
     audit_svc.registrar(
         db=db, accion=audit_svc.CAMBIAR_ESTADO_ORDEN_SERVICIO, entidad="orden_servicio",

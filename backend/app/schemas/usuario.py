@@ -99,6 +99,9 @@ class UsuarioBase(BaseModel):
     nombre_completo: Optional[str] = None
     rol: RolUsuario = RolUsuario.SUPERVISOR
     empresa_id: Optional[UUID] = None
+    # Ficha de técnico asociada. Sólo tiene sentido con rol OPERATIVO: es lo que
+    # le permite ver su propia agenda.
+    tecnico_id: Optional[UUID] = None
 
 
 # ── Create ─────────────────────────────────────────────────────────────────────
@@ -114,6 +117,10 @@ class UsuarioCreate(UsuarioBase):
 
     @model_validator(mode="after")
     def validar_empresa_segun_rol(self) -> "UsuarioCreate":
+        if self.rol == RolUsuario.OPERATIVO and not self.empresa_id:
+            raise ValueError("Una cuenta de técnico debe tener una empresa asignada (empresa_id requerido)")
+        if self.rol == RolUsuario.OPERATIVO and not self.tecnico_id:
+            raise ValueError("Una cuenta de técnico debe indicar a qué técnico corresponde (tecnico_id requerido)")
         if self.rol == RolUsuario.SUPERVISOR and not self.empresa_id:
             raise ValueError("Un supervisor debe tener una empresa asignada (empresa_id requerido)")
         if self.rol == RolUsuario.ESTANDAR and not self.empresa_id:
@@ -129,6 +136,7 @@ class UsuarioUpdate(BaseModel):
     rol: Optional[RolUsuario] = None
     is_active: Optional[bool] = None
     empresa_id: Optional[UUID] = None
+    tecnico_id: Optional[UUID] = None
     # Para admin: lista de empresa_ids accesibles (None = no cambiar)
     empresas_ids: Optional[List[UUID]] = None
     # Para estandar: lista de módulos permitidos (None = no cambiar)

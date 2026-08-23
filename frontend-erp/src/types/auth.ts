@@ -17,6 +17,8 @@ export interface Usuario {
     empresas_ids: string[];
     /** Módulos habilitados (estandar) */
     permisos: string[];
+    /** Ficha de técnico asociada (solo rol operativo) */
+    tecnico_id?: string | null;
 }
 
 export interface LoginResponse {

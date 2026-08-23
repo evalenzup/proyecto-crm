@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core import security
 from app.core import restricciones
+from app.core import operativo as op_rules
 from app.database import get_db
 from app.models.usuario import Usuario, RolUsuario, UsuarioEmpresa
 from app.schemas.token import TokenPayload
@@ -142,6 +143,21 @@ def get_current_active_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tu cuenta no tiene permitido exportar información.",
             headers={"X-Restriccion": "exportar"},
+        )
+
+    # Una cuenta de técnico sólo llega a su agenda. Se niega todo y se abre lo
+    # necesario (core/operativo.py), para que un endpoint nuevo no quede
+    # expuesto por descuido.
+    if current_user.rol == RolUsuario.OPERATIVO and not op_rules.ruta_permitida(
+        request.url.path
+    ):
+        logger.info(
+            "[Operativo] %s intentó entrar a %s %s",
+            current_user.email, request.method, request.url.path,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta solo tiene acceso a tu agenda de servicios.",
         )
 
     if request.method == "DELETE" and not current_user.puede_eliminar:

@@ -57,6 +57,13 @@ class Usuario(Base):
     rol = Column(Enum(RolUsuario), default=RolUsuario.SUPERVISOR, nullable=False)
     is_active = Column(Boolean, default=True)
 
+    # Ficha de técnico asociada. Sólo aplica al rol OPERATIVO: es lo que permite
+    # filtrarle la agenda a sus propias órdenes. Única, para que una ficha no
+    # tenga dos cuentas.
+    tecnico_id = Column(UUID(as_uuid=True), ForeignKey("tecnicos.id", ondelete="SET NULL"),
+                        nullable=True, unique=True)
+    tecnico = relationship("Tecnico", lazy="selectin")
+
     # Empresa directa (supervisor / estandar / operativo)
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=True)
 

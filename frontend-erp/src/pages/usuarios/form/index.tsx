@@ -9,6 +9,7 @@ import dayjs from 'dayjs';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { usuarioService, UsuarioCreate, UsuarioUpdate } from '@/services/usuarioService';
 import { empresaService, EmpresaOut } from '@/services/empresaService';
+import { tecnicoService } from '@/services/tecnicoService';
 import { useAuth } from '@/context/AuthContext';
 
 const { Text } = Typography;
@@ -84,6 +85,7 @@ const UsuarioFormPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [empresas, setEmpresas] = useState<EmpresaOut[]>([]);
     const [selectedRol, setSelectedRol] = useState<string>('supervisor');
+    const [tecnicos, setTecnicos] = useState<{ id: string; nombre_completo: string }[]>([]);
 
     const isSuperadmin = currentUser?.rol === 'superadmin';
 
@@ -105,6 +107,7 @@ const UsuarioFormPage: React.FC = () => {
                         email: user.email,
                         rol: user.rol,
                         empresa_id: user.empresa_id,
+                        tecnico_id: user.tecnico_id,
                         is_active: user.is_active,
                         password: '',
                         empresas_ids: user.empresas_ids ?? [],
@@ -144,6 +147,7 @@ const UsuarioFormPage: React.FC = () => {
                 rol: values.rol,
                 is_active: values.is_active,
                 empresa_id: isSingleEmpresa ? values.empresa_id : null,
+                tecnico_id: values.rol === 'operativo' ? (values.tecnico_id ?? null) : null,
                 empresas_ids: isMultiEmpresa ? (values.empresas_ids ?? []) : undefined,
             };
 
@@ -239,6 +243,21 @@ const UsuarioFormPage: React.FC = () => {
             { value: 'operativo',  label: 'Operativo' },
           ];
 
+    // Una cuenta de técnico se liga a su ficha: es lo que le permite ver su
+    // propia agenda. Se cargan los técnicos de la empresa seleccionada.
+    const esTecnico = selectedRol === 'operativo';
+    const empresaSeleccionada = Form.useWatch('empresa_id', form);
+
+    useEffect(() => {
+        if (!esTecnico || !empresaSeleccionada) { setTecnicos([]); return; }
+        tecnicoService
+            .getTecnicos({ empresa_id: empresaSeleccionada, activo: true, limit: 200 })
+            .then((res) => setTecnicos(
+                (res.items ?? []).map((t: any) => ({ id: t.id, nombre_completo: t.nombre_completo }))
+            ))
+            .catch(() => setTecnicos([]));
+    }, [esTecnico, empresaSeleccionada]);
+
     const needsSingleEmpresa = ['supervisor', 'estandar', 'operativo'].includes(selectedRol);
     const needsMultiEmpresa  = selectedRol === 'admin';
     const needsPermisos      = selectedRol === 'estandar';
@@ -320,7 +339,42 @@ const UsuarioFormPage: React.FC = () => {
                                             />
                                         </Form.Item>
                                     </Col>
+                                    {esTecnico && (
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                name="tecnico_id"
+                                                label="Técnico"
+                                                rules={[{ required: true, message: 'Elige a qué técnico corresponde esta cuenta' }]}
+                                                tooltip="La cuenta solo verá las órdenes asignadas a este técnico."
+                                                extra={
+                                                    empresaSeleccionada && tecnicos.length === 0
+                                                        ? 'Esa empresa no tiene técnicos activos registrados.'
+                                                        : undefined
+                                                }
+                                            >
+                                                <Select
+                                                    placeholder={empresaSeleccionada ? 'Seleccionar técnico' : 'Elige primero la empresa'}
+                                                    disabled={!empresaSeleccionada}
+                                                    options={tecnicos.map(t => ({ label: t.nombre_completo, value: t.id }))}
+                                                    showSearch
+                                                    filterOption={(input, opt) =>
+                                                        (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                    }
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                    )}
                                 </Row>
+                            )}
+
+                            {esTecnico && (
+                                <Alert
+                                    type="info"
+                                    showIcon
+                                    style={{ marginBottom: 16 }}
+                                    message="Cuenta de técnico de campo"
+                                    description="Solo verá su propia agenda desde el celular y podrá ir avanzando el estado de sus servicios. No tiene acceso a facturación, clientes ni reportes, y no puede cancelar una orden: reporta el motivo y ustedes deciden."
+                                />
                             )}
 
                             {/* Empresas múltiples (admin) — solo superadmin puede asignar */}
