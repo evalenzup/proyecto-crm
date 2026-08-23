@@ -153,10 +153,21 @@ export interface VerificarSATPagoResult {
   sat_estado: string;
   sat_es_cancelable: string;
   sat_estatus_cancelacion: string;
+  actualizado?: boolean;
+  // 'avance' es lo que el SAT ya consumó y se aplica solo; 'retroceso' revive el
+  // complemento y hay que confirmarlo.
+  clasificacion?: 'concuerda' | 'avance' | 'retroceso';
+  requiere_confirmacion?: boolean;
+  estatus_propuesto?: string;
+  advertencia?: string;
 }
 
-export const verificarEstadoSATPago = (id: string) =>
-  getData<VerificarSATPagoResult>(api.post(`/pagos/${id}/verificar-sat`));
+export const verificarEstadoSATPago = (id: string, confirmarRetroceso = false) =>
+  getData<VerificarSATPagoResult>(
+    api.post(`/pagos/${id}/verificar-sat`, null, {
+      params: { confirmar_retroceso: confirmarRetroceso },
+    }),
+  );
 
 export const downloadAcuseCancelacionPago = (id: string, fmt: 'pdf' | 'xml' = 'pdf') =>
   getBlob(api.get(`/pagos/${id}/acuse-cancelacion`, { params: { fmt }, responseType: 'blob' }));

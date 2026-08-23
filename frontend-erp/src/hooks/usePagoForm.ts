@@ -1,7 +1,7 @@
 // src/hooks/usePagoForm.ts
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Form, message } from 'antd';
+import { Form, Modal, message } from 'antd';
 import dayjs from 'dayjs';
 import { normalizeISOToUTC } from '@/utils/formatDate';
 import debounce from 'lodash/debounce';
@@ -463,12 +463,43 @@ export const usePagoForm = () => {
     }
   };
 
+  const confirmarRetrocesoSAT = (result: pagoService.VerificarSATPagoResult) => {
+    Modal.confirm({
+      title: `El SAT no coincide: ${result.estatus_anterior} → ${result.estatus_propuesto}`,
+      content: result.advertencia,
+      okText: `Sí, cambiar a ${result.estatus_propuesto}`,
+      cancelText: 'Dejarlo como está',
+      okButtonProps: { danger: true },
+      width: 560,
+      onOk: async () => {
+        try {
+          const confirmado = await pagoService.verificarEstadoSATPago(id as string, true);
+          message.success(
+            `Estado actualizado: ${confirmado.estatus_anterior} → ${confirmado.estatus_nuevo}`,
+          );
+          setPago(await pagoService.getPagoById(id as string));
+        } catch (error: any) {
+          if (!error?._handled) {
+            message.error(normalizeHttpError(error) || 'No se pudo aplicar el cambio');
+          }
+        }
+      },
+    });
+  };
+
   // Verificación contra el SAT (fuente de verdad del estatus del CFDI)
   const handleVerificarSAT = async () => {
     if (!id) return;
     setAccionLoading((s) => ({ ...s, verificandoSat: true }));
     try {
       const result = await pagoService.verificarEstadoSATPago(id);
+      if (result.requiere_confirmacion) {
+        // El backend no revive un complemento por su cuenta: devuelve la
+        // propuesta con lo que implica y espera confirmación. Sin esto el botón
+        // se quedaría sin efecto y sin explicación justo en el caso delicado.
+        confirmarRetrocesoSAT(result);
+        return;
+      }
       if (result.estatus_anterior !== result.estatus_nuevo) {
         message.success(
           `Estado actualizado: ${result.estatus_anterior} → ${result.estatus_nuevo}`,
