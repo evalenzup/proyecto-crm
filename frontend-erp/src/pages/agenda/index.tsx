@@ -223,6 +223,16 @@ export default function AgendaPage() {
     });
   }, [ordenesByDate, selectedDate]);
 
+  /** Minuto de fin en la escala del día, sumando 24 h cuando el servicio cruza
+   *  la medianoche (hora_fin menor que hora_inicio). Sin esto la duración salía
+   *  negativa y el bloque se dibujaba con la altura mínima. */
+  function minutoFin(o: OrdenServicioListOut): number {
+    const startMin = toMinutes(o.hora_inicio) ?? 0;
+    const fin = toMinutes(o.hora_fin);
+    if (fin == null) return startMin + 60;
+    return fin < startMin ? fin + 24 * 60 : fin;
+  }
+
   const timedOrdenes  = dayOrdenes.filter(o => o.hora_inicio);
   const allDayOrdenes = dayOrdenes.filter(o => !o.hora_inicio);
 
@@ -235,16 +245,17 @@ export default function AgendaPage() {
     for (const o of timedOrdenes) {
       const startMin = toMinutes(o.hora_inicio);
       if (startMin == null) continue;
-      const endMin = toMinutes(o.hora_fin) ?? startMin + 60;
       inicio = Math.min(inicio, Math.floor(startMin / 60));
-      fin = Math.max(fin, Math.ceil(endMin / 60));
+      fin = Math.max(fin, Math.ceil(minutoFin(o) / 60));
     }
-    return { HOUR_START: Math.max(0, inicio), HOUR_END: Math.min(24, fin) };
+    // fin puede pasar de 24 en un servicio nocturno: la rejilla sigue hacia la
+    // madrugada del día siguiente y las etiquetas se muestran módulo 24.
+    return { HOUR_START: Math.max(0, inicio), HOUR_END: Math.min(30, fin) };
   }, [timedOrdenes]);
 
   function eventStyle(o: OrdenServicioListOut) {
     const startMin = toMinutes(o.hora_inicio)!;
-    const endMin   = toMinutes(o.hora_fin) ?? (startMin + 60);
+    const endMin   = minutoFin(o);
     const top      = (startMin - HOUR_START * 60) * (HOUR_HEIGHT / 60);
     const height   = Math.max((endMin - startMin) * (HOUR_HEIGHT / 60), 28);
     return { top, height };
@@ -255,11 +266,11 @@ export default function AgendaPage() {
     const result: Lane[] = timedOrdenes.map(o => ({ orden: o, lane: 0, totalLanes: 1 }));
     for (let i = 0; i < result.length; i++) {
       const aStart = toMinutes(result[i].orden.hora_inicio)!;
-      const aEnd   = toMinutes(result[i].orden.hora_fin) ?? (aStart + 60);
+      const aEnd   = minutoFin(result[i].orden);
       const usedLanes: number[] = [];
       for (let j = 0; j < i; j++) {
         const bStart = toMinutes(result[j].orden.hora_inicio)!;
-        const bEnd   = toMinutes(result[j].orden.hora_fin) ?? (bStart + 60);
+        const bEnd   = minutoFin(result[j].orden);
         if (aStart < bEnd && aEnd > bStart) usedLanes.push(result[j].lane);
       }
       let lane = 0;
@@ -268,12 +279,12 @@ export default function AgendaPage() {
     }
     for (let i = 0; i < result.length; i++) {
       const aStart = toMinutes(result[i].orden.hora_inicio)!;
-      const aEnd   = toMinutes(result[i].orden.hora_fin) ?? (aStart + 60);
+      const aEnd   = minutoFin(result[i].orden);
       let maxLane = result[i].lane;
       for (let j = 0; j < result.length; j++) {
         if (i === j) continue;
         const bStart = toMinutes(result[j].orden.hora_inicio)!;
-        const bEnd   = toMinutes(result[j].orden.hora_fin) ?? (bStart + 60);
+        const bEnd   = minutoFin(result[j].orden);
         if (aStart < bEnd && aEnd > bStart) maxLane = Math.max(maxLane, result[j].lane);
       }
       result[i].totalLanes = maxLane + 1;
@@ -552,7 +563,7 @@ export default function AgendaPage() {
                         color: token.colorTextTertiary,
                         userSelect: 'none',
                       }}>
-                        {`${String(hour).padStart(2, '0')}:00`}
+                        {`${String(hour % 24).padStart(2, '0')}:00`}
                       </div>
                     );
                   })}

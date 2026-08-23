@@ -20,8 +20,13 @@ import {
   Typography,
   Tag,
   Space,
+  Modal,
 } from 'antd';
 import { SaveOutlined, UserAddOutlined } from '@ant-design/icons';
+
+// 12 horas con a.m./p.m.: los usuarios piensan y hablan así, y con el formato
+// de 24 h se colaban capturas como "06:00" queriendo decir las 6 de la tarde.
+const FORMATO_HORA = 'hh:mm A';
 import ClienteRapidoModal from '@/components/ClienteRapidoModal';
 import debounce from 'lodash/debounce';
 import dayjs from 'dayjs';
@@ -273,7 +278,63 @@ const OrdenServicioForm: React.FC = () => {
 
   // ── Guardar ─────────────────────────────────────────────────────────────────
 
+  /** Confirma un horario que cruza la medianoche antes de guardarlo.
+   *
+   *  El 94% de los servicios dura una hora o menos, así que una hora de fin
+   *  anterior a la de inicio casi siempre es un dedazo de a.m./p.m. — así se
+   *  colaron capturas como 08:00 → 02:00 (18 horas) en una guardería. Se
+   *  pregunta en el único momento en que alguien sabe qué quiso poner, y de
+   *  paso el dato queda limpio: si el fin es menor, es que de verdad termina
+   *  al día siguiente, y la agenda lo dibuja así.
+   */
+  const confirmarCruceMedianoche = (values: any): Promise<boolean> => {
+    const inicio = values.hora_inicio;
+    const fin = values.hora_fin;
+    if (!inicio || !fin) return Promise.resolve(true);
+
+    const minutos = (d: any) => d.hour() * 60 + d.minute();
+    if (minutos(fin) > minutos(inicio)) return Promise.resolve(true);
+
+    const iTxt = inicio.format(FORMATO_HORA);
+    const fTxt = fin.format(FORMATO_HORA);
+
+    if (minutos(fin) === minutos(inicio)) {
+      return new Promise((resolve) => {
+        Modal.confirm({
+          title: 'La hora de inicio y la de fin son la misma',
+          content: `El servicio quedaría de ${iTxt} a ${fTxt}, es decir sin duración. ¿Lo guardo así?`,
+          okText: 'Guardar así',
+          cancelText: 'Corregir',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+    }
+
+    return new Promise((resolve) => {
+      Modal.confirm({
+        title: '¿Este servicio termina al día siguiente?',
+        content: (
+          <>
+            <p>Capturaste de <strong>{iTxt}</strong> a <strong>{fTxt}</strong>.</p>
+            <p>
+              Como la hora de fin es anterior a la de inicio, el servicio duraría
+              toda la noche. Si es un servicio nocturno —un mercado o un negocio
+              que se atiende ya cerrado— está bien.
+            </p>
+            <p>Si no, revisa que no se te haya ido un a.m. por un p.m.</p>
+          </>
+        ),
+        okText: 'Sí, es nocturno',
+        cancelText: 'Corregir la hora',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+  };
+
   const handleSubmit = async (values: any) => {
+    if (!(await confirmarCruceMedianoche(values))) return;
     setSaving(true);
     try {
       // Con labelInValue, los valores de Select son { value, label } — extraemos solo value
@@ -456,12 +517,22 @@ const OrdenServicioForm: React.FC = () => {
             </Col>
             <Col xs={24} md={5}>
               <Form.Item name="hora_inicio" label="Hora Inicio">
-                <TimePicker format="HH:mm" style={{ width: '100%' }} minuteStep={15} />
+                <TimePicker
+                  format={FORMATO_HORA}
+                  use12Hours
+                  style={{ width: '100%' }}
+                  minuteStep={15}
+                />
               </Form.Item>
             </Col>
             <Col xs={24} md={5}>
               <Form.Item name="hora_fin" label="Hora Fin">
-                <TimePicker format="HH:mm" style={{ width: '100%' }} minuteStep={15} />
+                <TimePicker
+                  format={FORMATO_HORA}
+                  use12Hours
+                  style={{ width: '100%' }}
+                  minuteStep={15}
+                />
               </Form.Item>
             </Col>
             <Col xs={24} md={6}>
