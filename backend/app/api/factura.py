@@ -229,9 +229,12 @@ def exportar_facturas_excel(
 def actualizar_factura_endpoint(
     id: UUID, 
     payload: FacturaUpdate, 
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Factura:
+    from app.services import historial_factura_service as hist
+
     factura = srv.obtener_factura(db, id) # Verificamos existencia y propiedad antes
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
@@ -241,8 +244,34 @@ def actualizar_factura_endpoint(
             raise HTTPException(status_code=404, detail="Factura no encontrada") # Ocultamos que existe
         # payload.empresa_id = current_user.empresa_id # Prevenir cambio de empresa - REDUNDANTE y causa error 500
 
+    # Foto antes de tocar nada. Las modificaciones no se auditaban —un registro
+    # en toda la historia contra 478 creaciones—, así que abrir una factura y
+    # cambiarle el receptor o los importes no dejaba rastro de qué había antes.
+    antes = hist.snapshot(factura)
 
-    return srv.actualizar_factura(db, id, payload)
+    actualizada = srv.actualizar_factura(db, id, payload)
+
+    cambios = hist.diff(antes, hist.snapshot(actualizada))
+    if cambios:
+        audit_svc.registrar(
+            db=db,
+            accion=audit_svc.ACTUALIZAR_FACTURA,
+            entidad="factura",
+            usuario_id=current_user.id,
+            usuario_email=current_user.email,
+            empresa_id=actualizada.empresa_id,
+            entidad_id=str(id),
+            detalle={
+                "serie": actualizada.serie,
+                "folio": actualizada.folio,
+                "estatus": getattr(actualizada.estatus, "value", actualizada.estatus),
+                "cambios": cambios,
+            },
+            ip=audit_svc.get_ip(request),
+        )
+        db.commit()
+
+    return actualizada
 
 
 @router.post("/{id}/duplicar", response_model=FacturaOut, status_code=status.HTTP_201_CREATED)
@@ -322,19 +351,22 @@ def puede_cancelarse(
 
 
 @router.get(
-    "/{id}/cancelacion-intentos",
-    summary="Historial de solicitudes de cancelación de esta factura",
+    "/{id}/historial",
+    summary="Todo lo que le pasó a esta factura: acciones y trámite fiscal",
 )
-def historial_cancelacion(
+def historial_factura(
     id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """
-    Todos los envíos, no sólo el último. Las columnas de la factura guardan
-    únicamente el intento más reciente porque se sobrescriben al reintentar.
+    Una sola línea de tiempo con los dos rastros que hasta ahora había que
+    cruzar a mano en la base: lo que hizo la gente (auditoria_log) y lo que
+    contestaron el PAC y el SAT en cada solicitud (cancelacion_intentos).
+
+    Sustituye al antiguo /cancelacion-intentos, que sólo mostraba la mitad.
     """
-    from app.services import cancelacion_intento_service as bitacora_svc
+    from app.services import historial_factura_service as hist
 
     factura = db.query(Factura).filter(Factura.id == id).first()
     if not factura:
@@ -342,24 +374,16 @@ def historial_cancelacion(
     if current_user.rol == RolUsuario.SUPERVISOR and factura.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    return [
-        {
-            "id": str(i.id),
-            "fecha_envio": i.fecha_envio,
-            "motivo": i.motivo,
-            "folio_sustitucion": i.folio_sustitucion,
-            "origen": i.origen,
-            "pac_code": i.pac_code,
-            "pac_message": i.pac_message,
-            "sat_estatus_cancelacion": i.sat_estatus_cancelacion,
-            "sat_registro_solicitud": i.sat_registro_solicitud,
-            "tiene_acuse": bool(i.acuse_path),
-            "acuse_error": i.acuse_error,
-            "resultado": i.resultado,
-            "fecha_resultado": i.fecha_resultado,
-        }
-        for i in bitacora_svc.listar(db, documento_id=factura.id)
-    ]
+    return {
+        "factura": {
+            "id": str(factura.id),
+            "serie": factura.serie,
+            "folio": factura.folio,
+            "estatus": getattr(factura.estatus, "value", factura.estatus),
+            "cfdi_uuid": factura.cfdi_uuid,
+        },
+        "eventos": hist.linea_de_tiempo(db, factura),
+    }
 
 
 @router.get(
