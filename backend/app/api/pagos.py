@@ -6,7 +6,7 @@ from fastapi import (
 from fastapi.responses import Response, FileResponse, StreamingResponse
 import os
 from sqlalchemy.orm import Session, selectinload
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import date
 from sqlalchemy import cast, Integer, or_
 
@@ -103,6 +103,16 @@ def listar_pagos(
     empresa_id: Optional[uuid.UUID] = None,
     cliente_id: Optional[uuid.UUID] = None,
     estatus: Optional[str] = None,
+    cancelacion: Optional[
+        Literal["con_solicitud", "atorada", "en_tramite", "sin_registro_sat", "cancelada"]
+    ] = Query(
+        None,
+        description=(
+            "Filtra por el estado del TRÁMITE de cancelación, que no es el "
+            "estatus del documento: 'atorada' son los que se pidió cancelar y "
+            "siguen vigentes ante el SAT."
+        ),
+    ),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     current_user: Usuario = Depends(deps.get_current_active_user),
@@ -119,6 +129,7 @@ def listar_pagos(
         empresa_id=empresa_id,
         cliente_id=cliente_id,
         estatus=estatus,
+        cancelacion=cancelacion,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
     )
@@ -232,9 +243,12 @@ def leer_pago(
 def actualizar_pago(
     pago_id: uuid.UUID,
     pago: PagoCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    from app.services import historial_documento_service as hist
+
     pago_db = pago_service.leer_pago(db, pago_id)
     if not pago_db:
          raise HTTPException(status_code=404, detail="Pago no encontrado")
@@ -242,7 +256,32 @@ def actualizar_pago(
     if current_user.rol == RolUsuario.SUPERVISOR and pago_db.empresa_id != current_user.empresa_id:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
 
-    return pago_service.actualizar_pago(db, pago_id, pago)
+    # Foto antes de tocar nada: las modificaciones tampoco se auditaban aquí.
+    antes = hist.snapshot(pago_db)
+
+    actualizado = pago_service.actualizar_pago(db, pago_id, pago)
+
+    cambios = hist.diff(antes, hist.snapshot(actualizado))
+    if cambios:
+        audit_svc.registrar(
+            db=db,
+            accion=audit_svc.ACTUALIZAR_PAGO,
+            entidad="pago",
+            usuario_id=current_user.id,
+            usuario_email=current_user.email,
+            empresa_id=actualizado.empresa_id,
+            entidad_id=str(pago_id),
+            detalle={
+                "serie": actualizado.serie,
+                "folio": actualizado.folio,
+                "estatus": getattr(actualizado.estatus, "value", actualizado.estatus),
+                "cambios": cambios,
+            },
+            ip=audit_svc.get_ip(request),
+        )
+        db.commit()
+
+    return actualizado
 
 
 @router.delete("/{pago_id}", status_code=200)
@@ -510,6 +549,36 @@ def descargar_acuse_cancelacion_pago(
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get(
+    "/{pago_id}/historial",
+    summary="Todo lo que le pasó a este complemento: acciones y trámite fiscal",
+)
+def historial_pago(
+    pago_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Ver la nota del endpoint equivalente en facturas."""
+    from app.services import historial_documento_service as hist
+
+    pago = db.query(Pago).filter(Pago.id == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if current_user.rol == RolUsuario.SUPERVISOR and pago.empresa_id != current_user.empresa_id:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
+    return {
+        "documento": {
+            "id": str(pago.id),
+            "serie": pago.serie,
+            "folio": pago.folio,
+            "estatus": getattr(pago.estatus, "value", pago.estatus),
+            "cfdi_uuid": pago.uuid,
+        },
+        "eventos": hist.linea_de_tiempo(db, pago),
+    }
 
 
 @router.post(

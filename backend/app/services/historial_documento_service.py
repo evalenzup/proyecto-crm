@@ -1,6 +1,7 @@
-# app/services/historial_factura_service.py
+# app/services/historial_documento_service.py
 """
-Historial de una factura: qué se le hizo, cuándo y quién.
+Historial de un comprobante —factura o complemento de pago—: qué se le hizo,
+cuándo y quién.
 
 Junta dos rastros que hasta ahora vivían separados y no se podían leer uno
 contra otro:
@@ -25,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logger import logger
 from app.models.auditoria import AuditoriaLog
+from app.models.factura import Factura
 from app.models.cancelacion_intento import (
     ENVIANDO,
     PORTAL_SAT,
@@ -43,7 +45,7 @@ GRUPO_FISCAL = "fiscal"      # cambia el CFDI o lo que se timbraría
 GRUPO_COBRANZA = "cobranza"  # no toca el CFDI pero sí lo que se debe
 GRUPO_INTERNO = "interno"    # sólo para nosotros
 
-CAMPOS_FISCALES = {
+CAMPOS_FISCALES_FACTURA = {
     "serie", "folio", "cliente_id", "fecha_emision", "tipo_comprobante",
     "forma_pago", "metodo_pago", "uso_cfdi", "moneda", "tipo_cambio",
     "lugar_expedicion", "condiciones_pago", "cfdi_relacionados_tipo",
@@ -52,6 +54,15 @@ CAMPOS_FISCALES = {
     "retencion_local_tasa", "retencion_local_monto", "conceptos",
 }
 
+# En un complemento casi todo es fiscal: el monto, la forma y la fecha del pago
+# son el contenido del CFDI, y los documentos relacionados son los renglones.
+CAMPOS_FISCALES_PAGO = {
+    "serie", "folio", "cliente_id", "fecha_pago", "fecha_emision",
+    "forma_pago_p", "moneda_p", "monto", "tipo_cambio_p",
+    "documentos_relacionados",
+}
+
+# Sólo las facturas tienen estado de cobranza; un complemento ES el cobro.
 CAMPOS_COBRANZA = {"status_pago", "fecha_pago", "fecha_cobro"}
 
 # Lo que cambia solo o lo escribe el propio timbrado. Registrarlo sería llenar
@@ -59,14 +70,18 @@ CAMPOS_COBRANZA = {"status_pago", "fecha_pago", "fecha_cobro"}
 # cada uno de estos ya tiene su evento propio en la línea de tiempo.
 CAMPOS_IGNORADOS = {
     "id", "empresa_id", "creado_en", "actualizado_en",
-    "xml_path", "pdf_path",
-    "estatus", "cfdi_uuid", "fecha_timbrado", "no_certificado",
+    "xml_path", "pdf_path", "cadena_original", "qr_url",
+    "estatus", "cfdi_uuid", "uuid", "fecha_timbrado", "no_certificado",
     "no_certificado_sat", "sello_cfdi", "sello_sat", "rfc_proveedor_sat",
     "cfdi_rfc_emisor", "cfdi_rfc_receptor", "cfdi_total",
     "motivo_cancelacion", "folio_fiscal_sustituto", "cancelacion_code",
     "cancelacion_message", "cancelacion_acuse_path",
     "fecha_solicitud_cancelacion",
 }
+
+
+def _es_factura(doc: Any) -> bool:
+    return isinstance(doc, Factura)
 
 
 def _valor_simple(v: Any) -> Any:
@@ -76,43 +91,69 @@ def _valor_simple(v: Any) -> Any:
     return str(v)
 
 
-def _conceptos_de(factura) -> list[dict]:
-    """Los renglones en su forma mínima comparable."""
-    salida = []
-    for c in getattr(factura, "conceptos", None) or []:
-        salida.append(
+def _renglones_de(doc: Any) -> tuple[str, list[dict]]:
+    """
+    Los renglones del comprobante en su forma mínima comparable.
+
+    Una factura tiene conceptos; un complemento, los documentos que paga. Son la
+    misma idea —lo que cambia en bloque cuando se reordena— y por eso se
+    comparan igual.
+    """
+    if _es_factura(doc):
+        salida = [
             {
                 "descripcion": _valor_simple(getattr(c, "descripcion", None)),
                 "cantidad": _valor_simple(getattr(c, "cantidad", None)),
                 "valor_unitario": _valor_simple(getattr(c, "valor_unitario", None)),
                 "importe": _valor_simple(getattr(c, "importe", None)),
             }
-        )
-    return salida
+            for c in getattr(doc, "conceptos", None) or []
+        ]
+        return "conceptos", salida
+
+    salida = [
+        {
+            "documento": f"{getattr(d, 'serie', '') or ''}-{getattr(d, 'folio', '') or ''}",
+            "parcialidad": _valor_simple(getattr(d, "num_parcialidad", None)),
+            "pagado": _valor_simple(getattr(d, "imp_pagado", None)),
+            "saldo_insoluto": _valor_simple(getattr(d, "imp_saldo_insoluto", None)),
+        }
+        for d in getattr(doc, "documentos_relacionados", None) or []
+    ]
+    return "documentos_relacionados", salida
 
 
-def snapshot(factura) -> dict:
+def snapshot(doc: Any) -> dict:
     """
-    Foto de la factura para comparar antes/después de una edición.
+    Foto del comprobante para comparar antes/después de una edición.
 
     Se toma sobre las columnas del modelo, no sobre el payload: así se detecta
     también lo que cambia de rebote —los totales al recalcularse, por ejemplo—
     y no sólo lo que el usuario tecleó.
     """
     datos: dict = {}
-    for col in factura.__table__.columns:
+    for col in doc.__table__.columns:
         nombre = col.name
         if nombre in CAMPOS_IGNORADOS:
             continue
-        datos[nombre] = _valor_simple(getattr(factura, nombre, None))
-    datos["conceptos"] = _conceptos_de(factura)
+        datos[nombre] = _valor_simple(getattr(doc, nombre, None))
+    campo_renglones, renglones = _renglones_de(doc)
+    datos[campo_renglones] = renglones
     return datos
 
 
-def _grupo(campo: str) -> str:
-    if campo in CAMPOS_FISCALES:
+def _grupo(campo: str, de_factura: bool) -> str:
+    """
+    A qué grupo pertenece un campo, según de qué comprobante venga.
+
+    No es lo mismo en los dos: `fecha_pago` en una factura es la fecha
+    programada de cobro —cobranza— y en un complemento es la fecha real del pago
+    que se declara en el CFDI —fiscal—. El mismo nombre, dos cosas distintas.
+    """
+    fiscales = CAMPOS_FISCALES_FACTURA if de_factura else CAMPOS_FISCALES_PAGO
+    if campo in fiscales:
         return GRUPO_FISCAL
-    if campo in CAMPOS_COBRANZA:
+    if de_factura and campo in CAMPOS_COBRANZA:
         return GRUPO_COBRANZA
     return GRUPO_INTERNO
 
@@ -121,10 +162,20 @@ def diff(antes: dict, despues: dict) -> list[dict]:
     """
     Qué campos cambiaron, con su valor anterior y el nuevo.
 
-    Los conceptos se reportan como un solo cambio con las dos listas: partirlo
-    renglón por renglón sería adivinar cuál corresponde a cuál cuando se
-    reordenan, y para leer el historial basta ver qué había y qué quedó.
+    Los renglones —conceptos o documentos pagados— se reportan como un solo
+    cambio con las dos listas: partirlo uno por uno sería adivinar cuál
+    corresponde a cuál cuando se reordenan, y para leer el historial basta ver
+    qué había y qué quedó.
     """
+    # De qué comprobante viene se deduce de la propia foto, que ya trae el campo
+    # de renglones que le toca; así no hay que arrastrar el tipo hasta aquí.
+    # Se pregunta por el complemento y no por la factura a propósito: una foto
+    # parcial —o cualquier futuro documento— cae en la clasificación de factura,
+    # que es la más detallada, en vez de mandar todo a "interno" en silencio.
+    de_factura = not (
+        "documentos_relacionados" in antes or "documentos_relacionados" in despues
+    )
+
     cambios = []
     for campo in sorted(set(antes) | set(despues)):
         anterior = antes.get(campo)
@@ -136,7 +187,7 @@ def diff(antes: dict, despues: dict) -> list[dict]:
                 "campo": campo,
                 "antes": anterior,
                 "despues": nuevo,
-                "grupo": _grupo(campo),
+                "grupo": _grupo(campo, de_factura),
             }
         )
     return cambios
@@ -158,6 +209,13 @@ TITULOS = {
     "LIMPIAR_RASTRO_CANCELACION": "Rastro de cancelación limpiado",
     "CREAR_FACTURA_DESDE_ORDEN": "Creada desde una orden de servicio",
     "EXPORTAR_EXCEL": "Exportada a Excel",
+    # Complementos de pago
+    "CREAR_PAGO": "Complemento creado",
+    "ACTUALIZAR_PAGO": "Complemento modificado",
+    "TIMBRAR_PAGO": "Timbrado ante el SAT",
+    "ENVIAR_PAGO_EMAIL": "Enviado por correo",
+    "CANCELAR_PAGO": "Cancelación solicitada",
+    "ELIMINAR_PAGO": "Complemento eliminado",
 }
 
 
@@ -199,9 +257,9 @@ def _titulo_intento(intento: CancelacionIntento) -> str:
     return f"Solicitud enviada al PAC ({intento.pac_code or 'sin código'})"
 
 
-def linea_de_tiempo(db: Session, factura) -> list[dict]:
+def linea_de_tiempo(db: Session, doc: Any) -> list[dict]:
     """
-    Todo lo que le pasó a la factura, del evento más reciente al más viejo.
+    Todo lo que le pasó al comprobante, del evento más reciente al más viejo.
 
     Los dos rastros conviven a propósito aunque a veces hablen del mismo
     momento: la auditoría dice quién apretó el botón y la bitácora qué contestó
@@ -209,6 +267,7 @@ def linea_de_tiempo(db: Session, factura) -> list[dict]:
     es justo lo que hay que ver.
     """
     eventos: list[dict] = []
+    entidad = "factura" if _es_factura(doc) else "pago"
 
     try:
         # `entidad` se escribió inconsistente a lo largo del tiempo: 'factura'
@@ -217,8 +276,8 @@ def linea_de_tiempo(db: Session, factura) -> list[dict]:
         registros = (
             db.query(AuditoriaLog)
             .filter(
-                func.lower(AuditoriaLog.entidad) == "factura",
-                AuditoriaLog.entidad_id == str(factura.id),
+                func.lower(AuditoriaLog.entidad) == entidad,
+                AuditoriaLog.entidad_id == str(doc.id),
             )
             .order_by(AuditoriaLog.creado_en.desc())
             .all()
@@ -236,12 +295,12 @@ def linea_de_tiempo(db: Session, factura) -> list[dict]:
                 }
             )
     except Exception as exc:  # noqa: BLE001 — el historial nunca tumba la pantalla
-        logger.warning("No se pudo leer la auditoría de la factura: %s", exc)
+        logger.warning("No se pudo leer la auditoría del comprobante: %s", exc)
 
     try:
         intentos = (
             db.query(CancelacionIntento)
-            .filter(CancelacionIntento.documento_id == factura.id)
+            .filter(CancelacionIntento.documento_id == doc.id)
             .order_by(CancelacionIntento.fecha_envio.desc())
             .all()
         )

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import cast, func, Integer, or_
+from sqlalchemy import cast, exists, func, Integer, or_
 from fastapi import HTTPException, status
 import re
 from decimal import Decimal, ROUND_HALF_UP
@@ -69,6 +69,49 @@ def leer_pago(db: Session, pago_id: UUID) -> Pago:
     return db_pago
 
 
+# Los mismos filtros de trámite que en facturas, con la misma advertencia: no
+# son el estatus del documento. Un complemento puede tener solicitudes fallidas
+# y seguir TIMBRADO.
+FILTROS_CANCELACION = (
+    "con_solicitud",
+    "atorada",
+    "en_tramite",
+    "sin_registro_sat",
+    "cancelada",
+)
+
+
+def _existe_intento_pago(extra=None):
+    """EXISTS de una solicitud de cancelación para el pago de la consulta."""
+    from app.models.cancelacion_intento import PAGO as DOC_PAGO
+    from app.models.cancelacion_intento import CancelacionIntento
+
+    condicion = (CancelacionIntento.documento_id == Pago.id) & (
+        CancelacionIntento.documento_tipo == DOC_PAGO
+    )
+    if extra is not None:
+        condicion = condicion & extra
+    return exists().where(condicion)
+
+
+def _filtrar_por_cancelacion(query, filtro: str):
+    """Acota el listado por el estado del TRÁMITE, no del documento."""
+    from app.models.cancelacion_intento import CancelacionIntento
+
+    if filtro == "atorada":
+        return query.filter(Pago.estatus == EstatusPago.TIMBRADO, _existe_intento_pago())
+    if filtro == "en_tramite":
+        return query.filter(Pago.estatus == EstatusPago.EN_CANCELACION)
+    if filtro == "cancelada":
+        return query.filter(Pago.estatus == EstatusPago.CANCELADO, _existe_intento_pago())
+    if filtro == "sin_registro_sat":
+        return query.filter(
+            Pago.estatus != EstatusPago.CANCELADO,
+            _existe_intento_pago(CancelacionIntento.sat_registro_solicitud.is_(False)),
+        )
+    return query.filter(_existe_intento_pago())
+
+
 def listar_pagos(
     db: Session,
     *,
@@ -79,6 +122,7 @@ def listar_pagos(
     empresa_id: Optional[UUID] = None,
     cliente_id: Optional[UUID] = None,
     estatus: Optional[str] = None,
+    cancelacion: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
 ) -> Tuple[List[Pago], int]:
@@ -90,6 +134,8 @@ def listar_pagos(
         query = query.filter(Pago.cliente_id == cliente_id)
     if estatus:
         query = query.filter(Pago.estatus == estatus)
+    if cancelacion:
+        query = _filtrar_por_cancelacion(query, cancelacion)
     if fecha_desde:
         query = query.filter(Pago.fecha_pago >= fecha_desde)
     if fecha_hasta:

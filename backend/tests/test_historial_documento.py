@@ -1,6 +1,6 @@
-# tests/test_historial_factura.py
+# tests/test_historial_documento.py
 """
-Historial de una factura: el diff de las modificaciones y la línea de tiempo.
+Historial de un comprobante: el diff de las modificaciones y la línea de tiempo.
 
 El diff existe porque las modificaciones no se auditaban: en producción había
 UN registro de ACTUALIZAR_FACTURA contra 478 de CREAR_FACTURA y 1792 de
@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.services import historial_factura_service as hist
+from app.services import historial_documento_service as hist
 
 
 @pytest.fixture
@@ -224,5 +224,148 @@ def test_el_endpoint_devuelve_la_linea_de_tiempo(auth_client, db_session, factur
 
     assert r.status_code == 200
     cuerpo = r.json()
-    assert cuerpo["factura"]["folio"] == factura_borrador.folio
+    assert cuerpo["documento"]["folio"] == factura_borrador.folio
     assert cuerpo["eventos"][0]["titulo"] == "Factura creada"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Complementos de pago: el mismo historial, con sus propias diferencias
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def pago_timbrado(db_session):
+    from app.models.cliente import Cliente
+    from app.models.empresa import Empresa
+    from app.models.pago import EstatusPago, Pago, PagoDocumentoRelacionado
+
+    emp = Empresa(
+        nombre="NORTON", nombre_comercial="NORTON", ruc="RUC-PG",
+        rfc="GAOA611225II9", regimen_fiscal="612", codigo_postal="22000",
+        contrasena="x",
+    )
+    cli = Cliente(
+        nombre_comercial="CLI", nombre_razon_social="CLI SA DE CV",
+        rfc="PME140722QM7", regimen_fiscal="601", codigo_postal="22000",
+    )
+    cli.empresas.append(emp)
+    db_session.add_all([emp, cli])
+    db_session.commit()
+
+    p = Pago(
+        serie="P", folio="927", empresa_id=emp.id, cliente_id=cli.id,
+        estatus=EstatusPago.TIMBRADO, monto=1160,
+        fecha_pago=datetime(2026, 8, 20, 12, 0),
+        forma_pago_p="03", moneda_p="MXN",
+        uuid="7C1E0A55-1111-4B4B-8BB3-8AF0A126FB2E",
+    )
+    from app.models.factura import Factura
+
+    pagada = Factura(
+        serie="A", folio=2202, empresa_id=emp.id, cliente_id=cli.id,
+        estatus="TIMBRADA", total=1160,
+    )
+    db_session.add(pagada)
+    db_session.commit()
+
+    p.documentos_relacionados.append(
+        PagoDocumentoRelacionado(
+            factura_id=pagada.id,
+            id_documento="0F6D3A11-9C3C-4A9E-9F1E-4A1C0D2E5B77",
+            serie="A", folio="2202", moneda_dr="MXN",
+            num_parcialidad=1, imp_pagado=1160, imp_saldo_ant=1160,
+            imp_saldo_insoluto=0,
+        )
+    )
+    db_session.add(p)
+    db_session.commit()
+    return p
+
+
+def test_los_documentos_pagados_son_los_renglones_del_complemento(
+    db_session, pago_timbrado
+):
+    """La factura compara conceptos; el complemento, lo que paga. Misma idea."""
+    from app.services import historial_documento_service as h
+
+    antes = h.snapshot(pago_timbrado)
+    assert antes["documentos_relacionados"][0]["documento"] == "A-2202"
+
+    pago_timbrado.documentos_relacionados[0].imp_pagado = 500
+    db_session.flush()
+
+    cambios = h.diff(antes, h.snapshot(pago_timbrado))
+    assert [c["campo"] for c in cambios] == ["documentos_relacionados"]
+    assert cambios[0]["grupo"] == "fiscal"
+
+
+def test_fecha_pago_significa_cosas_distintas_en_cada_documento():
+    """
+    En una factura es la fecha programada de cobro —cobranza—; en un complemento
+    es la fecha real del pago que va en el CFDI —fiscal—. Mismo nombre, dos
+    cosas, y clasificarlas igual sería esconder un cambio fiscal.
+    """
+    from app.services import historial_documento_service as h
+
+    de_factura = h.diff(
+        {"fecha_pago": "2026-08-01", "conceptos": []},
+        {"fecha_pago": "2026-09-01", "conceptos": []},
+    )
+    de_pago = h.diff(
+        {"fecha_pago": "2026-08-01", "documentos_relacionados": []},
+        {"fecha_pago": "2026-09-01", "documentos_relacionados": []},
+    )
+
+    assert de_factura[0]["grupo"] == "cobranza"
+    assert de_pago[0]["grupo"] == "fiscal"
+
+
+def test_el_historial_del_pago_lee_su_propia_entidad(db_session, pago_timbrado):
+    """
+    La auditoría de pagos se escribe con entidad 'pago'. Si el historial leyera
+    'factura' saldría vacío y nadie lo notaría hasta necesitarlo.
+    """
+    from app.services import historial_documento_service as h
+
+    _auditar(db_session, pago_timbrado, "TIMBRAR_PAGO", entidad="pago")
+
+    eventos = h.linea_de_tiempo(db_session, pago_timbrado)
+
+    assert [e["titulo"] for e in eventos] == ["Timbrado ante el SAT"]
+
+
+def test_el_pago_no_se_lleva_los_eventos_de_una_factura(db_session, pago_timbrado, factura_borrador):
+    """Los dos rastros comparten tabla; sólo los distingue el tipo de entidad."""
+    from app.services import historial_documento_service as h
+
+    _auditar(db_session, factura_borrador, "TIMBRAR_FACTURA")
+
+    assert h.linea_de_tiempo(db_session, pago_timbrado) == []
+
+
+def test_la_bitacora_del_pac_tambien_aparece_en_el_complemento(db_session, pago_timbrado):
+    from app.services import cancelacion_intento_service as bitacora
+    from app.services import historial_documento_service as h
+
+    bitacora.registrar(
+        db_session, pago_timbrado,
+        motivo="02", folio_sustitucion=None,
+        pac_code="GT05", pac_message="Solicitud recibida.",
+        sat_registro_solicitud=False,
+    )
+
+    evento = h.linea_de_tiempo(db_session, pago_timbrado)[0]
+
+    assert evento["fuente"] == "cancelacion"
+    assert evento["detalle"]["sat_registro_solicitud"] is False
+
+
+def test_el_endpoint_de_historial_del_pago_responde(auth_client, db_session, pago_timbrado):
+    _auditar(db_session, pago_timbrado, "CREAR_PAGO", entidad="pago")
+    db_session.commit()
+
+    r = auth_client.get(f"/api/pagos/{pago_timbrado.id}/historial")
+
+    assert r.status_code == 200
+    cuerpo = r.json()
+    assert cuerpo["documento"]["folio"] == pago_timbrado.folio
+    assert cuerpo["eventos"][0]["titulo"] == "Complemento creado"

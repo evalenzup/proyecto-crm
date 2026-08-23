@@ -245,7 +245,7 @@ def actualizar_factura_endpoint(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Factura:
-    from app.services import historial_factura_service as hist
+    from app.services import historial_documento_service as hist
 
     factura = srv.obtener_factura(db, id) # Verificamos existencia y propiedad antes
     if not factura:
@@ -378,7 +378,7 @@ def historial_factura(
 
     Sustituye al antiguo /cancelacion-intentos, que sólo mostraba la mitad.
     """
-    from app.services import historial_factura_service as hist
+    from app.services import historial_documento_service as hist
 
     factura = db.query(Factura).filter(Factura.id == id).first()
     if not factura:
@@ -387,7 +387,8 @@ def historial_factura(
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
     return {
-        "factura": {
+        # La misma forma que el historial de pagos: un solo componente los lee.
+        "documento": {
             "id": str(factura.id),
             "serie": factura.serie,
             "folio": factura.folio,
