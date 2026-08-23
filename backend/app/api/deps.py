@@ -148,8 +148,8 @@ def get_current_active_user(
     # Una cuenta de técnico sólo llega a su agenda. Se niega todo y se abre lo
     # necesario (core/operativo.py), para que un endpoint nuevo no quede
     # expuesto por descuido.
-    if current_user.rol == RolUsuario.OPERATIVO and not op_rules.ruta_permitida(
-        request.url.path
+    if current_user.rol == RolUsuario.OPERATIVO and not op_rules.peticion_permitida(
+        request.method, request.url.path
     ):
         logger.info(
             "[Operativo] %s intentó entrar a %s %s",

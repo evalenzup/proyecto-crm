@@ -283,7 +283,12 @@ def obtener_orden(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return svc.get_orden(db, orden_id)
+    orden = svc.get_orden(db, orden_id)
+    # Sin esto una cuenta de técnico podía leer cualquier orden con sólo tener
+    # el id, incluidas las de otra empresa: el listado sí filtraba, el detalle no.
+    if current_user.rol == RolUsuario.OPERATIVO and orden.tecnico_id != current_user.tecnico_id:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    return orden
 
 
 # ── Crear ─────────────────────────────────────────────────────────────────────

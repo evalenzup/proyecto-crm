@@ -3,30 +3,39 @@
 Un técnico entra desde su celular a ver su agenda y a ir avanzando el estado de
 sus órdenes. No tiene por qué ver facturación, clientes, cobranza ni reportes,
 así que en vez de ir tapando módulo por módulo se hace al revés: se le niega
-todo y se abre sólo lo que necesita. Un endpoint nuevo no queda expuesto por
-descuido; hay que agregarlo aquí a propósito.
+todo y se abre sólo lo que necesita.
 
-La lista se aplica en deps.get_current_active_user, que es por donde pasan
-todos los endpoints protegidos.
+La lista distingue el MÉTODO, no sólo la ruta. Filtrar por prefijo dejaba
+abierto todo /api/ordenes-servicio, y una prueba de intrusión lo confirmó: con
+la cuenta de un técnico se podía leer y editar cualquier orden —incluidas las
+de otra empresa— y crear órdenes nuevas. Sólo el listado estaba protegido.
+
+Las reglas se aplican en deps.get_current_active_user; la pertenencia de cada
+orden se verifica además en el propio endpoint.
 """
 from __future__ import annotations
 
-# Prefijos de ruta que puede usar una cuenta de técnico.
-# Se comparan contra request.url.path completo (incluye /api).
-RUTAS_PERMITIDAS: tuple[str, ...] = (
-    # Su agenda y el detalle de sus órdenes; el filtrado por técnico va aparte,
-    # en el propio endpoint de listado.
-    "/api/ordenes-servicio",
+import re
+
+# (métodos permitidos, patrón de la ruta). El patrón se ancla completo.
+_UUID = r"[0-9a-fA-F-]{36}"
+
+REGLAS: tuple[tuple[frozenset[str], re.Pattern], ...] = (
+    # Su agenda y el detalle de una orden suya (la pertenencia se revisa aparte)
+    (frozenset({"GET"}),   re.compile(r"/api/ordenes-servicio/?")),
+    (frozenset({"GET"}),   re.compile(rf"/api/ordenes-servicio/{_UUID}")),
+    # Avanzar el estado y reportar que no se pudo realizar
+    (frozenset({"PATCH"}), re.compile(rf"/api/ordenes-servicio/{_UUID}/estado")),
+    (frozenset({"POST"}),  re.compile(rf"/api/ordenes-servicio/{_UUID}/incidencia")),
     # Sesión y cuenta propia
-    "/api/login",
-    "/api/users/me",
-    "/api/users/preferences",
+    (frozenset({"POST"}),  re.compile(r"/api/login/[\w-]+")),
+    (frozenset({"GET", "PUT"}), re.compile(r"/api/users/(me|preferences)(/password)?")),
     # Avisos
-    "/api/notificaciones",
-    # Datos de su empresa (logo y nombre en la pantalla)
-    "/api/empresas/logos",
+    (frozenset({"GET", "PATCH", "POST"}), re.compile(r"/api/notificaciones(/.*)?")),
+    # Logo de su empresa
+    (frozenset({"GET"}),   re.compile(r"/api/empresas/logos/.*")),
     # Salud del servicio
-    "/health",
+    (frozenset({"GET"}),   re.compile(r"/health(/.*)?")),
 )
 
 # Estados que un técnico puede fijar, y desde cuáles. El flujo es de una sola
@@ -44,10 +53,12 @@ TRANSICIONES: dict[str, tuple[str, ...]] = {
 }
 
 
-def ruta_permitida(path: str) -> bool:
-    path = path.rstrip("/")
-    return any(path == p or path.startswith(p + "/") or path.startswith(p + "?")
-               for p in RUTAS_PERMITIDAS)
+def peticion_permitida(metodo: str, path: str) -> bool:
+    path = path.rstrip("/") or "/"
+    for metodos, patron in REGLAS:
+        if metodo in metodos and patron.fullmatch(path):
+            return True
+    return False
 
 
 def transicion_permitida(estado_actual: str, estado_nuevo: str) -> bool:
