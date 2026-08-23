@@ -46,8 +46,13 @@ const { Text } = Typography;
 const { Option } = Select;
 
 // ── Constantes de la vista diaria ────────────────────────────────────────────
-const HOUR_START  = 7;   // 7:00 AM
-const HOUR_END    = 21;  // 9:00 PM
+// Ventana por omisión de la rejilla. Es sólo el punto de partida: si el día
+// tiene órdenes fuera de este rango, se amplía para incluirlas.
+// Antes eran fijas y una orden de las 6:00 se dibujaba con
+// top negativo, o sea fuera del área visible: no aparecía por ningún lado
+// aunque sí estuviera en la lista y en la impresión.
+const HOUR_START_DEFAULT = 7;   // 7:00 AM
+const HOUR_END_DEFAULT   = 21;  // 9:00 PM
 const HOUR_HEIGHT = 60;  // px por hora
 
 // Convierte "HH:MM:SS" o "HH:MM" → minutos desde medianoche
@@ -220,6 +225,22 @@ export default function AgendaPage() {
 
   const timedOrdenes  = dayOrdenes.filter(o => o.hora_inicio);
   const allDayOrdenes = dayOrdenes.filter(o => !o.hora_inicio);
+
+  // La rejilla se estira para que ninguna orden quede fuera. Se toma la hora
+  // más temprana y la más tardía del día (contando la hora de fin) y se
+  // redondea a la hora completa, sin encoger nunca el rango por omisión.
+  const { HOUR_START, HOUR_END } = React.useMemo(() => {
+    let inicio = HOUR_START_DEFAULT;
+    let fin = HOUR_END_DEFAULT;
+    for (const o of timedOrdenes) {
+      const startMin = toMinutes(o.hora_inicio);
+      if (startMin == null) continue;
+      const endMin = toMinutes(o.hora_fin) ?? startMin + 60;
+      inicio = Math.min(inicio, Math.floor(startMin / 60));
+      fin = Math.max(fin, Math.ceil(endMin / 60));
+    }
+    return { HOUR_START: Math.max(0, inicio), HOUR_END: Math.min(24, fin) };
+  }, [timedOrdenes]);
 
   function eventStyle(o: OrdenServicioListOut) {
     const startMin = toMinutes(o.hora_inicio)!;
