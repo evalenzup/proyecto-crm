@@ -735,6 +735,13 @@ def solicitar_cancelacion_cfdi(
             status_code=400, detail="La factura no tiene un UUID fiscal para cancelar."
         )
 
+    # Antes de gastar consultas al SAT: que no haya otra cancelación de esta
+    # misma factura en curso. Dos solicitudes simultáneas son lo que fabrica la
+    # "solicitud previa" fantasma con la que el PAC luego se niega a reenviar.
+    from app.services import cancelacion_intento_service as bitacora_svc
+
+    bitacora_svc.tomar_candado(db, factura)
+
     # Sólo se detiene el trámite cuando ya está cancelada en el SAT. Un
     # "No cancelable" se registra y se envía igual: el procedimiento oficial es
     # emitir la sustituta y luego cancelar, y es el SAT quien resuelve.
@@ -835,6 +842,11 @@ def solicitar_cancelacion_cfdi(
         except Exception:
             pass
         return out
+    except HTTPException:
+        # Ya viene con su código y su explicación (p. ej. el 409 del candado de
+        # envío en vuelo). Sin esto, el `except Exception` de abajo la convertía
+        # en un 500 genérico y se perdía el motivo real.
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:

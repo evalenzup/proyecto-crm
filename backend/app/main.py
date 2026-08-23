@@ -164,6 +164,20 @@ def _sync_cancelaciones_job(solo_recientes: bool = True):
             db.rollback()
             return
 
+        # ── Envíos que quedaron a medias ──────────────────────────────────────
+        # Renglones en ENVIANDO cuya llamada al PAC nunca volvió. El comprobante
+        # puede estar en trámite ante el SAT sin que el sistema lo sepa, así que
+        # se resuelven preguntándole al SAT antes de lo demás. Sólo en la ventana
+        # caliente: son de minutos, no de días.
+        if solo_recientes:
+            try:
+                bitacora_svc.reconciliar_huerfanos()
+            except Exception as exc:  # noqa: BLE001
+                # Sin rollback a propósito: el barrido usa su propia sesión, y
+                # un rollback aquí soltaría el advisory lock de esta ventana.
+                logger.warning("[SAT Sync/%s] Error reconciliando huérfanos: %s",
+                               ventana, exc)
+
         # ── Cargar facturas con joinedload para evitar N+1 ────────────────────
         q_fact = (
             db.query(Factura)

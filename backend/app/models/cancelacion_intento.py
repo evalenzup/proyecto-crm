@@ -25,7 +25,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, text
 
 from app.models.base import Base
 
@@ -44,6 +44,21 @@ RECONSTRUIDO = "RECONSTRUIDO"  # deducido de las columnas del documento: el env�
 # Valores de resultado
 CANCELADO = "CANCELADO"    # el SAT terminó cancelando el comprobante
 REVERTIDO = "REVERTIDO"    # volvió a vigente: rechazo del receptor o nunca se registró
+
+# Valores de envio — en qué punto de la llamada al PAC quedó este renglón.
+#
+# El renglón se escribe ANTES de hablarle al PAC, no después. La diferencia
+# importa: si el POST se va en timeout o el proceso muere a media llamada, el
+# PAC pudo haber recibido la solicitud y sin write-ahead no quedaría ni rastro
+# de que se intentó. Ese es justo el estado que produce la trampa del
+# "solicitud previa" —el PAC cree tener un trámite que nosotros no sabemos que
+# mandamos— y el que dejó a A-22069 rebotando siete veces.
+ENVIANDO = "ENVIANDO"          # escrito antes del POST; no sabemos si llegó
+RESPONDIDO = "RESPONDIDO"      # el PAC contestó y su respuesta está en pac_code
+SIN_RESPUESTA = "SIN_RESPUESTA"  # la llamada falló; el PAC pudo haberla recibido igual
+RECONCILIADO = "RECONCILIADO"  # quedó huérfano y se resolvió preguntándole al SAT,
+                               # que es lo único observable cuando nadie vio la
+                               # respuesta del PAC
 
 
 class CancelacionIntento(Base):
@@ -95,6 +110,13 @@ class CancelacionIntento(Base):
     # al PAC cuando afirma tenerlo.
     acuse_error = Column(Text, nullable=True)
 
+    # ── En qué quedó la llamada al PAC ──────────────────────────────────────
+    # Ver la nota de los valores arriba. Nunca es nulo: el renglón nace en
+    # ENVIANDO justo antes del POST.
+    envio = Column(
+        String(15), nullable=False, default=ENVIANDO, server_default=RESPONDIDO,
+    )
+
     # ── Cómo terminó ────────────────────────────────────────────────────────
     resultado = Column(String(20), nullable=True)  # CANCELADO | REVERTIDO | NULL=abierto
     fecha_resultado = Column(DateTime, nullable=True)
@@ -104,6 +126,19 @@ class CancelacionIntento(Base):
     __table_args__ = (
         Index("ix_cancel_intentos_doc", "documento_tipo", "documento_id"),
         Index("ix_cancel_intentos_abiertos", "documento_id", "resultado"),
+        # Un solo envío en vuelo por comprobante, garantizado por la base y no
+        # por la buena voluntad del código: es el candado de último recurso
+        # contra dos solicitudes simultáneas al PAC (doble clic, un usuario y el
+        # cron, dos instancias del proceso web). El índice es parcial, así que
+        # no estorba a los reintentos legítimos: sólo colisiona con otro renglón
+        # que siga en ENVIANDO.
+        Index(
+            "uq_cancel_intentos_en_vuelo",
+            "documento_id",
+            unique=True,
+            postgresql_where=text("envio = 'ENVIANDO'"),
+            sqlite_where=text("envio = 'ENVIANDO'"),
+        ),
     )
 
     def __repr__(self) -> str:

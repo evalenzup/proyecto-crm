@@ -1156,11 +1156,25 @@ class FacturacionModernaPAC:
         }
         url = _fm_url()
 
-        # 3) POST
+        # 3) Write-ahead: el renglón de la bitácora se escribe y se commitea
+        #    ANTES del POST. A partir de esta línea, pase lo que pase —timeout,
+        #    corte de red, reinicio del contenedor— queda constancia de que se
+        #    intentó, porque el PAC registra la solicitud al recibirla y no al
+        #    contestar. Sin esto, un envío que no vuelve es indistinguible de un
+        #    envío que nunca ocurrió, y el siguiente reintento se topa con el
+        #    "ya existe una solicitud previa" que nadie sabe explicar.
+        intento_id = _bitacora.abrir(
+            db, f, motivo=motivo, folio_sustitucion=folio_sustitucion,
+        )
+
+        # 4) POST
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 resp = client.post(url, content=env, headers=headers)
         except Exception as e:
+            _bitacora.cerrar_fallido(
+                db, intento_id, mensaje=f"Error de red al solicitar cancelación: {e}",
+            )
             raise RuntimeError(f"Error de red al solicitar cancelación: {e}") from e
 
         soap_txt = resp.text
@@ -1177,6 +1191,14 @@ class FacturacionModernaPAC:
             # "cola" = en proceso; "previa" = ya existe solicitud en SAT → ambos son EN_CANCELACION
             is_pendiente = "cola" in soap_lower or "previa" in soap_lower or "solicitud de cancelacion" in soap_lower
             if not is_pendiente:
+                # El PAC sí contestó, con un error que aborta el trámite: el
+                # renglón se cierra como RESPONDIDO porque aquí no hay nada que
+                # reconciliar, se sabe que no quedó solicitud.
+                _bitacora.cerrar_fallido(
+                    db, intento_id,
+                    mensaje=f"HTTP {resp.status_code} del PAC: {soap_txt}",
+                    envio=_bitacora.RESPONDIDO,
+                )
                 # SAT caído/intermitente: mensaje claro en vez del XML crudo
                 if "servicio no disponible" in soap_lower or "error al consultar estatus" in soap_lower:
                     raise RuntimeError(
@@ -1245,10 +1267,8 @@ class FacturacionModernaPAC:
 
                 f.cancelacion_code = "PAC-PREVIA"  # etiqueta nuestra, el PAC no da código
                 f.cancelacion_message = mensaje
-                _bitacora.registrar(
-                    db, f,
-                    motivo=motivo,
-                    folio_sustitucion=folio_sustitucion,
+                _bitacora.completar(
+                    db, intento_id,
                     pac_code="PAC-PREVIA",
                     pac_message=detalle_pac,
                     pac_codigo_conocido=None,  # no es un código del catálogo del PAC
@@ -1385,13 +1405,11 @@ class FacturacionModernaPAC:
                 )
         # ---------------------------------------------
 
-        # Bitácora: un renglón por envío, con lo que dijeron el PAC y el SAT en
-        # ese momento. Es la evidencia que las columnas de Factura no conservan
-        # porque se sobrescriben en cada reintento.
-        _bitacora.registrar(
-            db, f,
-            motivo=motivo,
-            folio_sustitucion=folio_sustitucion,
+        # Bitácora: se completa el renglón abierto antes del POST con lo que
+        # dijeron el PAC y el SAT. Es la evidencia que las columnas de Factura no
+        # conservan porque se sobrescriben en cada reintento.
+        _bitacora.completar(
+            db, intento_id,
             pac_code=res.get("code"),
             pac_message=res.get("message"),
             pac_codigo_conocido=codigo_conocido,
@@ -1470,11 +1488,21 @@ class FacturacionModernaPAC:
         }
         url = _fm_url()
 
-        # 3) POST
+        # 3) Write-ahead antes del POST — ver la nota extensa en la cancelación
+        #    de facturas. Los complementos importan igual o más: son los que
+        #    trababan las facturas cuando el SAT los ve relacionados.
+        intento_id = _bitacora.abrir(
+            db, p, motivo=motivo, folio_sustitucion=folio_sustituto,
+        )
+
+        # 4) POST
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 resp = client.post(url, content=env, headers=headers)
         except Exception as e:
+            _bitacora.cerrar_fallido(
+                db, intento_id, mensaje=f"Error de red al solicitar cancelación: {e}",
+            )
             raise RuntimeError(f"Error de red al solicitar cancelación: {e}") from e
 
         soap_txt = resp.text
@@ -1487,6 +1515,11 @@ class FacturacionModernaPAC:
             f"[PAC SOAP Cancel Pago] HTTP {resp.status_code}\n{soap_log}"
         )
         if resp.status_code >= 400:
+            _bitacora.cerrar_fallido(
+                db, intento_id,
+                mensaje=f"HTTP {resp.status_code} del PAC: {soap_txt}",
+                envio=_bitacora.RESPONDIDO,
+            )
             # SAT caído/intermitente: mensaje claro en vez del XML crudo
             soap_lower = soap_txt.lower()
             if "servicio no disponible" in soap_lower or "error al consultar estatus" in soap_lower:
@@ -1558,10 +1591,8 @@ class FacturacionModernaPAC:
         p.cancelacion_code = res.get("code")
         p.cancelacion_message = res.get("message")
 
-        _bitacora.registrar(
-            db, p,
-            motivo=motivo,
-            folio_sustitucion=folio_sustituto,
+        _bitacora.completar(
+            db, intento_id,
             pac_code=res.get("code"),
             pac_message=res.get("message"),
             pac_codigo_conocido=codigo_conocido,

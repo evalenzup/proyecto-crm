@@ -920,6 +920,13 @@ def cancelar_pago_sat(
                    "Solo TIMBRADO o en proceso de cancelación.",
         )
 
+    # Un solo envío a la vez por complemento, igual que en facturas: dos
+    # solicitudes simultáneas terminan en una "solicitud previa" que el PAC usa
+    # después para negarse a reenviar.
+    from app.services import cancelacion_intento_service as bitacora_svc
+
+    bitacora_svc.tomar_candado(db, pago)
+
     # El SAT puede impedir la cancelación (lo reporta como "No cancelable").
     # Avisar antes de enviar, igual que en facturas.
     from app.services.factura_service import diagnostico_cancelacion

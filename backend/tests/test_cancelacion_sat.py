@@ -1088,3 +1088,266 @@ def test_si_reintenta_cuando_salio_por_el_pac(acuse_espia, code):
 
     _reintentar_acuse(None, _doc(code=code))
     assert len(acuse_espia) == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Write-ahead del envío y candado de un envío en vuelo
+#
+# El renglón de la bitácora se escribe ANTES del POST al PAC. Sin eso, una
+# llamada que no vuelve —timeout, corte, reinicio— es indistinguible de una que
+# nunca ocurrió, aunque el PAC la haya recibido: registra la solicitud al
+# recibirla, no al contestar. Ese hueco es el que fabrica los "solicitud previa"
+# que nadie puede explicar (A-22069, siete reintentos rebotando).
+# ─────────────────────────────────────────────────────────────────────────────
+
+EXITO_GT11 = b"""<?xml version="1.0"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+ xmlns:ns1="https://t1demo.facturacionmoderna.com/timbrado/soap">
+ <SOAP-ENV:Body><ns1:requestCancelarCFDIResponse>
+   <return><Code>GT11</Code><Message>Solicitud de cancelacion recibida.</Message></return>
+ </ns1:requestCancelarCFDIResponse></SOAP-ENV:Body>
+</SOAP-ENV:Envelope>"""
+
+FAULT_OTRO = b"""<?xml version="1.0"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+ <SOAP-ENV:Body><SOAP-ENV:Fault>
+   <faultcode>SOAP-ENV:Server</faultcode>
+   <faultstring>Certificado de sello digital revocado.</faultstring>
+ </SOAP-ENV:Fault></SOAP-ENV:Body>
+</SOAP-ENV:Envelope>"""
+
+
+@pytest.fixture
+def pac(monkeypatch):
+    """Instala una respuesta del PAC, o una excepción de red si se pide."""
+    import httpx
+
+    from app.services import timbrado_factmoderna as t
+
+    monkeypatch.setattr(t, "ESPERA_ENTRE_CONSULTAS_SEG", 0)
+    monkeypatch.setattr(t, "_fm_user_id", lambda: "u")
+    monkeypatch.setattr(t, "_fm_user_pass", lambda: "p")
+    monkeypatch.setattr(t, "_fm_url", lambda: "http://pac.invalido")
+
+    def instalar(*, status=200, body=EXITO_GT11, revienta=None):
+        class RespFalsa:
+            status_code = status
+            content = body
+            text = body.decode()
+
+        class ClienteFalso:
+            def __init__(self, *a, **kw): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+            def post(self, *a, **kw):
+                if revienta is not None:
+                    raise revienta
+                return RespFalsa()
+
+        monkeypatch.setattr(httpx, "Client", ClienteFalso)
+
+    return instalar
+
+
+def _intentos(db, doc):
+    from app.services import cancelacion_intento_service as bitacora
+
+    return bitacora.listar(db, documento_id=doc.id)
+
+
+def test_una_llamada_que_no_vuelve_deja_rastro_igual(
+    db_session, factura_timbrada, pac, sat_dice
+):
+    """
+    El write-ahead en su caso puro: el POST truena y aun así queda constancia.
+
+    Antes no quedaba ninguna, y esa es justamente la situación en la que el PAC
+    sí pudo haber recibido la solicitud.
+    """
+    import httpx
+
+    sat_dice(acuse())
+    pac(revienta=httpx.ReadTimeout("se acabó el tiempo"))
+
+    with pytest.raises(RuntimeError, match="Error de red"):
+        _cancelar(db_session, factura_timbrada)
+
+    intentos = _intentos(db_session, factura_timbrada)
+    assert len(intentos) == 1
+    assert intentos[0].envio == "SIN_RESPUESTA"
+    assert "se acabó el tiempo" in intentos[0].pac_message
+    # El comprobante no se mueve: nadie sabe todavía si la solicitud llegó.
+    assert factura_timbrada.estatus == "TIMBRADA"
+
+
+def test_un_error_del_pac_no_deja_nada_que_reconciliar(
+    db_session, factura_timbrada, pac, sat_dice
+):
+    """
+    Si el PAC contestó —aunque sea con un error— sí se sabe qué pasó: no hubo
+    solicitud. El renglón se cierra RESPONDIDO y el reconciliador no lo toca.
+    """
+    sat_dice(acuse())
+    pac(status=500, body=FAULT_OTRO)
+
+    with pytest.raises(RuntimeError):
+        _cancelar(db_session, factura_timbrada)
+
+    intentos = _intentos(db_session, factura_timbrada)
+    assert len(intentos) == 1
+    assert intentos[0].envio == "RESPONDIDO"
+    assert "HTTP 500" in intentos[0].pac_message
+
+
+def test_el_envio_normal_completa_el_renglon_que_abrio(
+    db_session, factura_timbrada, pac, sat_dice
+):
+    """Un solo renglón por envío: se abre antes del POST y se completa después."""
+    sat_dice(acuse(cancelacion="En proceso"))
+    pac()
+
+    out = _cancelar(db_session, factura_timbrada)
+
+    assert out["code"] == "GT11"
+    intentos = _intentos(db_session, factura_timbrada)
+    assert len(intentos) == 1
+    assert intentos[0].envio == "RESPONDIDO"
+    assert intentos[0].pac_code == "GT11"
+    assert intentos[0].sat_registro_solicitud is True
+    assert factura_timbrada.estatus == "EN_CANCELACION"
+
+
+def test_la_base_impide_dos_envios_en_vuelo_a_la_vez(db_session, factura_timbrada):
+    """
+    El candado de último recurso: un índice único parcial, no la buena voluntad
+    del código. Dos solicitudes simultáneas son lo que fabrica la "previa".
+    """
+    from fastapi import HTTPException
+
+    from app.services import cancelacion_intento_service as bitacora
+
+    primero = bitacora.abrir(
+        db_session, factura_timbrada, motivo="02", folio_sustitucion=None
+    )
+    assert primero is not None
+    db_session.commit()
+
+    with pytest.raises(HTTPException) as e:
+        bitacora.abrir(
+            db_session, factura_timbrada, motivo="02", folio_sustitucion=None
+        )
+    assert e.value.status_code == 409
+    assert "en curso" in e.value.detail
+
+
+def test_un_envio_recien_salido_rechaza_el_segundo(db_session, factura_timbrada):
+    """El doble clic, o el usuario y el cron al mismo tiempo."""
+    from fastapi import HTTPException
+
+    from app.services import cancelacion_intento_service as bitacora
+
+    bitacora.abrir(db_session, factura_timbrada, motivo="02", folio_sustitucion=None)
+    db_session.commit()
+
+    with pytest.raises(HTTPException) as e:
+        bitacora.tomar_candado(db_session, factura_timbrada)
+    assert e.value.status_code == 409
+    assert "hace unos segundos" in e.value.detail
+
+
+def test_un_envio_huerfano_no_bloquea_para_siempre(
+    db_session, factura_timbrada, sat_dice
+):
+    """
+    Un envío viejo en ENVIANDO ya no es una llamada viva: es un huérfano. Se
+    resuelve contra el SAT y se deja pasar el reintento.
+
+    Mantener el candado puesto ahí sería bloquear un trámite legal por una falla
+    nuestra, que es el error que ya se cometió dos veces con los "No cancelable".
+    """
+    from app.models.cancelacion_intento import CancelacionIntento
+    from app.services import cancelacion_intento_service as bitacora
+
+    intento_id = bitacora.abrir(
+        db_session, factura_timbrada, motivo="02", folio_sustitucion=None
+    )
+    huerfano = db_session.get(CancelacionIntento, intento_id)
+    huerfano.fecha_envio = datetime.utcnow() - timedelta(minutes=45)
+    db_session.commit()
+
+    # El SAT sí tenía la solicitud: la llamada llegó aunque nadie viera la respuesta.
+    sat_dice(acuse(cancelacion="En proceso"))
+    bitacora.tomar_candado(db_session, factura_timbrada)
+
+    db_session.refresh(huerfano)
+    assert huerfano.envio == "RECONCILIADO"
+    assert huerfano.sat_registro_solicitud is True
+    assert factura_timbrada.estatus == "EN_CANCELACION"
+
+
+def test_el_huerfano_se_cierra_aunque_el_sat_no_conteste(
+    db_session, factura_timbrada, monkeypatch
+):
+    """
+    Si ni el SAT se deja consultar, el renglón se cierra igual y queda escrito
+    por qué. Dejarlo en ENVIANDO conservaría el candado sobre un comprobante
+    cuya llamada murió hace rato.
+    """
+    from app.models.cancelacion_intento import CancelacionIntento
+    from app.services import cancelacion_intento_service as bitacora
+    from app.services import sat_cfdi_service
+
+    intento_id = bitacora.abrir(
+        db_session, factura_timbrada, motivo="02", folio_sustitucion=None
+    )
+    huerfano = db_session.get(CancelacionIntento, intento_id)
+    huerfano.fecha_envio = datetime.utcnow() - timedelta(minutes=45)
+    db_session.commit()
+
+    def truena(**kw):
+        raise RuntimeError("el WS del SAT no responde")
+
+    monkeypatch.setattr(sat_cfdi_service, "consultar_cfdi", truena)
+    bitacora.tomar_candado(db_session, factura_timbrada)
+
+    db_session.refresh(huerfano)
+    assert huerfano.envio == "RECONCILIADO"
+    assert "tampoco se pudo consultar al SAT" in huerfano.pac_message
+    assert factura_timbrada.estatus == "TIMBRADA"  # no se inventa nada
+
+
+def test_el_barrido_del_cron_aplica_el_veredicto_del_sat(
+    db_session, factura_timbrada, sat_dice
+):
+    """
+    El huérfano que nadie reintenta lo resuelve el cron: si el SAT tiene la
+    solicitud, el comprobante entra a EN_CANCELACION y vuelve al radar.
+    """
+    from app.models.cancelacion_intento import CancelacionIntento
+    from app.services import cancelacion_intento_service as bitacora
+
+    intento_id = bitacora.abrir(
+        db_session, factura_timbrada, motivo="02", folio_sustitucion=None
+    )
+    huerfano = db_session.get(CancelacionIntento, intento_id)
+    huerfano.fecha_envio = datetime.utcnow() - timedelta(minutes=45)
+    db_session.commit()
+
+    sat_dice(acuse(cancelacion="En proceso"))
+    assert bitacora.reconciliar_huerfanos(db_session) == 1
+
+    db_session.refresh(huerfano)
+    db_session.refresh(factura_timbrada)
+    assert huerfano.envio == "RECONCILIADO"
+    assert factura_timbrada.estatus == "EN_CANCELACION"
+
+
+def test_el_barrido_no_toca_los_envios_recientes(db_session, factura_timbrada):
+    """Uno de hace segundos puede ser una llamada viva; no se toca."""
+    from app.services import cancelacion_intento_service as bitacora
+
+    bitacora.abrir(db_session, factura_timbrada, motivo="02", folio_sustitucion=None)
+    db_session.commit()
+
+    assert bitacora.reconciliar_huerfanos(db_session) == 0
