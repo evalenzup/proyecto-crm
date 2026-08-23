@@ -335,6 +335,78 @@ def _parse_response(content: bytes) -> AcuseSAT:
 
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Clasificación de lo que el SAT contesta frente a lo que el sistema cree
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# No todas las diferencias pesan igual, y tratarlas iguales es lo que vuelve
+# peligroso el botón de "Verificar con SAT".
+#
+# Cuando el SAT ya consumó algo —canceló, o registró la solicitud— no hay nada
+# que preguntar: la factura ya está así ante Hacienda, lo refleje el sistema o
+# no. Lo único que se gana no aplicándolo es que siga contando en cobranza y en
+# los reportes una factura que fiscalmente ya no existe.
+#
+# El caso contrario sí merece detenerse: volver una factura a vigente la
+# REVIVE. El cliente vuelve a deberla, puede haber una sustituta ya timbrada, y
+# de pronto hay dos facturas vivas por el mismo servicio.
+CONCUERDA = "concuerda"
+AVANCE = "avance"
+RETROCESO = "retroceso"
+
+# TIMBRADA < EN_CANCELACION < CANCELADA. Sirve igual para facturas y para
+# complementos, que sólo cambian el género del nombre.
+_AVANCE_DEL_TRAMITE = {
+    "TIMBRADA": 0, "TIMBRADO": 0,
+    "EN_CANCELACION": 1,
+    "CANCELADA": 2, "CANCELADO": 2,
+}
+
+
+def clasificar_cambio(estatus_anterior: str, nuevo_estatus: str) -> str:
+    """¿El SAT confirma, adelanta o echa para atrás lo que el sistema creía?"""
+    anterior = (estatus_anterior or "").upper()
+    nuevo = (nuevo_estatus or "").upper()
+    if anterior == nuevo:
+        return CONCUERDA
+    rango_anterior = _AVANCE_DEL_TRAMITE.get(anterior)
+    rango_nuevo = _AVANCE_DEL_TRAMITE.get(nuevo)
+    if rango_anterior is None or rango_nuevo is None:
+        # Un estatus que no sabemos ordenar se trata como retroceso: ante la
+        # duda, que decida una persona.
+        return RETROCESO
+    return AVANCE if rango_nuevo > rango_anterior else RETROCESO
+
+
+def explicar_retroceso(estatus_anterior: str, nuevo_estatus: str, acuse: Any) -> str:
+    """Qué significa, en consecuencias, revivir este comprobante."""
+    anterior = (estatus_anterior or "").upper()
+    detalle_sat = (
+        f"El SAT reporta Estado={getattr(acuse, 'estado', None)} y "
+        f"EstatusCancelacion={getattr(acuse, 'estatus_cancelacion', None) or 'vacío'}."
+    )
+
+    if anterior == "EN_CANCELACION":
+        return (
+            f"{detalle_sat} No hay ninguna cancelación registrada: el comprobante "
+            "sigue vigente ante el SAT. Aplicarlo lo regresa a timbrado, así que "
+            "el cliente vuelve a deberlo y, si ya se emitió la sustituta, "
+            "quedarían dos comprobantes vivos por lo mismo. Antes de confirmar, "
+            "decide si hay que reintentar la cancelación o cancelar la sustituta."
+        )
+    if anterior in ("CANCELADA", "CANCELADO"):
+        return (
+            f"{detalle_sat} El sistema lo daba por cancelado y el SAT lo reporta "
+            "vigente. Aplicarlo lo revive: vuelve a contar en cobranza y en los "
+            "reportes. Conviene comprobar en el portal del SAT que la cancelación "
+            "no prosperó antes de confirmar."
+        )
+    return (
+        f"{detalle_sat} El cambio deshace parte del trámite "
+        f"({anterior} → {nuevo_estatus}). Confírmalo sólo si sabes por qué."
+    )
+
+
 def _limpiar_marca_sin_registro(doc: Any) -> None:
     """Quita de ``cancelacion_message`` el aviso de "el SAT aún no la registra"."""
     mensaje = getattr(doc, "cancelacion_message", None)

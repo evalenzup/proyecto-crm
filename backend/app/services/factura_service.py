@@ -6,7 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 from typing import List, Optional, Tuple, Literal
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import func, asc, desc
+from sqlalchemy import func, asc, desc, exists
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 import re
@@ -1112,6 +1112,61 @@ def obtener_por_serie_folio(
     )
 
 
+# Filtros de cancelación para el listado. No son estatus: son preguntas sobre el
+# trámite, que es otra cosa. Una factura puede acumular tres solicitudes
+# fallidas y seguir TIMBRADA —hoy eso no se ve por ningún lado, y es justo el
+# caso que hay que atender.
+FILTROS_CANCELACION = (
+    "con_solicitud",     # alguna vez se intentó cancelar, sin importar cómo acabó
+    "atorada",           # se pidió cancelar y la factura sigue vigente
+    "en_tramite",        # esperando al SAT o al receptor
+    "sin_registro_sat",  # el PAC acusó recibo y el SAT no tenía la solicitud
+    "cancelada",         # el trámite llegó a su fin
+)
+
+
+def _existe_intento(extra=None):
+    """
+    EXISTS de una solicitud de cancelación para la factura de la consulta.
+
+    EXISTS y no un join: una factura con varios intentos saldría repetida en el
+    listado, y aquí interesa la factura, no cada solicitud.
+    """
+    from app.models.cancelacion_intento import FACTURA as DOC_FACTURA
+    from app.models.cancelacion_intento import CancelacionIntento
+
+    condicion = (CancelacionIntento.documento_id == Factura.id) & (
+        CancelacionIntento.documento_tipo == DOC_FACTURA
+    )
+    if extra is not None:
+        condicion = condicion & extra
+    return exists().where(condicion)
+
+
+def _filtrar_por_cancelacion(q, filtro: str):
+    """Acota el listado por el estado del TRÁMITE, no del documento."""
+    from app.models.cancelacion_intento import CancelacionIntento
+
+    if filtro == "atorada":
+        # El conjunto que no se ve en ninguna pantalla: se pidió la cancelación
+        # y el comprobante sigue vigente ante el SAT. A-785 y A-22069 vivieron
+        # días así sin que nadie lo notara.
+        return q.filter(Factura.estatus == "TIMBRADA", _existe_intento())
+    if filtro == "en_tramite":
+        return q.filter(Factura.estatus == "EN_CANCELACION")
+    if filtro == "cancelada":
+        return q.filter(Factura.estatus == "CANCELADA", _existe_intento())
+    if filtro == "sin_registro_sat":
+        # El caso A-2202: el PAC contestó que sí y el SAT no sabía nada. Sólo
+        # interesa mientras no se resuelva; una vez cancelada, da igual cómo
+        # llegó ahí.
+        return q.filter(
+            Factura.estatus != "CANCELADA",
+            _existe_intento(CancelacionIntento.sat_registro_solicitud.is_(False)),
+        )
+    return q.filter(_existe_intento())
+
+
 def listar_facturas(
     db: Session,
     *,
@@ -1123,6 +1178,7 @@ def listar_facturas(
     folio_max: Optional[int] = None,
     estatus: Optional[str] = None,
     status_pago: Optional[str] = None,
+    cancelacion: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     order_by: str = "serie_folio",
@@ -1150,6 +1206,8 @@ def listar_facturas(
         q = q.filter(Factura.estatus == estatus.upper())
     if status_pago:
         q = q.filter(Factura.status_pago == status_pago.upper())
+    if cancelacion:
+        q = _filtrar_por_cancelacion(q, cancelacion)
     if fecha_desde:
         q = q.filter(Factura.creado_en >= fecha_desde)
     if fecha_hasta:

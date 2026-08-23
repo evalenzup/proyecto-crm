@@ -143,6 +143,17 @@ def exportar_facturas_excel(
     folio_max: Optional[int] = Query(None),
     estatus: Optional[Literal["BORRADOR", "TIMBRADA", "EN_CANCELACION", "CANCELADA"]] = Query(None),
     status_pago: Optional[Literal["PAGADA", "NO_PAGADA"]] = Query(None),
+    cancelacion: Optional[
+        Literal["con_solicitud", "atorada", "en_tramite", "sin_registro_sat", "cancelada"]
+    ] = Query(
+        None,
+        description=(
+            "Filtra por el estado del TRÁMITE de cancelación, que no es el "
+            "estatus del documento: 'atorada' son las que se pidió cancelar y "
+            "siguen vigentes, 'sin_registro_sat' las que el PAC acusó y el SAT "
+            "nunca registró."
+        ),
+    ),
     fecha_desde: Optional[date] = Query(None),
     fecha_hasta: Optional[date] = Query(None),
     current_user: Usuario = Depends(deps.get_current_active_user),
@@ -161,6 +172,7 @@ def exportar_facturas_excel(
         folio_max=folio_max,
         estatus=estatus,
         status_pago=status_pago,
+        cancelacion=cancelacion,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
         order_by="fecha",
@@ -449,6 +461,17 @@ def listar_facturas_endpoint(
     folio_max: Optional[int] = Query(None),
     estatus: Optional[Literal["BORRADOR", "TIMBRADA", "EN_CANCELACION", "CANCELADA"]] = Query(None),
     status_pago: Optional[Literal["PAGADA", "NO_PAGADA"]] = Query(None),
+    cancelacion: Optional[
+        Literal["con_solicitud", "atorada", "en_tramite", "sin_registro_sat", "cancelada"]
+    ] = Query(
+        None,
+        description=(
+            "Filtra por el estado del TRÁMITE de cancelación, que no es el "
+            "estatus del documento: 'atorada' son las que se pidió cancelar y "
+            "siguen vigentes, 'sin_registro_sat' las que el PAC acusó y el SAT "
+            "nunca registró."
+        ),
+    ),
     fecha_desde: Optional[date] = Query(None),
     fecha_hasta: Optional[date] = Query(None),
     order_by: Literal["serie_folio", "fecha", "total"] = Query("serie_folio"),
@@ -470,6 +493,7 @@ def listar_facturas_endpoint(
         folio_max=folio_max,
         estatus=estatus,
         status_pago=status_pago,
+        cancelacion=cancelacion,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
         order_by=order_by,
@@ -686,9 +710,25 @@ def descargar_acuse_cancelacion(
 def verificar_estado_sat(
     id: UUID,
     request: Request,
+    confirmar_retroceso: bool = Query(
+        False,
+        description=(
+            "Aplica también los cambios que revierten el trámite (revivir una "
+            "factura). Sin esto, esos casos se devuelven como propuesta."
+        ),
+    ),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    """
+    Compara con el SAT y sincroniza, pero no todos los cambios pesan igual.
+
+    Lo que el SAT ya consumó se aplica sin preguntar: la factura ya está así
+    ante Hacienda y no reflejarlo sólo consigue que siga contando en cobranza
+    algo que fiscalmente no existe. Lo que REVIVE una factura se devuelve como
+    propuesta, porque tiene consecuencias que el sistema no puede evaluar solo:
+    el cliente vuelve a deberla y puede haber una sustituta ya timbrada.
+    """
     from app.services import sat_cfdi_service as sat_svc
     from app.services import auditoria_service as aud
     from app.services import cancelacion_intento_service as bitacora_svc
@@ -724,13 +764,62 @@ def verificar_estado_sat(
 
     estatus_anterior = factura.estatus
     nuevo_estatus, _ = sat_svc.aplicar_acuse_sat(factura, acuse)
+    clasificacion = sat_svc.clasificar_cambio(estatus_anterior, nuevo_estatus)
+
+    datos_sat = {
+        "sat_codigo": acuse.codigo_estatus,
+        "sat_estado": acuse.estado,
+        "sat_es_cancelable": acuse.es_cancelable,
+        "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+    }
+
+    if clasificacion == sat_svc.RETROCESO and not confirmar_retroceso:
+        # Se descartan los cambios que aplicar_acuse_sat dejó en el objeto. Es
+        # más limpio que duplicar su lógica para simular el resultado sin tocar
+        # la factura, y `expire` en vez de `rollback` porque sólo hay que
+        # olvidar este objeto: nunca se llegó a escribir nada, y tumbar la
+        # transacción entera se llevaría también la auditoría de aquí abajo.
+        db.expire(factura)
+        aud.registrar(
+            db,
+            accion=aud.VERIFICAR_SAT,
+            entidad="factura",
+            usuario_id=current_user.id,
+            usuario_email=current_user.email,
+            empresa_id=factura.empresa_id,
+            entidad_id=str(factura.id),
+            detalle={
+                "cfdi_uuid": factura.cfdi_uuid,
+                "estatus_anterior": estatus_anterior,
+                "estatus_propuesto": nuevo_estatus,
+                "clasificacion": clasificacion,
+                "actualizado": False,
+                **datos_sat,
+            },
+            ip=aud.get_ip(request),
+        )
+        db.commit()
+        return {
+            "id": str(factura.id),
+            "estatus_anterior": estatus_anterior,
+            "estatus_nuevo": estatus_anterior,  # no se movió
+            "estatus_propuesto": nuevo_estatus,
+            "clasificacion": clasificacion,
+            "requiere_confirmacion": True,
+            "advertencia": sat_svc.explicar_retroceso(
+                estatus_anterior, nuevo_estatus, acuse
+            ),
+            "actualizado": False,
+            **datos_sat,
+        }
+
     db.add(factura)
     bitacora_svc.cerrar_si_resuelto(db, factura, estatus_anterior, nuevo_estatus)
 
     aud.registrar(
         db,
         accion=aud.VERIFICAR_SAT,
-        entidad="Factura",
+        entidad="factura",
         usuario_id=current_user.id,
         usuario_email=current_user.email,
         empresa_id=factura.empresa_id,
@@ -739,10 +828,12 @@ def verificar_estado_sat(
             "cfdi_uuid": factura.cfdi_uuid,
             "estatus_anterior": estatus_anterior,
             "estatus_nuevo": nuevo_estatus,
-            "sat_codigo": acuse.codigo_estatus,
-            "sat_estado": acuse.estado,
-            "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+            "clasificacion": clasificacion,
+            "confirmado_por_usuario": bool(
+                confirmar_retroceso and clasificacion == sat_svc.RETROCESO
+            ),
             "actualizado": estatus_anterior != nuevo_estatus,
+            **datos_sat,
         },
         ip=aud.get_ip(request),
     )
@@ -754,11 +845,10 @@ def verificar_estado_sat(
         "id": str(factura.id),
         "estatus_anterior": estatus_anterior,
         "estatus_nuevo": nuevo_estatus,
-        "sat_codigo": acuse.codigo_estatus,
-        "sat_estado": acuse.estado,
-        "sat_es_cancelable": acuse.es_cancelable,
-        "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+        "clasificacion": clasificacion,
+        "requiere_confirmacion": False,
         "actualizado": estatus_anterior != nuevo_estatus,
+        **datos_sat,
     }
 
 

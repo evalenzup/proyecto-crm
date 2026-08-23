@@ -519,9 +519,17 @@ def descargar_acuse_cancelacion_pago(
 def verificar_estado_sat_pago(
     pago_id: uuid.UUID,
     request: Request,
+    confirmar_retroceso: bool = Query(
+        False,
+        description=(
+            "Aplica también los cambios que revierten el trámite. Sin esto, "
+            "esos casos se devuelven como propuesta."
+        ),
+    ),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
+    """Ver la nota del endpoint equivalente en facturas."""
     from app.services import sat_cfdi_service as sat_svc
     from app.services import cancelacion_intento_service as bitacora_svc
 
@@ -560,6 +568,47 @@ def verificar_estado_sat_pago(
 
     estatus_anterior = estatus_actual
     nuevo_estatus, _ = sat_svc.aplicar_acuse_sat_pago(pago, acuse)
+    clasificacion = sat_svc.clasificar_cambio(estatus_anterior, nuevo_estatus)
+
+    datos_sat = {
+        "sat_codigo": acuse.codigo_estatus,
+        "sat_estado": acuse.estado,
+        "sat_es_cancelable": acuse.es_cancelable,
+        "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+    }
+
+    if clasificacion == sat_svc.RETROCESO and not confirmar_retroceso:
+        # Ver la nota del endpoint de facturas.
+        db.expire(pago)
+        audit_svc.registrar(
+            db=db, accion=audit_svc.VERIFICAR_SAT, entidad="pago",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=pago.empresa_id, entidad_id=str(pago.id),
+            detalle={
+                "uuid": pago.uuid,
+                "estatus_anterior": estatus_anterior,
+                "estatus_propuesto": nuevo_estatus,
+                "clasificacion": clasificacion,
+                "actualizado": False,
+                **datos_sat,
+            },
+            ip=audit_svc.get_ip(request),
+        )
+        db.commit()
+        return {
+            "id": str(pago.id),
+            "estatus_anterior": estatus_anterior,
+            "estatus_nuevo": estatus_anterior,
+            "estatus_propuesto": nuevo_estatus,
+            "clasificacion": clasificacion,
+            "requiere_confirmacion": True,
+            "advertencia": sat_svc.explicar_retroceso(
+                estatus_anterior, nuevo_estatus, acuse
+            ),
+            "actualizado": False,
+            **datos_sat,
+        }
+
     db.add(pago)
     bitacora_svc.cerrar_si_resuelto(db, pago, estatus_anterior, nuevo_estatus)
 
@@ -571,9 +620,12 @@ def verificar_estado_sat_pago(
             "uuid": pago.uuid,
             "estatus_anterior": estatus_anterior,
             "estatus_nuevo": nuevo_estatus,
-            "sat_estado": acuse.estado,
-            "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+            "clasificacion": clasificacion,
+            "confirmado_por_usuario": bool(
+                confirmar_retroceso and clasificacion == sat_svc.RETROCESO
+            ),
             "actualizado": estatus_anterior != nuevo_estatus,
+            **datos_sat,
         },
         ip=audit_svc.get_ip(request),
     )
@@ -584,8 +636,8 @@ def verificar_estado_sat_pago(
         "id": str(pago.id),
         "estatus_anterior": estatus_anterior,
         "estatus_nuevo": nuevo_estatus,
-        "sat_codigo": acuse.codigo_estatus,
-        "sat_estado": acuse.estado,
-        "sat_es_cancelable": acuse.es_cancelable,
-        "sat_estatus_cancelacion": acuse.estatus_cancelacion,
+        "clasificacion": clasificacion,
+        "requiere_confirmacion": False,
+        "actualizado": estatus_anterior != nuevo_estatus,
+        **datos_sat,
     }

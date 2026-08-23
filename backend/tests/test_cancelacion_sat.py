@@ -11,6 +11,7 @@ Todo lo de aquí corre sin red: `aplicar_acuse_sat` y
 `_clasificar_respuesta_cancelacion` son funciones puras, y la bitácora se
 prueba contra la base SQLite de los tests.
 """
+import json
 import uuid
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -1351,3 +1352,227 @@ def test_el_barrido_no_toca_los_envios_recientes(db_session, factura_timbrada):
     db_session.commit()
 
     assert bitacora.reconciliar_huerfanos(db_session) == 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Filtro de solicitudes en el listado de facturas
+#
+# El estado del TRÁMITE no es el estatus del documento. Una factura puede
+# acumular solicitudes fallidas y seguir TIMBRADA: A-785 y A-22069 vivieron días
+# así sin aparecer en ninguna pantalla.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _factura_extra(db, factura_timbrada, folio, estatus):
+    """Otra factura de la misma empresa, para que el filtro tenga qué descartar."""
+    from app.models.factura import Factura
+
+    f = Factura(
+        serie="A", folio=folio,
+        empresa_id=factura_timbrada.empresa_id,
+        cliente_id=factura_timbrada.cliente_id,
+        estatus=estatus, total=500,
+        cfdi_uuid=f"00000000-0000-0000-0000-{folio:012d}",
+    )
+    db.add(f)
+    db.commit()
+    return f
+
+
+def _listar(db, filtro):
+    from app.services.factura_service import listar_facturas
+
+    items, total = listar_facturas(db, cancelacion=filtro, limit=50)
+    return {f"{i.serie}-{i.folio}" for i in items}, total
+
+
+def test_atorada_encuentra_la_que_se_pidio_cancelar_y_sigue_vigente(
+    db_session, factura_timbrada
+):
+    from app.services import cancelacion_intento_service as bitacora
+
+    limpia = _factura_extra(db_session, factura_timbrada, 7001, "TIMBRADA")
+    bitacora.registrar(
+        db_session, factura_timbrada,
+        motivo="02", folio_sustitucion=None,
+        pac_code="GT12", pac_message="recibida", sat_registro_solicitud=False,
+    )
+    db_session.commit()
+
+    folios, total = _listar(db_session, "atorada")
+
+    assert folios == {"A-2202"}
+    assert f"A-{limpia.folio}" not in folios
+    assert total == 1
+
+
+def test_sin_registro_sat_ignora_las_que_ya_se_cancelaron(db_session, factura_timbrada):
+    """Una vez cancelada da igual cómo llegó ahí; lo urgente es lo no resuelto."""
+    from app.services import cancelacion_intento_service as bitacora
+
+    ya_cancelada = _factura_extra(db_session, factura_timbrada, 7002, "CANCELADA")
+    for doc in (factura_timbrada, ya_cancelada):
+        bitacora.registrar(
+            db_session, doc,
+            motivo="02", folio_sustitucion=None,
+            pac_code="GT12", pac_message="recibida", sat_registro_solicitud=False,
+        )
+    db_session.commit()
+
+    folios, _ = _listar(db_session, "sin_registro_sat")
+
+    assert folios == {"A-2202"}
+
+
+def test_con_solicitud_no_repite_la_factura_con_varios_intentos(
+    db_session, factura_timbrada
+):
+    """
+    Es un EXISTS y no un join: con join, una factura con tres intentos saldría
+    tres veces en el listado.
+    """
+    from app.services import cancelacion_intento_service as bitacora
+
+    for _ in range(3):
+        bitacora.registrar(
+            db_session, factura_timbrada,
+            motivo="02", folio_sustitucion=None,
+            pac_code="GT12", pac_message="recibida",
+        )
+    db_session.commit()
+
+    folios, total = _listar(db_session, "con_solicitud")
+
+    assert folios == {"A-2202"}
+    assert total == 1
+
+
+def test_en_tramite_no_depende_de_la_bitacora(db_session, factura_timbrada):
+    """
+    Las de antes de la bitácora también están en trámite: el filtro va por el
+    estatus, no por si alcanzó a quedar registro del envío.
+    """
+    _factura_extra(db_session, factura_timbrada, 7003, "EN_CANCELACION")
+
+    folios, _ = _listar(db_session, "en_tramite")
+
+    assert folios == {"A-7003"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# «Verificar con SAT»: avance se aplica, retroceso se pregunta
+#
+# Lo que el SAT ya consumó no admite discusión: la factura ya está así ante
+# Hacienda, y no reflejarlo sólo logra que siga contando en cobranza algo que
+# fiscalmente no existe. Lo que REVIVE una factura sí se pregunta: el cliente
+# vuelve a deberla y puede haber una sustituta ya timbrada.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "anterior,nuevo,esperado",
+    [
+        ("TIMBRADA", "CANCELADA", "avance"),
+        ("TIMBRADA", "EN_CANCELACION", "avance"),
+        ("EN_CANCELACION", "CANCELADA", "avance"),
+        ("EN_CANCELACION", "EN_CANCELACION", "concuerda"),
+        ("EN_CANCELACION", "TIMBRADA", "retroceso"),
+        ("CANCELADA", "TIMBRADA", "retroceso"),
+        ("CANCELADA", "EN_CANCELACION", "retroceso"),
+        # Los complementos usan el género masculino y se ordenan igual.
+        ("TIMBRADO", "CANCELADO", "avance"),
+        ("CANCELADO", "TIMBRADO", "retroceso"),
+    ],
+)
+def test_clasificacion_del_cambio(anterior, nuevo, esperado):
+    from app.services.sat_cfdi_service import clasificar_cambio
+
+    assert clasificar_cambio(anterior, nuevo) == esperado
+
+
+def test_un_estatus_que_no_sabemos_ordenar_se_trata_como_retroceso():
+    """Ante la duda, que decida una persona."""
+    from app.services.sat_cfdi_service import clasificar_cambio
+
+    assert clasificar_cambio("TIMBRADA", "LO_QUE_SEA") == "retroceso"
+
+
+def test_el_boton_aplica_solo_lo_que_el_sat_ya_consumo(
+    auth_client, db_session, factura_timbrada, sat_dice
+):
+    sat_dice(acuse(estado="Cancelado", cancelacion="Plazo vencido"))
+
+    r = auth_client.post(f"/api/facturas/{factura_timbrada.id}/verificar-sat")
+
+    assert r.status_code == 200
+    cuerpo = r.json()
+    assert cuerpo["clasificacion"] == "avance"
+    assert cuerpo["requiere_confirmacion"] is False
+    assert cuerpo["estatus_nuevo"] == "CANCELADA"
+    db_session.refresh(factura_timbrada)
+    assert factura_timbrada.estatus == "CANCELADA"
+
+
+def test_el_boton_no_revive_una_factura_sin_permiso(
+    auth_client, db_session, factura_timbrada, sat_dice
+):
+    """El caso peligroso: el sistema la daba por cancelada y el SAT la ve viva."""
+    factura_timbrada.estatus = "CANCELADA"
+    db_session.commit()
+    sat_dice(acuse())  # Vigente, sin trámite
+
+    r = auth_client.post(f"/api/facturas/{factura_timbrada.id}/verificar-sat")
+
+    cuerpo = r.json()
+    assert cuerpo["requiere_confirmacion"] is True
+    assert cuerpo["clasificacion"] == "retroceso"
+    assert cuerpo["estatus_propuesto"] == "TIMBRADA"
+    assert cuerpo["actualizado"] is False
+    assert "revive" in cuerpo["advertencia"]
+    # Y sobre todo: la factura no se movió.
+    db_session.expire_all()
+    assert factura_timbrada.estatus == "CANCELADA"
+
+
+def test_la_propuesta_rechazada_queda_auditada(
+    auth_client, db_session, factura_timbrada, sat_dice
+):
+    """
+    Que alguien viera la advertencia y no confirmara también es un hecho: es lo
+    que explica por qué el sistema y el SAT siguen distintos.
+    """
+    from app.models.auditoria import AuditoriaLog
+
+    factura_timbrada.estatus = "CANCELADA"
+    db_session.commit()
+    sat_dice(acuse())
+
+    auth_client.post(f"/api/facturas/{factura_timbrada.id}/verificar-sat")
+
+    reg = (
+        db_session.query(AuditoriaLog)
+        .filter(AuditoriaLog.entidad_id == str(factura_timbrada.id))
+        .order_by(AuditoriaLog.creado_en.desc())
+        .first()
+    )
+    detalle = json.loads(reg.detalle)
+    assert detalle["clasificacion"] == "retroceso"
+    assert detalle["actualizado"] is False
+    assert detalle["estatus_propuesto"] == "TIMBRADA"
+
+
+def test_con_confirmacion_explicita_si_se_aplica(
+    auth_client, db_session, factura_timbrada, sat_dice
+):
+    factura_timbrada.estatus = "CANCELADA"
+    db_session.commit()
+    sat_dice(acuse())
+
+    r = auth_client.post(
+        f"/api/facturas/{factura_timbrada.id}/verificar-sat",
+        params={"confirmar_retroceso": True},
+    )
+
+    cuerpo = r.json()
+    assert cuerpo["requiere_confirmacion"] is False
+    assert cuerpo["estatus_nuevo"] == "TIMBRADA"
+    db_session.refresh(factura_timbrada)
+    assert factura_timbrada.estatus == "TIMBRADA"

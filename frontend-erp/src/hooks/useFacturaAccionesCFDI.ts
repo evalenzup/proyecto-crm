@@ -1,6 +1,6 @@
 // Handles all CFDI actions: timbrar, cancel flow, SAT verify, PDF/XML download, preview modal
 import { useState } from 'react';
-import { message } from 'antd';
+import { Modal, message } from 'antd';
 import type { FormInstance } from 'antd';
 import * as svc from '@/services/facturaService';
 import { normalizeHttpError } from '@/utils/httpError';
@@ -174,15 +174,44 @@ export const useFacturaAccionesCFDI = ({
   };
 
   // ── SAT verification / revert ────────────────────────────────────────────────
+  const aplicarResultadoSAT = (result: svc.VerificarSATResult) => {
+    setEstatusCFDI(result.estatus_nuevo as EstatusCFDI);
+    if (result.estatus_nuevo !== 'EN_CANCELACION') setFechaSolicitudCancelacion(null);
+    message.success(`Estado actualizado: ${result.estatus_anterior} → ${result.estatus_nuevo}`);
+  };
+
+  // El backend no revive una factura por su cuenta: devuelve la propuesta y la
+  // explicación de qué implica, y espera confirmación. Aplicar un avance —algo
+  // que el SAT ya consumó— no pregunta nada, porque la factura ya está así ante
+  // el SAT lo diga o no el sistema.
+  const confirmarRetroceso = (result: svc.VerificarSATResult) => {
+    Modal.confirm({
+      title: `El SAT no coincide: ${result.estatus_anterior} → ${result.estatus_propuesto}`,
+      content: result.advertencia,
+      okText: `Sí, cambiar a ${result.estatus_propuesto}`,
+      cancelText: 'Dejarla como está',
+      okButtonProps: { danger: true },
+      width: 560,
+      onOk: async () => {
+        try {
+          const confirmado = await svc.verificarEstadoSAT(id as string, true);
+          aplicarResultadoSAT(confirmado);
+        } catch (e: any) {
+          if (!e?._handled) message.error(normalizeHttpError(e) || 'No se pudo aplicar el cambio');
+        }
+      },
+    });
+  };
+
   const handleVerificarSAT = async () => {
     if (!id) return;
     setAccionLoading((p) => ({ ...p, verificarSat: true }));
     try {
       const result = await svc.verificarEstadoSAT(id);
-      if (result.actualizado) {
-        setEstatusCFDI(result.estatus_nuevo as EstatusCFDI);
-        if (result.estatus_nuevo !== 'EN_CANCELACION') setFechaSolicitudCancelacion(null);
-        message.success(`Estado actualizado: ${result.estatus_anterior} → ${result.estatus_nuevo}`);
+      if (result.requiere_confirmacion) {
+        confirmarRetroceso(result);
+      } else if (result.actualizado) {
+        aplicarResultadoSAT(result);
       } else {
         const cancelMsg = result.sat_estatus_cancelacion || '';
         let infoMsg = `SAT reporta: ${result.sat_estado}`;

@@ -76,6 +76,13 @@ export interface VerificarSATResult {
   sat_es_cancelable: string;
   sat_estatus_cancelacion: string;
   actualizado: boolean;
+  // 'avance' lo que el SAT ya consumó y se aplica solo; 'retroceso' lo que
+  // revive el comprobante y hay que confirmar; 'concuerda' cuando no hay nada
+  // que hacer.
+  clasificacion?: 'concuerda' | 'avance' | 'retroceso';
+  requiere_confirmacion?: boolean;
+  estatus_propuesto?: string;
+  advertencia?: string;
 }
 
 export interface FacturaOut extends FacturaRow {
@@ -255,8 +262,12 @@ export const getFacturasSustitutas = (id: string) =>
 export const duplicarFactura = (id: string, sustituta = false) =>
   getData<FacturaOut>(api.post(`/facturas/${id}/duplicar`, null, { params: { sustituta } }));
 
-export const verificarEstadoSAT = (id: string) =>
-  getData<VerificarSATResult>(api.post(`/facturas/${id}/verificar-sat`));
+export const verificarEstadoSAT = (id: string, confirmarRetroceso = false) =>
+  getData<VerificarSATResult>(
+    api.post(`/facturas/${id}/verificar-sat`, null, {
+      params: { confirmar_retroceso: confirmarRetroceso },
+    }),
+  );
 
 export const revertirCancelacion = (id: string) =>
   getData<FacturaOut>(api.post(`/facturas/${id}/revertir-cancelacion`));
