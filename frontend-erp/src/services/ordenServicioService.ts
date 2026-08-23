@@ -153,6 +153,15 @@ export interface ListOrdenesParams {
 }
 
 const ordenServicioService = {
+  /** Excel con las órdenes que cumplan los mismos filtros de la lista. */
+  exportExcel: async (params: ListOrdenesParams = {}): Promise<Blob> => {
+    const { data } = await api.get('/ordenes-servicio/export-excel', {
+      params,
+      responseType: 'blob',
+    });
+    return data;
+  },
+
   list: async (params: ListOrdenesParams = {}): Promise<{ items: OrdenServicioListOut[]; total: number }> => {
     const { data } = await api.get('/ordenes-servicio', { params });
     return data;

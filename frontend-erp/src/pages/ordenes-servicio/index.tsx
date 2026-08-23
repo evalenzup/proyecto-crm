@@ -24,6 +24,8 @@ import {
   SearchOutlined,
   CalendarOutlined,
   EyeOutlined,
+  PrinterOutlined,
+  FileExcelOutlined,
 } from '@ant-design/icons';
 import { debounce } from 'lodash';
 import type { ColumnsType } from 'antd/es/table';
@@ -89,6 +91,115 @@ const OrdenesServicioPage: React.FC = () => {
     },
     [selectedEmpresaId, estadoFilter, prioridadFilter, dateRange, sort]
   );
+
+  /** Filtros vigentes, sin paginar. Los comparten exportar e imprimir para que
+   *  saquen exactamente lo mismo que el usuario está viendo. */
+  const filtrosActuales = useCallback(() => {
+    const params: any = { empresa_id: selectedEmpresaId };
+    if (q) params.q = q;
+    if (estadoFilter) params.estado = estadoFilter;
+    if (prioridadFilter) params.prioridad = prioridadFilter;
+    if (dateRange?.[0]) params.fecha_desde = dateRange[0].format('YYYY-MM-DD');
+    if (dateRange?.[1]) params.fecha_hasta = dateRange[1].format('YYYY-MM-DD');
+    if (sort.order_by) { params.order_by = sort.order_by; params.order_dir = sort.order_dir; }
+    return params;
+  }, [selectedEmpresaId, q, estadoFilter, prioridadFilter, dateRange, sort]);
+
+  const [exportando, setExportando] = useState(false);
+
+  const handleExportar = async () => {
+    setExportando(true);
+    try {
+      const blob = await ordenServicioService.exportExcel(filtrosActuales());
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ordenes-servicio-${dayjs().format('YYYY-MM-DD')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al exportar las órdenes de servicio');
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const [imprimiendo, setImprimiendo] = useState(false);
+
+  /** Abre una ventana con la tabla limpia y lanza el diálogo de impresión.
+   *  Se arma aparte en vez de imprimir la página para no arrastrar el menú,
+   *  los filtros ni el scroll de la tabla, y para incluir TODAS las órdenes
+   *  filtradas y no sólo la página que se ve. */
+  const handleImprimir = async () => {
+    setImprimiendo(true);
+    try {
+      const { items } = await ordenServicioService.list({
+        ...filtrosActuales(), limit: 100000, offset: 0,
+      });
+      if (!items.length) {
+        message.info('No hay órdenes que coincidan con los filtros.');
+        return;
+      }
+
+      const esc = (v: unknown) =>
+        String(v ?? '—').replace(/[&<>"]/g, (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+
+      const horario = (o: OrdenServicioListOut) =>
+        [o.hora_inicio, o.hora_fin].filter(Boolean).join(' a ') || '—';
+
+      const filas = items.map((o) => `<tr>
+          <td>${esc(o.folio_os)}</td>
+          <td>${esc(dayjs(o.fecha_programada).format('DD/MM/YYYY'))}</td>
+          <td>${esc(horario(o))}</td>
+          <td>${esc(o.cliente_nombre)}</td>
+          <td>${esc(o.servicio_nombre)}</td>
+          <td>${esc(o.tecnico_nombre)}</td>
+          <td>${esc(o.estado)}</td>
+          <td>${esc(o.direccion_servicio)}</td>
+        </tr>`).join('');
+
+      const rango = dateRange?.[0] && dateRange?.[1]
+        ? `Del ${dateRange[0].format('DD/MM/YYYY')} al ${dateRange[1].format('DD/MM/YYYY')}`
+        : 'Todas las fechas';
+
+      const win = window.open('', '_blank');
+      if (!win) {
+        message.warning('El navegador bloqueó la ventana de impresión. Habilita las ventanas emergentes para este sitio.');
+        return;
+      }
+      win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8">
+        <title>Órdenes de Servicio</title>
+        <style>
+          @page { size: landscape; margin: 12mm; }
+          body { font-family: -apple-system, system-ui, sans-serif; color: #000; margin: 0; }
+          h1 { font-size: 16pt; margin: 0 0 2px; }
+          .sub { font-size: 9pt; color: #555; margin-bottom: 10px; }
+          table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+          th, td { border: 1px solid #999; padding: 4px 6px; text-align: left;
+                   vertical-align: top; }
+          th { background: #eee; }
+          thead { display: table-header-group; }  /* repite el encabezado por hoja */
+          tr { page-break-inside: avoid; }
+        </style></head><body>
+        <h1>Órdenes de Servicio</h1>
+        <div class="sub">${esc(rango)} — ${items.length} órdenes — Impreso el ${dayjs().format('DD/MM/YYYY HH:mm')}</div>
+        <table><thead><tr>
+          <th>Folio</th><th>Fecha</th><th>Horario</th><th>Cliente</th>
+          <th>Servicio</th><th>Técnico</th><th>Estado</th><th>Dirección</th>
+        </tr></thead><tbody>${filas}</tbody></table>
+        </body></html>`);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (e: any) {
+      if (!e?._handled) message.error('Error al preparar la impresión');
+    } finally {
+      setImprimiendo(false);
+    }
+  };
 
   const so = (key: string): 'ascend' | 'descend' | undefined =>
     sort.order_by === key ? (sort.order_dir === 'asc' ? 'ascend' : 'descend') : undefined;
@@ -273,6 +384,21 @@ const OrdenesServicioPage: React.FC = () => {
         title="Órdenes de Servicio"
         extra={
           <>
+            <Button
+              icon={<PrinterOutlined />}
+              loading={imprimiendo}
+              onClick={handleImprimir}
+            >
+              Imprimir
+            </Button>
+            <Button
+              icon={<FileExcelOutlined />}
+              loading={exportando}
+              onClick={handleExportar}
+              style={{ color: 'green', borderColor: 'green' }}
+            >
+              Exportar
+            </Button>
             <Button
               icon={<CalendarOutlined />}
               onClick={() => router.push('/agenda')}

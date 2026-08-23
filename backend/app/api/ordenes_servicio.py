@@ -10,6 +10,7 @@ from uuid import UUID
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api import deps
@@ -24,6 +25,7 @@ from app.schemas.orden_servicio import (
 )
 from app.services import orden_servicio_service as svc
 from app.services import auditoria_service as audit_svc
+from app.utils.excel import generate_excel
 
 router = APIRouter()
 
@@ -113,6 +115,96 @@ def listar_ordenes(
         )
 
     return {"items": result, "total": total}
+
+
+# ── Exportar ──────────────────────────────────────────────────────────────────
+# Va antes de /{orden_id}: si se declarara después, esa ruta capturaría
+# "export-excel" como si fuera un id.
+
+@router.get("/export-excel")
+def exportar_ordenes_excel(
+    empresa_id: Optional[UUID] = Query(None),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    estado: Optional[str] = Query(None),
+    prioridad: Optional[str] = Query(None),
+    tecnico_id: Optional[UUID] = Query(None),
+    cliente_id: Optional[UUID] = Query(None),
+    q: Optional[str] = Query(None),
+    activo: Optional[bool] = Query(True),
+    order_by: Optional[str] = Query(None),
+    order_dir: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Exporta a Excel las órdenes que cumplan los mismos filtros de la lista."""
+    eid = _resolve_empresa_id(empresa_id, current_user, db)
+    items, _ = svc.list_ordenes(
+        db,
+        empresa_id=eid,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        estado=estado,
+        prioridad=prioridad,
+        tecnico_id=tecnico_id,
+        cliente_id=cliente_id,
+        factura_id=None,
+        q=q,
+        activo=activo,
+        limit=1000000,
+        offset=0,
+        order_by=order_by,
+        order_dir=order_dir,
+    )
+
+    data_list = []
+    for o in items:
+        data_list.append({
+            "folio_os": o.folio_os,
+            "fecha_programada": o.fecha_programada,
+            "horario": " a ".join(h.strftime("%H:%M") for h in (o.hora_inicio, o.hora_fin) if h),
+            "cliente": o.cliente.nombre_comercial if o.cliente else None,
+            "servicio": o.servicio.nombre if o.servicio else None,
+            "tecnico": o.tecnico.nombre_completo if o.tecnico else None,
+            "estado": getattr(o.estado, "value", o.estado),
+            "prioridad": getattr(o.prioridad, "value", o.prioridad),
+            "direccion_servicio": o.direccion_servicio,
+            "precio_acordado": o.precio_acordado,
+            "factura": f"{o.factura.serie}-{o.factura.folio}" if o.factura else None,
+            "notas_tecnico": o.notas_tecnico,
+        })
+
+    headers = {
+        "folio_os": "Folio",
+        "fecha_programada": "Fecha",
+        "horario": "Horario",
+        "cliente": "Cliente",
+        "servicio": "Servicio",
+        "tecnico": "Técnico",
+        "estado": "Estado",
+        "prioridad": "Prioridad",
+        "direccion_servicio": "Dirección",
+        "precio_acordado": "Precio",
+        "factura": "Factura",
+        "notas_tecnico": "Notas",
+    }
+
+    excel_file = generate_excel(data_list, headers, sheet_name="Órdenes de servicio")
+    try:
+        audit_svc.registrar(
+            db=db, accion=audit_svc.EXPORTAR_EXCEL, entidad="orden_servicio",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=eid, detalle={"registros": len(data_list)},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return StreamingResponse(
+        excel_file,
+        headers={"Content-Disposition": 'attachment; filename="ordenes-servicio.xlsx"'},
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 # ── Obtener uno ───────────────────────────────────────────────────────────────
