@@ -2,6 +2,7 @@
 'use client';
 
 import React from 'react';
+import type { MenuProps } from 'antd';
 import { useRouter } from 'next/router';
 import { FacturaOrdenesVinculadas } from '@/components/FacturaOrdenesVinculadas';
 import { PageHeader } from '@/components/PageHeader';
@@ -22,6 +23,7 @@ import {
   Row,
   Col,
   Popconfirm,
+  Dropdown,
   Modal,
   Table,
   Alert,
@@ -44,6 +46,8 @@ import {
   CopyOutlined,
   SafetyCertificateOutlined,
   HistoryOutlined,
+  DownOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import {
   createFactura,
@@ -301,6 +305,129 @@ const FacturaFormPage: React.FC = () => {
       });
     }
   };
+
+  // ── Acciones ───────────────────────────────────────────────────────────────
+  // Eran hasta catorce botones en una sola fila, mezclando tres cosas distintas:
+  // qué hacer con el formulario, qué hacer con el CFDI ante el SAT y qué hacer
+  // con el documento. Ahora se ve una sola acción fiscal —la que aplica al
+  // estatus de ahora— y el resto vive agrupado en «Más».
+  //
+  // Lo que no aplica se oculta en vez de mostrarse en gris: un botón
+  // deshabilitado sin explicación no dice si está roto, si faltan permisos o si
+  // es por el estatus, y el estatus ya se ve en pantalla.
+  const esBorrador = estatusCFDI === 'BORRADOR';
+  const esTimbrada = estatusCFDI === 'TIMBRADA';
+  const enCancelacion = estatusCFDI === 'EN_CANCELACION';
+  const esCancelada = estatusCFDI === 'CANCELADA';
+
+  // Cuál es la acción fiscal que sale del menú y se muestra junto a Actualizar.
+  // En cancelación la que se usa a diario es consultar cómo va, no reintentar.
+  const accionFiscal: 'timbrar' | 'cancelar' | 'verificar' | null =
+    puedeTimbrar ? 'timbrar'
+    : esTimbrada && puedeCancelar ? 'cancelar'
+    : puedeVerificarSat ? 'verificar'
+    : null;
+
+  const tieneAcuse =
+    enCancelacion || esCancelada || (esTimbrada && !!cancelacionInfo?.motivo);
+
+  // Popconfirm no funciona dentro de un menú desplegable; las confirmaciones
+  // del menú usan Modal.confirm.
+  const confirmar = (titulo: string, contenido: string, okText: string, onOk: () => void) =>
+    Modal.confirm({ title: titulo, content: contenido, okText, cancelText: 'Cancelar', onOk });
+
+  const itemsDocumento: MenuProps['items'] = [
+    { key: 'pdf', icon: <FilePdfOutlined />, label: 'Ver PDF', onClick: verPDF },
+    ...((esTimbrada || enCancelacion)
+      ? [{ key: 'xml', icon: <FileExcelOutlined />, label: 'Descargar XML', onClick: descargarXML }]
+      : []),
+    ...(esBorrador
+      ? [{
+          key: 'correo-previa',
+          icon: <MailOutlined />,
+          label: 'Enviar vista previa por correo',
+          onClick: handleSendPreviewEmail,
+        }]
+      : []),
+    ...((esTimbrada || enCancelacion || esCancelada)
+      ? [{ key: 'correo', icon: <MailOutlined />, label: 'Enviar por correo', onClick: handleSendEmail }]
+      : []),
+  ];
+
+  const itemsSat: MenuProps['items'] = [
+    ...((puedeVerificarSat && accionFiscal !== 'verificar')
+      ? [{ key: 'verificar', icon: <FileOutlined />, label: 'Verificar con SAT', onClick: handleVerificarSAT }]
+      : []),
+    ...((puedeCancelar && accionFiscal !== 'cancelar')
+      ? [{
+          key: 'reintentar',
+          icon: <StopOutlined />,
+          danger: true,
+          label: enCancelacion ? 'Reintentar cancelación' : 'Cancelar CFDI',
+          onClick: abrirModalCancelacion,
+        }]
+      : []),
+    ...(tieneAcuse
+      ? [{
+          key: 'acuse',
+          icon: <SafetyCertificateOutlined />,
+          label: 'Acuse de cancelación',
+          onClick: () => setAcuseOpen(true),
+        }]
+      : []),
+    ...((id && esTimbrada)
+      ? [{
+          key: 'sustituta',
+          icon: <CopyOutlined />,
+          label: 'Crear sustituta',
+          onClick: () => confirmar(
+            '¿Crear factura sustituta?',
+            'Se creará una copia en borrador ya relacionada a esta factura con tipo 04 '
+            + '(Sustitución de los CFDI previos), que es lo que el SAT exige para cancelarla '
+            + 'con motivo 01.',
+            'Sí, crear',
+            () => handleDuplicate(true),
+          ),
+        }]
+      : []),
+    ...(puedeRevertir
+      ? [{
+          key: 'revertir',
+          icon: <WarningOutlined />,
+          danger: true,
+          label: 'Receptor rechazó cancelación',
+          onClick: () => confirmar(
+            '¿Revertir a TIMBRADA?',
+            'Esto indica que el receptor rechazó la cancelación. La factura quedará vigente nuevamente.',
+            'Sí, revertir',
+            handleRevertirCancelacion,
+          ),
+        }]
+      : []),
+  ];
+
+  const itemsOtras: MenuProps['items'] = [
+    {
+      key: 'duplicar',
+      icon: <CopyOutlined />,
+      label: 'Duplicar',
+      onClick: () => confirmar(
+        '¿Duplicar factura?',
+        'Se creará una copia en borrador con un nuevo folio.',
+        'Sí, duplicar',
+        () => handleDuplicate(false),
+      ),
+    },
+    { key: 'historial', icon: <HistoryOutlined />, label: 'Historial', onClick: () => setHistorialOpen(true) },
+  ];
+
+  const itemsMas: MenuProps['items'] = [
+    { key: 'g-doc', type: 'group', label: 'Documento', children: itemsDocumento },
+    ...((itemsSat as any[]).length
+      ? [{ key: 'g-sat', type: 'group' as const, label: 'SAT', children: itemsSat }]
+      : []),
+    { key: 'g-otras', type: 'group', label: 'Otras', children: itemsOtras },
+  ];
 
   if (loading) return <Spin style={{ margin: 48 }} />;
 
@@ -828,151 +955,73 @@ const FacturaFormPage: React.FC = () => {
 
             <Divider />
 
-            {/* Botones */}
-            <Space>
+            {/* Barra en tres zonas: navegación a la izquierda; a la derecha la
+                acción fiscal del momento, guardar, y el resto en un menú. */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
               <Button onClick={() => router.push('/facturas')}>Regresar</Button>
-              <Button type="primary" htmlType="submit" loading={saving}>
-                {id ? 'Actualizar' : 'Guardar'}
-              </Button>
-              <Popconfirm
-                title="¿Timbrar esta factura?"
-                description="Se enviará al SAT. Esta acción no se puede deshacer."
-                onConfirm={timbrarFactura}
-                okText="Sí, timbrar"
-                cancelText="Cancelar"
-                okButtonProps={{ danger: true }}
-                disabled={!puedeTimbrar}
-              >
-                <Button
-                  icon={<ThunderboltOutlined />}
-                  loading={accionLoading.timbrar}
-                  disabled={!puedeTimbrar}
-                >
-                  Timbrar
-                </Button>
-              </Popconfirm>
 
-              <Button
-                danger
-                icon={<StopOutlined />}
-                onClick={abrirModalCancelacion}
-                loading={accionLoading.cancelar || cancelSubmitting}
-                disabled={!puedeCancelar}
-                title={
-                  estatusCFDI === 'EN_CANCELACION'
-                    ? 'Reenvía la solicitud al SAT (útil si la anterior no quedó registrada)'
-                    : undefined
-                }
-              >
-                {estatusCFDI === 'EN_CANCELACION' ? 'Reintentar cancelación' : 'Cancelar CFDI'}
-              </Button>
-
-              {/* Botones EN_CANCELACION */}
-              {puedeVerificarSat && (
-                <Button
-                  icon={<FileOutlined />}
-                  loading={accionLoading.verificarSat}
-                  onClick={handleVerificarSAT}
-                >
-                  Verificar con SAT
-                </Button>
-              )}
-              {(estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA' ||
-                (estatusCFDI === 'TIMBRADA' && !!cancelacionInfo?.motivo)) && (
-                <Button
-                  icon={<SafetyCertificateOutlined />}
-                  onClick={() => setAcuseOpen(true)}
-                  disabled={!id}
-                >
-                  Acuse de cancelación
-                </Button>
-              )}
-              {/* Disponible en cuanto la factura existe: el historial sirve tanto
-                  para entender una cancelación atorada como para saber quién le
-                  cambió el receptor a un borrador. */}
-              {id && (
-                <Button
-                  icon={<HistoryOutlined />}
-                  onClick={() => setHistorialOpen(true)}
-                >
-                  Historial
-                </Button>
-              )}
-              {puedeRevertir && (
-                <Popconfirm
-                  title="¿Revertir a TIMBRADA?"
-                  description="Esto indica que el receptor rechazó la cancelación. La factura quedará vigente nuevamente."
-                  onConfirm={handleRevertirCancelacion}
-                  okText="Sí, revertir"
-                  cancelText="Cancelar"
-                >
-                  <Button
-                    loading={accionLoading.revertir}
+              <Space wrap>
+                {accionFiscal === 'timbrar' && (
+                  <Popconfirm
+                    title="¿Timbrar esta factura?"
+                    description="Se enviará al SAT. Esta acción no se puede deshacer."
+                    onConfirm={timbrarFactura}
+                    okText="Sí, timbrar"
+                    cancelText="Cancelar"
+                    okButtonProps={{ danger: true }}
                   >
-                    Receptor rechazó cancelación
-                  </Button>
-                </Popconfirm>
-              )}
+                    <Button icon={<ThunderboltOutlined />} loading={accionLoading.timbrar}>
+                      Timbrar
+                    </Button>
+                  </Popconfirm>
+                )}
 
-              {id && (
-                <Popconfirm
-                  title="¿Duplicar factura?"
-                  description="Se creará una copia en borrador con un nuevo folio."
-                  onConfirm={() => handleDuplicate(false)}
-                  okText="Sí, duplicar"
-                  cancelText="Cancelar"
-                >
-                  <Button icon={<CopyOutlined />}>Duplicar</Button>
-                </Popconfirm>
-              )}
-
-              {id && estatusCFDI === 'TIMBRADA' && (
-                <Popconfirm
-                  title="¿Crear factura sustituta?"
-                  description="Se creará una copia en borrador ya relacionada a esta factura con tipo 04 (Sustitución de los CFDI previos), que es lo que el SAT exige para cancelarla con motivo 01."
-                  onConfirm={() => handleDuplicate(true)}
-                  okText="Sí, crear"
-                  cancelText="Cancelar"
-                >
-                  <Button icon={<CopyOutlined />} title="Copia relacionada con tipo 04 para poder cancelar esta factura con motivo 01">
-                    Crear sustituta
-                  </Button>
-                </Popconfirm>
-              )}
-
-              {/* Ver/Descargar PDF y XML */}
-              <Button icon={<FilePdfOutlined />} onClick={verPDF} disabled={!id}>
-                Ver PDF
-              </Button>
-              {estatusCFDI === 'BORRADOR' && (
-                <Button
-                  icon={<MailOutlined />}
-                  onClick={handleSendPreviewEmail}
-                  loading={isSendingEmail && isSendingPreview}
-                  disabled={!id}
-                >
-                  Enviar Vista Previa por Correo
-                </Button>
-              )}
-
-              {/* Botones para facturas timbradas, en cancelación o canceladas */}
-              {(estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION' || estatusCFDI === 'CANCELADA') && (
-                <>
-                  {(estatusCFDI === 'TIMBRADA' || estatusCFDI === 'EN_CANCELACION') && (
-                    <Button icon={<FileExcelOutlined />} onClick={descargarXML}>Descargar XML</Button>
-                  )}
-
+                {accionFiscal === 'cancelar' && (
                   <Button
-                    icon={<MailOutlined />}
-                    onClick={handleSendEmail}
-                    loading={isSendingEmail && !isSendingPreview}
-                    disabled={!id}
+                    danger
+                    icon={<StopOutlined />}
+                    onClick={abrirModalCancelacion}
+                    loading={accionLoading.cancelar || cancelSubmitting}
                   >
-                    Enviar por Correo
+                    Cancelar CFDI
                   </Button>
-                </>
-              )}
-            </Space>
+                )}
+
+                {accionFiscal === 'verificar' && (
+                  <Button
+                    icon={<FileOutlined />}
+                    loading={accionLoading.verificarSat}
+                    onClick={handleVerificarSAT}
+                    title={
+                      enCancelacion
+                        ? 'Consulta al SAT cómo va el trámite de cancelación'
+                        : undefined
+                    }
+                  >
+                    Verificar con SAT
+                  </Button>
+                )}
+
+                <Button type="primary" htmlType="submit" loading={saving}>
+                  {id ? 'Actualizar' : 'Guardar'}
+                </Button>
+
+                {/* Sin factura guardada todavía no hay nada que hacerle. */}
+                <Dropdown menu={{ items: itemsMas }} trigger={['click']} disabled={!id}>
+                  <Button>
+                    Más <DownOutlined />
+                  </Button>
+                </Dropdown>
+              </Space>
+            </div>
           </Form>
         </Card>
 
