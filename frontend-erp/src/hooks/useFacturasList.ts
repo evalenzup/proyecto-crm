@@ -6,6 +6,7 @@ import {
   getFacturas,
   type FacturaListParams,
   type FacturaRow,
+  type FiltroCancelacion,
 } from '@/services/facturaService';
 import { useEmpresaSelector } from './useEmpresaSelector';
 import { useFilterContext } from '@/context/FilterContext';
@@ -55,6 +56,7 @@ export const useFacturasList = () => {
   const clienteQuery = filters.clienteQuery;
   const estatus = filters.estatus as EstatusCFDI | undefined;
   const estatusPago = filters.estatusPago as EstatusPago | undefined;
+  const cancelacion = filters.cancelacion as FiltroCancelacion | undefined;
   const folio = filters.folio;
 
   // Convert string dates from context back to Dayjs for RangePicker
@@ -70,6 +72,7 @@ export const useFacturasList = () => {
   const setClienteQuery = (val: string) => setFilters(prev => ({ ...prev, clienteQuery: val }));
   const setEstatus = (val: EstatusCFDI | undefined) => setFilters(prev => ({ ...prev, estatus: val }));
   const setEstatusPago = (val: EstatusPago | undefined) => setFilters(prev => ({ ...prev, estatusPago: val }));
+  const setCancelacion = (val: FiltroCancelacion | undefined) => setFilters(prev => ({ ...prev, cancelacion: val }));
   const setFolio = (val: string) => setFilters(prev => ({ ...prev, folio: val }));
 
   const setRangoFechas = (dates: [Dayjs, Dayjs] | null) => {
@@ -113,6 +116,7 @@ export const useFacturasList = () => {
     if (clienteId) params.cliente_id = clienteId;
     if (estatus) params.estatus = estatus;
     if (estatusPago) params.status_pago = estatusPago;
+    if (cancelacion) params.cancelacion = cancelacion;
     if (rangoFechas) {
       params.fecha_desde = rangoFechas[0].format('YYYY-MM-DD');
       params.fecha_hasta = rangoFechas[1].format('YYYY-MM-DD');
@@ -132,7 +136,7 @@ export const useFacturasList = () => {
     } finally {
       setLoading(false);
     }
-  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas, folio, sort]);
+  }, [empresaId, clienteId, estatus, estatusPago, cancelacion, rangoFechas, folio, sort]);
 
   // Handler para el onChange de la <Table>: aplica orden del servidor.
   const handleTableChange = useCallback((pag: TablePaginationConfig, _filters: any, sorter: any) => {
@@ -151,7 +155,7 @@ export const useFacturasList = () => {
   // Reset page logic
   useEffect(() => {
     setPagination(p => ({ ...p, current: 1 }));
-  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas, folio]);
+  }, [empresaId, clienteId, estatus, estatusPago, cancelacion, rangoFechas, folio]);
 
   // Ya no necesitamos fetchEmpresas, el hook lo hace
 
@@ -206,6 +210,7 @@ export const useFacturasList = () => {
       debouncedBuscarClientesComercial, debouncedBuscarClientesFiscal,
       estatus, setEstatus,
       estatusPago, setEstatusPago,
+      cancelacion, setCancelacion,
       rangoFechas, setRangoFechas,
       folio, setFolio,
       isAdmin,

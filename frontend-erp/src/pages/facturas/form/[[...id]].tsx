@@ -43,6 +43,7 @@ import {
   MailOutlined,
   CopyOutlined,
   SafetyCertificateOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import {
   createFactura,
@@ -58,6 +59,7 @@ import {
 } from '@/services/facturaService';
 import { formatDate } from '@/utils/formatDate';
 import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
+import { HistorialFacturaModal } from '@/components/HistorialFacturaModal';
 import { useFacturaForm } from '@/hooks/useFacturaForm';
 import { TipoProductoServicio } from '@/services/productoServicioService';
 import api from '@/lib/axios';
@@ -71,6 +73,7 @@ const FacturaFormPage: React.FC = () => {
   const [isSendingPreview, setIsSendingPreview] = React.useState(false); // New state
   const [isEmailModalOpen, setIsEmailModalOpen] = React.useState(false);
   const [acuseOpen, setAcuseOpen] = React.useState(false);
+  const [historialOpen, setHistorialOpen] = React.useState(false);
   const [emailForm] = Form.useForm();
 
   const {
@@ -884,6 +887,17 @@ const FacturaFormPage: React.FC = () => {
                   Acuse de cancelación
                 </Button>
               )}
+              {/* Disponible en cuanto la factura existe: el historial sirve tanto
+                  para entender una cancelación atorada como para saber quién le
+                  cambió el receptor a un borrador. */}
+              {id && (
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => setHistorialOpen(true)}
+                >
+                  Historial
+                </Button>
+              )}
               {puedeRevertir && (
                 <Popconfirm
                   title="¿Revertir a TIMBRADA?"
@@ -1213,6 +1227,11 @@ const FacturaFormPage: React.FC = () => {
         </Form>
       </Modal>
 
+      <HistorialFacturaModal
+        facturaId={id ?? null}
+        open={historialOpen}
+        onClose={() => setHistorialOpen(false)}
+      />
       <AcuseCancelacionModal
         facturaId={id ?? null}
         serie={form.getFieldValue?.('serie')}

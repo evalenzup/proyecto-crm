@@ -17,6 +17,9 @@ interface FacturaFilters {
     clienteQuery: string;
     estatus?: string; // 'BORRADOR' | 'TIMBRADA' | 'CANCELADA'
     estatusPago?: string; // 'PAGADA' | 'NO_PAGADA'
+    // Estado del TRÁMITE de cancelación, que no es el estatus del documento:
+    // una factura puede tener solicitudes fallidas y seguir TIMBRADA.
+    cancelacion?: string;
     fechaInicio?: string; // YYYY-MM-DD
     fechaFin?: string;    // YYYY-MM-DD
     folio: string;

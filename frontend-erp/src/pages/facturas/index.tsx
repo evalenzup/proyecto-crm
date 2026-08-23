@@ -4,15 +4,16 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Table, Button, Space, Select, DatePicker, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, CopyOutlined, SafetyCertificateOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { SkeletonTable } from '@/components/SkeletonTable';
 import { FilterBar } from '@/components/FilterBar';
 import { useFacturasList } from '@/hooks/useFacturasList';
 import { useTableHeight } from '@/hooks/useTableHeight';
-import { FacturaRow, exportFacturasExcel, duplicarFactura } from '@/services/facturaService';
+import { FacturaRow, exportFacturasExcel, duplicarFactura, FILTROS_CANCELACION } from '@/services/facturaService';
 import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
+import { HistorialFacturaModal } from '@/components/HistorialFacturaModal';
 
 const { RangePicker } = DatePicker;
 
@@ -92,6 +93,7 @@ const FacturasIndexPage: React.FC = () => {
     setClienteQuery, // Unused for reading here
     estatus, setEstatus,
     estatusPago, setEstatusPago,
+    cancelacion, setCancelacion,
     rangoFechas, setRangoFechas, empresas,
     setFolio,
   } = filters;
@@ -99,7 +101,7 @@ const FacturasIndexPage: React.FC = () => {
   // Auto-fetch on filter change
   React.useEffect(() => {
     fetchFacturas({ ...pagination, current: 1 });
-  }, [empresaId, clienteId, estatus, estatusPago, rangoFechas]);
+  }, [empresaId, clienteId, estatus, estatusPago, cancelacion, rangoFechas]);
 
   const handleExport = async () => {
     try {
@@ -108,6 +110,7 @@ const FacturasIndexPage: React.FC = () => {
         cliente_id: clienteId,
         estatus: estatus || undefined,
         status_pago: estatusPago || undefined,
+        cancelacion: cancelacion || undefined,
         fecha_desde: rangoFechas?.[0]?.format('YYYY-MM-DD'),
         fecha_hasta: rangoFechas?.[1]?.format('YYYY-MM-DD'),
       });
@@ -123,6 +126,7 @@ const FacturasIndexPage: React.FC = () => {
   };
 
   const [acuseRow, setAcuseRow] = useState<FacturaRow | null>(null);
+  const [historialRow, setHistorialRow] = useState<FacturaRow | null>(null);
 
   // Orden actual (servidor) → sortOrder de la columna correspondiente
   const so = (key: string): 'ascend' | 'descend' | undefined =>
@@ -162,7 +166,7 @@ const FacturasIndexPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 210,
+      width: 250,
       fixed: 'right',
       render: (_: any, r) => (
         <Space>
@@ -182,6 +186,9 @@ const FacturasIndexPage: React.FC = () => {
           </Popconfirm>
           <Tooltip title="Ver PDF">
             <Button type="link" icon={<FilePdfOutlined />} onClick={() => verPdf(r)} />
+          </Tooltip>
+          <Tooltip title="Historial">
+            <Button type="link" icon={<HistoryOutlined />} onClick={() => setHistorialRow(r)} />
           </Tooltip>
           {(r.estatus === 'EN_CANCELACION' || r.estatus === 'CANCELADA') && (
             <Tooltip title="Acuse de cancelación (SAT)">
@@ -270,6 +277,27 @@ const FacturasIndexPage: React.FC = () => {
                   { value: 'PAGADA', label: 'PAGADA' },
                   { value: 'NO_PAGADA', label: 'NO_PAGADA' },
                 ]}
+              />
+              <Select
+                allowClear
+                placeholder="Cancelación"
+                style={{ width: 210, minWidth: 170 }}
+                value={cancelacion}
+                onChange={setCancelacion}
+                title="Estado del trámite de cancelación, que no es el estatus del documento"
+                options={FILTROS_CANCELACION.map((f) => ({
+                  value: f.value,
+                  label: f.label,
+                  title: f.ayuda,
+                }))}
+                optionRender={(opt) => (
+                  <div>
+                    <div>{opt.data.label}</div>
+                    <div style={{ fontSize: 12, color: '#888', whiteSpace: 'normal' }}>
+                      {opt.data.title}
+                    </div>
+                  </div>
+                )}
               />
               <RangePicker
                 onChange={(range) => setRangoFechas(range as any)}
@@ -383,6 +411,11 @@ const FacturasIndexPage: React.FC = () => {
         </Form>
       </Modal>
 
+      <HistorialFacturaModal
+        facturaId={historialRow?.id ?? null}
+        open={!!historialRow}
+        onClose={() => setHistorialRow(null)}
+      />
       <AcuseCancelacionModal
         facturaId={acuseRow?.id ?? null}
         serie={acuseRow?.serie}

@@ -53,6 +53,23 @@ export interface FacturaListResponse {
   offset: number;
 }
 
+/** Estado del trámite de cancelación. No es el estatus del documento: una
+ *  factura puede acumular solicitudes fallidas y seguir TIMBRADA. */
+export type FiltroCancelacion =
+  | 'con_solicitud'
+  | 'atorada'
+  | 'en_tramite'
+  | 'sin_registro_sat'
+  | 'cancelada';
+
+export const FILTROS_CANCELACION: { value: FiltroCancelacion; label: string; ayuda: string }[] = [
+  { value: 'atorada', label: 'Atoradas', ayuda: 'Se pidió cancelarlas y siguen vigentes ante el SAT' },
+  { value: 'sin_registro_sat', label: 'Sin registro en el SAT', ayuda: 'El PAC acusó recibo y el SAT nunca tuvo la solicitud' },
+  { value: 'en_tramite', label: 'En trámite', ayuda: 'Esperando al SAT o al receptor' },
+  { value: 'cancelada', label: 'Canceladas', ayuda: 'El trámite llegó a su fin' },
+  { value: 'con_solicitud', label: 'Con solicitud (todas)', ayuda: 'Cualquiera que alguna vez se intentó cancelar' },
+];
+
 export interface FacturaListParams {
   limit?: number;
   offset?: number;
@@ -62,9 +79,41 @@ export interface FacturaListParams {
   cliente_id?: string;
   estatus?: EstatusCFDI;
   status_pago?: EstatusPago;
+  cancelacion?: FiltroCancelacion;
   fecha_desde?: string;
   fecha_hasta?: string;
   folio?: string | number;
+}
+
+/** Un cambio concreto dentro de una modificación de la factura. */
+export interface CambioFactura {
+  campo: string;
+  antes: any;
+  despues: any;
+  /** 'fiscal' cambia el CFDI, 'cobranza' lo que se debe, 'interno' sólo nosotros. */
+  grupo: 'fiscal' | 'cobranza' | 'interno';
+}
+
+export interface EventoHistorial {
+  fecha: string;
+  /** 'auditoria' = lo hizo una persona; 'cancelacion' = respuesta del PAC/SAT. */
+  fuente: 'auditoria' | 'cancelacion';
+  accion: string;
+  titulo: string;
+  usuario: string | null;
+  ip: string | null;
+  detalle: any;
+}
+
+export interface HistorialFactura {
+  factura: {
+    id: string;
+    serie: string | null;
+    folio: number | null;
+    estatus: string;
+    cfdi_uuid: string | null;
+  };
+  eventos: EventoHistorial[];
 }
 
 export interface VerificarSATResult {
@@ -160,6 +209,7 @@ export interface ExportFacturasParams {
   empresa_id?: string;
   estatus?: EstatusCFDI;
   status_pago?: EstatusPago;
+  cancelacion?: FiltroCancelacion;
   fecha_desde?: string;
   fecha_hasta?: string;
   cliente_id?: string;
@@ -261,6 +311,9 @@ export const getFacturasSustitutas = (id: string) =>
 
 export const duplicarFactura = (id: string, sustituta = false) =>
   getData<FacturaOut>(api.post(`/facturas/${id}/duplicar`, null, { params: { sustituta } }));
+
+export const getHistorialFactura = (id: string) =>
+  getData<HistorialFactura>(api.get(`/facturas/${id}/historial`));
 
 export const verificarEstadoSAT = (id: string, confirmarRetroceso = false) =>
   getData<VerificarSATResult>(
