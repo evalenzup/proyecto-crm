@@ -199,6 +199,7 @@ class OrdenServicioListOut(BaseModel):
     estado: str
     prioridad: str
     cliente_nombre: Optional[str] = None
+    tecnico_id: Optional[UUID] = None
     tecnico_nombre: Optional[str] = None
     servicio_nombre: Optional[str] = None
     direccion_servicio: Optional[str]

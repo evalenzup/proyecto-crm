@@ -97,6 +97,7 @@ export interface OrdenServicioListOut {
   estado: EstadoOS;
   prioridad: PrioridadOS;
   cliente_nombre?: string | null;
+  tecnico_id?: string | null;
   tecnico_nombre?: string | null;
   servicio_nombre?: string | null;
   direccion_servicio?: string | null;

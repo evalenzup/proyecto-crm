@@ -9,6 +9,11 @@
  * grandes y un solo botón de avance por vez, para que no haya que pensar cuál
  * apretar con el teléfono en una mano.
  *
+ * Muestra TODA la agenda de su empresa —le sirve para saber cómo va el equipo y
+ * para cubrir a un compañero— pero los botones sólo aparecen en las órdenes que
+ * tiene asignadas. Las de otros se ven en gris, de sólo lectura. El backend
+ * impone lo mismo: un cambio sobre una orden ajena se rechaza.
+ *
  * El estado avanza en un solo sentido (EN_CAMINO → EN_PROGRESO → COMPLETADO).
  * Cancelar no está: si el servicio no se pudo hacer, el técnico lo reporta con
  * el motivo y la oficina decide si cancela o reagenda. El backend impone las
@@ -17,7 +22,7 @@
 
 import React from 'react';
 import {
-  Button, Card, Empty, Modal, Input, Spin, Tag, Typography, message, DatePicker,
+  Button, Card, Empty, Modal, Input, Segmented, Spin, Tag, Typography, message, DatePicker,
 } from 'antd';
 import {
   EnvironmentOutlined, ClockCircleOutlined,
@@ -67,6 +72,12 @@ const MiAgendaPage: React.FC = () => {
   const [items, setItems] = React.useState<OrdenServicioListOut[]>([]);
   const [cargando, setCargando] = React.useState(false);
   const [guardando, setGuardando] = React.useState<string | null>(null);
+  const [soloMias, setSoloMias] = React.useState(true);
+
+  const esMia = React.useCallback(
+    (o: OrdenServicioListOut) => !!user?.tecnico_id && o.tecnico_id === user.tecnico_id,
+    [user?.tecnico_id],
+  );
 
   const cargar = React.useCallback(async (dia: Dayjs) => {
     setCargando(true);
@@ -132,6 +143,8 @@ const MiAgendaPage: React.FC = () => {
   };
 
   const esHoy = fecha.isSame(dayjs(), 'day');
+  const mias = items.filter(esMia);
+  const visibles = soloMias ? mias : items;
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '12px 12px 32px' }}>
@@ -160,19 +173,42 @@ const MiAgendaPage: React.FC = () => {
         {!esHoy && <Button onClick={() => setFecha(dayjs())}>Hoy</Button>}
       </div>
 
+      {/* Mis servicios / toda la agenda del equipo */}
+      <Segmented
+        block
+        value={soloMias ? 'mias' : 'todas'}
+        onChange={(v) => setSoloMias(v === 'mias')}
+        options={[
+          { label: `Mis servicios (${mias.length})`, value: 'mias' },
+          { label: `Todo el equipo (${items.length})`, value: 'todas' },
+        ]}
+        style={{ marginBottom: 12 }}
+      />
+
       {cargando && items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
-      ) : items.length === 0 ? (
-        <Empty description={esHoy ? 'No tienes servicios hoy' : 'No tienes servicios ese día'} />
+      ) : visibles.length === 0 ? (
+        <Empty
+          description={
+            soloMias
+              ? (esHoy ? 'No tienes servicios hoy' : 'No tienes servicios ese día')
+              : 'No hay servicios ese día'
+          }
+        />
       ) : (
-        items.map((o) => {
-          const paso = SIGUIENTE[o.estado];
+        visibles.map((o) => {
+          const mia = esMia(o);
+          const paso = mia ? SIGUIENTE[o.estado] : null;
           const cerrada = o.estado === 'COMPLETADO' || o.estado === 'CANCELADO';
           return (
             <Card
               key={o.id}
               size="small"
-              style={{ marginBottom: 10, opacity: cerrada ? 0.65 : 1 }}
+              style={{
+                marginBottom: 10,
+                opacity: cerrada ? 0.65 : 1,
+                borderLeft: mia ? '3px solid #1677ff' : undefined,
+              }}
               styles={{ body: { padding: 12 } }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -188,6 +224,11 @@ const MiAgendaPage: React.FC = () => {
               </div>
 
               <div style={{ fontSize: 15, fontWeight: 500 }}>{o.cliente_nombre ?? '—'}</div>
+              {!mia && (
+                <div style={{ fontSize: 12, color: '#888' }}>
+                  Asignado a {o.tecnico_nombre ?? 'nadie todavía'}
+                </div>
+              )}
               {o.servicio_nombre && (
                 <div style={{ fontSize: 13, color: '#888' }}>{o.servicio_nombre}</div>
               )}
@@ -212,7 +253,7 @@ const MiAgendaPage: React.FC = () => {
                 </div>
               )}
 
-              {!cerrada && (
+              {mia && !cerrada && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                   {paso && (
                     <Button

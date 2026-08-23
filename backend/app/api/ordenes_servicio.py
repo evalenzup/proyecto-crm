@@ -37,12 +37,29 @@ logger = logging.getLogger("app")
 router = APIRouter()
 
 
+# Roles atados a una sola empresa: el parámetro empresa_id de la petición no
+# los puede sacar de ella.
+_UNA_SOLA_EMPRESA = {RolUsuario.SUPERVISOR, RolUsuario.ESTANDAR, RolUsuario.OPERATIVO}
+
+
 def _resolve_empresa_id(
     empresa_id: Optional[UUID],
     current_user: Usuario,
     db: Session,
 ) -> UUID:
-    """Determina la empresa_id activa para el usuario."""
+    """Determina la empresa_id activa para el usuario.
+
+    Para los roles de una sola empresa se ignora lo que venga en la petición y
+    se usa la suya. Antes se tomaba tal cual, así que bastaba con mandar el
+    empresa_id de otra para consultar sus órdenes.
+    """
+    if current_user.rol in _UNA_SOLA_EMPRESA:
+        if not current_user.empresa_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Tu cuenta no tiene una empresa asignada.",
+            )
+        return current_user.empresa_id
     if empresa_id:
         return empresa_id
     if current_user.empresa_id:
@@ -73,16 +90,16 @@ def listar_ordenes(
 ):
     eid = _resolve_empresa_id(empresa_id, current_user, db)
 
-    # Una cuenta de técnico sólo ve sus propias órdenes, sin importar lo que
-    # venga en el parámetro.
-    if current_user.rol == RolUsuario.OPERATIVO:
-        tecnico_id = current_user.tecnico_id
-        if tecnico_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Tu cuenta todavía no está ligada a una ficha de técnico. "
-                       "Pídele a la oficina que la asocie.",
-            )
+    # El técnico ve toda la agenda de su empresa —le sirve para saber cómo va el
+    # equipo y cubrir a un compañero—, pero sólo puede mover el estado de las
+    # órdenes que tiene asignadas. Ese candado va en cambiar_estado y en
+    # reportar_incidencia; aquí basta con que la empresa esté fijada.
+    if current_user.rol == RolUsuario.OPERATIVO and current_user.tecnico_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Tu cuenta todavía no está ligada a una ficha de técnico. "
+                   "Pídele a la oficina que la asocie.",
+        )
 
     items, total = svc.list_ordenes(
         db,
@@ -120,6 +137,7 @@ def listar_ordenes(
                 estado=o.estado,
                 prioridad=o.prioridad,
                 cliente_nombre=o.cliente.nombre_comercial if o.cliente else None,
+                tecnico_id=o.tecnico_id,
                 tecnico_nombre=o.tecnico.nombre_completo if o.tecnico else None,
                 servicio_nombre=o.servicio.nombre if o.servicio else None,
                 direccion_servicio=o.direccion_servicio,
@@ -284,9 +302,11 @@ def obtener_orden(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     orden = svc.get_orden(db, orden_id)
-    # Sin esto una cuenta de técnico podía leer cualquier orden con sólo tener
-    # el id, incluidas las de otra empresa: el listado sí filtraba, el detalle no.
-    if current_user.rol == RolUsuario.OPERATIVO and orden.tecnico_id != current_user.tecnico_id:
+    # El detalle no filtraba nada: con el id se podía leer una orden de otra
+    # empresa. Los roles de una sola empresa quedan acotados a la suya; se
+    # devuelve 404 y no 403 para no confirmar que ese id existe.
+    if (current_user.rol in _UNA_SOLA_EMPRESA
+            and orden.empresa_id != current_user.empresa_id):
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     return orden
 
