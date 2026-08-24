@@ -33,6 +33,7 @@ from app.api.mapa import router as mapa_router
 from app.api.reportes import router as reportes_router
 from app.api.operativo import servicios_router, tecnicos_router, unidades_router
 from app.api.public import router as public_router
+from app.api.conciliacion import router as conciliacion_router
 from app.api.ordenes_servicio import router as ordenes_router
 from app.api.contratos import router as contratos_router
 from app.api.programacion_facturas import router as prog_facturas_router
@@ -619,6 +620,11 @@ app.include_router(
     public_router,
     prefix="/api/public",
     tags=["public"],
+)
+app.include_router(
+    conciliacion_router,
+    prefix="/api/conciliacion",
+    tags=["Conciliación bancaria"],
 )
 
 app.include_router(

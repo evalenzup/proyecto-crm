@@ -81,3 +81,8 @@ __all__ = [
     "PlanServicio",
     "CancelacionIntento",
 ]
+from app.models.conciliacion import (  # noqa: F401
+    ConciliacionBancaria,
+    MovimientoBancario,
+    MovimientoFactura,
+)
