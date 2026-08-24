@@ -5,12 +5,13 @@ import React, { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageHeader } from '@/components/PageHeader';
 import { Table, Button, Space, Select, DatePicker, Modal, Form, Input, message, Tooltip, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, HistoryOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined, FileExcelOutlined, FilePdfOutlined, MailOutlined, HistoryOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { FilterBar } from '@/components/FilterBar';
 import { HistorialDocumentoModal } from '@/components/HistorialDocumentoModal';
+import { AcuseCancelacionModal } from '@/components/AcuseCancelacionModal';
 import { usePagosList } from '@/hooks/usePagosList';
-import { PagoRow, timbrarPago, exportPagosExcel, getHistorialPago, FILTROS_CANCELACION } from '@/services/pagoService';
+import { PagoRow, timbrarPago, exportPagosExcel, getHistorialPago, downloadAcuseCancelacionPago, FILTROS_CANCELACION } from '@/services/pagoService';
 import { useTableHeight } from '@/hooks/useTableHeight';
 
 const { RangePicker } = DatePicker;
@@ -31,6 +32,7 @@ const PagosIndexPage: React.FC = () => {
 
   const [emailForm] = Form.useForm();
   const [historialRow, setHistorialRow] = React.useState<PagoRow | null>(null);
+  const [acuseRow, setAcuseRow] = React.useState<PagoRow | null>(null);
 
   React.useEffect(() => {
     if (emailModalOpen && emailRow) {
@@ -138,7 +140,7 @@ const PagosIndexPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 160,
+      width: 190,
       render: (_: any, r) => (
         <Space>
           <Tooltip title="Editar">
@@ -150,6 +152,11 @@ const PagosIndexPage: React.FC = () => {
           <Tooltip title="Historial">
             <Button type="link" icon={<HistoryOutlined />} onClick={() => setHistorialRow(r)} />
           </Tooltip>
+          {(r.estatus === 'EN_CANCELACION' || r.estatus === 'CANCELADO') && (
+            <Tooltip title="Acuse de cancelación (SAT)">
+              <Button type="link" icon={<SafetyCertificateOutlined />} onClick={() => setAcuseRow(r)} />
+            </Tooltip>
+          )}
           <Tooltip title="Enviar por Correo">
             <Button type="link" icon={<MailOutlined />} onClick={() => {
               const emp = empresas?.find((e: any) => e.id === r.empresa_id);
@@ -353,6 +360,15 @@ const PagosIndexPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+      <AcuseCancelacionModal
+        facturaId={acuseRow?.id ?? null}
+        serie={acuseRow?.serie}
+        folio={acuseRow?.folio}
+        open={!!acuseRow}
+        onClose={() => setAcuseRow(null)}
+        fetchAcuse={downloadAcuseCancelacionPago}
+        etiqueta="acuse_cancelacion_pago"
+      />
       <HistorialDocumentoModal
         facturaId={historialRow?.id ?? null}
         open={!!historialRow}
