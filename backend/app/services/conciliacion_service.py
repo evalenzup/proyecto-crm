@@ -182,7 +182,8 @@ def actualizar_movimiento(db: Session, movimiento_id: UUID, datos: dict) -> Movi
     return mov
 
 
-def enlazar_facturas(db: Session, movimiento_id: UUID, factura_ids: List[UUID]) -> MovimientoBancario:
+def enlazar_facturas(db: Session, movimiento_id: UUID, factura_ids: List[UUID],
+                     usuario_id: Optional[UUID] = None) -> MovimientoBancario:
     """Fija qué facturas componen el movimiento y arma el comentario.
 
     El comentario se rehace con los folios porque es lo que la contadora lee.
@@ -208,6 +209,14 @@ def enlazar_facturas(db: Session, movimiento_id: UUID, factura_ids: List[UUID]) 
         orden = sorted(facturas, key=lambda f: (f.serie or "", f.folio or 0))
         mov.comentario = ", ".join(f"{f.serie}-{f.folio}" for f in orden)
         mov.conciliado = True
+        # Se recuerda quién pagó por quién, para no volver a preguntarlo el
+        # mes que entra. Falla en silencio: aprender no debe tumbar el enlace.
+        try:
+            db.flush()
+            from app.services import conciliacion_sugerencias as sug
+            sug.aprender_alias(db, mov, usuario_id=usuario_id)
+        except Exception:  # noqa: BLE001
+            logger.warning("No se pudo aprender el alias del movimiento %s", mov.id)
     elif mov.conciliado and not (mov.comentario or "").strip():
         mov.conciliado = False
 

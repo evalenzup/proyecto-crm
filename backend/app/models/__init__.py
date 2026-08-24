@@ -86,4 +86,5 @@ from app.models.conciliacion import (  # noqa: F401
     MovimientoBancario,
     MovimientoFactura,
     MovimientoEgreso,
+    ConciliacionAlias,
 )

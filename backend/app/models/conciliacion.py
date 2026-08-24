@@ -151,3 +151,33 @@ class MovimientoEgreso(Base):
         primary_key=True,
     )
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ConciliacionAlias(Base):
+    """Equivalencia aprendida entre quien envía el dinero y el cliente facturado.
+
+    Se guarda la primera vez que alguien resuelve el caso a mano. Sin esto,
+    nombres como "260 GRADOS S DE RL DE CV" y "RESTAURANTE 260" no se unen
+    nunca solos, y cada mes habría que volver a averiguarlo.
+    """
+    __tablename__ = "conciliacion_alias"
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "ordenante", "cliente_id",
+                         name="uq_alias_ordenante_cliente"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    empresa_id = Column(UUID(as_uuid=True),
+                        ForeignKey("empresas.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    # Ya normalizado: sin acentos, sin razón social, sin palabras vacías
+    ordenante = Column(String(200), nullable=False)
+    cliente_id = Column(UUID(as_uuid=True),
+                        ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False)
+    veces = Column(Integer, nullable=False, default=1)
+    creado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    actualizado_en = Column(DateTime(timezone=True), server_default=func.now(),
+                            onupdate=func.now(), nullable=False)
+
+    cliente = relationship("Cliente", lazy="selectin")

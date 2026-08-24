@@ -68,6 +68,7 @@ const ConciliacionDetallePage: React.FC = () => {
   const [sugs, setSugs] = React.useState<Record<string, Sugerencia[]>>({});
   const [cargandoSugs, setCargandoSugs] = React.useState(false);
   const [verPdf, setVerPdf] = React.useState(false);
+  const [verTodas, setVerTodas] = React.useState<Record<string, boolean>>({});
 
   // Modal de facturas
   const [movActivo, setMovActivo] = React.useState<MovimientoBancario | null>(null);
@@ -323,8 +324,10 @@ const ConciliacionDetallePage: React.FC = () => {
               </Text>
             )}
 
-            {/* Candidatas: se aceptan con un clic, que es el caso común */}
-            {enlazados === 0 && candidatas.slice(0, 3).map((s) => (
+            {/* Se muestra sólo la mejor: cuando salían tres, la correcta se
+                perdía entre alternativas que sólo hacían dudar. Las demás
+                quedan a un clic. */}
+            {enlazados === 0 && (verTodas[m.id] ? candidatas : candidatas.slice(0, 1)).map((s) => (
               <Tooltip
                 key={s.id}
                 title={`${s.origen}${s.fecha ? ` · ${dayjs(s.fecha).format('DD/MM/YYYY')}` : ''}${s.empresa ? ` · ${s.empresa}` : ''}`}
@@ -346,6 +349,19 @@ const ConciliacionDetallePage: React.FC = () => {
                 </Button>
               </Tooltip>
             ))}
+
+            {enlazados === 0 && candidatas.length > 1 && (
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0, height: 18, fontSize: 11 }}
+                onClick={() => setVerTodas((v) => ({ ...v, [m.id]: !v[m.id] }))}
+              >
+                {verTodas[m.id]
+                  ? 'ocultar'
+                  : `ver ${candidatas.length - 1} opción${candidatas.length > 2 ? 'es' : ''} más`}
+              </Button>
+            )}
           </Space>
         );
       },

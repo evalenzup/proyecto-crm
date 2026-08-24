@@ -257,7 +257,8 @@ def enlazar_facturas(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Fija qué facturas componen el movimiento. Reemplaza las anteriores."""
-    return _movimiento_out(svc.enlazar_facturas(db, movimiento_id, payload.factura_ids))
+    return _movimiento_out(svc.enlazar_facturas(
+        db, movimiento_id, payload.factura_ids, usuario_id=current_user.id))
 
 
 @router.put("/movimientos/{movimiento_id}/egresos", response_model=MovimientoOut)
