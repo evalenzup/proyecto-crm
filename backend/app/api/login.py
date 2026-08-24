@@ -94,7 +94,13 @@ def login_access_token(
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        logger.warning("[Restricciones] intento de acceso de la cuenta desactivada %s",
+                       user.email)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta fue desactivada. Si crees que es un error, contacta a la administración.",
+            headers={"X-Restriccion": "inactiva"},
+        )
 
     # Restricciones de horario y red. Se avisa aquí para que el usuario sepa el
     # motivo al entrar, en vez de iniciar sesión y toparse con 403 en cada

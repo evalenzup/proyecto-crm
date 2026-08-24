@@ -35,7 +35,7 @@ export const resetBloqueoRestriccion = (): void => {
 };
 
 /** Tipos que dejan la sesión inservible; los demás sólo afectan a esa acción. */
-const RESTRICCIONES_DE_SESION = ['horario', 'red'];
+const RESTRICCIONES_DE_SESION = ['horario', 'red', 'inactiva'];
 
 // ─── Instancia de axios ───────────────────────────────────────────────────────
 const api = axios.create({
@@ -90,7 +90,11 @@ api.interceptors.response.use(
     const tipoRestriccion: string | undefined =
       status === 403 ? error?.response?.headers?.['x-restriccion'] : undefined;
 
-    if (tipoRestriccion && RESTRICCIONES_DE_SESION.includes(tipoRestriccion)) {
+    // En la pantalla de login no se cierra sesión ni se abre un modal: esa
+    // pantalla ya muestra el motivo debajo del formulario, y salían los dos.
+    const esLogin = String(error?.config?.url ?? '').includes('/login/');
+
+    if (tipoRestriccion && !esLogin && RESTRICCIONES_DE_SESION.includes(tipoRestriccion)) {
       if (!_bloqueoNotificado) {
         _bloqueoNotificado = true;
         _onRestriccion?.(normalizeHttpError(error) || 'Acceso restringido.', tipoRestriccion);

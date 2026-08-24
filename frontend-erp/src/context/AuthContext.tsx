@@ -87,10 +87,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // El interceptor de axios avisa cuando el backend bloquea por horario o
     // red. Sin esto la pestaña seguía reintentando cada minuto en silencio.
     useEffect(() => {
-        setRestriccionHandler((motivo) => {
+        setRestriccionHandler((motivo, tipo) => {
             cerrarSesionLocal();
             Modal.warning({
-                title: 'Acceso restringido',
+                title: tipo === 'inactiva' ? 'Tu cuenta fue desactivada' : 'Acceso restringido',
                 content: motivo,
                 okText: 'Entendido',
             });

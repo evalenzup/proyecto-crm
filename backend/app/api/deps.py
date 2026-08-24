@@ -118,7 +118,14 @@ def get_current_active_user(
     tener que acordarse de ponerlas en cada uno.
     """
     if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        # 403 con la cabecera, no 400: así el front la reconoce como sesión
+        # inservible y la cierra, en vez de dejar la pestaña dando errores
+        # genéricos en cada petición.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta fue desactivada. Si crees que es un error, contacta a la administración.",
+            headers={"X-Restriccion": "inactiva"},
+        )
 
     bloqueo = restricciones.verificar_acceso(current_user, request)
     if bloqueo:
