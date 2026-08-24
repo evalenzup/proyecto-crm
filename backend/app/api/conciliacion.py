@@ -16,11 +16,13 @@ from app.database import get_db
 from app.models.conciliacion import AREAS
 from app.models.usuario import RolUsuario, Usuario
 from app.schemas.conciliacion import (
-    AreaOut, ConciliacionDetalleOut, ConciliacionListOut, EnlaceFacturas,
-    FacturaEnlazada, MovimientoOut, MovimientoUpdate,
+    AreaOut, ConciliacionDetalleOut, ConciliacionListOut, EgresoEnlazado,
+    EnlaceEgresos, EnlaceFacturas, FacturaEnlazada, MovimientoOut,
+    MovimientoUpdate, Sugerencia,
 )
 from app.services import auditoria_service as audit_svc
 from app.services import conciliacion_service as svc
+from app.services import conciliacion_sugerencias as sug_svc
 
 router = APIRouter()
 
@@ -56,13 +58,25 @@ def _factura_out(f) -> FacturaEnlazada:
     )
 
 
+def _egreso_out(e) -> EgresoEnlazado:
+    return EgresoEnlazado(
+        id=e.id, proveedor=e.proveedor, descripcion=e.descripcion, monto=e.monto,
+        fecha_egreso=e.fecha_egreso,
+        categoria=getattr(e.categoria, "value", e.categoria) if e.categoria else None,
+        empresa_nombre=e.empresa.nombre_comercial if getattr(e, "empresa", None) else None,
+    )
+
+
 def _movimiento_out(m) -> MovimientoOut:
     facturas = [_factura_out(f) for f in m.facturas]
+    egresos = [_egreso_out(e) for e in m.egresos]
+    total = (sum((f.total for f in facturas), Decimal("0"))
+             + sum((e.monto for e in egresos), Decimal("0")))
     return MovimientoOut(
         id=m.id, orden=m.orden, fecha=m.fecha, concepto=m.concepto,
         deposito=m.deposito, retiro=m.retiro, comentario=m.comentario,
-        area=m.area, conciliado=m.conciliado, facturas=facturas,
-        suma_facturas=sum((f.total for f in facturas), Decimal("0")),
+        area=m.area, conciliado=m.conciliado, facturas=facturas, egresos=egresos,
+        suma_facturas=total,
     )
 
 
@@ -204,6 +218,24 @@ def exportar(
     )
 
 
+@router.get("/{conciliacion_id}/sugerencias", response_model=dict)
+def sugerencias(
+    conciliacion_id: UUID,
+    empresa_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Candidatas por movimiento: {movimiento_id: [sugerencia, ...]}.
+
+    Va aparte del detalle para no retrasar la carga de la pantalla: los
+    movimientos aparecen de inmediato y las sugerencias llegan después.
+    """
+    eid = _empresa_activa(empresa_id, current_user)
+    conc = svc.obtener(db, conciliacion_id)
+    empresas = svc._empresas_hermanas(db, conc.empresa_id or eid)
+    return sug_svc.calcular(db, conciliacion_id, empresas)
+
+
 # ── Movimientos ──────────────────────────────────────────────────────────────
 
 @router.put("/movimientos/{movimiento_id}", response_model=MovimientoOut)
@@ -226,6 +258,29 @@ def enlazar_facturas(
 ):
     """Fija qué facturas componen el movimiento. Reemplaza las anteriores."""
     return _movimiento_out(svc.enlazar_facturas(db, movimiento_id, payload.factura_ids))
+
+
+@router.put("/movimientos/{movimiento_id}/egresos", response_model=MovimientoOut)
+def enlazar_egresos(
+    movimiento_id: UUID,
+    payload: EnlaceEgresos,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Fija qué gastos componen el retiro. Reemplaza los anteriores."""
+    return _movimiento_out(svc.enlazar_egresos(db, movimiento_id, payload.egreso_ids))
+
+
+@router.get("/egresos/busqueda", response_model=List[EgresoEnlazado])
+def buscar_egresos(
+    q: str = Query("", description="Proveedor o descripción del gasto"),
+    empresa_id: Optional[UUID] = Query(None),
+    limite: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    eid = _empresa_activa(empresa_id, current_user)
+    return [_egreso_out(e) for e in svc.buscar_egresos(db, empresa_id=eid, q=q, limite=limite)]
 
 
 @router.get("/facturas/busqueda", response_model=List[FacturaEnlazada])

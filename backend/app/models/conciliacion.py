@@ -103,6 +103,9 @@ class MovimientoBancario(Base):
     facturas = relationship(
         "Factura", secondary="movimiento_facturas", lazy="selectin", viewonly=False,
     )
+    egresos = relationship(
+        "Egreso", secondary="movimiento_egresos", lazy="selectin", viewonly=False,
+    )
 
     @property
     def importe(self):
@@ -129,6 +132,22 @@ class MovimientoFactura(Base):
     )
     factura_id = Column(
         UUID(as_uuid=True), ForeignKey("facturas.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MovimientoEgreso(Base):
+    """Qué gastos componen un retiro. Mismo criterio que las facturas."""
+    __tablename__ = "movimiento_egresos"
+
+    movimiento_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("movimientos_bancarios.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    egreso_id = Column(
+        UUID(as_uuid=True), ForeignKey("egresos.id", ondelete="CASCADE"),
         primary_key=True,
     )
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

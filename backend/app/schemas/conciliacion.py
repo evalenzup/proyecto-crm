@@ -24,6 +24,36 @@ class FacturaEnlazada(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class EgresoEnlazado(BaseModel):
+    """Gasto que compone un retiro."""
+    id: UUID
+    proveedor: Optional[str] = None
+    descripcion: Optional[str] = None
+    monto: Decimal
+    fecha_egreso: Optional[datetime.date] = None
+    categoria: Optional[str] = None
+    empresa_nombre: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class Sugerencia(BaseModel):
+    """Candidata que el sistema propone para un movimiento.
+
+    Viene con su origen y su confianza porque no es lo mismo un folio escrito
+    por el propio cliente que una coincidencia de monto entre cinco facturas.
+    """
+    tipo: str                    # "factura" | "egreso"
+    id: UUID
+    folio: str
+    total: Decimal
+    fecha: Optional[datetime.date] = None
+    descripcion: Optional[str] = None
+    empresa: Optional[str] = None
+    origen: str
+    confianza: str               # "alta" | "media" | "baja"
+
+
 class MovimientoOut(BaseModel):
     id: UUID
     orden: int
@@ -35,6 +65,7 @@ class MovimientoOut(BaseModel):
     area: Optional[str] = None
     conciliado: bool
     facturas: List[FacturaEnlazada] = []
+    egresos: List[EgresoEnlazado] = []
     # Suma de las facturas enlazadas; la pantalla la compara contra el importe
     # pero no impide guardar si difiere: a veces la diferencia es real.
     suma_facturas: Decimal = Decimal("0")
@@ -91,6 +122,11 @@ class ConciliacionDetalleOut(ConciliacionListOut):
 class EnlaceFacturas(BaseModel):
     """Facturas que se asignan a un movimiento. Reemplaza las que tuviera."""
     factura_ids: List[UUID] = Field(default_factory=list)
+
+
+class EnlaceEgresos(BaseModel):
+    """Gastos que se asignan a un retiro. Reemplaza los que tuviera."""
+    egreso_ids: List[UUID] = Field(default_factory=list)
 
 
 class AreaOut(BaseModel):

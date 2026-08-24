@@ -23,11 +23,12 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, CheckCircleFilled, FileExcelOutlined, FilePdfOutlined,
-  LinkOutlined, SearchOutlined,
+  LinkOutlined, SearchOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import conciliacionService, {
-  Area, ConciliacionDetalle, FacturaEnlazada, MovimientoBancario,
+  Area, ConciliacionDetalle, EgresoEnlazado, FacturaEnlazada, MovimientoBancario,
+  Sugerencia,
 } from '@/services/conciliacionService';
 import { useEmpresaContext } from '@/context/EmpresaContext';
 import api from '@/lib/axios';
@@ -37,7 +38,20 @@ const { Text } = Typography;
 const dinero = (n?: number | null) =>
   n == null ? '' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
-type Filtro = 'todos' | 'pendientes' | 'conciliados' | 'depositos' | 'retiros';
+type Filtro = 'todos' | 'pendientes' | 'conciliados' | 'depositos' | 'retiros' | 'sugeridos';
+
+/** Forma común de una factura o un egreso, para que el modal sirva para ambos. */
+interface ItemEnlazable {
+  id: string;
+  etiqueta: string;
+  detalle: string;
+  empresa?: string;
+  monto: number;
+}
+
+const COLOR_CONFIANZA: Record<string, string> = {
+  alta: 'green', media: 'gold', baja: 'default',
+};
 
 const ConciliacionDetallePage: React.FC = () => {
   const router = useRouter();
@@ -50,12 +64,14 @@ const ConciliacionDetallePage: React.FC = () => {
   const [filtro, setFiltro] = React.useState<Filtro>('todos');
   const [busqueda, setBusqueda] = React.useState('');
   const [guardando, setGuardando] = React.useState<string | null>(null);
+  const [sugs, setSugs] = React.useState<Record<string, Sugerencia[]>>({});
+  const [cargandoSugs, setCargandoSugs] = React.useState(false);
 
   // Modal de facturas
   const [movActivo, setMovActivo] = React.useState<MovimientoBancario | null>(null);
   const [q, setQ] = React.useState('');
-  const [resultados, setResultados] = React.useState<FacturaEnlazada[]>([]);
-  const [elegidas, setElegidas] = React.useState<FacturaEnlazada[]>([]);
+  const [resultados, setResultados] = React.useState<ItemEnlazable[]>([]);
+  const [elegidas, setElegidas] = React.useState<ItemEnlazable[]>([]);
   const [buscando, setBuscando] = React.useState(false);
 
   const cargar = React.useCallback(async () => {
@@ -72,6 +88,16 @@ const ConciliacionDetallePage: React.FC = () => {
 
   React.useEffect(() => { cargar(); }, [cargar]);
   React.useEffect(() => { conciliacionService.areas().then(setAreas).catch(() => {}); }, []);
+
+  // Las sugerencias llegan aparte: la tabla aparece de inmediato y ellas después.
+  React.useEffect(() => {
+    if (typeof id !== 'string') return;
+    setCargandoSugs(true);
+    conciliacionService.sugerencias(id, selectedEmpresaId ?? undefined)
+      .then(setSugs)
+      .catch(() => {})
+      .finally(() => setCargandoSugs(false));
+  }, [id, selectedEmpresaId]);
 
   /** Guarda un cambio de celda sin recargar toda la tabla. */
   const guardar = async (
@@ -95,11 +121,42 @@ const ConciliacionDetallePage: React.FC = () => {
     }
   };
 
+  /** Acepta una candidata sin abrir la ventana: es el caso más común. */
+  const aceptar = async (mov: MovimientoBancario, s: Sugerencia) => {
+    setGuardando(mov.id);
+    try {
+      const nuevo = s.tipo === 'factura'
+        ? await conciliacionService.enlazarFacturas(mov.id, [s.id])
+        : await conciliacionService.enlazarEgresos(mov.id, [s.id]);
+      setConc((c) => c && {
+        ...c, movimientos: c.movimientos.map((m) => (m.id === nuevo.id ? nuevo : m)),
+      });
+      setSugs((x) => { const y = { ...x }; delete y[mov.id]; return y; });
+    } catch (e: any) {
+      if (!e?._handled) message.error('No se pudo enlazar');
+    } finally {
+      setGuardando(null);
+    }
+  };
+
   // ── Facturas ───────────────────────────────────────────────────────────────
+
+  /** El mismo modal sirve para los dos lados: facturas en los depósitos,
+   *  egresos en los retiros. Se normalizan a una forma común para no duplicar
+   *  toda la pantalla. */
+  const esRetiro = (m: MovimientoBancario | null) => !!m && m.retiro != null;
+
+  const comoItem = (x: FacturaEnlazada | EgresoEnlazado): ItemEnlazable =>
+    'folio' in x
+      ? { id: x.id, etiqueta: x.folio, detalle: x.cliente_nombre ?? '—',
+          empresa: x.empresa_nombre ?? undefined, monto: Number(x.total) }
+      : { id: x.id, etiqueta: (x.proveedor || 'Gasto').slice(0, 24),
+          detalle: x.descripcion ?? '—', empresa: x.empresa_nombre ?? undefined,
+          monto: Number(x.monto) };
 
   const abrirFacturas = (mov: MovimientoBancario) => {
     setMovActivo(mov);
-    setElegidas(mov.facturas);
+    setElegidas((mov.retiro != null ? mov.egresos : mov.facturas).map(comoItem));
     setQ('');
     setResultados([]);
   };
@@ -109,13 +166,17 @@ const ConciliacionDetallePage: React.FC = () => {
     if (!texto.trim()) { setResultados([]); return; }
     setBuscando(true);
     try {
-      setResultados(await conciliacionService.buscarFacturas(texto, selectedEmpresaId ?? undefined));
+      const emp = selectedEmpresaId ?? undefined;
+      const datos = esRetiro(movActivo)
+        ? await conciliacionService.buscarEgresos(texto, emp)
+        : await conciliacionService.buscarFacturas(texto, emp);
+      setResultados(datos.map(comoItem));
     } catch { /* el interceptor ya avisa */ } finally {
       setBuscando(false);
     }
   };
 
-  const agregar = (f: FacturaEnlazada) => {
+  const agregar = (f: ItemEnlazable) => {
     if (elegidas.some((x) => x.id === f.id)) return;
     setElegidas((e) => [...e, f]);
   };
@@ -125,8 +186,10 @@ const ConciliacionDetallePage: React.FC = () => {
   const guardarFacturas = async () => {
     if (!movActivo) return;
     try {
-      const nuevo = await conciliacionService.enlazarFacturas(
-        movActivo.id, elegidas.map((f) => f.id));
+      const ids = elegidas.map((f) => f.id);
+      const nuevo = esRetiro(movActivo)
+        ? await conciliacionService.enlazarEgresos(movActivo.id, ids)
+        : await conciliacionService.enlazarFacturas(movActivo.id, ids);
       setConc((c) => c && {
         ...c,
         movimientos: c.movimientos.map((m) => (m.id === nuevo.id ? nuevo : m)),
@@ -148,13 +211,14 @@ const ConciliacionDetallePage: React.FC = () => {
       if (filtro === 'conciliados' && !m.conciliado) return false;
       if (filtro === 'depositos' && m.deposito == null) return false;
       if (filtro === 'retiros' && m.retiro == null) return false;
+      if (filtro === 'sugeridos' && !sugs[m.id]) return false;
       if (texto) {
         const heno = `${m.concepto} ${m.comentario ?? ''}`.toLowerCase();
         if (!heno.includes(texto)) return false;
       }
       return true;
     });
-  }, [conc, filtro, busqueda]);
+  }, [conc, filtro, busqueda, sugs]);
 
   const descargar = async (url: string, nombre: string) => {
     try {
@@ -237,20 +301,49 @@ const ConciliacionDetallePage: React.FC = () => {
       ),
     },
     {
-      title: 'Facturas', key: 'facturas', width: 220,
+      title: 'Facturas / Gastos', key: 'facturas', width: 300,
       render: (_: unknown, m: MovimientoBancario) => {
-        const dif = m.facturas.length ? m.suma_facturas - (m.deposito ?? m.retiro ?? 0) : 0;
+        const enlazados = m.retiro != null ? m.egresos.length : m.facturas.length;
+        const dif = enlazados ? m.suma_facturas - (m.deposito ?? m.retiro ?? 0) : 0;
+        const candidatas = sugs[m.id] ?? [];
         return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <Space direction="vertical" size={3} style={{ width: '100%' }}>
             <Button size="small" icon={<LinkOutlined />} onClick={() => abrirFacturas(m)} block>
-              {m.facturas.length ? `${m.facturas.length} factura${m.facturas.length > 1 ? 's' : ''}` : 'Buscar facturas'}
+              {enlazados
+                ? `${enlazados} ${m.retiro != null ? 'gasto' : 'factura'}${enlazados > 1 ? 's' : ''}`
+                : (m.retiro != null ? 'Buscar gastos' : 'Buscar facturas')}
             </Button>
-            {m.facturas.length > 0 && (
+
+            {enlazados > 0 && (
               <Text style={{ fontSize: 11 }} type={Math.abs(dif) < 0.01 ? 'success' : 'warning'}>
                 {dinero(m.suma_facturas)}
                 {Math.abs(dif) >= 0.01 && ` · dif ${dinero(dif)}`}
               </Text>
             )}
+
+            {/* Candidatas: se aceptan con un clic, que es el caso común */}
+            {enlazados === 0 && candidatas.slice(0, 3).map((s) => (
+              <Tooltip
+                key={s.id}
+                title={`${s.origen}${s.fecha ? ` · ${dayjs(s.fecha).format('DD/MM/YYYY')}` : ''}${s.empresa ? ` · ${s.empresa}` : ''}`}
+              >
+                <Button
+                  size="small"
+                  block
+                  loading={guardando === m.id}
+                  onClick={() => aceptar(m, s)}
+                  style={{ textAlign: 'left', height: 'auto', padding: '2px 6px' }}
+                >
+                  <Space size={4} style={{ width: '100%' }}>
+                    <Tag color={COLOR_CONFIANZA[s.confianza]} style={{ marginInlineEnd: 0 }}>
+                      {s.folio.length > 16 ? `${s.folio.slice(0, 16)}…` : s.folio}
+                    </Tag>
+                    <span style={{ fontSize: 11, flex: 1 }}>{dinero(Number(s.total))}</span>
+                    <ThunderboltOutlined style={{ fontSize: 11, color: '#faad14' }} />
+                  </Space>
+                </Button>
+              </Tooltip>
+            ))}
           </Space>
         );
       },
@@ -263,7 +356,7 @@ const ConciliacionDetallePage: React.FC = () => {
     },
   ];
 
-  const totalElegidas = elegidas.reduce((s, f) => s + Number(f.total), 0);
+  const totalElegidas = elegidas.reduce((s, f) => s + f.monto, 0);
   const importeMov = movActivo ? (movActivo.deposito ?? movActivo.retiro ?? 0) : 0;
   const difModal = totalElegidas - importeMov;
 
@@ -316,6 +409,7 @@ const ConciliacionDetallePage: React.FC = () => {
                 { label: 'Conciliados', value: 'conciliados' },
                 { label: 'Depósitos', value: 'depositos' },
                 { label: 'Retiros', value: 'retiros' },
+                { label: `Con sugerencia (${Object.keys(sugs).length})`, value: 'sugeridos' },
               ]}
             />
             <Input
@@ -348,7 +442,7 @@ const ConciliacionDetallePage: React.FC = () => {
       {/* Buscar y elegir facturas */}
       <Modal
         open={!!movActivo}
-        title="Facturas de este movimiento"
+        title={esRetiro(movActivo) ? 'Gastos de este cargo' : 'Facturas de este depósito'}
         onCancel={() => setMovActivo(null)}
         onOk={guardarFacturas}
         okText="Guardar"
@@ -372,7 +466,9 @@ const ConciliacionDetallePage: React.FC = () => {
 
             <Input
               autoFocus
-              placeholder="Escribe el folio (1585, A-1585) o el nombre del cliente"
+              placeholder={esRetiro(movActivo)
+                ? 'Escribe el proveedor o la descripción del gasto'
+                : 'Escribe el folio (1585, A-1585) o el nombre del cliente'}
               prefix={<SearchOutlined />}
               allowClear
               value={q}
@@ -395,17 +491,17 @@ const ConciliacionDetallePage: React.FC = () => {
                       opacity: elegidas.some((x) => x.id === f.id) ? 0.45 : 1,
                     }}
                   >
-                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.folio}</Tag>
-                    <span style={{ flex: 1, fontSize: 13 }}>{f.cliente_nombre ?? '—'}</span>
-                    <Text type="secondary" style={{ fontSize: 11 }}>{f.empresa_nombre}</Text>
-                    <strong>{dinero(Number(f.total))}</strong>
+                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.etiqueta}</Tag>
+                    <span style={{ flex: 1, fontSize: 13 }}>{f.detalle}</span>
+                    <Text type="secondary" style={{ fontSize: 11 }}>{f.empresa}</Text>
+                    <strong>{dinero(f.monto)}</strong>
                   </div>
                 ))}
               </div>
             )}
 
             <Text strong style={{ display: 'block', marginBottom: 6 }}>
-              Facturas de este movimiento
+              {esRetiro(movActivo) ? 'Gastos de este cargo' : 'Facturas de este depósito'}
             </Text>
             {elegidas.length === 0 ? (
               <Text type="secondary">
@@ -417,9 +513,9 @@ const ConciliacionDetallePage: React.FC = () => {
                   <div key={f.id} style={{
                     display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0',
                   }}>
-                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.folio}</Tag>
-                    <span style={{ flex: 1, fontSize: 13 }}>{f.cliente_nombre ?? '—'}</span>
-                    <strong>{dinero(Number(f.total))}</strong>
+                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.etiqueta}</Tag>
+                    <span style={{ flex: 1, fontSize: 13 }}>{f.detalle}</span>
+                    <strong>{dinero(f.monto)}</strong>
                     <Button size="small" type="text" danger onClick={() => quitar(f.id)}>
                       Quitar
                     </Button>

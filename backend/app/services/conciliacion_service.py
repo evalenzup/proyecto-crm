@@ -23,10 +23,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
 from app.models.conciliacion import (
-    ConciliacionBancaria, MovimientoBancario, MovimientoFactura,
+    ConciliacionBancaria, MovimientoBancario, MovimientoEgreso, MovimientoFactura,
 )
 from app.models.cliente import Cliente
 from app.models.empresa import Empresa
+from app.models.egreso import Egreso
 from app.models.factura import Factura
 from app.services import estado_cuenta_banamex as lector
 
@@ -129,7 +130,9 @@ def obtener(db: Session, conciliacion_id: UUID) -> ConciliacionBancaria:
     conc = (
         db.query(ConciliacionBancaria)
         .options(selectinload(ConciliacionBancaria.movimientos)
-                 .selectinload(MovimientoBancario.facturas))
+                 .selectinload(MovimientoBancario.facturas),
+                 selectinload(ConciliacionBancaria.movimientos)
+                 .selectinload(MovimientoBancario.egresos))
         .filter(ConciliacionBancaria.id == conciliacion_id)
         .first()
     )
@@ -211,6 +214,55 @@ def enlazar_facturas(db: Session, movimiento_id: UUID, factura_ids: List[UUID]) 
     db.commit()
     db.refresh(mov)
     return mov
+
+
+def enlazar_egresos(db: Session, movimiento_id: UUID, egreso_ids: List[UUID]) -> MovimientoBancario:
+    """Fija qué gastos componen el retiro y arma el comentario con su descripción."""
+    mov = obtener_movimiento(db, movimiento_id)
+
+    db.query(MovimientoEgreso).filter(
+        MovimientoEgreso.movimiento_id == mov.id).delete(synchronize_session=False)
+    db.flush()
+
+    egresos = []
+    if egreso_ids:
+        egresos = db.query(Egreso).filter(Egreso.id.in_(egreso_ids)).all()
+        if set(egreso_ids) - {e.id for e in egresos}:
+            raise HTTPException(status_code=404, detail="Algún egreso ya no existe.")
+        for e in egresos:
+            db.add(MovimientoEgreso(movimiento_id=mov.id, egreso_id=e.id))
+
+    if egresos:
+        partes = []
+        for e in egresos:
+            etiqueta = (e.proveedor or "").strip() or (e.descripcion or "").strip()
+            partes.append(etiqueta[:60])
+        mov.comentario = " · ".join(partes)
+        mov.conciliado = True
+    elif mov.conciliado and not (mov.comentario or "").strip():
+        mov.conciliado = False
+
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
+def buscar_egresos(db: Session, *, empresa_id: UUID, q: str = "", limite: int = 25) -> List[Egreso]:
+    """Busca gastos para enlazar a un retiro, por proveedor o descripción."""
+    empresas = _empresas_hermanas(db, empresa_id)
+    consulta = (
+        db.query(Egreso)
+        .options(selectinload(Egreso.empresa))
+        .filter(Egreso.empresa_id.in_(empresas))
+    )
+    q = (q or "").strip()
+    if q:
+        patron = f"%{q.lower()}%"
+        consulta = consulta.filter(or_(
+            func.lower(func.coalesce(Egreso.proveedor, "")).like(patron),
+            func.lower(func.coalesce(Egreso.descripcion, "")).like(patron),
+        ))
+    return consulta.order_by(Egreso.fecha_egreso.desc()).limit(limite).all()
 
 
 def buscar_facturas(

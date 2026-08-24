@@ -11,6 +11,30 @@ export interface FacturaEnlazada {
   estatus: string;
 }
 
+export interface EgresoEnlazado {
+  id: string;
+  proveedor?: string | null;
+  descripcion?: string | null;
+  monto: number;
+  fecha_egreso?: string | null;
+  categoria?: string | null;
+  empresa_nombre?: string | null;
+}
+
+/** Candidata que propone el sistema. Trae su origen y su confianza porque no
+ *  es lo mismo un folio escrito por el cliente que una coincidencia de monto. */
+export interface Sugerencia {
+  tipo: 'factura' | 'egreso';
+  id: string;
+  folio: string;
+  total: number;
+  fecha?: string | null;
+  descripcion?: string | null;
+  empresa?: string | null;
+  origen: string;
+  confianza: 'alta' | 'media' | 'baja';
+}
+
 export interface MovimientoBancario {
   id: string;
   orden: number;
@@ -22,6 +46,7 @@ export interface MovimientoBancario {
   area?: string | null;
   conciliado: boolean;
   facturas: FacturaEnlazada[];
+  egresos: EgresoEnlazado[];
   /** Suma de las facturas enlazadas; se compara contra el importe. */
   suma_facturas: number;
 }
@@ -91,6 +116,22 @@ const conciliacionService = {
   /** Reemplaza las facturas del movimiento y rearma el comentario con los folios. */
   enlazarFacturas: async (id: string, factura_ids: string[]): Promise<MovimientoBancario> => {
     const { data } = await api.put(`/conciliacion/movimientos/${id}/facturas`, { factura_ids });
+    return data;
+  },
+
+  /** Candidatas por movimiento: { movimiento_id: [sugerencia, ...] } */
+  sugerencias: async (id: string, empresa_id?: string): Promise<Record<string, Sugerencia[]>> => {
+    const { data } = await api.get(`/conciliacion/${id}/sugerencias`, { params: { empresa_id } });
+    return data;
+  },
+
+  enlazarEgresos: async (id: string, egreso_ids: string[]): Promise<MovimientoBancario> => {
+    const { data } = await api.put(`/conciliacion/movimientos/${id}/egresos`, { egreso_ids });
+    return data;
+  },
+
+  buscarEgresos: async (q: string, empresa_id?: string): Promise<EgresoEnlazado[]> => {
+    const { data } = await api.get('/conciliacion/egresos/busqueda', { params: { q, empresa_id } });
     return data;
   },
 
