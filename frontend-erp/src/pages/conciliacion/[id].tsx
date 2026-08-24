@@ -32,6 +32,7 @@ import conciliacionService, {
 } from '@/services/conciliacionService';
 import { useEmpresaContext } from '@/context/EmpresaContext';
 import api from '@/lib/axios';
+import VisorPdfModal from '@/components/VisorPdfModal';
 
 const { Text } = Typography;
 
@@ -66,6 +67,7 @@ const ConciliacionDetallePage: React.FC = () => {
   const [guardando, setGuardando] = React.useState<string | null>(null);
   const [sugs, setSugs] = React.useState<Record<string, Sugerencia[]>>({});
   const [cargandoSugs, setCargandoSugs] = React.useState(false);
+  const [verPdf, setVerPdf] = React.useState(false);
 
   // Modal de facturas
   const [movActivo, setMovActivo] = React.useState<MovimientoBancario | null>(null);
@@ -370,11 +372,7 @@ const ConciliacionDetallePage: React.FC = () => {
               Volver
             </Button>
             {conc.tiene_archivo && (
-              <Button
-                icon={<FilePdfOutlined />}
-                onClick={() => descargar(conciliacionService.urlPdf(conc.id),
-                  `estado-cuenta-${dayjs(conc.periodo_inicio).format('YYYY-MM')}.pdf`)}
-              >
+              <Button icon={<FilePdfOutlined />} onClick={() => setVerPdf(true)}>
                 Estado de cuenta
               </Button>
             )}
@@ -540,6 +538,13 @@ const ConciliacionDetallePage: React.FC = () => {
           </>
         )}
       </Modal>
+
+      <VisorPdfModal
+        url={verPdf ? conciliacionService.urlPdf(conc.id) : null}
+        titulo={`Estado de cuenta · ${dayjs(conc.periodo_inicio).format('MMMM YYYY')}`}
+        nombreArchivo={`estado-cuenta-${dayjs(conc.periodo_inicio).format('YYYY-MM')}.pdf`}
+        onClose={() => setVerPdf(false)}
+      />
 
       <style jsx global>{`
         .fila-conciliada > td { background: #f6ffed !important; }

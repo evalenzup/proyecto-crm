@@ -15,6 +15,7 @@ import {
 import dayjs from 'dayjs';
 import conciliacionService, { ConciliacionResumen } from '@/services/conciliacionService';
 import { useEmpresaContext } from '@/context/EmpresaContext';
+import VisorPdfModal from '@/components/VisorPdfModal';
 
 const dinero = (n: number) =>
   n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -25,6 +26,7 @@ const ConciliacionesPage: React.FC = () => {
   const [items, setItems] = React.useState<ConciliacionResumen[]>([]);
   const [cargando, setCargando] = React.useState(false);
   const [subiendo, setSubiendo] = React.useState(false);
+  const [verPdf, setVerPdf] = React.useState<ConciliacionResumen | null>(null);
 
   const cargar = React.useCallback(async () => {
     if (!selectedEmpresaId) return;
@@ -156,9 +158,8 @@ const ConciliacionesPage: React.FC = () => {
             <Button
               size="small"
               icon={<FilePdfOutlined />}
-              title="Estado de cuenta original"
-              onClick={() => window.open(
-                `${process.env.NEXT_PUBLIC_API_URL}${conciliacionService.urlPdf(c.id)}`, '_blank')}
+              title="Ver el estado de cuenta"
+              onClick={() => setVerPdf(c)}
             />
           )}
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => eliminar(c)} />
@@ -203,6 +204,13 @@ const ConciliacionesPage: React.FC = () => {
           )}
         </Card>
       </div>
+
+      <VisorPdfModal
+        url={verPdf ? conciliacionService.urlPdf(verPdf.id) : null}
+        titulo={verPdf ? `Estado de cuenta · ${dayjs(verPdf.periodo_inicio).format('MMMM YYYY')}` : ''}
+        nombreArchivo={verPdf ? `estado-cuenta-${dayjs(verPdf.periodo_inicio).format('YYYY-MM')}.pdf` : ''}
+        onClose={() => setVerPdf(null)}
+      />
     </>
   );
 };
