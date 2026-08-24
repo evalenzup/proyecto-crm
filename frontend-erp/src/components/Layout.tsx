@@ -6,6 +6,7 @@ import { useRouter } from 'next/router';
 import {
   PieChartOutlined,
   TableOutlined,
+  ReconciliationOutlined,
   ContainerOutlined,
   SmileOutlined,
   BankOutlined,
@@ -206,6 +207,7 @@ const baseMenuData = [
       { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
       { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
       { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
+      { path: '/conciliacion', name: 'Conciliación bancaria', icon: <ReconciliationOutlined /> },
     ],
   },
   {
