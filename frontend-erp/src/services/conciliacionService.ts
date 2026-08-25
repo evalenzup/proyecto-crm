@@ -35,8 +35,14 @@ export interface EgresoEnlazado {
 
 /** Candidata que propone el sistema. Trae su origen y su confianza porque no
  *  es lo mismo un folio escrito por el cliente que una coincidencia de monto. */
+export interface FacturaDeComplemento {
+  id: string;
+  folio: string;
+  imp_pagado: number;
+}
+
 export interface Sugerencia {
-  tipo: 'factura' | 'egreso';
+  tipo: 'complemento' | 'factura' | 'egreso';
   id: string;
   folio: string;
   total: number;
@@ -48,6 +54,9 @@ export interface Sugerencia {
   archivo_pdf?: string | null;
   metodo_pago?: string | null;
   complementos?: ComplementoPago[];
+  /** Sólo en las de tipo "complemento": las facturas que cubre. Son las que se
+   *  enlazan al aceptarla, porque el comentario lleva folios de factura. */
+  facturas?: FacturaDeComplemento[];
 }
 
 export interface MovimientoBancario {

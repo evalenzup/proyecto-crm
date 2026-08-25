@@ -50,13 +50,20 @@ class EgresoEnlazado(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FacturaDeComplemento(BaseModel):
+    """Factura cubierta por un complemento, con lo que se le aplicó."""
+    id: UUID
+    folio: str
+    imp_pagado: Decimal
+
+
 class Sugerencia(BaseModel):
     """Candidata que el sistema propone para un movimiento.
 
     Viene con su origen y su confianza porque no es lo mismo un folio escrito
     por el propio cliente que una coincidencia de monto entre cinco facturas.
     """
-    tipo: str                    # "factura" | "egreso"
+    tipo: str                    # "complemento" | "factura" | "egreso"
     id: UUID
     folio: str
     total: Decimal

@@ -39,6 +39,7 @@ from app.models.conciliacion import (
 )
 from app.models.egreso import Egreso
 from app.models.factura import Factura
+from app.models.pago import Pago, PagoDocumentoRelacionado
 
 # ── Lectura del concepto ─────────────────────────────────────────────────────
 
@@ -199,6 +200,40 @@ def calcular(db: Session, conciliacion_id: UUID, empresas: List[UUID]) -> Dict[s
         .all()
     )
 
+    # Complementos de pago del periodo. Van primero que las facturas: el
+    # complemento es el que documenta el cobro, trae el importe exacto que
+    # entró al banco y ya sabe qué facturas cubre. En junio, 18 depósitos
+    # sólo los encuentra el complemento, y son justo los que pagan varias
+    # facturas de golpe — los más laboriosos de resolver a mano.
+    pagos = (
+        db.query(Pago)
+        .options(selectinload(Pago.cliente))
+        .filter(
+            Pago.empresa_id.in_(empresas),
+            Pago.estatus != "CANCELADO",
+            Pago.fecha_pago >= desde,
+            Pago.fecha_pago <= hasta + timedelta(days=1),
+        )
+        .all()
+    )
+    docs_por_pago: Dict[UUID, List[dict]] = defaultdict(list)
+    if pagos:
+        filas = (
+            db.query(PagoDocumentoRelacionado, Factura)
+            .join(Factura, Factura.id == PagoDocumentoRelacionado.factura_id)
+            .filter(PagoDocumentoRelacionado.pago_id.in_([p.id for p in pagos]))
+            .all()
+        )
+        for dr, f in filas:
+            docs_por_pago[dr.pago_id].append({
+                "id": str(f.id), "folio": f"{f.serie}-{f.folio}",
+                "imp_pagado": dr.imp_pagado,
+            })
+
+    pago_por_monto: Dict[Decimal, List[Pago]] = defaultdict(list)
+    for p in pagos:
+        pago_por_monto[Decimal(p.monto).quantize(Decimal("0.01"))].append(p)
+
     # Facturas ya enlazadas en cualquier conciliación: no deben competir de nuevo
     ya_usadas = {r[0] for r in db.query(MovimientoFactura.factura_id).all()}
 
@@ -235,7 +270,7 @@ def calcular(db: Session, conciliacion_id: UUID, empresas: List[UUID]) -> Dict[s
         if m.deposito is not None:
             cands = _candidatas_deposito(
                 m, por_folio, fact_por_monto, palabras_cliente, alias, ya_usadas,
-                complementos)
+                complementos, pago_por_monto, docs_por_pago)
         elif m.retiro is not None:
             cands = _candidatas_retiro(m, egr_por_monto)
         else:
@@ -253,11 +288,19 @@ def _fecha(f) -> Optional[object]:
 
 
 def _candidatas_deposito(m, por_folio, fact_por_monto, palabras_cliente,
-                         alias, ya_usadas, complementos) -> List[dict]:
+                         alias, ya_usadas, complementos,
+                         pago_por_monto=None, docs_por_pago=None) -> List[dict]:
     monto = Decimal(m.deposito).quantize(Decimal("0.01"))
     folios = _folios_del_concepto(m.concepto)
     pistas = palabras_clave(ordenante_del_concepto(m.concepto))
     clientes_alias = alias.get(clave_alias(m.concepto), set())
+
+    # 0. El complemento manda: si hay uno por el mismo importe, él ya resolvió
+    # qué facturas se están pagando y con cuánto de cada una.
+    cands_pago = _candidatas_complemento(
+        m, monto, pago_por_monto or {}, docs_por_pago or {}, pistas, clientes_alias)
+    if cands_pago:
+        return cands_pago
 
     marcadas: Dict[str, dict] = {}
 
@@ -319,6 +362,42 @@ def _candidatas_deposito(m, por_folio, fact_por_monto, palabras_cliente,
 
     salida = sorted(marcadas.values(), key=lambda c: -c["puntos"])[:MAX_CANDIDATAS]
     return [_limpiar(c) for c in salida]
+
+
+def _candidatas_complemento(m, monto, pago_por_monto, docs_por_pago,
+                            pistas, clientes_alias) -> List[dict]:
+    """Complementos cuyo importe cuadra con el depósito."""
+    mismos = pago_por_monto.get(monto, [])
+    if not mismos or len(mismos) > MAX_POR_MONTO:
+        return []
+
+    salida = []
+    for p in mismos:
+        facturas = docs_por_pago.get(p.id, [])
+        if not facturas:
+            continue          # sin facturas no aporta nada al comentario
+        puntos = P_MONTO + P_FOLIO   # el complemento es el documento del cobro
+        origenes = ["complemento por el mismo importe"]
+        if p.cliente_id and p.cliente_id in clientes_alias:
+            origenes.append("ya habías asignado a este cliente")
+            puntos += P_ALIAS
+        elif pistas and p.cliente:
+            if pistas & palabras_clave(p.cliente.nombre_comercial):
+                origenes.append("coincide el nombre de quien paga")
+                puntos += P_NOMBRE
+        fecha = p.fecha_pago.date() if hasattr(p.fecha_pago, "date") else p.fecha_pago
+        puntos += _cercania(abs((m.fecha - fecha).days)) if fecha else 0
+        salida.append({
+            "tipo": "complemento", "id": str(p.id),
+            "folio": f"{p.serie or 'P'}-{p.folio}", "total": p.monto, "fecha": fecha,
+            "descripcion": p.cliente.nombre_comercial if p.cliente else None,
+            "empresa": None,
+            "facturas": facturas,
+            "origen": " + ".join(origenes), "puntos": puntos,
+            "confianza": _confianza(puntos),
+        })
+    salida.sort(key=lambda c: -c["puntos"])
+    return [_limpiar(c) for c in salida[:MAX_CANDIDATAS]]
 
 
 def _candidatas_retiro(m, egr_por_monto) -> List[dict]:

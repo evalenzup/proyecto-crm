@@ -193,9 +193,14 @@ const ConciliacionDetallePage: React.FC = () => {
   const aceptar = async (mov: MovimientoBancario, s: Sugerencia) => {
     setGuardando(mov.id);
     try {
-      const nuevo = s.tipo === 'factura'
-        ? await conciliacionService.enlazarFacturas(mov.id, [s.id])
-        : await conciliacionService.enlazarEgresos(mov.id, [s.id]);
+      // Un complemento no se enlaza como tal: lo que va al comentario son los
+      // folios de las facturas que cubre, que es lo que espera la contadora.
+      const nuevo = s.tipo === 'egreso'
+        ? await conciliacionService.enlazarEgresos(mov.id, [s.id])
+        : await conciliacionService.enlazarFacturas(
+            mov.id,
+            s.tipo === 'complemento' ? (s.facturas ?? []).map((f) => f.id) : [s.id],
+          );
       setConc((c) => c && {
         ...c, movimientos: c.movimientos.map((m) => (m.id === nuevo.id ? nuevo : m)),
       });
@@ -422,15 +427,23 @@ const ConciliacionDetallePage: React.FC = () => {
                     <Tag color={COLOR_CONFIANZA[s.confianza]} style={{ marginInlineEnd: 0 }}>
                       {s.folio.length > 16 ? `${s.folio.slice(0, 16)}…` : s.folio}
                     </Tag>
-                    <span style={{ fontSize: 11, flex: 1 }}>{dinero(s.total)}</span>
+                    <span style={{ fontSize: 11, flex: 1 }}>
+                      {s.tipo === 'complemento' && s.facturas?.length
+                        ? s.facturas.map((f) => f.folio).join(', ')
+                        : dinero(s.total)}
+                    </span>
                     <EyeOutlined
                       style={{ fontSize: 12 }}
-                      title={s.complementos?.length
-                        ? `Ver el complemento ${s.complementos[0].folio}`
-                        : 'Ver el documento'}
+                      title={s.tipo === 'complemento'
+                        ? `Ver el complemento ${s.folio}`
+                        : s.complementos?.length
+                          ? `Ver el complemento ${s.complementos[0].folio}`
+                          : 'Ver el documento'}
                       onClick={(ev) => {
                         ev.stopPropagation();   // ver no debe enlazar
-                        if (s.tipo === 'factura') {
+                        if (s.tipo === 'complemento') {
+                          verDocumento('pago', s.id, s.folio);
+                        } else if (s.tipo === 'factura') {
                           const d = documentoDeFactura(s as any);
                           verDocumento(d.tipo, d.id, d.etiqueta);
                         } else {
