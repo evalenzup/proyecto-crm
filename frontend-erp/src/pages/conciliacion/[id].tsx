@@ -23,7 +23,7 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, CheckCircleFilled, FileExcelOutlined, FilePdfOutlined,
-  LinkOutlined, SearchOutlined, ThunderboltOutlined,
+  LinkOutlined, SearchOutlined, ThunderboltOutlined, UndoOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import conciliacionService, {
@@ -36,8 +36,16 @@ import VisorPdfModal from '@/components/VisorPdfModal';
 
 const { Text } = Typography;
 
-const dinero = (n?: number | null) =>
-  n == null ? '' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+/** Los importes llegan del API como texto (Decimal serializado), y llamar
+ *  toLocaleString sobre un string lo devuelve tal cual: por eso salía
+ *  "1296.000000" en vez de "$1,296.00". Se convierte antes de formatear. */
+const dinero = (n?: number | string | null) => {
+  if (n == null || n === '') return '';
+  const v = typeof n === 'number' ? n : Number(n);
+  return Number.isFinite(v)
+    ? v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
+    : '';
+};
 
 type Filtro = 'todos' | 'pendientes' | 'conciliados' | 'depositos' | 'retiros' | 'sugeridos';
 
@@ -119,6 +127,21 @@ const ConciliacionDetallePage: React.FC = () => {
         message.error(e?.response?.data?.error?.detail ?? 'No se pudo guardar');
       }
       cargar();
+    } finally {
+      setGuardando(null);
+    }
+  };
+
+  /** Deshace la conciliación de un movimiento para poder corregirlo. */
+  const deshacer = async (mov: MovimientoBancario) => {
+    setGuardando(mov.id);
+    try {
+      const nuevo = await conciliacionService.limpiarMovimiento(mov.id);
+      setConc((c) => c && {
+        ...c, movimientos: c.movimientos.map((m) => (m.id === nuevo.id ? nuevo : m)),
+      });
+    } catch (e: any) {
+      if (!e?._handled) message.error('No se pudo deshacer');
     } finally {
       setGuardando(null);
     }
@@ -278,7 +301,7 @@ const ConciliacionDetallePage: React.FC = () => {
           autoSize={{ minRows: 1, maxRows: 3 }}
           size="small"
           placeholder={m.deposito != null ? 'Folios o nota…' : 'Qué fue este gasto…'}
-          disabled={m.facturas.length > 0}
+          disabled={m.facturas.length > 0 || m.egresos.length > 0}
           onBlur={(e) => {
             const v = e.target.value.trim();
             if (v !== (m.comentario ?? '')) {
@@ -367,10 +390,24 @@ const ConciliacionDetallePage: React.FC = () => {
       },
     },
     {
-      title: '', key: 'ok', width: 44, align: 'center' as const,
-      render: (_: unknown, m: MovimientoBancario) =>
-        guardando === m.id ? <Spin size="small" />
-          : m.conciliado ? <CheckCircleFilled style={{ color: '#52c41a' }} /> : null,
+      title: '', key: 'ok', width: 76, align: 'center' as const,
+      render: (_: unknown, m: MovimientoBancario) => {
+        if (guardando === m.id) return <Spin size="small" />;
+        if (!m.conciliado) return null;
+        return (
+          <Space size={2}>
+            <CheckCircleFilled style={{ color: '#52c41a' }} />
+            <Tooltip title="Deshacer para corregirlo">
+              <Button
+                type="text"
+                size="small"
+                icon={<UndoOutlined />}
+                onClick={() => deshacer(m)}
+              />
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 

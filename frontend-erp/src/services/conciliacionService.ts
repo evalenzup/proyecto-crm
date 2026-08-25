@@ -142,6 +142,12 @@ const conciliacionService = {
     return data;
   },
 
+  /** Deshace la conciliación: quita enlaces, comentario y área. */
+  limpiarMovimiento: async (id: string): Promise<MovimientoBancario> => {
+    const { data } = await api.delete(`/conciliacion/movimientos/${id}/enlaces`);
+    return data;
+  },
+
   areas: async (): Promise<Area[]> => {
     const { data } = await api.get('/conciliacion/areas');
     return data;

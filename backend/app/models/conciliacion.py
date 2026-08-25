@@ -6,7 +6,9 @@ conserva el PDF original, y sobre cada movimiento quedan las dos anotaciones
 que la contadora espera — el comentario (qué facturas lo componen, o qué fue
 el gasto) y el área a la que corresponde.
 """
+import unicodedata
 import uuid
+from typing import Optional
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String,
@@ -26,6 +28,25 @@ AREAS = {
     "J": "Jardinería",
     "L": "Limpieza",
 }
+
+
+def area_de_empresa(nombre: Optional[str]) -> Optional[str]:
+    """Deduce el área a partir del nombre de la empresa.
+
+    Cuando un movimiento se enlaza a una factura de NORTON JARDINERIA, el área
+    es J y no hay por qué preguntarlo. Administración no sale de aquí: es el
+    gasto compartido, y eso sólo lo sabe quien concilia.
+    """
+    if not nombre:
+        return None
+    t = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode().upper()
+    for clave, area in AREAS.items():
+        if clave == "A":
+            continue
+        limpio = unicodedata.normalize("NFKD", area).encode("ascii", "ignore").decode().upper()
+        if limpio in t:
+            return clave
+    return None
 
 
 class ConciliacionBancaria(Base):

@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import settings
 from app.models.conciliacion import (
     ConciliacionBancaria, MovimientoBancario, MovimientoEgreso, MovimientoFactura,
+    area_de_empresa,
 )
 from app.models.cliente import Cliente
 from app.models.empresa import Empresa
@@ -164,6 +165,39 @@ def eliminar(db: Session, conciliacion_id: UUID) -> None:
 
 # ── Trabajo sobre cada movimiento ────────────────────────────────────────────
 
+def _area_automatica(mov: MovimientoBancario, empresas) -> None:
+    """Pone el área a partir de las empresas enlazadas, si estaba vacía.
+
+    No pisa lo que la persona haya escrito: si ya eligió un área —por ejemplo
+    porque el gasto es compartido— esa manda.
+    """
+    if (mov.area or "").strip():
+        return
+    claves = {area_de_empresa(getattr(e, "nombre_comercial", None)) for e in empresas if e}
+    claves.discard(None)
+    if claves:
+        mov.area = ",".join(sorted(claves))
+
+
+def limpiar_movimiento(db: Session, movimiento_id: UUID) -> MovimientoBancario:
+    """Deshace la conciliación de un movimiento y lo deja como llegó del banco.
+
+    Hacía falta: una vez marcado sólo quedaba la palomita, sin forma de
+    corregir un enlace equivocado.
+    """
+    mov = obtener_movimiento(db, movimiento_id)
+    db.query(MovimientoFactura).filter(
+        MovimientoFactura.movimiento_id == mov.id).delete(synchronize_session=False)
+    db.query(MovimientoEgreso).filter(
+        MovimientoEgreso.movimiento_id == mov.id).delete(synchronize_session=False)
+    mov.comentario = None
+    mov.area = None
+    mov.conciliado = False
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
 def obtener_movimiento(db: Session, movimiento_id: UUID) -> MovimientoBancario:
     mov = db.query(MovimientoBancario).filter(
         MovimientoBancario.id == movimiento_id).first()
@@ -209,6 +243,7 @@ def enlazar_facturas(db: Session, movimiento_id: UUID, factura_ids: List[UUID],
         orden = sorted(facturas, key=lambda f: (f.serie or "", f.folio or 0))
         mov.comentario = ", ".join(f"{f.serie}-{f.folio}" for f in orden)
         mov.conciliado = True
+        _area_automatica(mov, [f.empresa for f in facturas])
         # Se recuerda quién pagó por quién, para no volver a preguntarlo el
         # mes que entra. Falla en silencio: aprender no debe tumbar el enlace.
         try:
@@ -248,6 +283,7 @@ def enlazar_egresos(db: Session, movimiento_id: UUID, egreso_ids: List[UUID]) ->
             partes.append(etiqueta[:60])
         mov.comentario = " · ".join(partes)
         mov.conciliado = True
+        _area_automatica(mov, [getattr(e, "empresa", None) for e in egresos])
     elif mov.conciliado and not (mov.comentario or "").strip():
         mov.conciliado = False
 

@@ -17,8 +17,15 @@ import conciliacionService, { ConciliacionResumen } from '@/services/conciliacio
 import { useEmpresaContext } from '@/context/EmpresaContext';
 import VisorPdfModal from '@/components/VisorPdfModal';
 
-const dinero = (n: number) =>
-  n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+/** Los importes llegan como texto (Decimal serializado); hay que convertirlos
+ *  antes de formatear o toLocaleString los devuelve tal cual. */
+const dinero = (n?: number | string | null) => {
+  if (n == null || n === '') return '';
+  const v = typeof n === 'number' ? n : Number(n);
+  return Number.isFinite(v)
+    ? v.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
+    : '';
+};
 
 const ConciliacionesPage: React.FC = () => {
   const router = useRouter();

@@ -249,6 +249,16 @@ def actualizar_movimiento(
     return _movimiento_out(svc.actualizar_movimiento(db, movimiento_id, datos))
 
 
+@router.delete("/movimientos/{movimiento_id}/enlaces", response_model=MovimientoOut)
+def limpiar_movimiento(
+    movimiento_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """Deshace la conciliación del movimiento: quita enlaces, comentario y área."""
+    return _movimiento_out(svc.limpiar_movimiento(db, movimiento_id))
+
+
 @router.put("/movimientos/{movimiento_id}/facturas", response_model=MovimientoOut)
 def enlazar_facturas(
     movimiento_id: UUID,
