@@ -15,6 +15,7 @@ import {
 import dayjs from 'dayjs';
 import conciliacionService, { ConciliacionResumen } from '@/services/conciliacionService';
 import { useEmpresaContext } from '@/context/EmpresaContext';
+import { useAuth } from '@/context/AuthContext';
 import VisorPdfModal from '@/components/VisorPdfModal';
 
 /** Los importes llegan como texto (Decimal serializado); hay que convertirlos
@@ -27,8 +28,28 @@ const dinero = (n?: number | string | null) => {
     : '';
 };
 
+
+/** Sólo admin y superadmin entran a la conciliación. El backend ya lo impone;
+ *  esto evita que quien teclee la dirección se tope con una pantalla de errores
+ *  en vez de un mensaje claro. */
+const useSoloAdmin = () => {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+  const permitido = user?.rol === 'superadmin' || user?.rol === 'admin';
+
+  React.useEffect(() => {
+    if (!isLoading && user && !permitido) {
+      message.warning('La conciliación bancaria es solo para administradores.');
+      router.replace('/');
+    }
+  }, [isLoading, user, permitido, router]);
+
+  return permitido;
+};
+
 const ConciliacionesPage: React.FC = () => {
   const router = useRouter();
+  const permitido = useSoloAdmin();
   const { selectedEmpresaId } = useEmpresaContext();
   const [items, setItems] = React.useState<ConciliacionResumen[]>([]);
   const [cargando, setCargando] = React.useState(false);
@@ -174,6 +195,8 @@ const ConciliacionesPage: React.FC = () => {
       ),
     },
   ];
+
+  if (!permitido) return null;
 
   return (
     <>

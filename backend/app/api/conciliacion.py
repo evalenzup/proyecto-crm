@@ -24,6 +24,9 @@ from app.services import auditoria_service as audit_svc
 from app.services import conciliacion_service as svc
 from app.services import conciliacion_sugerencias as sug_svc
 
+# Todo el módulo va restringido a ADMIN y SUPERADMIN: la conciliación toca
+# facturación, gastos y saldos del banco, y quien la trabaja necesita ver las
+# tres empresas del RFC. require_admin_or_above se aplica en cada endpoint.
 router = APIRouter()
 
 MAX_PDF_MB = 20
@@ -104,7 +107,7 @@ def _conciliacion_out(c, con_movimientos: bool, db: Optional[Session] = None):
 # ── Catálogo ─────────────────────────────────────────────────────────────────
 
 @router.get("/areas", response_model=List[AreaOut])
-def listar_areas(current_user: Usuario = Depends(deps.get_current_active_user)):
+def listar_areas(current_user: Usuario = Depends(deps.require_admin_or_above)):
     return [AreaOut(clave=k, nombre=v) for k, v in AREAS.items()]
 
 
@@ -114,7 +117,7 @@ def listar_areas(current_user: Usuario = Depends(deps.get_current_active_user)):
 def listar(
     empresa_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     eid = _empresa_activa(empresa_id, current_user)
     return [_conciliacion_out(c, False) for c in svc.listar(db, eid)]
@@ -126,7 +129,7 @@ async def importar(
     archivo: UploadFile = File(...),
     empresa_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     """Sube el estado de cuenta en PDF y crea la conciliación del periodo."""
     eid = _empresa_activa(empresa_id, current_user)
@@ -157,7 +160,7 @@ async def importar(
 def obtener(
     conciliacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     return _conciliacion_out(svc.obtener(db, conciliacion_id), True, db)
 
@@ -167,7 +170,7 @@ def eliminar(
     conciliacion_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     conc = svc.obtener(db, conciliacion_id)
     audit_svc.registrar(
@@ -185,7 +188,7 @@ def eliminar(
 def descargar_pdf(
     conciliacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     """El estado de cuenta original, tal como se subió."""
     conc = svc.obtener(db, conciliacion_id)
@@ -202,7 +205,7 @@ def exportar(
     conciliacion_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     conc = svc.obtener(db, conciliacion_id)
     archivo = svc.exportar_excel(db, conciliacion_id)
@@ -227,7 +230,7 @@ def sugerencias(
     conciliacion_id: UUID,
     empresa_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     """Candidatas por movimiento: {movimiento_id: [sugerencia, ...]}.
 
@@ -247,7 +250,7 @@ def actualizar_movimiento(
     movimiento_id: UUID,
     payload: MovimientoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     datos = payload.model_dump(exclude_unset=True)
     return _movimiento_out(svc.actualizar_movimiento(db, movimiento_id, datos), db)
@@ -257,7 +260,7 @@ def actualizar_movimiento(
 def limpiar_movimiento(
     movimiento_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     """Deshace la conciliación del movimiento: quita enlaces, comentario y área."""
     return _movimiento_out(svc.limpiar_movimiento(db, movimiento_id), db)
@@ -268,7 +271,7 @@ def enlazar_facturas(
     movimiento_id: UUID,
     payload: EnlaceFacturas,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     """Fija qué facturas componen el movimiento. Reemplaza las anteriores."""
     return _movimiento_out(svc.enlazar_facturas(
@@ -280,7 +283,7 @@ def enlazar_egresos(
     movimiento_id: UUID,
     payload: EnlaceEgresos,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     """Fija qué gastos componen el retiro. Reemplaza los anteriores."""
     return _movimiento_out(svc.enlazar_egresos(db, movimiento_id, payload.egreso_ids), db)
@@ -292,7 +295,7 @@ def buscar_egresos(
     empresa_id: Optional[UUID] = Query(None),
     limite: int = Query(25, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     eid = _empresa_activa(empresa_id, current_user)
     return [_egreso_out(e) for e in svc.buscar_egresos(db, empresa_id=eid, q=q, limite=limite)]
@@ -304,7 +307,7 @@ def buscar_facturas(
     empresa_id: Optional[UUID] = Query(None),
     limite: int = Query(25, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
     eid = _empresa_activa(empresa_id, current_user)
     facturas = svc.buscar_facturas(db, empresa_id=eid, q=q, limite=limite)

@@ -31,6 +31,7 @@ import conciliacionService, {
   Sugerencia,
 } from '@/services/conciliacionService';
 import { useEmpresaContext } from '@/context/EmpresaContext';
+import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/axios';
 import VisorPdfModal from '@/components/VisorPdfModal';
 
@@ -66,8 +67,28 @@ const COLOR_CONFIANZA: Record<string, string> = {
   alta: 'green', media: 'gold', baja: 'default',
 };
 
+
+/** Sólo admin y superadmin entran a la conciliación. El backend ya lo impone;
+ *  esto evita que quien teclee la dirección se tope con una pantalla de errores
+ *  en vez de un mensaje claro. */
+const useSoloAdmin = () => {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+  const permitido = user?.rol === 'superadmin' || user?.rol === 'admin';
+
+  React.useEffect(() => {
+    if (!isLoading && user && !permitido) {
+      message.warning('La conciliación bancaria es solo para administradores.');
+      router.replace('/');
+    }
+  }, [isLoading, user, permitido, router]);
+
+  return permitido;
+};
+
 const ConciliacionDetallePage: React.FC = () => {
   const router = useRouter();
+  const permitido = useSoloAdmin();
   const { id } = router.query;
   const { selectedEmpresaId } = useEmpresaContext();
 
@@ -313,6 +334,8 @@ const ConciliacionDetallePage: React.FC = () => {
       if (!e?._handled) message.error('No se pudo descargar');
     }
   };
+
+  if (!permitido) return null;
 
   if (cargando || !conc) {
     return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;

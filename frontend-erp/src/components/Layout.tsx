@@ -207,7 +207,7 @@ const baseMenuData = [
       { path: '/pagos', name: 'Pagos', icon: <ContainerOutlined /> },
       { path: '/cobranza', name: 'Cobranza', icon: <WarningOutlined /> },
       { path: '/egresos', name: 'Egresos', icon: <TableOutlined /> },
-      { path: '/conciliacion', name: 'Conciliación bancaria', icon: <ReconciliationOutlined /> },
+      // Conciliación bancaria se agrega abajo: sólo la ven admin y superadmin
     ],
   },
   {
@@ -434,6 +434,22 @@ export const Layout: React.FC<{
           children: [
             ...grupo.children,
             { path: '/ingresos-no-facturados', name: 'Ingresos no facturados', icon: <DollarOutlined /> },
+          ],
+        };
+      }
+    }
+
+    // La conciliación toca facturación, gastos y saldos del banco, así que se
+    // reserva a admin y superadmin. Va dentro de Finanzas, donde corresponde.
+    if (user?.rol === 'superadmin' || user?.rol === 'admin') {
+      const idxFin = menu.findIndex((g: any) => g.path === '/group-finanzas');
+      if (idxFin >= 0) {
+        const grupo: any = menu[idxFin];
+        menu[idxFin] = {
+          ...grupo,
+          children: [
+            ...grupo.children,
+            { path: '/conciliacion', name: 'Conciliación bancaria', icon: <ReconciliationOutlined /> },
           ],
         };
       }
