@@ -19,6 +19,8 @@ export interface EgresoEnlazado {
   fecha_egreso?: string | null;
   categoria?: string | null;
   empresa_nombre?: string | null;
+  /** Ruta del comprobante dentro de data/egresos, si lo tiene. */
+  archivo_pdf?: string | null;
 }
 
 /** Candidata que propone el sistema. Trae su origen y su confianza porque no
@@ -33,6 +35,7 @@ export interface Sugerencia {
   empresa?: string | null;
   origen: string;
   confianza: 'alta' | 'media' | 'baja';
+  archivo_pdf?: string | null;
 }
 
 export interface MovimientoBancario {
@@ -154,6 +157,14 @@ const conciliacionService = {
   },
 
   urlPdf: (id: string) => `/conciliacion/${id}/pdf`,
+
+  /** Documento de respaldo de una candidata, para revisarla antes de aceptar.
+   *  La factura arma su PDF con el id; el egreso se sirve por su ruta. */
+  urlDocumento: (tipo: 'factura' | 'egreso', id: string, archivo?: string | null) =>
+    tipo === 'factura'
+      ? `/facturas/${id}/pdf`
+      : (archivo ? `/egresos/archivo?ruta=${encodeURIComponent(archivo)}` : null),
+
   urlExcel: (id: string) => `/conciliacion/${id}/export-excel`,
 };
 

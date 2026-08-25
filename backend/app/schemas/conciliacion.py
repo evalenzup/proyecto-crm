@@ -33,6 +33,8 @@ class EgresoEnlazado(BaseModel):
     fecha_egreso: Optional[datetime.date] = None
     categoria: Optional[str] = None
     empresa_nombre: Optional[str] = None
+    # Ruta del comprobante, para poder verlo sin salir de la conciliación
+    archivo_pdf: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -52,6 +54,8 @@ class Sugerencia(BaseModel):
     empresa: Optional[str] = None
     origen: str
     confianza: str               # "alta" | "media" | "baja"
+    # Comprobante del egreso; en las facturas el PDF se arma con el id
+    archivo_pdf: Optional[str] = None
 
 
 class MovimientoOut(BaseModel):

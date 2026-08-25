@@ -64,6 +64,7 @@ def _egreso_out(e) -> EgresoEnlazado:
         fecha_egreso=e.fecha_egreso,
         categoria=getattr(e.categoria, "value", e.categoria) if e.categoria else None,
         empresa_nombre=e.empresa.nombre_comercial if getattr(e, "empresa", None) else None,
+        archivo_pdf=e.archivo_pdf or e.path_documento,
     )
 
 

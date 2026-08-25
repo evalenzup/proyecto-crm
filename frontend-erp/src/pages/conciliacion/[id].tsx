@@ -23,7 +23,7 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, CheckCircleFilled, FileExcelOutlined, FilePdfOutlined,
-  LinkOutlined, SearchOutlined, ThunderboltOutlined, UndoOutlined,
+  EyeOutlined, LinkOutlined, SearchOutlined, ThunderboltOutlined, UndoOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import conciliacionService, {
@@ -56,6 +56,8 @@ interface ItemEnlazable {
   detalle: string;
   empresa?: string;
   monto: number;
+  /** Sólo en los gastos: ruta de su comprobante. */
+  archivo?: string | null;
 }
 
 const COLOR_CONFIANZA: Record<string, string> = {
@@ -77,6 +79,25 @@ const ConciliacionDetallePage: React.FC = () => {
   const [cargandoSugs, setCargandoSugs] = React.useState(false);
   const [verPdf, setVerPdf] = React.useState(false);
   const [verTodas, setVerTodas] = React.useState<Record<string, boolean>>({});
+  // Documento que se está revisando (factura o comprobante del gasto)
+  const [doc, setDoc] = React.useState<{ url: string; titulo: string; nombre: string } | null>(null);
+
+  /** Abre el comprobante para revisarlo sin salir de la conciliación: es
+   *  justo cuando la sugerencia es dudosa que uno quiere verlo. */
+  const verDocumento = (
+    tipo: 'factura' | 'egreso', id: string, etiqueta: string, archivo?: string | null,
+  ) => {
+    const url = conciliacionService.urlDocumento(tipo, id, archivo);
+    if (!url) {
+      message.info('Ese gasto no tiene comprobante cargado en el sistema.');
+      return;
+    }
+    setDoc({
+      url,
+      titulo: tipo === 'factura' ? `Factura ${etiqueta}` : `Comprobante · ${etiqueta}`,
+      nombre: `${etiqueta.replace(/[^\w-]+/g, '_')}.pdf`,
+    });
+  };
 
   // Modal de facturas
   const [movActivo, setMovActivo] = React.useState<MovimientoBancario | null>(null);
@@ -178,7 +199,7 @@ const ConciliacionDetallePage: React.FC = () => {
           empresa: x.empresa_nombre ?? undefined, monto: Number(x.total) }
       : { id: x.id, etiqueta: (x.proveedor || 'Gasto').slice(0, 24),
           detalle: x.descripcion ?? '—', empresa: x.empresa_nombre ?? undefined,
-          monto: Number(x.monto) };
+          monto: Number(x.monto), archivo: x.archivo_pdf };
 
   const abrirFacturas = (mov: MovimientoBancario) => {
     setMovActivo(mov);
@@ -366,7 +387,14 @@ const ConciliacionDetallePage: React.FC = () => {
                     <Tag color={COLOR_CONFIANZA[s.confianza]} style={{ marginInlineEnd: 0 }}>
                       {s.folio.length > 16 ? `${s.folio.slice(0, 16)}…` : s.folio}
                     </Tag>
-                    <span style={{ fontSize: 11, flex: 1 }}>{dinero(Number(s.total))}</span>
+                    <span style={{ fontSize: 11, flex: 1 }}>{dinero(s.total)}</span>
+                    <EyeOutlined
+                      style={{ fontSize: 12 }}
+                      onClick={(ev) => {
+                        ev.stopPropagation();   // ver no debe enlazar
+                        verDocumento(s.tipo, s.id, s.folio, s.archivo_pdf);
+                      }}
+                    />
                     <ThunderboltOutlined style={{ fontSize: 11, color: '#faad14' }} />
                   </Space>
                 </Button>
@@ -546,6 +574,15 @@ const ConciliacionDetallePage: React.FC = () => {
                     <span style={{ flex: 1, fontSize: 13 }}>{f.detalle}</span>
                     <Text type="secondary" style={{ fontSize: 11 }}>{f.empresa}</Text>
                     <strong>{dinero(f.monto)}</strong>
+                    <Button
+                      size="small" type="text" icon={<EyeOutlined />}
+                      title="Ver el documento"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        verDocumento(esRetiro(movActivo) ? 'egreso' : 'factura',
+                                     f.id, f.etiqueta, f.archivo);
+                      }}
+                    />
                   </div>
                 ))}
               </div>
@@ -567,6 +604,12 @@ const ConciliacionDetallePage: React.FC = () => {
                     <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.etiqueta}</Tag>
                     <span style={{ flex: 1, fontSize: 13 }}>{f.detalle}</span>
                     <strong>{dinero(f.monto)}</strong>
+                    <Button
+                      size="small" type="text" icon={<EyeOutlined />}
+                      title="Ver el documento"
+                      onClick={() => verDocumento(
+                        esRetiro(movActivo) ? 'egreso' : 'factura', f.id, f.etiqueta, f.archivo)}
+                    />
                     <Button size="small" type="text" danger onClick={() => quitar(f.id)}>
                       Quitar
                     </Button>
@@ -597,6 +640,13 @@ const ConciliacionDetallePage: React.FC = () => {
         titulo={`Estado de cuenta · ${dayjs(conc.periodo_inicio).format('MMMM YYYY')}`}
         nombreArchivo={`estado-cuenta-${dayjs(conc.periodo_inicio).format('YYYY-MM')}.pdf`}
         onClose={() => setVerPdf(false)}
+      />
+
+      <VisorPdfModal
+        url={doc?.url ?? null}
+        titulo={doc?.titulo ?? ''}
+        nombreArchivo={doc?.nombre ?? ''}
+        onClose={() => setDoc(null)}
       />
 
       <style jsx global>{`

@@ -337,6 +337,7 @@ def _candidatas_retiro(m, egr_por_monto) -> List[dict]:
             "folio": e.proveedor or "(sin proveedor)", "total": e.monto,
             "fecha": e.fecha_egreso, "descripcion": e.descripcion,
             "empresa": e.empresa.nombre_comercial if getattr(e, "empresa", None) else None,
+            "archivo_pdf": e.archivo_pdf or e.path_documento,
             "origen": " + ".join(origenes), "puntos": puntos,
             "confianza": _confianza(puntos),
         })
