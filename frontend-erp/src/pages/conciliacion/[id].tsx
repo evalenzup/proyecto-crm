@@ -113,14 +113,6 @@ const ConciliacionDetallePage: React.FC = () => {
     });
   };
 
-  /** Qué documento conviene abrir de una factura. */
-  const documentoDeFactura = (f: { id: string; folio: string; metodo_pago?: string | null;
-                                   complementos?: { id: string; folio: string }[] }) => {
-    const comp = f.complementos?.[0];
-    return comp
-      ? { tipo: 'pago' as const, id: comp.id, etiqueta: comp.folio }
-      : { tipo: 'factura' as const, id: f.id, etiqueta: f.folio };
-  };
 
   // Modal de facturas
   const [movActivo, setMovActivo] = React.useState<MovimientoBancario | null>(null);
@@ -438,19 +430,15 @@ const ConciliacionDetallePage: React.FC = () => {
                       style={{ fontSize: 12 }}
                       title={s.tipo === 'complemento'
                         ? `Ver el complemento ${s.folio}`
-                        : s.complementos?.length
-                          ? `Ver el complemento ${s.complementos[0].folio}`
-                          : 'Ver el documento'}
+                        : `Ver ${s.tipo === 'factura' ? 'la factura' : 'el comprobante'} ${s.folio}`}
                       onClick={(ev) => {
                         ev.stopPropagation();   // ver no debe enlazar
-                        if (s.tipo === 'complemento') {
-                          verDocumento('pago', s.id, s.folio);
-                        } else if (s.tipo === 'factura') {
-                          const d = documentoDeFactura(s as any);
-                          verDocumento(d.tipo, d.id, d.etiqueta);
-                        } else {
-                          verDocumento('egreso', s.id, s.folio, s.archivo_pdf);
-                        }
+                        // Se abre lo que la etiqueta nombra. Antes, una
+                        // sugerencia de factura abría su complemento, y no
+                        // cuadraba con lo que decía en pantalla.
+                        if (s.tipo === 'complemento') verDocumento('pago', s.id, s.folio);
+                        else if (s.tipo === 'factura') verDocumento('factura', s.id, s.folio);
+                        else verDocumento('egreso', s.id, s.folio, s.archivo_pdf);
                       }}
                     />
                     <ThunderboltOutlined style={{ fontSize: 11, color: '#faad14' }} />
@@ -630,7 +618,15 @@ const ConciliacionDetallePage: React.FC = () => {
                   >
                     <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.etiqueta}</Tag>
                     {f.complemento && (
-                      <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                      <Tag
+                        color="purple"
+                        style={{ marginInlineEnd: 0, cursor: 'pointer' }}
+                        title="Ver el complemento de pago"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          verDocumento('pago', f.complemento!.id, f.complemento!.folio);
+                        }}
+                      >
                         {f.complemento.folio}
                       </Tag>
                     )}
@@ -643,7 +639,6 @@ const ConciliacionDetallePage: React.FC = () => {
                       onClick={(ev) => {
                         ev.stopPropagation();
                         if (esRetiro(movActivo)) verDocumento('egreso', f.id, f.etiqueta, f.archivo);
-                        else if (f.complemento) verDocumento('pago', f.complemento.id, f.complemento.folio);
                         else verDocumento('factura', f.id, f.etiqueta);
                       }}
                     />
@@ -673,7 +668,6 @@ const ConciliacionDetallePage: React.FC = () => {
                       title="Ver el documento"
                       onClick={() => {
                         if (esRetiro(movActivo)) verDocumento('egreso', f.id, f.etiqueta, f.archivo);
-                        else if (f.complemento) verDocumento('pago', f.complemento.id, f.complemento.folio);
                         else verDocumento('factura', f.id, f.etiqueta);
                       }}
                     />

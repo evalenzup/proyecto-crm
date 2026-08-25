@@ -309,7 +309,8 @@ def _candidatas_deposito(m, por_folio, fact_por_monto, palabras_cliente,
     # 0. El complemento manda: si hay uno por el mismo importe, él ya resolvió
     # qué facturas se están pagando y con cuánto de cada una.
     cands_pago = _candidatas_complemento(
-        m, monto, pago_por_monto or {}, docs_por_pago or {}, pistas, clientes_alias)
+        m, monto, pago_por_monto or {}, docs_por_pago or {}, pistas, clientes_alias,
+        folios)
     if cands_pago:
         return cands_pago
 
@@ -376,12 +377,21 @@ def _candidatas_deposito(m, por_folio, fact_por_monto, palabras_cliente,
 
 
 def _candidatas_complemento(m, monto, pago_por_monto, docs_por_pago,
-                            pistas, clientes_alias) -> List[dict]:
-    """Complementos cuyo importe cuadra con el depósito."""
+                            pistas, clientes_alias, folios=None) -> List[dict]:
+    """Complementos cuyo importe cuadra con el depósito.
+
+    El tope por importe no puede aplicarse antes de mirar las demás señales.
+    Hay 19 complementos de exactamente $1,296 en un solo periodo —es un precio
+    de lista— y descartarlos en bloque hacía que un depósito con el folio
+    escrito en el concepto terminara sugiriendo la factura en vez del
+    complemento. Primero se afina; el tope sólo decide si lo que quedó todavía
+    es demasiado ambiguo para proponer algo.
+    """
     mismos = pago_por_monto.get(monto, [])
-    if not mismos or len(mismos) > MAX_POR_MONTO:
+    if not mismos:
         return []
 
+    folios = folios or set()
     salida = []
     for p in mismos:
         facturas = docs_por_pago.get(p.id, [])
@@ -389,6 +399,17 @@ def _candidatas_complemento(m, monto, pago_por_monto, docs_por_pago,
             continue          # sin facturas no aporta nada al comentario
         puntos = P_MONTO + P_FOLIO   # el complemento es el documento del cobro
         origenes = ["complemento por el mismo importe"]
+
+        # Si el concepto trae el folio de alguna factura que este complemento
+        # cubre, ya no hay duda de cuál de todos es.
+        cubiertos = {int(f["folio"].split("-")[-1]) for f in facturas
+                     if f["folio"].split("-")[-1].isdigit()}
+        coincide_folio = bool(folios & cubiertos)
+        if coincide_folio:
+            origenes.insert(0, "folio {} en el concepto".format(
+                ", ".join(str(x) for x in sorted(folios & cubiertos))))
+            puntos += P_FOLIO
+
         if p.cliente_id and p.cliente_id in clientes_alias:
             origenes.append("ya habías asignado a este cliente")
             puntos += P_ALIAS
@@ -406,9 +427,20 @@ def _candidatas_complemento(m, monto, pago_por_monto, docs_por_pago,
             "facturas": facturas,
             "origen": " + ".join(origenes), "puntos": puntos,
             "confianza": _confianza(puntos),
+            "_folio": coincide_folio,
         })
+
+    # Si alguno lo señala el propio concepto, ése manda y los demás sobran.
+    con_folio = [c for c in salida if c["_folio"]]
+    if con_folio:
+        salida = con_folio
+    elif len(salida) > MAX_POR_MONTO:
+        # Nada los distingue y son demasiados: mejor no proponer que confundir.
+        return []
+
     salida.sort(key=lambda c: -c["puntos"])
-    return [_limpiar(c) for c in salida[:MAX_CANDIDATAS]]
+    return [_limpiar({k: v for k, v in c.items() if k != "_folio"})
+            for c in salida[:MAX_CANDIDATAS]]
 
 
 def _candidatas_retiro(m, egr_por_monto) -> List[dict]:
