@@ -520,7 +520,7 @@ const ConciliacionDetallePage: React.FC = () => {
               onClick={() => descargar(conciliacionService.urlExcel(conc.id),
                 `conciliacion-${dayjs(conc.periodo_inicio).format('YYYY-MM')}.xlsx`)}
             >
-              Exportar para la contadora
+              Exportar para contabilidad
             </Button>
           </Space>
         }
