@@ -48,6 +48,12 @@ _REF_FOLIO = re.compile(
     re.I,
 )
 _NUM_SUELTO = re.compile(r"\b(\d{3,5})\b")
+# La gente escribe el folio pegado a la serie —"A1604", "F1561"— sin ninguna
+# palabra que lo anuncie. Sin esto no se detectaba y el sistema no podía elegir
+# entre los complementos del mismo importe.
+_SERIE_PEGADA = re.compile(r"\b([A-Z])(\d{3,5})\b")
+# Y en la referencia bancaria va rellenado con ceros: "REF.0000001604".
+_CON_CEROS = re.compile(r"\b0{2,}(\d{3,5})\b")
 
 # Bancos e intermediarios: aparecen como emisores pero no son quien paga
 _INTERMEDIARIOS = {
@@ -125,9 +131,12 @@ def clave_alias(concepto: str) -> str:
 
 
 def _folios_del_concepto(texto: str) -> Set[int]:
-    folios = {int(n) for _, n in _REF_FOLIO.findall(texto or "")}
-    if folios or re.search(r"FACTURA|FACT|PAGO|PAYO|FUMIGACION", texto or "", re.I):
-        folios |= {int(n) for n in _NUM_SUELTO.findall(texto or "")}
+    t = texto or ""
+    folios = {int(n) for _, n in _REF_FOLIO.findall(t)}
+    folios |= {int(n) for _, n in _SERIE_PEGADA.findall(t.upper())}
+    folios |= {int(n) for n in _CON_CEROS.findall(t)}
+    if folios or re.search(r"FACTURA|FACT|PAGO|PAYO|FUMIGACION", t, re.I):
+        folios |= {int(n) for n in _NUM_SUELTO.findall(t)}
     return {f for f in folios if 1 <= f <= 99999}
 
 
@@ -137,6 +146,7 @@ P_FOLIO = 50          # el folio viene escrito en el concepto
 P_ALIAS = 40          # un alias aprendido apunta a ese cliente
 P_MONTO = 30          # el importe coincide exacto
 P_NOMBRE = 25         # el nombre de quien paga se parece al del cliente
+P_COMPLEMENTO = 10    # ser el documento del cobro, no una coincidencia más
 P_YA_USADA = -100     # esa factura ya se concilió en otro movimiento
 
 # Ventana para buscar facturas y complementos: una factura de marzo se puede
@@ -397,7 +407,10 @@ def _candidatas_complemento(m, monto, pago_por_monto, docs_por_pago,
         facturas = docs_por_pago.get(p.id, [])
         if not facturas:
             continue          # sin facturas no aporta nada al comentario
-        puntos = P_MONTO + P_FOLIO   # el complemento es el documento del cobro
+        # Ser el documento del cobro suma, pero no tanto como para dar por
+        # segura una coincidencia que sólo es de importe: con 19 complementos
+        # del mismo monto, las cuatro salían marcadas en verde por igual.
+        puntos = P_MONTO + P_COMPLEMENTO
         origenes = ["complemento por el mismo importe"]
 
         # Si el concepto trae el folio de alguna factura que este complemento
