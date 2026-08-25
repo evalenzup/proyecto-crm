@@ -202,6 +202,10 @@ def calcular(db: Session, conciliacion_id: UUID, empresas: List[UUID]) -> Dict[s
     # Facturas ya enlazadas en cualquier conciliación: no deben competir de nuevo
     ya_usadas = {r[0] for r in db.query(MovimientoFactura.factura_id).all()}
 
+    # Complementos de todas las facturas del periodo, en una sola consulta
+    from app.services.conciliacion_service import complementos_de
+    complementos = complementos_de(db, [f.id for f in facturas])
+
     alias = defaultdict(set)
     for a in db.query(ConciliacionAlias).filter(
             ConciliacionAlias.empresa_id.in_(empresas)).all():
@@ -230,7 +234,8 @@ def calcular(db: Session, conciliacion_id: UUID, empresas: List[UUID]) -> Dict[s
 
         if m.deposito is not None:
             cands = _candidatas_deposito(
-                m, por_folio, fact_por_monto, palabras_cliente, alias, ya_usadas)
+                m, por_folio, fact_por_monto, palabras_cliente, alias, ya_usadas,
+                complementos)
         elif m.retiro is not None:
             cands = _candidatas_retiro(m, egr_por_monto)
         else:
@@ -248,7 +253,7 @@ def _fecha(f) -> Optional[object]:
 
 
 def _candidatas_deposito(m, por_folio, fact_por_monto, palabras_cliente,
-                         alias, ya_usadas) -> List[dict]:
+                         alias, ya_usadas, complementos) -> List[dict]:
     monto = Decimal(m.deposito).quantize(Decimal("0.01"))
     folios = _folios_del_concepto(m.concepto)
     pistas = palabras_clave(ordenante_del_concepto(m.concepto))
@@ -267,7 +272,8 @@ def _candidatas_deposito(m, por_folio, fact_por_monto, palabras_cliente,
         puntos += _cercania(dias)
         marcadas[clave] = {
             "tipo": "factura", "id": clave, "folio": f"{f.serie}-{f.folio}",
-            "total": f.total, "fecha": fecha,
+            "total": f.total, "fecha": fecha, "metodo_pago": f.metodo_pago,
+            "complementos": complementos.get(f.id, []),
             "descripcion": f.cliente.nombre_comercial if f.cliente else None,
             "empresa": f.empresa.nombre_comercial if f.empresa else None,
             "origen": " + ".join(origenes), "puntos": puntos,

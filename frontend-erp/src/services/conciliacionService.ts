@@ -1,6 +1,13 @@
 // src/services/conciliacionService.ts
 import api from '@/lib/axios';
 
+export interface ComplementoPago {
+  id: string;
+  folio: string;              // "P-857"
+  fecha_pago?: string | null;
+  imp_pagado: number;
+}
+
 export interface FacturaEnlazada {
   id: string;
   folio: string;              // "A-1585"
@@ -9,6 +16,9 @@ export interface FacturaEnlazada {
   cliente_nombre?: string | null;
   empresa_nombre?: string | null;
   estatus: string;
+  metodo_pago?: string | null;          // PUE | PPD
+  /** En una PPD el complemento es el documento que cuenta; una PUE no lo tiene. */
+  complementos?: ComplementoPago[];
 }
 
 export interface EgresoEnlazado {
@@ -36,6 +46,8 @@ export interface Sugerencia {
   origen: string;
   confianza: 'alta' | 'media' | 'baja';
   archivo_pdf?: string | null;
+  metodo_pago?: string | null;
+  complementos?: ComplementoPago[];
 }
 
 export interface MovimientoBancario {
@@ -160,10 +172,11 @@ const conciliacionService = {
 
   /** Documento de respaldo de una candidata, para revisarla antes de aceptar.
    *  La factura arma su PDF con el id; el egreso se sirve por su ruta. */
-  urlDocumento: (tipo: 'factura' | 'egreso', id: string, archivo?: string | null) =>
-    tipo === 'factura'
-      ? `/facturas/${id}/pdf`
-      : (archivo ? `/egresos/archivo?ruta=${encodeURIComponent(archivo)}` : null),
+  urlDocumento: (tipo: 'factura' | 'egreso' | 'pago', id: string, archivo?: string | null) => {
+    if (tipo === 'factura') return `/facturas/${id}/pdf`;
+    if (tipo === 'pago') return `/pagos/${id}/pdf`;
+    return archivo ? `/egresos/archivo?ruta=${encodeURIComponent(archivo)}` : null;
+  },
 
   urlExcel: (id: string) => `/conciliacion/${id}/export-excel`,
 };

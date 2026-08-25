@@ -11,6 +11,14 @@ from pydantic import BaseModel, Field, field_validator
 from app.models.conciliacion import AREAS
 
 
+class ComplementoPago(BaseModel):
+    """Complemento que documenta el cobro de una factura PPD."""
+    id: UUID
+    folio: str                      # "P-857"
+    fecha_pago: Optional[datetime.date] = None
+    imp_pagado: Decimal
+
+
 class FacturaEnlazada(BaseModel):
     """Factura que compone un movimiento, como se muestra en la pantalla."""
     id: UUID
@@ -20,6 +28,9 @@ class FacturaEnlazada(BaseModel):
     cliente_nombre: Optional[str] = None
     empresa_nombre: Optional[str] = None
     estatus: str
+    metodo_pago: Optional[str] = None      # PUE | PPD
+    # En una PPD el complemento es el documento que cuenta; en una PUE no existe
+    complementos: List[ComplementoPago] = []
 
     model_config = {"from_attributes": True}
 

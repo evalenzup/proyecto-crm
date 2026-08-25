@@ -16,9 +16,9 @@ from app.database import get_db
 from app.models.conciliacion import AREAS
 from app.models.usuario import RolUsuario, Usuario
 from app.schemas.conciliacion import (
-    AreaOut, ConciliacionDetalleOut, ConciliacionListOut, EgresoEnlazado,
-    EnlaceEgresos, EnlaceFacturas, FacturaEnlazada, MovimientoOut,
-    MovimientoUpdate, Sugerencia,
+    AreaOut, ComplementoPago, ConciliacionDetalleOut, ConciliacionListOut,
+    EgresoEnlazado, EnlaceEgresos, EnlaceFacturas, FacturaEnlazada,
+    MovimientoOut, MovimientoUpdate, Sugerencia,
 )
 from app.services import auditoria_service as audit_svc
 from app.services import conciliacion_service as svc
@@ -44,7 +44,7 @@ def _empresa_activa(empresa_id: Optional[UUID], current_user: Usuario) -> UUID:
     raise HTTPException(status_code=400, detail="Se requiere empresa_id")
 
 
-def _factura_out(f) -> FacturaEnlazada:
+def _factura_out(f, complementos=None) -> FacturaEnlazada:
     # fecha_emision viene como datetime del modelo; el esquema expone la fecha
     emision = f.fecha_emision
     if emision is not None and hasattr(emision, "date"):
@@ -55,6 +55,8 @@ def _factura_out(f) -> FacturaEnlazada:
         cliente_nombre=f.cliente.nombre_comercial if f.cliente else None,
         empresa_nombre=f.empresa.nombre_comercial if f.empresa else None,
         estatus=getattr(f.estatus, "value", f.estatus),
+        metodo_pago=f.metodo_pago,
+        complementos=complementos or [],
     )
 
 
@@ -68,8 +70,9 @@ def _egreso_out(e) -> EgresoEnlazado:
     )
 
 
-def _movimiento_out(m) -> MovimientoOut:
-    facturas = [_factura_out(f) for f in m.facturas]
+def _movimiento_out(m, db: Optional[Session] = None) -> MovimientoOut:
+    comps = svc.complementos_de(db, [f.id for f in m.facturas]) if db and m.facturas else {}
+    facturas = [_factura_out(f, comps.get(f.id)) for f in m.facturas]
     egresos = [_egreso_out(e) for e in m.egresos]
     total = (sum((f.total for f in facturas), Decimal("0"))
              + sum((e.monto for e in egresos), Decimal("0")))
@@ -81,7 +84,7 @@ def _movimiento_out(m) -> MovimientoOut:
     )
 
 
-def _conciliacion_out(c, con_movimientos: bool):
+def _conciliacion_out(c, con_movimientos: bool, db: Optional[Session] = None):
     base = dict(
         id=c.id, periodo_inicio=c.periodo_inicio, periodo_fin=c.periodo_fin,
         banco=c.banco, cuenta=c.cuenta, estado=c.estado,
@@ -94,7 +97,7 @@ def _conciliacion_out(c, con_movimientos: bool):
     )
     if con_movimientos:
         return ConciliacionDetalleOut(
-            **base, movimientos=[_movimiento_out(m) for m in c.movimientos])
+            **base, movimientos=[_movimiento_out(m, db) for m in c.movimientos])
     return ConciliacionListOut(**base)
 
 
@@ -147,7 +150,7 @@ async def importar(
         ip=audit_svc.get_ip(request),
     )
     db.commit()
-    return _conciliacion_out(svc.obtener(db, conc.id), True)
+    return _conciliacion_out(svc.obtener(db, conc.id), True, db)
 
 
 @router.get("/{conciliacion_id}", response_model=ConciliacionDetalleOut)
@@ -156,7 +159,7 @@ def obtener(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
-    return _conciliacion_out(svc.obtener(db, conciliacion_id), True)
+    return _conciliacion_out(svc.obtener(db, conciliacion_id), True, db)
 
 
 @router.delete("/{conciliacion_id}", status_code=204)
@@ -247,7 +250,7 @@ def actualizar_movimiento(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     datos = payload.model_dump(exclude_unset=True)
-    return _movimiento_out(svc.actualizar_movimiento(db, movimiento_id, datos))
+    return _movimiento_out(svc.actualizar_movimiento(db, movimiento_id, datos), db)
 
 
 @router.delete("/movimientos/{movimiento_id}/enlaces", response_model=MovimientoOut)
@@ -257,7 +260,7 @@ def limpiar_movimiento(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Deshace la conciliación del movimiento: quita enlaces, comentario y área."""
-    return _movimiento_out(svc.limpiar_movimiento(db, movimiento_id))
+    return _movimiento_out(svc.limpiar_movimiento(db, movimiento_id), db)
 
 
 @router.put("/movimientos/{movimiento_id}/facturas", response_model=MovimientoOut)
@@ -269,7 +272,7 @@ def enlazar_facturas(
 ):
     """Fija qué facturas componen el movimiento. Reemplaza las anteriores."""
     return _movimiento_out(svc.enlazar_facturas(
-        db, movimiento_id, payload.factura_ids, usuario_id=current_user.id))
+        db, movimiento_id, payload.factura_ids, usuario_id=current_user.id), db)
 
 
 @router.put("/movimientos/{movimiento_id}/egresos", response_model=MovimientoOut)
@@ -280,7 +283,7 @@ def enlazar_egresos(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     """Fija qué gastos componen el retiro. Reemplaza los anteriores."""
-    return _movimiento_out(svc.enlazar_egresos(db, movimiento_id, payload.egreso_ids))
+    return _movimiento_out(svc.enlazar_egresos(db, movimiento_id, payload.egreso_ids), db)
 
 
 @router.get("/egresos/busqueda", response_model=List[EgresoEnlazado])
@@ -304,4 +307,6 @@ def buscar_facturas(
     current_user: Usuario = Depends(deps.get_current_active_user),
 ):
     eid = _empresa_activa(empresa_id, current_user)
-    return [_factura_out(f) for f in svc.buscar_facturas(db, empresa_id=eid, q=q, limite=limite)]
+    facturas = svc.buscar_facturas(db, empresa_id=eid, q=q, limite=limite)
+    comps = svc.complementos_de(db, [f.id for f in facturas])
+    return [_factura_out(f, comps.get(f.id)) for f in facturas]

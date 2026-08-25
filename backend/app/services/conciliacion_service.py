@@ -292,6 +292,39 @@ def enlazar_egresos(db: Session, movimiento_id: UUID, egreso_ids: List[UUID]) ->
     return mov
 
 
+def complementos_de(db: Session, factura_ids) -> dict:
+    """Complementos de pago timbrados de cada factura, en una sola consulta.
+
+    Una factura PPD se cobra con un complemento, y ése es el documento que
+    vale para la contadora; una PUE no lo tiene y la que cuenta es la factura.
+    Por eso hay que saber cuál mostrar en vez de suponerlo.
+    """
+    from app.models.pago import Pago, PagoDocumentoRelacionado
+    from app.schemas.conciliacion import ComplementoPago
+
+    ids = list(factura_ids or [])
+    if not ids:
+        return {}
+
+    filas = (
+        db.query(PagoDocumentoRelacionado, Pago)
+        .join(Pago, Pago.id == PagoDocumentoRelacionado.pago_id)
+        .filter(PagoDocumentoRelacionado.factura_id.in_(ids),
+                Pago.estatus != "CANCELADO")
+        .all()
+    )
+    salida: dict = {}
+    for dr, pago in filas:
+        fecha = pago.fecha_pago
+        salida.setdefault(dr.factura_id, []).append(ComplementoPago(
+            id=pago.id,
+            folio=f"{pago.serie or 'P'}-{pago.folio}",
+            fecha_pago=fecha.date() if hasattr(fecha, "date") else fecha,
+            imp_pagado=dr.imp_pagado,
+        ))
+    return salida
+
+
 def buscar_egresos(db: Session, *, empresa_id: UUID, q: str = "", limite: int = 25) -> List[Egreso]:
     """Busca gastos para enlazar a un retiro, por proveedor o descripción."""
     empresas = _empresas_hermanas(db, empresa_id)

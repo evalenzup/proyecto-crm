@@ -58,6 +58,8 @@ interface ItemEnlazable {
   monto: number;
   /** Sólo en los gastos: ruta de su comprobante. */
   archivo?: string | null;
+  /** Sólo en las facturas: complemento que documenta el cobro, si es PPD. */
+  complemento?: { id: string; folio: string } | null;
 }
 
 const COLOR_CONFIANZA: Record<string, string> = {
@@ -83,20 +85,39 @@ const ConciliacionDetallePage: React.FC = () => {
   const [doc, setDoc] = React.useState<{ url: string; titulo: string; nombre: string } | null>(null);
 
   /** Abre el comprobante para revisarlo sin salir de la conciliación: es
-   *  justo cuando la sugerencia es dudosa que uno quiere verlo. */
+   *  justo cuando la sugerencia es dudosa que uno quiere verlo.
+   *
+   *  En una factura PPD el documento que vale es el complemento de pago, no la
+   *  factura: la factura sólo dice que se va a cobrar en parcialidades. En una
+   *  PUE no hay complemento y la factura es la que cuenta. */
   const verDocumento = (
-    tipo: 'factura' | 'egreso', id: string, etiqueta: string, archivo?: string | null,
+    tipo: 'factura' | 'egreso' | 'pago', id: string, etiqueta: string,
+    archivo?: string | null,
   ) => {
     const url = conciliacionService.urlDocumento(tipo, id, archivo);
     if (!url) {
       message.info('Ese gasto no tiene comprobante cargado en el sistema.');
       return;
     }
+    const titulos: Record<string, string> = {
+      factura: `Factura ${etiqueta}`,
+      pago: `Complemento de pago ${etiqueta}`,
+      egreso: `Comprobante · ${etiqueta}`,
+    };
     setDoc({
       url,
-      titulo: tipo === 'factura' ? `Factura ${etiqueta}` : `Comprobante · ${etiqueta}`,
+      titulo: titulos[tipo] ?? etiqueta,
       nombre: `${etiqueta.replace(/[^\w-]+/g, '_')}.pdf`,
     });
+  };
+
+  /** Qué documento conviene abrir de una factura. */
+  const documentoDeFactura = (f: { id: string; folio: string; metodo_pago?: string | null;
+                                   complementos?: { id: string; folio: string }[] }) => {
+    const comp = f.complementos?.[0];
+    return comp
+      ? { tipo: 'pago' as const, id: comp.id, etiqueta: comp.folio }
+      : { tipo: 'factura' as const, id: f.id, etiqueta: f.folio };
   };
 
   // Modal de facturas
@@ -178,7 +199,8 @@ const ConciliacionDetallePage: React.FC = () => {
       setConc((c) => c && {
         ...c, movimientos: c.movimientos.map((m) => (m.id === nuevo.id ? nuevo : m)),
       });
-      setSugs((x) => { const y = { ...x }; delete y[mov.id]; return y; });
+      // La sugerencia no se borra: si se deshace el enlace tiene que volver a
+      // estar ahí. Sólo se oculta mientras el movimiento esté conciliado.
     } catch (e: any) {
       if (!e?._handled) message.error('No se pudo enlazar');
     } finally {
@@ -196,7 +218,8 @@ const ConciliacionDetallePage: React.FC = () => {
   const comoItem = (x: FacturaEnlazada | EgresoEnlazado): ItemEnlazable =>
     'folio' in x
       ? { id: x.id, etiqueta: x.folio, detalle: x.cliente_nombre ?? '—',
-          empresa: x.empresa_nombre ?? undefined, monto: Number(x.total) }
+          empresa: x.empresa_nombre ?? undefined, monto: Number(x.total),
+          complemento: x.complementos?.[0] ?? null }
       : { id: x.id, etiqueta: (x.proveedor || 'Gasto').slice(0, 24),
           detalle: x.descripcion ?? '—', empresa: x.empresa_nombre ?? undefined,
           monto: Number(x.monto), archivo: x.archivo_pdf };
@@ -208,20 +231,32 @@ const ConciliacionDetallePage: React.FC = () => {
     setResultados([]);
   };
 
-  const buscar = async (texto: string) => {
+  // Se espera a que deje de teclear: una consulta por letra hacía que la
+  // lista brincara y llegara tarde. 300 ms es lo que tarda una pausa natural.
+  const temporizador = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const buscar = (texto: string) => {
     setQ(texto);
-    if (!texto.trim()) { setResultados([]); return; }
+    if (temporizador.current) clearTimeout(temporizador.current);
+    if (!texto.trim()) { setResultados([]); setBuscando(false); return; }
+
     setBuscando(true);
-    try {
-      const emp = selectedEmpresaId ?? undefined;
-      const datos = esRetiro(movActivo)
-        ? await conciliacionService.buscarEgresos(texto, emp)
-        : await conciliacionService.buscarFacturas(texto, emp);
-      setResultados(datos.map(comoItem));
-    } catch { /* el interceptor ya avisa */ } finally {
-      setBuscando(false);
-    }
+    temporizador.current = setTimeout(async () => {
+      try {
+        const emp = selectedEmpresaId ?? undefined;
+        const datos = esRetiro(movActivo)
+          ? await conciliacionService.buscarEgresos(texto, emp)
+          : await conciliacionService.buscarFacturas(texto, emp);
+        setResultados(datos.map(comoItem));
+      } catch { /* el interceptor ya avisa */ } finally {
+        setBuscando(false);
+      }
+    }, 300);
   };
+
+  React.useEffect(() => () => {
+    if (temporizador.current) clearTimeout(temporizador.current);
+  }, []);
 
   const agregar = (f: ItemEnlazable) => {
     if (elegidas.some((x) => x.id === f.id)) return;
@@ -390,9 +425,17 @@ const ConciliacionDetallePage: React.FC = () => {
                     <span style={{ fontSize: 11, flex: 1 }}>{dinero(s.total)}</span>
                     <EyeOutlined
                       style={{ fontSize: 12 }}
+                      title={s.complementos?.length
+                        ? `Ver el complemento ${s.complementos[0].folio}`
+                        : 'Ver el documento'}
                       onClick={(ev) => {
                         ev.stopPropagation();   // ver no debe enlazar
-                        verDocumento(s.tipo, s.id, s.folio, s.archivo_pdf);
+                        if (s.tipo === 'factura') {
+                          const d = documentoDeFactura(s as any);
+                          verDocumento(d.tipo, d.id, d.etiqueta);
+                        } else {
+                          verDocumento('egreso', s.id, s.folio, s.archivo_pdf);
+                        }
                       }}
                     />
                     <ThunderboltOutlined style={{ fontSize: 11, color: '#faad14' }} />
@@ -571,6 +614,11 @@ const ConciliacionDetallePage: React.FC = () => {
                     }}
                   >
                     <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.etiqueta}</Tag>
+                    {f.complemento && (
+                      <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                        {f.complemento.folio}
+                      </Tag>
+                    )}
                     <span style={{ flex: 1, fontSize: 13 }}>{f.detalle}</span>
                     <Text type="secondary" style={{ fontSize: 11 }}>{f.empresa}</Text>
                     <strong>{dinero(f.monto)}</strong>
@@ -579,8 +627,9 @@ const ConciliacionDetallePage: React.FC = () => {
                       title="Ver el documento"
                       onClick={(ev) => {
                         ev.stopPropagation();
-                        verDocumento(esRetiro(movActivo) ? 'egreso' : 'factura',
-                                     f.id, f.etiqueta, f.archivo);
+                        if (esRetiro(movActivo)) verDocumento('egreso', f.id, f.etiqueta, f.archivo);
+                        else if (f.complemento) verDocumento('pago', f.complemento.id, f.complemento.folio);
+                        else verDocumento('factura', f.id, f.etiqueta);
                       }}
                     />
                   </div>
@@ -607,8 +656,11 @@ const ConciliacionDetallePage: React.FC = () => {
                     <Button
                       size="small" type="text" icon={<EyeOutlined />}
                       title="Ver el documento"
-                      onClick={() => verDocumento(
-                        esRetiro(movActivo) ? 'egreso' : 'factura', f.id, f.etiqueta, f.archivo)}
+                      onClick={() => {
+                        if (esRetiro(movActivo)) verDocumento('egreso', f.id, f.etiqueta, f.archivo);
+                        else if (f.complemento) verDocumento('pago', f.complemento.id, f.complemento.folio);
+                        else verDocumento('factura', f.id, f.etiqueta);
+                      }}
                     />
                     <Button size="small" type="text" danger onClick={() => quitar(f.id)}>
                       Quitar
