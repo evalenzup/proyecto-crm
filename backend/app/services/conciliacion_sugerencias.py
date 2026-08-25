@@ -139,7 +139,18 @@ P_MONTO = 30          # el importe coincide exacto
 P_NOMBRE = 25         # el nombre de quien paga se parece al del cliente
 P_YA_USADA = -100     # esa factura ya se concilió en otro movimiento
 
+# Ventana para buscar facturas y complementos: una factura de marzo se puede
+# cobrar en junio, así que hay que mirar bastante atrás.
 DIAS_ANTES, DIAS_DESPUES = 75, 20
+
+# Los gastos son otra cosa: el cargo del banco y el egreso capturado son el
+# mismo hecho, así que caen en el mismo mes. Buscar con la ventana ancha metía
+# ruido de a de veras — muchos gastos son recurrentes por el mismo importe cada
+# mes (Telnor, publicidad, monederos), y todos competían entre sí. Medido en
+# junio: 161 candidatas de otros meses contra sólo 2 retiros cuyo egreso está
+# realmente fuera del mes. El margen cubre el cargo que cae a caballo entre
+# dos meses.
+DIAS_MARGEN_EGRESO = 5
 MAX_POR_MONTO = 6
 MAX_CANDIDATAS = 6
 
@@ -194,8 +205,8 @@ def calcular(db: Session, conciliacion_id: UUID, empresas: List[UUID]) -> Dict[s
         .options(selectinload(Egreso.empresa))
         .filter(
             Egreso.empresa_id.in_(empresas),
-            Egreso.fecha_egreso >= desde,
-            Egreso.fecha_egreso <= hasta,
+            Egreso.fecha_egreso >= conc.periodo_inicio - timedelta(days=DIAS_MARGEN_EGRESO),
+            Egreso.fecha_egreso <= conc.periodo_fin + timedelta(days=DIAS_MARGEN_EGRESO),
         )
         .all()
     )
