@@ -23,7 +23,7 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, CheckCircleFilled, FileExcelOutlined, FilePdfOutlined,
-  EyeOutlined, LinkOutlined, SearchOutlined, ThunderboltOutlined, UndoOutlined,
+  CheckOutlined, LinkOutlined, PlusOutlined, SearchOutlined, UndoOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import conciliacionService, {
@@ -402,49 +402,60 @@ const ConciliacionDetallePage: React.FC = () => {
               </Text>
             )}
 
-            {/* Se muestra sólo la mejor: cuando salían tres, la correcta se
-                perdía entre alternativas que sólo hacían dudar. Las demás
-                quedan a un clic. */}
+            {/* Cada folio es su propio botón que abre el PDF, y aceptar tiene el
+                suyo aparte. Antes toda la fila aceptaba y el ojito iba dentro,
+                así que al querer ver el documento se aceptaba sin querer. */}
             {enlazados === 0 && (verTodas[m.id] ? candidatas : candidatas.slice(0, 1)).map((s) => (
-              <Tooltip
+              <div
                 key={s.id}
-                title={`${s.origen}${s.fecha ? ` · ${dayjs(s.fecha).format('DD/MM/YYYY')}` : ''}${s.empresa ? ` · ${s.empresa}` : ''}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4, width: '100%',
+                  padding: '3px 4px', border: '1px solid #f0f0f0', borderRadius: 6,
+                }}
               >
-                <Button
-                  size="small"
-                  block
-                  loading={guardando === m.id}
-                  onClick={() => aceptar(m, s)}
-                  style={{ textAlign: 'left', height: 'auto', padding: '2px 6px' }}
-                >
-                  <Space size={4} style={{ width: '100%' }}>
-                    <Tag color={COLOR_CONFIANZA[s.confianza]} style={{ marginInlineEnd: 0 }}>
-                      {s.folio.length > 16 ? `${s.folio.slice(0, 16)}…` : s.folio}
+                <Tooltip title={`Ver ${s.tipo === 'complemento' ? 'el complemento' : s.tipo === 'factura' ? 'la factura' : 'el comprobante'} ${s.folio}`}>
+                  <Tag
+                    color={COLOR_CONFIANZA[s.confianza]}
+                    style={{ marginInlineEnd: 0, cursor: 'pointer' }}
+                    onClick={() => (
+                      s.tipo === 'complemento' ? verDocumento('pago', s.id, s.folio)
+                      : s.tipo === 'factura' ? verDocumento('factura', s.id, s.folio)
+                      : verDocumento('egreso', s.id, s.folio, s.archivo_pdf)
+                    )}
+                  >
+                    {s.folio.length > 18 ? `${s.folio.slice(0, 18)}…` : s.folio}
+                  </Tag>
+                </Tooltip>
+
+                {/* Las facturas que cubre el complemento, cada una con su PDF */}
+                {s.tipo === 'complemento' && (s.facturas ?? []).map((f) => (
+                  <Tooltip key={f.id} title={`Ver la factura ${f.folio}`}>
+                    <Tag
+                      style={{ marginInlineEnd: 0, cursor: 'pointer' }}
+                      onClick={() => verDocumento('factura', f.id, f.folio)}
+                    >
+                      {f.folio}
                     </Tag>
-                    <span style={{ fontSize: 11, flex: 1 }}>
-                      {s.tipo === 'complemento' && s.facturas?.length
-                        ? s.facturas.map((f) => f.folio).join(', ')
-                        : dinero(s.total)}
-                    </span>
-                    <EyeOutlined
-                      style={{ fontSize: 12 }}
-                      title={s.tipo === 'complemento'
-                        ? `Ver el complemento ${s.folio}`
-                        : `Ver ${s.tipo === 'factura' ? 'la factura' : 'el comprobante'} ${s.folio}`}
-                      onClick={(ev) => {
-                        ev.stopPropagation();   // ver no debe enlazar
-                        // Se abre lo que la etiqueta nombra. Antes, una
-                        // sugerencia de factura abría su complemento, y no
-                        // cuadraba con lo que decía en pantalla.
-                        if (s.tipo === 'complemento') verDocumento('pago', s.id, s.folio);
-                        else if (s.tipo === 'factura') verDocumento('factura', s.id, s.folio);
-                        else verDocumento('egreso', s.id, s.folio, s.archivo_pdf);
-                      }}
-                    />
-                    <ThunderboltOutlined style={{ fontSize: 11, color: '#faad14' }} />
-                  </Space>
-                </Button>
-              </Tooltip>
+                  </Tooltip>
+                ))}
+
+                {s.tipo !== 'complemento' && (
+                  <span style={{ fontSize: 11, color: '#888' }}>{dinero(s.total)}</span>
+                )}
+
+                <span style={{ flex: 1 }} />
+
+                <Tooltip title={`Aceptar · ${s.origen}`}>
+                  <Button
+                    type="primary"
+                    ghost
+                    size="small"
+                    icon={<CheckOutlined />}
+                    loading={guardando === m.id}
+                    onClick={() => aceptar(m, s)}
+                  />
+                </Tooltip>
+              </div>
             ))}
 
             {enlazados === 0 && candidatas.length > 1 && (
@@ -609,39 +620,44 @@ const ConciliacionDetallePage: React.FC = () => {
                 {resultados.map((f) => (
                   <div
                     key={f.id}
-                    onClick={() => agregar(f)}
                     style={{
                       display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px',
-                      cursor: 'pointer', borderBottom: '1px solid #fafafa',
+                      borderBottom: '1px solid #fafafa',
                       opacity: elegidas.some((x) => x.id === f.id) ? 0.45 : 1,
                     }}
                   >
-                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.etiqueta}</Tag>
-                    {f.complemento && (
+                    <Tooltip title="Ver el documento">
                       <Tag
-                        color="purple"
+                        color="blue"
                         style={{ marginInlineEnd: 0, cursor: 'pointer' }}
-                        title="Ver el complemento de pago"
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          verDocumento('pago', f.complemento!.id, f.complemento!.folio);
-                        }}
+                        onClick={() => (esRetiro(movActivo)
+                          ? verDocumento('egreso', f.id, f.etiqueta, f.archivo)
+                          : verDocumento('factura', f.id, f.etiqueta))}
                       >
-                        {f.complemento.folio}
+                        {f.etiqueta}
                       </Tag>
+                    </Tooltip>
+                    {f.complemento && (
+                      <Tooltip title="Ver el complemento de pago">
+                        <Tag
+                          color="purple"
+                          style={{ marginInlineEnd: 0, cursor: 'pointer' }}
+                          onClick={() => verDocumento('pago', f.complemento!.id, f.complemento!.folio)}
+                        >
+                          {f.complemento.folio}
+                        </Tag>
+                      </Tooltip>
                     )}
                     <span style={{ flex: 1, fontSize: 13 }}>{f.detalle}</span>
                     <Text type="secondary" style={{ fontSize: 11 }}>{f.empresa}</Text>
                     <strong>{dinero(f.monto)}</strong>
                     <Button
-                      size="small" type="text" icon={<EyeOutlined />}
-                      title="Ver el documento"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        if (esRetiro(movActivo)) verDocumento('egreso', f.id, f.etiqueta, f.archivo);
-                        else verDocumento('factura', f.id, f.etiqueta);
-                      }}
-                    />
+                      size="small" type="primary" ghost icon={<PlusOutlined />}
+                      disabled={elegidas.some((x) => x.id === f.id)}
+                      onClick={() => agregar(f)}
+                    >
+                      Agregar
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -660,17 +676,30 @@ const ConciliacionDetallePage: React.FC = () => {
                   <div key={f.id} style={{
                     display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0',
                   }}>
-                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>{f.etiqueta}</Tag>
+                    <Tooltip title="Ver el documento">
+                      <Tag
+                        color="blue"
+                        style={{ marginInlineEnd: 0, cursor: 'pointer' }}
+                        onClick={() => (esRetiro(movActivo)
+                          ? verDocumento('egreso', f.id, f.etiqueta, f.archivo)
+                          : verDocumento('factura', f.id, f.etiqueta))}
+                      >
+                        {f.etiqueta}
+                      </Tag>
+                    </Tooltip>
+                    {f.complemento && (
+                      <Tooltip title="Ver el complemento de pago">
+                        <Tag
+                          color="purple"
+                          style={{ marginInlineEnd: 0, cursor: 'pointer' }}
+                          onClick={() => verDocumento('pago', f.complemento!.id, f.complemento!.folio)}
+                        >
+                          {f.complemento.folio}
+                        </Tag>
+                      </Tooltip>
+                    )}
                     <span style={{ flex: 1, fontSize: 13 }}>{f.detalle}</span>
                     <strong>{dinero(f.monto)}</strong>
-                    <Button
-                      size="small" type="text" icon={<EyeOutlined />}
-                      title="Ver el documento"
-                      onClick={() => {
-                        if (esRetiro(movActivo)) verDocumento('egreso', f.id, f.etiqueta, f.archivo);
-                        else verDocumento('factura', f.id, f.etiqueta);
-                      }}
-                    />
                     <Button size="small" type="text" danger onClick={() => quitar(f.id)}>
                       Quitar
                     </Button>
