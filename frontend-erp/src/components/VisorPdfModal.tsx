@@ -45,9 +45,12 @@ export const VisorPdfModal: React.FC<Props> = ({ url, titulo, nombreArchivo, onC
       })
       .catch((e: any) => {
         if (!vigente) return;
-        setError(e?.response?.status === 404
-          ? 'El archivo ya no está disponible en el servidor.'
-          : 'No se pudo abrir el documento.');
+        // Se nombra el documento y el código: sin eso, un fallo aquí era
+        // indistinguible de otro y no se sabía qué se estaba pidiendo.
+        const codigo = e?.response?.status;
+        setError(codigo === 404
+          ? `No se encontró el documento (${titulo}). Puede que no se haya generado todavía.`
+          : `No se pudo abrir ${titulo}${codigo ? ` (error ${codigo})` : ''}.`);
       })
       .finally(() => vigente && setCargando(false));
 

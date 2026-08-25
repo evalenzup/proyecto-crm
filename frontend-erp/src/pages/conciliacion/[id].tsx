@@ -96,7 +96,9 @@ const ConciliacionDetallePage: React.FC = () => {
   ) => {
     const url = conciliacionService.urlDocumento(tipo, id, archivo);
     if (!url) {
-      message.info('Ese gasto no tiene comprobante cargado en el sistema.');
+      // El mensaje nombra el documento: cuando sólo decía "ese gasto" no había
+      // forma de saber desde dónde se había pedido.
+      message.info(`El gasto «${etiqueta}» no tiene comprobante cargado en el sistema.`);
       return;
     }
     const titulos: Record<string, string> = {
