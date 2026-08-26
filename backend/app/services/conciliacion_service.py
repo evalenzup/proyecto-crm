@@ -30,7 +30,8 @@ from app.models.cliente import Cliente
 from app.models.empresa import Empresa
 from app.models.egreso import Egreso
 from app.models.factura import Factura
-from app.services import estado_cuenta_banamex as lector
+from app.services import estado_cuenta_banamex as lector_pdf
+from app.services import estado_cuenta_excel as lector_excel
 
 logger = logging.getLogger("app")
 
@@ -62,12 +63,38 @@ def importar(
     pdf_bytes: bytes,
     nombre_archivo: str,
     usuario_id: Optional[UUID] = None,
-) -> ConciliacionBancaria:
-    """Lee el PDF, valida que cuadre y lo archiva junto con sus movimientos."""
+) -> List[ConciliacionBancaria]:
+    """Lee el archivo, valida que cuadre y lo archiva junto con sus movimientos.
+
+    Acepta las dos fuentes. El Excel que el banco deja bajar por rango de fechas
+    es el camino habitual —el PDF no existe hasta el mes siguiente y la oficina
+    manda la conciliación en dos partes, del 1 al 15 y del 16 al cierre—; el PDF
+    sirve para los meses ya cerrados.
+
+    Un Excel puede traer varias hojas, una por quincena, y cada una se importa
+    como su propia conciliación: es justo como ellas trabajan.
+    """
+    es_excel = (nombre_archivo or "").lower().endswith((".xlsx", ".xlsm", ".xls"))
     try:
-        estado = lector.leer(pdf_bytes)
-    except lector.EstadoCuentaInvalido as exc:
+        periodos = (lector_excel.leer(pdf_bytes) if es_excel
+                    else [lector_pdf.leer(pdf_bytes)])
+    except lector_pdf.EstadoCuentaInvalido as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+    extension = ".xlsx" if es_excel else ".pdf"
+    creadas = [
+        _crear(db, empresa_id, e, pdf_bytes, nombre_archivo, extension, usuario_id)
+        for e in periodos
+    ]
+    db.commit()
+    for c in creadas:
+        db.refresh(c)
+    return creadas
+
+
+def _crear(db: Session, empresa_id: UUID, estado, contenido: bytes,
+           nombre_archivo: str, extension: str,
+           usuario_id: Optional[UUID]) -> ConciliacionBancaria:
 
     ya = (
         db.query(ConciliacionBancaria)
@@ -109,9 +136,9 @@ def importar(
 
     # El PDF se conserva: es el respaldo del trabajo ante la contadora
     os.makedirs(DIR_ESTADOS, exist_ok=True)
-    destino = os.path.join(DIR_ESTADOS, f"{conc.id}.pdf")
+    destino = os.path.join(DIR_ESTADOS, f"{conc.id}{extension}")
     with open(destino, "wb") as f:
-        f.write(pdf_bytes)
+        f.write(contenido)
     conc.archivo_path = destino
 
     for i, m in enumerate(estado.movimientos, start=1):
@@ -120,8 +147,6 @@ def importar(
             concepto=m.concepto, deposito=m.deposito, retiro=m.retiro,
         ))
 
-    db.commit()
-    db.refresh(conc)
     logger.info("[Conciliación] importado %s–%s: %d movimientos",
                 estado.periodo_inicio, estado.periodo_fin, len(estado.movimientos))
     return conc

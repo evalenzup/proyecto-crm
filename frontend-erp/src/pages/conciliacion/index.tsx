@@ -17,6 +17,7 @@ import conciliacionService, { ConciliacionResumen } from '@/services/conciliacio
 import { useEmpresaContext } from '@/context/EmpresaContext';
 import { useAuth } from '@/context/AuthContext';
 import VisorPdfModal from '@/components/VisorPdfModal';
+import api from '@/lib/axios';
 
 /** Los importes llegan como texto (Decimal serializado); hay que convertirlos
  *  antes de formatear o toLocaleString los devuelve tal cual. */
@@ -73,11 +74,26 @@ const ConciliacionesPage: React.FC = () => {
   const importar = async (archivo: File) => {
     setSubiendo(true);
     try {
-      const conc = await conciliacionService.importar(archivo, selectedEmpresaId ?? undefined);
-      message.success(
-        `Importado: ${conc.total_movimientos} movimientos de ${dayjs(conc.periodo_inicio).format('MMMM YYYY')}`,
-      );
-      router.push(`/conciliacion/${conc.id}`);
+      const creadas = await conciliacionService.importar(archivo, selectedEmpresaId ?? undefined);
+      if (creadas.length > 1) {
+        // El Excel del banco puede traer las dos quincenas: se avisa y se queda
+        // en la lista, para que elija con cuál empezar.
+        message.success(
+          `Se importaron ${creadas.length} periodos: ` +
+          creadas.map((x) =>
+            `${dayjs(x.periodo_inicio).format('DD/MM')}–${dayjs(x.periodo_fin).format('DD/MM')} ` +
+            `(${x.total_movimientos} movimientos)`).join(' · '),
+          6,
+        );
+        cargar();
+      } else {
+        const conc = creadas[0];
+        message.success(
+          `Importado: ${conc.total_movimientos} movimientos del ` +
+          `${dayjs(conc.periodo_inicio).format('DD/MM/YYYY')} al ${dayjs(conc.periodo_fin).format('DD/MM/YYYY')}`,
+        );
+        router.push(`/conciliacion/${conc.id}`);
+      }
     } catch (e: any) {
       // El backend explica por qué no cuadró; ese texto es el que importa.
       if (!e?._handled) {
@@ -87,6 +103,21 @@ const ConciliacionesPage: React.FC = () => {
       setSubiendo(false);
     }
     return false;   // Upload no sube por su cuenta
+  };
+
+  /** El Excel no se puede mostrar en pantalla: se descarga. */
+  const descargarOriginal = async (c: ConciliacionResumen) => {
+    try {
+      const { data } = await api.get(conciliacionService.urlPdf(c.id), { responseType: 'blob' });
+      const href = window.URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = c.archivo_nombre || `movimiento-${dayjs(c.periodo_inicio).format('YYYY-MM-DD')}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(href);
+    } catch (e: any) {
+      if (!e?._handled) message.error('No se pudo descargar el archivo');
+    }
   };
 
   const eliminar = (c: ConciliacionResumen) => {
@@ -186,8 +217,11 @@ const ConciliacionesPage: React.FC = () => {
             <Button
               size="small"
               icon={<FilePdfOutlined />}
-              title="Ver el estado de cuenta"
-              onClick={() => setVerPdf(c)}
+              title="Ver el archivo original"
+              onClick={() => {
+                if (conciliacionService.esPrevisualizable(c.archivo_nombre)) setVerPdf(c);
+                else descargarOriginal(c);
+              }}
             />
           )}
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => eliminar(c)} />
@@ -203,9 +237,9 @@ const ConciliacionesPage: React.FC = () => {
       <PageHeader
         title="Conciliación bancaria"
         extra={
-          <Upload accept=".pdf" showUploadList={false} beforeUpload={importar}>
+          <Upload accept=".xlsx,.xlsm,.xls,.pdf" showUploadList={false} beforeUpload={importar}>
             <Button type="primary" icon={<UploadOutlined />} loading={subiendo}>
-              Subir estado de cuenta
+              Subir movimiento de cuenta
             </Button>
           </Upload>
         }
@@ -213,13 +247,19 @@ const ConciliacionesPage: React.FC = () => {
       <div className="app-content">
         <Card size="small" variant="borderless">
           {items.length === 0 && !cargando ? (
-            <Upload.Dragger accept=".pdf" showUploadList={false} beforeUpload={importar}
+            <Upload.Dragger accept=".xlsx,.xlsm,.xls,.pdf" showUploadList={false} beforeUpload={importar}
                             disabled={subiendo} style={{ padding: 24 }}>
               <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-              <p className="ant-upload-text">Arrastra aquí el estado de cuenta en PDF</p>
+              <p className="ant-upload-text">
+                Arrastra aquí el Excel que descargas del banco
+              </p>
               <p className="ant-upload-hint">
-                Se leen los movimientos y se comprueba que cuadren con los totales del
-                banco. Si algo no cuadra, no se importa y se te dice por qué.
+                Puedes subir el movimiento de cuenta por quincena, o el archivo con las
+                dos: cada periodo queda en su propia conciliación. También acepta el PDF
+                del estado de cuenta para los meses ya cerrados.
+                <br />
+                Se comprueba que cuadre con los totales del banco; si no, no se importa
+                y se te dice por qué.
               </p>
             </Upload.Dragger>
           ) : (

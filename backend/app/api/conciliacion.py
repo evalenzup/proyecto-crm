@@ -96,6 +96,7 @@ def _conciliacion_out(c, con_movimientos: bool, db: Optional[Session] = None):
         n_depositos=c.n_depositos, n_retiros=c.n_retiros,
         total_movimientos=c.total_movimientos, conciliados=c.conciliados,
         tiene_archivo=bool(c.archivo_path and os.path.exists(c.archivo_path)),
+        archivo_nombre=c.archivo_nombre,
         creado_en=c.creado_en,
     )
     if con_movimientos:
@@ -123,7 +124,7 @@ def listar(
     return [_conciliacion_out(c, False) for c in svc.listar(db, eid)]
 
 
-@router.post("", response_model=ConciliacionDetalleOut, status_code=201)
+@router.post("", response_model=List[ConciliacionDetalleOut], status_code=201)
 async def importar(
     request: Request,
     archivo: UploadFile = File(...),
@@ -131,29 +132,40 @@ async def importar(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(deps.require_admin_or_above),
 ):
-    """Sube el estado de cuenta en PDF y crea la conciliación del periodo."""
+    """Sube el movimiento de cuenta y crea una conciliación por periodo.
+
+    Acepta el Excel que el banco deja bajar por rango de fechas —que es el
+    camino habitual, porque el PDF no existe hasta el mes siguiente— y también
+    el PDF para los meses ya cerrados. Un Excel con las dos quincenas en hojas
+    distintas produce dos conciliaciones.
+    """
     eid = _empresa_activa(empresa_id, current_user)
 
-    if not (archivo.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(status_code=422, detail="El archivo debe ser un PDF.")
+    nombre = archivo.filename or ""
+    if not nombre.lower().endswith((".pdf", ".xlsx", ".xlsm", ".xls")):
+        raise HTTPException(
+            status_code=422,
+            detail="El archivo debe ser el Excel que descargas del banco o el PDF "
+                   "del estado de cuenta.")
     contenido = await archivo.read()
     if len(contenido) > MAX_PDF_MB * 1024 * 1024:
         raise HTTPException(status_code=422,
-                            detail=f"El PDF no puede pesar más de {MAX_PDF_MB} MB.")
+                            detail=f"El archivo no puede pesar más de {MAX_PDF_MB} MB.")
 
-    conc = svc.importar(db, empresa_id=eid, pdf_bytes=contenido,
-                        nombre_archivo=archivo.filename or "estado.pdf",
-                        usuario_id=current_user.id)
-    audit_svc.registrar(
-        db, accion="IMPORTAR_ESTADO_CUENTA", entidad="conciliacion_bancaria",
-        usuario_id=current_user.id, usuario_email=current_user.email,
-        empresa_id=eid, entidad_id=str(conc.id),
-        detalle={"periodo": f"{conc.periodo_inicio}–{conc.periodo_fin}",
-                 "movimientos": conc.total_movimientos},
-        ip=audit_svc.get_ip(request),
-    )
+    creadas = svc.importar(db, empresa_id=eid, pdf_bytes=contenido,
+                           nombre_archivo=nombre or "estado.pdf",
+                           usuario_id=current_user.id)
+    for conc in creadas:
+        audit_svc.registrar(
+            db, accion="IMPORTAR_ESTADO_CUENTA", entidad="conciliacion_bancaria",
+            usuario_id=current_user.id, usuario_email=current_user.email,
+            empresa_id=eid, entidad_id=str(conc.id),
+            detalle={"periodo": f"{conc.periodo_inicio}–{conc.periodo_fin}",
+                     "movimientos": conc.total_movimientos, "archivo": nombre},
+            ip=audit_svc.get_ip(request),
+        )
     db.commit()
-    return _conciliacion_out(svc.obtener(db, conc.id), True, db)
+    return [_conciliacion_out(svc.obtener(db, c.id), True, db) for c in creadas]
 
 
 @router.get("/{conciliacion_id}", response_model=ConciliacionDetalleOut)
@@ -194,9 +206,13 @@ def descargar_pdf(
     conc = svc.obtener(db, conciliacion_id)
     if not conc.archivo_path or not os.path.exists(conc.archivo_path):
         raise HTTPException(status_code=404, detail="El archivo ya no está disponible.")
+    es_excel = conc.archivo_path.lower().endswith((".xlsx", ".xlsm", ".xls"))
     return FileResponse(
-        conc.archivo_path, media_type="application/pdf",
-        filename=conc.archivo_nombre or f"estado-{conc.periodo_inicio:%Y-%m}.pdf",
+        conc.archivo_path,
+        media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    if es_excel else "application/pdf"),
+        filename=conc.archivo_nombre or (
+            f"estado-{conc.periodo_inicio:%Y-%m}{'.xlsx' if es_excel else '.pdf'}"),
     )
 
 

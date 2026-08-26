@@ -132,6 +132,8 @@ class ConciliacionListOut(BaseModel):
     total_movimientos: int = 0
     conciliados: int = 0
     tiene_archivo: bool = False
+    # Para saber si el original se puede ver en pantalla (PDF) o sólo descargar
+    archivo_nombre: Optional[str] = None
     creado_en: datetime.datetime
 
     model_config = {"from_attributes": True}

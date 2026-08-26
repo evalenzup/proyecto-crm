@@ -533,8 +533,15 @@ const ConciliacionDetallePage: React.FC = () => {
               Volver
             </Button>
             {conc.tiene_archivo && (
-              <Button icon={<FilePdfOutlined />} onClick={() => setVerPdf(true)}>
-                Estado de cuenta
+              <Button
+                icon={<FilePdfOutlined />}
+                onClick={() => {
+                  if (conciliacionService.esPrevisualizable(conc.archivo_nombre)) setVerPdf(true);
+                  else descargar(conciliacionService.urlPdf(conc.id),
+                    conc.archivo_nombre || `movimiento-${dayjs(conc.periodo_inicio).format('YYYY-MM-DD')}.xlsx`);
+                }}
+              >
+                Archivo original
               </Button>
             )}
             <Button

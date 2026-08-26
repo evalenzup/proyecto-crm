@@ -91,6 +91,8 @@ export interface ConciliacionResumen {
   total_movimientos: number;
   conciliados: number;
   tiene_archivo: boolean;
+  /** Nombre del original; por la extensión se sabe si se puede ver o sólo bajar. */
+  archivo_nombre?: string | null;
   creado_en: string;
 }
 
@@ -114,8 +116,10 @@ const conciliacionService = {
     return data;
   },
 
-  /** Sube el estado de cuenta en PDF. El backend lo rechaza si no cuadra. */
-  importar: async (archivo: File, empresa_id?: string): Promise<ConciliacionDetalle> => {
+  /** Sube el movimiento de cuenta. Devuelve una conciliación por periodo: el
+   *  Excel del banco puede traer las dos quincenas en hojas distintas. El
+   *  backend lo rechaza si no cuadra. */
+  importar: async (archivo: File, empresa_id?: string): Promise<ConciliacionDetalle[]> => {
     const form = new FormData();
     form.append('archivo', archivo);
     const { data } = await api.post('/conciliacion', form, {
@@ -178,6 +182,10 @@ const conciliacionService = {
   },
 
   urlPdf: (id: string) => `/conciliacion/${id}/pdf`,
+
+  /** El original sólo se puede ver en pantalla si es PDF; el Excel se descarga. */
+  esPrevisualizable: (nombre?: string | null) =>
+    !!nombre && nombre.toLowerCase().endsWith('.pdf'),
 
   /** Documento de respaldo de una candidata, para revisarla antes de aceptar.
    *  La factura arma su PDF con el id; el egreso se sirve por su ruta. */
